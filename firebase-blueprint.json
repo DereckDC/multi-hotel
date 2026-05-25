@@ -1,0 +1,300 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with role-based access control and personal details.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique user ID (corresponds to Auth UID or guest ID)"
+        },
+        "nombre": {
+          "type": "string",
+          "description": "User first name"
+        },
+        "apellido": {
+          "type": "string",
+          "description": "User last name"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "User email address"
+        },
+        "telefono": {
+          "type": "string",
+          "description": "User phone number"
+        },
+        "documento": {
+          "type": "string",
+          "description": "Tax ID, DNI, NIE or passport number"
+        },
+        "avatar": {
+          "type": "string",
+          "description": "Profile picture URL"
+        },
+        "rol": {
+          "type": "string",
+          "enum": ["super_admin", "hotel_admin", "recepcionista", "cliente"],
+          "description": "Enterprise role defining system permissions"
+        },
+        "fechaRegistro": {
+          "type": "string",
+          "description": "ISO date string of registration"
+        },
+        "estado": {
+          "type": "string",
+          "enum": ["activo", "inactivo"],
+          "description": "Whether the user can log in"
+        },
+        "hotelId": {
+          "type": "string",
+          "description": "Assigned hotel ID for localized admin or receptionist accounts"
+        }
+      },
+      "required": ["id", "nombre", "apellido", "email", "telefono", "documento", "avatar", "rol", "fechaRegistro", "estado"]
+    },
+    "Hotel": {
+      "title": "Hotel",
+      "description": "Luxury hotel establishment configured in the system.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique hotel ID"
+        },
+        "nombre": {
+          "type": "string",
+          "description": "Hotel commercial name"
+        },
+        "logo": {
+          "type": "string",
+          "description": "Hotel logo URL"
+        },
+        "portada": {
+          "type": "string",
+          "description": "Hotel cover image URL"
+        },
+        "imagenes": {
+          "type": "array",
+          "description": "Gallery of pictures for booking views"
+        },
+        "descripcion": {
+          "type": "string",
+          "description": "Hotel narrative details"
+        },
+        "ubicacion": {
+          "type": "string",
+          "description": "Physical address"
+        },
+        "coordenadas": {
+          "type": "object",
+          "description": "Map GPS coordinates"
+        },
+        "servicios": {
+          "type": "array",
+          "description": "Boutique services and amenities list"
+        },
+        "politicas": {
+          "type": "array",
+          "description": "Hotel terms and policies"
+        },
+        "horarios": {
+          "type": "object",
+          "description": "Standard check-in/out hours"
+        },
+        "contacto": {
+          "type": "object",
+          "description": "Hotel contact phone, email and website info"
+        },
+        "redesSociales": {
+          "type": "object",
+          "description": "Social network profile links"
+        },
+        "estado": {
+          "type": "string",
+          "enum": ["activo", "inactivo"],
+          "description": "Operational status"
+        }
+      },
+      "required": ["id", "nombre", "logo", "portada", "descripcion", "ubicacion", "estado"]
+    },
+    "Room": {
+      "title": "Room",
+      "description": "Hotel suite rooms catalog defining availability, capacities, and pricing.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique room/suite ID"
+        },
+        "hotelId": {
+          "type": "string",
+          "description": "Parent hotel ID reference"
+        },
+        "numero": {
+          "type": "string",
+          "description": "Room number/tag (e.g. Suite 304)"
+        },
+        "nombre": {
+          "type": "string",
+          "description": "Suite promotional name"
+        },
+        "descripcion": {
+          "type": "string",
+          "description": "Detailed space features"
+        },
+        "precio": {
+          "type": "number",
+          "description": "Nightly price in local currency"
+        },
+        "capacidad": {
+          "type": "number",
+          "description": "Maximum guest capacity"
+        },
+        "camas": {
+          "type": "number",
+          "description": "Cots/beds count"
+        },
+        "tipo": {
+          "type": "string",
+          "enum": ["Estándar", "Doble", "Triple", "Suite", "Suite Presidencial"],
+          "description": "Room class categorization"
+        },
+        "imagenes": {
+          "type": "array",
+          "description": "Suite photos gallery"
+        },
+        "servicios": {
+          "type": "array",
+          "description": "Room-specific special features"
+        },
+        "estado": {
+          "type": "string",
+          "enum": ["disponible", "reservado", "ocupado", "mantenimiento"],
+          "description": "Current real-time operational status"
+        }
+      },
+      "required": ["id", "hotelId", "numero", "nombre", "descripcion", "precio", "capacidad", "camas", "tipo", "estado"]
+    },
+    "Reservation": {
+      "title": "Reservation",
+      "description": "Booking records linking client guests, suites, dates, pricing, check state, and validation QR codes.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique booking identifier"
+        },
+        "hotelId": {
+          "type": "string",
+          "description": "Target hotel ID"
+        },
+        "roomId": {
+          "type": "string",
+          "description": "Booked suite ID"
+        },
+        "guestId": {
+          "type": "string",
+          "description": "ID of the guest client who books"
+        },
+        "fechaEntrada": {
+          "type": "string",
+          "description": "Stay arrival date (YYYY-MM-DD)"
+        },
+        "fechaSalida": {
+          "type": "string",
+          "description": "Stay check-out date (YYYY-MM-DD)"
+        },
+        "serviciosAdicionales": {
+          "type": "array",
+          "description": "Ancillary additions purchased"
+        },
+        "subtotal": {
+          "type": "number"
+        },
+        "impuestos": {
+          "type": "number"
+        },
+        "total": {
+          "type": "number",
+          "description": "Total checkout price paid"
+        },
+        "qrCode": {
+          "type": "string",
+          "description": "QR identity payload for instant front-desk checking"
+        },
+        "estado": {
+          "type": "string",
+          "enum": ["pendiente", "confirmada", "ocupada", "finalizada", "cancelada"],
+          "description": "Check-in progress status"
+        },
+        "fechaRegistro": {
+          "type": "string"
+        },
+        "checkedInAt": {
+          "type": "string"
+        },
+        "checkedOutAt": {
+          "type": "string"
+        },
+        "recepcionistaId": {
+          "type": "string"
+        },
+        "notas": {
+          "type": "string"
+        }
+      },
+      "required": ["id", "hotelId", "roomId", "guestId", "fechaEntrada", "fechaSalida", "subtotal", "impuestos", "total", "qrCode", "estado", "fechaRegistro"]
+    },
+    "ActivityLog": {
+      "title": "ActivityLog",
+      "description": "Audit Trail tracks operations made in the system.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string"
+        },
+        "user": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "action": {
+          "type": "string"
+        },
+        "detalles": {
+          "type": "string"
+        }
+      },
+      "required": ["id", "timestamp", "user", "role", "action", "detalles"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Root collection storing registered system users and guests."
+    },
+    "/hotels/{hotelId}": {
+      "schema": "Hotel",
+      "description": "Root collection detailing all hotels and resorts."
+    },
+    "/rooms/{roomId}": {
+      "schema": "Room",
+      "description": "Central catalog listing suites with state status."
+    },
+    "/reservations/{reservationId}": {
+      "schema": "Reservation",
+      "description": "Central ledger storing all PMS reservation statuses."
+    },
+    "/logs/{logId}": {
+      "schema": "ActivityLog",
+      "description": "Global audit logs tracking administrative actions."
+    }
+  }
+}
