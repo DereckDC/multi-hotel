@@ -1,0 +1,10 @@
+{
+  "name": "Multi-Hotel Management System",
+  "description": "A professional SaaS PMS to manage multiple hotels, bookings, room states, check-ins with QR validation, and advanced reporting dashboards.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

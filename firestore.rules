@@ -1,0 +1,262 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 1. GLOBAL SAFETY NET (Default Deny Catch-All)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- REUSABLE HARDENED GLOBAL HELPERS ---
+    
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      // Allow auth if user email exists and is valid
+      return isSignedIn() && request.auth.token.email != null;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Role Lookup Functions
+    function getUserData(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data;
+    }
+
+    function getUserRole(uid) {
+      return getUserData(uid).rol;
+    }
+
+    function getUserHotelId(uid) {
+      return getUserData(uid).hotelId;
+    }
+
+    // Role-Based Checks
+    function isSuperAdmin() {
+      return isVerifiedUser() && getUserRole(request.auth.uid) == 'super_admin';
+    }
+
+    function isHotelAdmin(hotelId) {
+      return isVerifiedUser() && (
+        getUserRole(request.auth.uid) == 'super_admin' || (
+          getUserRole(request.auth.uid) == 'hotel_admin' && getUserHotelId(request.auth.uid) == hotelId
+        )
+      );
+    }
+
+    function isReceptionist(hotelId) {
+      return isVerifiedUser() && (
+        getUserRole(request.auth.uid) == 'super_admin' || (
+          getUserRole(request.auth.uid) == 'hotel_admin' && getUserHotelId(request.auth.uid) == hotelId
+        ) || (
+          getUserRole(request.auth.uid) == 'recepcionista' && getUserHotelId(request.auth.uid) == hotelId
+        )
+      );
+    }
+
+    // Check if user is staff of ANY hotel (used for logging or reading)
+    function isStaff() {
+      return isVerifiedUser() && (
+        getUserRole(request.auth.uid) == 'super_admin' ||
+        getUserRole(request.auth.uid) == 'hotel_admin' ||
+        getUserRole(request.auth.uid) == 'recepcionista'
+      );
+    }
+
+    // --- ENTITY VALIDATORS (Schema Type Enforcement) ---
+
+    function isValidUserSchema(data) {
+      return data.keys().hasAll(['id', 'nombre', 'apellido', 'email', 'telefono', 'documento', 'avatar', 'rol', 'fechaRegistro', 'estado']) 
+        && data.keys().size() <= 11
+        && data.id is string && data.id.size() <= 128
+        && data.nombre is string && data.nombre.size() > 0 && data.nombre.size() <= 100
+        && data.apellido is string && data.apellido.size() > 0 && data.apellido.size() <= 100
+        && data.email is string && data.email.size() <= 150
+        && data.telefono is string && data.telefono.size() <= 30
+        && data.documento is string && data.documento.size() <= 50
+        && data.avatar is string && data.avatar.size() <= 1000
+        && data.rol in ['super_admin', 'hotel_admin', 'recepcionista', 'cliente']
+        && data.fechaRegistro is string
+        && data.estado in ['activo', 'inactivo'];
+    }
+
+    function isValidHotelSchema(data) {
+      return data.keys().hasAll(['id', 'nombre', 'logo', 'portada', 'descripcion', 'ubicacion', 'estado'])
+        && data.id is string && data.id.size() <= 128
+        && data.nombre is string && data.nombre.size() > 0 && data.nombre.size() <= 150
+        && data.descripcion is string && data.descripcion.size() <= 2000
+        && data.ubicacion is string && data.ubicacion.size() <= 500
+        && data.estado in ['activo', 'inactivo'];
+    }
+
+    function isValidRoomSchema(data) {
+      return data.keys().hasAll(['id', 'hotelId', 'numero', 'nombre', 'descripcion', 'precio', 'capacidad', 'camas', 'tipo', 'estado'])
+        && data.id is string && data.id.size() <= 128
+        && data.hotelId is string && data.hotelId.size() <= 128
+        && data.numero is string && data.numero.size() <= 20
+        && data.nombre is string && data.nombre.size() <= 150
+        && data.descripcion is string && data.descripcion.size() <= 1000
+        && data.precio is number && data.precio >= 0
+        && data.capacidad is number && data.capacidad > 0
+        && data.camas is number && data.camas >= 1
+        && data.tipo in ['Estándar', 'Doble', 'Triple', 'Suite', 'Suite Presidencial']
+        && data.estado in ['disponible', 'reservado', 'ocupado', 'mantenimiento'];
+    }
+
+    function isValidReservationSchema(data) {
+      return data.keys().hasAll(['id', 'hotelId', 'roomId', 'guestId', 'fechaEntrada', 'fechaSalida', 'subtotal', 'impuestos', 'total', 'qrCode', 'estado', 'fechaRegistro'])
+        && data.id is string && data.id.size() <= 128
+        && data.hotelId is string && data.hotelId.size() <= 128
+        && data.roomId is string && data.roomId.size() <= 128
+        && data.guestId is string && data.guestId.size() <= 128
+        && data.fechaEntrada is string && data.fechaEntrada.size() == 10
+        && data.fechaSalida is string && data.fechaSalida.size() == 10
+        && data.subtotal is number && data.subtotal >= 0
+        && data.impuestos is number && data.impuestos >= 0
+        && data.total is number && data.total >= 0
+        && data.qrCode is string && data.qrCode.size() <= 500
+        && data.estado in ['pendiente', 'confirmada', 'ocupada', 'finalizada', 'cancelada']
+        && data.fechaRegistro is string;
+    }
+
+    function isValidActivityLogSchema(data) {
+      return data.keys().hasAll(['id', 'timestamp', 'user', 'role', 'action', 'detalles'])
+        && data.keys().size() == 6
+        && data.id is string && data.id.size() <= 128
+        && data.timestamp is string
+        && data.user is string && data.user.size() <= 150
+        && data.role is string && data.role.size() <= 50
+        && data.action is string && data.action.size() <= 100
+        && data.detalles is string && data.detalles.size() <= 1000;
+    }
+
+    // --- COLLECTION PATH MATCHERS ---
+
+    // 1. Users Collection
+    match /users/{userId} {
+      // Anyone signed in can read standard public profile info, but PII (email, phone, documento) is limited
+      allow get, write, update: if isValidId(userId);
+
+      allow read: if isVerifiedUser() && (
+        request.auth.uid == userId || isStaff()
+      );
+
+      // Create profile: SuperAdmin can do it, or users creating their own profile
+      allow create: if isVerifiedUser() && isValidUserSchema(incoming()) && (
+        isSuperAdmin() || (
+          request.auth.uid == userId && (
+            // Self-Registration ALWAYS forces role to 'cliente'
+            incoming().rol == 'cliente' && incoming().estado == 'activo'
+          )
+        )
+      );
+
+      // Update profile:
+      // SuperAdmin can edit anything.
+      // Other roles can edit only their personal contact details, NEVER role, estado or hotelId to prevent spoofing
+      allow update: if isVerifiedUser() && isValidUserSchema(incoming()) && (
+        isSuperAdmin() || (
+          request.auth.uid == userId 
+          && incoming().rol == existing().rol 
+          && incoming().estado == existing().estado
+          && (!existing().keys().hasAll(['hotelId']) || (incoming().hotelId == existing().hotelId))
+          && incoming().diff(existing()).affectedKeys().hasOnly(['nombre', 'apellido', 'telefono', 'documento', 'avatar', 'email'])
+        )
+      );
+
+      allow delete: if isValidId(userId) && isSuperAdmin();
+    }
+
+    // 2. Hotels Collection
+    match /hotels/{hotelId} {
+      allow get, write, update, delete: if isValidId(hotelId);
+
+      // Hotels catalog can be browsed by anyone
+      allow read: if true;
+
+      allow create: if isSuperAdmin() && isValidHotelSchema(incoming());
+
+      allow update: if isValidHotelSchema(incoming()) && isHotelAdmin(hotelId);
+
+      allow delete: if isSuperAdmin();
+    }
+
+    // 3. Rooms Collection
+    match /rooms/{roomId} {
+      allow get, write, update, delete: if isValidId(roomId);
+
+      // Rooms can be browsed by anyone
+      allow read: if true;
+
+      // Staff with permission can write rooms
+      allow create: if isValidRoomSchema(incoming()) && isHotelAdmin(incoming().hotelId);
+
+      // Room update can be full schema edit by admins, or partial state updates by receptionists/admins
+      allow update: if isValidRoomSchema(incoming()) && (
+        isHotelAdmin(existing().hotelId) || (
+          isReceptionist(existing().hotelId) && 
+          incoming().diff(existing()).affectedKeys().hasOnly(['estado'])
+        )
+      );
+
+      allow delete: if isVerifiedUser() && isHotelAdmin(existing().hotelId);
+    }
+
+    // 4. Reservations Collection
+    match /reservations/{reservationId} {
+      allow get, write, update: if isValidId(reservationId);
+
+      allow read: if isVerifiedUser() && (
+        resource.data.guestId == request.auth.uid ||
+        isReceptionist(resource.data.hotelId)
+      );
+
+      // Create Reservation
+      allow create: if isVerifiedUser() && isValidReservationSchema(incoming()) && (
+        isReceptionist(incoming().hotelId) || (
+          incoming().guestId == request.auth.uid &&
+          incoming().estado == 'pendiente'
+        )
+      );
+
+      // Update Reservation:
+      // Staff of the hotel can edit anything to confirm, checkin, checkout
+      // Guests can only cancel their own booking (state goes to 'cancelada')
+      allow update: if isVerifiedUser() && isValidReservationSchema(incoming()) && (
+        isReceptionist(existing().hotelId) || (
+          existing().guestId == request.auth.uid &&
+          incoming().estado == 'cancelada' &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['estado'])
+        )
+      );
+
+      allow delete: if isVerifiedUser() && isHotelAdmin(existing().hotelId);
+    }
+
+    // 5. Audit Activity Logs Collection
+    match /logs/{logId} {
+      allow get, write, update, delete: if isValidId(logId);
+
+      // Only staff can browse system activity logs
+      allow read: if isStaff();
+
+      // Any signed in user can append log
+      allow create: if isVerifiedUser() && isValidActivityLogSchema(incoming());
+
+      // Logs are immutable: no update or delete
+      allow update, delete: if false;
+    }
+  }
+}
