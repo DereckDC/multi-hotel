@@ -248,6 +248,7 @@ export default function App() {
                   statistics={stats}
                   onUpdateRoomStatus={updateRoomStatus}
                   onUpdateReservationStatus={updateReservationStatus}
+                  onSyncAllToSupabase={store.syncAllToSupabase}
                 />
               )}
             </motion.div>

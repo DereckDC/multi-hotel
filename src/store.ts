@@ -18,6 +18,14 @@ import {
   query, 
   limit 
 } from 'firebase/firestore';
+import {
+  syncHotelToSupabase,
+  syncRoomToSupabase,
+  syncUserToSupabase,
+  syncReservationToSupabase,
+  syncLogToSupabase,
+  deleteRowFromSupabase
+} from './supabase';
 
 // Safe standard local storage storage key constants
 const STORAGE_PREFIX = 'aura_hotel_pms_';
@@ -286,6 +294,12 @@ export function useHotelStore() {
     } catch (e) {
       // Quietly skip for client updates
     }
+
+    try {
+      await syncLogToSupabase(newLog);
+    } catch (supabaseErr) {
+      console.warn("Silent Supabase log sync error:", supabaseErr);
+    }
   };
 
   // Switch active session on login
@@ -359,6 +373,12 @@ export function useHotelStore() {
       console.warn("Firestore saveHotel rejected:", error);
     }
 
+    try {
+      await syncHotelToSupabase(hotel);
+    } catch (err) {
+      console.warn("Supabase saveHotel sync error:", err);
+    }
+
     addLog(
       `${activeUser.nombre} ${activeUser.apellido}`,
       activeUser.rol,
@@ -386,6 +406,13 @@ export function useHotelStore() {
       console.warn("Firestore deleteHotel rejected:", error);
     }
 
+    // Supabase delete hotel
+    try {
+      await deleteRowFromSupabase('hotels', hotelId);
+    } catch (err) {
+      console.warn("Supabase deleteHotel error:", err);
+    }
+
     // Firestore delete associated rooms
     for (const room of roomsToDelete) {
       try {
@@ -393,10 +420,16 @@ export function useHotelStore() {
       } catch (err) {
         console.warn(`Firestore deleteRoom for room ${room.id} failed:`, err);
       }
+      try {
+        await deleteRowFromSupabase('rooms', room.id);
+      } catch (err) {
+        console.warn(`Supabase deleteRoom for room ${room.id} failed:`, err);
+      }
     }
 
     // Firestore unlink associated admins/receptionists
     for (const u of usersToUnlink) {
+      const updatedUser = { ...u, hotelId: undefined };
       try {
         await updateDoc(doc(db, 'users', u.id), { hotelId: null });
       } catch (err) {
@@ -406,6 +439,11 @@ export function useHotelStore() {
         } catch (e) {
           console.warn(`Fallback setDoc for user ${u.id} failed:`, e);
         }
+      }
+      try {
+        await syncUserToSupabase(updatedUser);
+      } catch (err) {
+        console.warn(`Supabase unlink user ${u.id} failed:`, err);
       }
     }
 
@@ -434,6 +472,12 @@ export function useHotelStore() {
       console.warn("Firestore saveRoom rejected:", error);
     }
 
+    try {
+      await syncRoomToSupabase(room);
+    } catch (err) {
+      console.warn("Supabase saveRoom sync error:", err);
+    }
+
     const parentHotel = hotels.find(h => h.id === room.hotelId);
     addLog(
       `${activeUser.nombre} ${activeUser.apellido}`,
@@ -451,6 +495,12 @@ export function useHotelStore() {
       await deleteDoc(doc(db, 'rooms', roomId));
     } catch (error) {
       console.warn("Firestore deleteRoom rejected:", error);
+    }
+
+    try {
+      await deleteRowFromSupabase('rooms', roomId);
+    } catch (err) {
+      console.warn("Supabase deleteRoom error:", err);
     }
 
     addLog(
@@ -900,6 +950,111 @@ export function useHotelStore() {
     };
   };
 
+  const syncAllToSupabase = async (): Promise<{
+    success: boolean;
+    details: {
+      hotels: { count: number; error?: string };
+      rooms: { count: number; error?: string };
+      users: { count: number; error?: string };
+      reservations: { count: number; error?: string };
+      logs: { count: number; error?: string };
+    };
+  }> => {
+    const details = {
+      hotels: { count: 0, error: undefined as string | undefined },
+      rooms: { count: 0, error: undefined as string | undefined },
+      users: { count: 0, error: undefined as string | undefined },
+      reservations: { count: 0, error: undefined as string | undefined },
+      logs: { count: 0, error: undefined as string | undefined },
+    };
+
+    // 1. Sync Hotels
+    let hotelsErr = '';
+    for (const h of hotels) {
+      try {
+        const res = await syncHotelToSupabase(h);
+        if (res.success) {
+          details.hotels.count++;
+        } else {
+          hotelsErr = res.error || 'Error desconocido';
+        }
+      } catch (e: any) {
+        hotelsErr = e.message || String(e);
+      }
+    }
+    if (hotelsErr) details.hotels.error = hotelsErr;
+
+    // 2. Sync Rooms
+    let roomsErr = '';
+    for (const r of rooms) {
+      try {
+        const res = await syncRoomToSupabase(r);
+        if (res.success) {
+          details.rooms.count++;
+        } else {
+          roomsErr = res.error || 'Error desconocido';
+        }
+      } catch (e: any) {
+        roomsErr = e.message || String(e);
+      }
+    }
+    if (roomsErr) details.rooms.error = roomsErr;
+
+    // 3. Sync Users
+    let usersErr = '';
+    for (const u of users) {
+      try {
+        const res = await syncUserToSupabase(u);
+        if (res.success) {
+          details.users.count++;
+        } else {
+          usersErr = res.error || 'Error desconocido';
+        }
+      } catch (e: any) {
+        usersErr = e.message || String(e);
+      }
+    }
+    if (usersErr) details.users.error = usersErr;
+
+    // 4. Sync Reservations
+    let rsvErr = '';
+    for (const res of reservations) {
+      try {
+        const r = await syncReservationToSupabase(res);
+        if (r.success) {
+          details.reservations.count++;
+        } else {
+          rsvErr = r.error || 'Error desconocido';
+        }
+      } catch (e: any) {
+        rsvErr = e.message || String(e);
+      }
+    }
+    if (rsvErr) details.reservations.error = rsvErr;
+
+    // 5. Sync Logs
+    let logsErr = '';
+    for (const l of logs) {
+      try {
+        const res = await syncLogToSupabase(l);
+        if (res.success) {
+          details.logs.count++;
+        } else {
+          logsErr = res.error || 'Error desconocido';
+        }
+      } catch (e: any) {
+        logsErr = e.message || String(e);
+      }
+    }
+    if (logsErr) details.logs.error = logsErr;
+
+    const hasErrors = !!(details.hotels.error || details.rooms.error || details.users.error || details.reservations.error || details.logs.error);
+    return {
+      success: !hasErrors,
+      details
+    };
+  };
+
   return {
     hotels,
     rooms,
@@ -926,6 +1081,7 @@ export function useHotelStore() {
     updateReservationStatus,
     performCheckIn,
     performCheckOut,
-    getStatistics
+    getStatistics,
+    syncAllToSupabase
   };
 }

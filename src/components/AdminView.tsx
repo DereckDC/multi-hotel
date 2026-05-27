@@ -6,9 +6,10 @@
 import React, { useState } from 'react';
 import { Hotel, Room, User, Reservation, RoomStatus, UserRole } from '../types';
 import { RoomReservationCalendar } from './RoomReservationCalendar';
+import { SUPABASE_SQL_SCHEMA } from '../supabase';
 
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, AreaChart, Area } from 'recharts';
-import { Plus, Edit3, Trash2, Shield, Users, HotelIcon, List, LayoutDashboard, Calendar, DollarSign, Percent, TrendingUp, AlertCircle, MapPin, EyeOff, ClipboardList, ToggleLeft, ToggleRight, Check, X, Upload } from 'lucide-react';
+import { Plus, Edit3, Trash2, Shield, Users, HotelIcon, List, LayoutDashboard, Calendar, DollarSign, Percent, TrendingUp, AlertCircle, MapPin, EyeOff, ClipboardList, ToggleLeft, ToggleRight, Check, X, Upload, Database, Sparkles, Copy } from 'lucide-react';
 
 export function getMapEmbedUrl(ubicacion: string, googleMapsUrl?: string): string {
   if (!ubicacion && !googleMapsUrl) return '';
@@ -72,6 +73,16 @@ interface AdminViewProps {
   statistics: any;
   onUpdateRoomStatus?: (roomId: string, status: RoomStatus, staffName?: string, staffRole?: string, changeMessage?: string) => void;
   onUpdateReservationStatus?: (resId: string, status: any, staffName?: string, staffRole?: string, changeMessage?: string) => void;
+  onSyncAllToSupabase?: () => Promise<{
+    success: boolean;
+    details: {
+      hotels: { count: number; error?: string };
+      rooms: { count: number; error?: string };
+      users: { count: number; error?: string };
+      reservations: { count: number; error?: string };
+      logs: { count: number; error?: string };
+    };
+  }>;
 }
 
 export default function AdminView({
@@ -90,10 +101,11 @@ export default function AdminView({
   onToggleUserStatus,
   statistics,
   onUpdateRoomStatus,
-  onUpdateReservationStatus
+  onUpdateReservationStatus,
+  onSyncAllToSupabase
 }: AdminViewProps) {
-  // Navigation tabs within Admin: 'dashboard' | 'hotels' | 'rooms' | 'users' | 'logs' | 'reservations'
-  const [adminTab, setAdminTab] = useState<'dashboard' | 'hotels' | 'rooms' | 'users' | 'logs' | 'reservations'>('dashboard');
+  // Navigation tabs within Admin: 'dashboard' | 'hotels' | 'rooms' | 'users' | 'logs' | 'reservations' | 'supabase'
+  const [adminTab, setAdminTab] = useState<'dashboard' | 'hotels' | 'rooms' | 'users' | 'logs' | 'reservations' | 'supabase'>('dashboard');
 
   // RBAC Access Control checking
   const isSuper = activeUser.rol === 'super_admin';
@@ -174,6 +186,12 @@ export default function AdminView({
   const [showResStatusModal, setShowResStatusModal] = useState(false);
   const [newResStatus, setNewResStatus] = useState<any>(null);
   const [statusChangeMessage, setStatusChangeMessage] = useState("");
+
+  // Supabase states for database administration and setup
+  const [supabaseSyncLoading, setSupabaseSyncLoading] = useState(false);
+  const [supabaseSyncResult, setSupabaseSyncResult] = useState<any | null>(null);
+  const [sqlCopied, setSqlCopied] = useState(false);
+  const [supabaseTabError, setSupabaseTabError] = useState("");
 
   // Calculate reservations for the "Reservas" tab
   const getFilteredReservations = () => {
@@ -503,6 +521,15 @@ export default function AdminView({
           >
             <Calendar className="w-4 h-4" />
             <span>Reservas</span>
+          </button>
+          <button
+            onClick={() => setAdminTab('supabase')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
+              adminTab === 'supabase' ? 'bg-[#3ECF8E] text-slate-900 shadow font-bold' : 'text-neutral-500 hover:bg-[#3ECF8E]/10 hover:text-emerald-700'
+            }`}
+          >
+            <Database className="w-4 h-4" />
+            <span>Base de Datos Supabase</span>
           </button>
         </div>
       </div>
@@ -1229,6 +1256,238 @@ export default function AdminView({
               </table>
             </div>
           </div>
+        </div>
+      )}
+
+
+      {/* SUPABASE CONTROL & SYNC PANEL */}
+      {adminTab === 'supabase' && (
+        <div className="space-y-8 animate-fade-in text-xs font-sans">
+          
+          {/* Header Card */}
+          <div className="bg-neutral-900 text-white p-6 rounded-3xl space-y-4 shadow-xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
+              <Database className="w-40 h-40 text-[#3ECF8E]" />
+            </div>
+            <div className="relative z-10 flex items-center gap-3">
+              <div className="p-2 bg-[#3ECF8E]/20 rounded-xl text-[#3ECF8E] border border-[#3ECF8E]/30">
+                <Database className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-lg font-black tracking-tight flex items-center gap-2">
+                  Panel de Sincronización Supabase
+                  <span className="text-[9px] bg-[#3ECF8E]/10 border border-[#3ECF8E]/40 text-[#3ECF8E] px-2 py-0.5 rounded font-mono font-bold uppercase tracking-wider">Activo</span>
+                </h3>
+                <p className="text-xs text-neutral-300">Conectado y sincronizando el motor relacional de Roomia SaaS en la plataforma Supabase Cloud.</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+              <div className="bg-neutral-950/40 p-3 rounded-xl border border-neutral-800 space-y-1">
+                <span className="text-[10px] text-neutral-400 font-bold uppercase font-mono tracking-wider">PROJECT NAME</span>
+                <span className="block font-bold text-neutral-200">RoomiaSaaS</span>
+              </div>
+              <div className="bg-neutral-950/40 p-3 rounded-xl border border-neutral-800 space-y-1">
+                <span className="text-[10px] text-neutral-400 font-bold uppercase font-mono tracking-wider">PROJECT ID</span>
+                <span className="block font-mono text-neutral-200">zsncctegjwzqssjzobtn</span>
+              </div>
+              <div className="bg-neutral-950/40 p-3 rounded-xl border border-neutral-800 space-y-1">
+                <span className="text-[10px] text-neutral-400 font-bold uppercase font-mono tracking-wider">API ENDPOINT</span>
+                <span className="block font-mono text-emerald-400 truncate text-[11px]" title="https://zsncctegjwzqssjzobtn.supabase.co/rest/v1/">https://zsncctegjwzqssjzobtn...</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            {/* Left Actions column */}
+            <div className="lg:col-span-4 space-y-6">
+              
+              <div className="bg-white p-6 rounded-2xl border border-neutral-200 space-y-4 shadow-sm">
+                <div className="flex items-center gap-2 border-b border-neutral-100 pb-3">
+                  <Sparkles className="w-5 h-5 text-neutral-700" />
+                  <h4 className="font-bold text-neutral-800 text-sm">Ejecutar Sincronización Manual</h4>
+                </div>
+                
+                <p className="text-xs text-neutral-500 leading-relaxed">
+                  Roomia SaaS sincroniza automáticamente cada inserción, edición y eliminación de datos a Supabase en tiempo real. 
+                  Sin embargo, si se importó nueva información o desea resincronizar toda la base de datos de una sola vez, pulse a continuación.
+                </p>
+
+                {supabaseTabError && (
+                  <div className="bg-red-50 text-red-800 border border-red-200 p-3 rounded-xl flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                    <span className="text-xs font-semibold">{supabaseTabError}</span>
+                  </div>
+                )}
+
+                <button
+                  onClick={async () => {
+                    if (!onSyncAllToSupabase) return;
+                    setSupabaseSyncLoading(true);
+                    setSupabaseTabError("");
+                    setSupabaseSyncResult(null);
+                    try {
+                      const res = await onSyncAllToSupabase();
+                      setSupabaseSyncResult(res);
+                      if (!res.success) {
+                        setSupabaseTabError("Algunas tablas no pudieron sincronizarse debido a restricciones de base de datos. Asegúrese de haber creado las tablas utilizando el script SQL de la derecha.");
+                      }
+                    } catch (err: any) {
+                      setSupabaseTabError(err.message || String(err));
+                    } finally {
+                      setSupabaseSyncLoading(false);
+                    }
+                  }}
+                  disabled={supabaseSyncLoading}
+                  className="w-full py-3 bg-[#3ECF8E] hover:bg-[#3bf09d] disabled:bg-neutral-200 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer transition-all shadow shadow-[#3ECF8E]/30"
+                >
+                  {supabaseSyncLoading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin"></div>
+                      <span>Sincronizando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Database className="w-4 h-4" />
+                      <span>Sincronizar base de datos completa</span>
+                    </>
+                  )}
+                </button>
+
+                {/* Sync stats feedback */}
+                {supabaseSyncResult && (
+                  <div className="bg-neutral-50 p-4 rounded-xl border border-neutral-150 space-y-3 animate-fade-in">
+                    <div className="flex justify-between items-center text-[10px] font-bold text-neutral-400 font-mono">
+                      <span>DATOS SINCRONIZADOS</span>
+                      <span className={supabaseSyncResult.success ? 'text-emerald-600' : 'text-amber-600'}>
+                        {supabaseSyncResult.success ? '✓ ÉXITO TOTAL' : '⚠ COMPLETO CON ADVERTENCIAS'}
+                      </span>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center bg-white p-2 rounded-lg border border-neutral-100">
+                        <span className="font-semibold text-neutral-700">Hoteles</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono bg-neutral-100 text-neutral-600 px-2 py-0.5 rounded font-bold">{supabaseSyncResult.details.hotels.count}</span>
+                          {supabaseSyncResult.details.hotels.error ? (
+                            <span className="text-red-500 font-bold" title={supabaseSyncResult.details.hotels.error}>⚠️</span>
+                          ) : (
+                            <span className="text-emerald-500 font-bold">✓</span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex justify-between items-center bg-white p-2 rounded-lg border border-neutral-100">
+                        <span className="font-semibold text-neutral-700">Habitaciones (Rooms)</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono bg-neutral-100 text-neutral-600 px-2 py-0.5 rounded font-bold">{supabaseSyncResult.details.rooms.count}</span>
+                          {supabaseSyncResult.details.rooms.error ? (
+                            <span className="text-red-500 font-bold" title={supabaseSyncResult.details.rooms.error}>⚠️</span>
+                          ) : (
+                            <span className="text-emerald-500 font-bold">✓</span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex justify-between items-center bg-white p-2 rounded-lg border border-neutral-100">
+                        <span className="font-semibold text-neutral-700">Usuarios (Users)</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono bg-neutral-100 text-neutral-600 px-2 py-0.5 rounded font-bold">{supabaseSyncResult.details.users.count}</span>
+                          {supabaseSyncResult.details.users.error ? (
+                            <span className="text-red-500 font-bold" title={supabaseSyncResult.details.users.error}>⚠️</span>
+                          ) : (
+                            <span className="text-emerald-500 font-bold">✓</span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex justify-between items-center bg-white p-2 rounded-lg border border-neutral-100">
+                        <span className="font-semibold text-neutral-700">Reservaciones</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono bg-neutral-100 text-neutral-600 px-2 py-0.5 rounded font-bold">{supabaseSyncResult.details.reservations.count}</span>
+                          {supabaseSyncResult.details.reservations.error ? (
+                            <span className="text-red-500 font-bold" title={supabaseSyncResult.details.reservations.error}>⚠️</span>
+                          ) : (
+                            <span className="text-emerald-500 font-bold">✓</span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex justify-between items-center bg-white p-2 rounded-lg border border-neutral-100">
+                        <span className="font-semibold text-neutral-700">Auditoría (Logs)</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono bg-neutral-100 text-neutral-600 px-2 py-0.5 rounded font-bold">{supabaseSyncResult.details.logs.count}</span>
+                          {supabaseSyncResult.details.logs.error ? (
+                            <span className="text-red-500 font-bold" title={supabaseSyncResult.details.logs.error}>⚠️</span>
+                          ) : (
+                            <span className="text-emerald-500 font-bold">✓</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+            </div>
+
+            {/* SQL Script / Supabase Setup Guides column */}
+            <div className="lg:col-span-8 space-y-6">
+              
+              <div className="bg-white p-6 rounded-2xl border border-neutral-200 space-y-4 shadow-sm">
+                <div className="flex justify-between items-center border-b border-neutral-100 pb-3">
+                  <div className="flex items-center gap-2">
+                    <ClipboardList className="w-5 h-5 text-neutral-700" />
+                    <div>
+                      <h4 className="font-bold text-neutral-800 text-sm">Scripts de Estructuras SQL para Supabase</h4>
+                      <p className="text-[10px] text-neutral-400">Copiar y pegar en el editor SQL de Supabase para inicializar la base de datos.</p>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(SUPABASE_SQL_SCHEMA);
+                      setSqlCopied(true);
+                      setTimeout(() => setSqlCopied(false), 2000);
+                    }}
+                    className="flex items-center gap-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 px-2.5 py-1.5 rounded-lg text-[10.5px] font-bold cursor-pointer transition-all"
+                  >
+                    {sqlCopied ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        <span className="text-emerald-600">¡Copiado!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Copiar Código</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                <div className="text-xs bg-neutral-900 text-neutral-100 rounded-xl p-4 overflow-x-auto font-mono whitespace-pre text-[11px] leading-relaxed max-h-[350px] border border-neutral-800 selection:bg-[#3ECF8E]/30 selection:text-white">
+                  {SUPABASE_SQL_SCHEMA}
+                </div>
+
+                <div className="bg-emerald-50 text-emerald-900 border border-emerald-200 p-4 rounded-xl space-y-1.5 leading-relaxed text-[11px]">
+                  <h5 className="font-bold flex items-center gap-1.5 text-emerald-800">
+                    <span>💡 Instrucciones de Configuración en Supabase Dashboard:</span>
+                  </h5>
+                  <ol className="list-decimal list-inside space-y-1 text-emerald-800 font-medium">
+                    <li>Inicie sesión en su consola de <strong>Supabase</strong> ({`https://supabase.com`}).</li>
+                    <li>Seleccione su proyecto activo <strong>"RoomiaSaaS"</strong> (id: <code>zsncctegjwzqssjzobtn</code>).</li>
+                    <li>Navegue al panel izquierdo y haga clic en <strong>"SQL Editor"</strong>.</li>
+                    <li>Haga clic en <strong>"New Query"</strong>, pegue el código de arriba y pulse <strong>"Run"</strong> para inicializar las tablas de forma limpia.</li>
+                  </ol>
+                </div>
+              </div>
+
+            </div>
+
+          </div>
+
         </div>
       )}
 
