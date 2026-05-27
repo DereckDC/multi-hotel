@@ -5,9 +5,10 @@
 
 import React, { useState } from 'react';
 import { Hotel, Room, User, Reservation, RoomStatus, UserRole } from '../types';
+import { RoomReservationCalendar } from './RoomReservationCalendar';
 
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, AreaChart, Area } from 'recharts';
-import { Plus, Edit3, Trash2, Shield, Users, HotelIcon, List, LayoutDashboard, Calendar, DollarSign, Percent, TrendingUp, AlertCircle, MapPin, EyeOff, ClipboardList, ToggleLeft, ToggleRight, Check, X } from 'lucide-react';
+import { Plus, Edit3, Trash2, Shield, Users, HotelIcon, List, LayoutDashboard, Calendar, DollarSign, Percent, TrendingUp, AlertCircle, MapPin, EyeOff, ClipboardList, ToggleLeft, ToggleRight, Check, X, Upload } from 'lucide-react';
 
 export function getMapEmbedUrl(ubicacion: string, googleMapsUrl?: string): string {
   if (!ubicacion && !googleMapsUrl) return '';
@@ -143,6 +144,10 @@ export default function AdminView({
     isSuper ? '' : myHotelId
   );
 
+  // States for date range filtering in administrative analytics
+  const [dashboardStartDate, setDashboardStartDate] = useState("");
+  const [dashboardEndDate, setDashboardEndDate] = useState("");
+
   // CRUD Hotel State
   const [editingHotel, setEditingHotel] = useState<Hotel | null>(null);
   const [showHotelModal, setShowHotelModal] = useState(false);
@@ -211,18 +216,31 @@ export default function AdminView({
 
   const paginatedReservations = getFilteredReservations();
 
-  // Stats recalculations based on localized filter and role boundary
+  // Stats recalculations based on localized filter, role boundary, and date range parameters
   const getFilteredStats = () => {
     // Standard hotel admin is strictly locked to their single hotel's stats
     const selectedFilterId = isSuper ? dashboardHotelFilter : myHotelId;
 
-    if (!selectedFilterId) {
-      // Super admin can see absolute consolidated stats of every hotel
-      return statistics;
-    }
+    // 1. Filter reservations by hotel selection
+    const firstFilteredReservations = selectedFilterId
+      ? reservations.filter(r => r.hotelId === selectedFilterId)
+      : reservations;
 
-    const filteredReservations = reservations.filter(r => r.hotelId === selectedFilterId);
-    const filteredRooms = rooms.filter(r => r.hotelId === selectedFilterId);
+    // 2. Filter reservations by date range (fechaEntrada)
+    const filteredReservations = firstFilteredReservations.filter(r => {
+      if (dashboardStartDate && r.fechaEntrada < dashboardStartDate) {
+        return false;
+      }
+      if (dashboardEndDate && r.fechaEntrada > dashboardEndDate) {
+        return false;
+      }
+      return true;
+    });
+
+    // 3. Filter rooms by hotel selection for capacity/occupancy calculations
+    const filteredRooms = selectedFilterId
+      ? rooms.filter(r => r.hotelId === selectedFilterId)
+      : rooms;
 
     const totalIngresos = filteredReservations
       .filter(r => r.estado !== 'cancelada')
@@ -237,16 +255,40 @@ export default function AdminView({
       ? Math.round((habOcupadas / filteredRooms.length) * 100)
       : 0;
 
-    // Distributing breakdown
-    const filteredBreakdown = statistics.ingresosPorHotel.filter((item: any) => {
-      const parentH = hotels.find(h => h.id === selectedFilterId);
-      return parentH && item.name === parentH.nombre;
+    // Build matching hotel breakdowns
+    const targetHotelsForBreakdown = selectedFilterId
+      ? hotels.filter(h => h.id === selectedFilterId)
+      : hotels;
+
+    const dynamicBreakdown = targetHotelsForBreakdown.map(hotel => {
+      const hotelRevenue = filteredReservations
+        .filter(r => r.hotelId === hotel.id && r.estado !== 'cancelada')
+        .reduce((sum, r) => sum + r.total, 0);
+      return {
+        name: hotel.nombre,
+        ingresos: parseFloat(hotelRevenue.toFixed(2))
+      };
     });
 
-    // Frequent clients matching reservations in my hotel
-    const guestsInMyHotel = statistics.clientesFrecuentes.filter((client: any) =>
-      reservations.some(res => res.hotelId === selectedFilterId && res.guestId === client.id)
-    );
+    // Frequent clients matching reservations in my filtered list
+    const clientReservationCounts: { [guestId: string]: number } = {};
+    filteredReservations.forEach(r => {
+      clientReservationCounts[r.guestId] = (clientReservationCounts[r.guestId] || 0) + 1;
+    });
+
+    const calculatedClientesFrecuentes = Object.entries(clientReservationCounts)
+      .map(([guestId, count]) => {
+        const u = users.find(usr => usr.id === guestId);
+        return {
+          id: guestId,
+          nombre: u ? `${u.nombre} ${u.apellido}` : 'Huésped Anónimo',
+          email: u ? u.email : '',
+          avatar: u ? u.avatar : 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100',
+          reservas: count
+        };
+      })
+      .sort((a, b) => b.reservas - a.reservas)
+      .slice(0, 3);
 
     return {
       totalIngresos,
@@ -260,14 +302,14 @@ export default function AdminView({
       habMantenimiento,
       habReservadas,
       ocupacionPorcentaje,
-      ingresosPorHotel: filteredBreakdown,
+      ingresosPorHotel: dynamicBreakdown,
       statusPie: [
         { name: 'Ocupadas', value: habOcupadas, color: '#f59e0b' },
         { name: 'Disponibles', value: habDisponibles, color: '#10b981' },
         { name: 'En Mantenimiento', value: habMantenimiento, color: '#ef4444' },
         { name: 'Reservadas', value: habReservadas, color: '#3b82f6' }
       ],
-      clientesFrecuentes: guestsInMyHotel.length > 0 ? guestsInMyHotel : statistics.clientesFrecuentes.slice(0, 3)
+      clientesFrecuentes: calculatedClientesFrecuentes.length > 0 ? calculatedClientesFrecuentes : statistics.clientesFrecuentes.slice(0, 3)
     };
   };
 
@@ -280,6 +322,50 @@ export default function AdminView({
     onSaveHotel(editingHotel);
     setShowHotelModal(false);
     setEditingHotel(null);
+  };
+
+  // Handle local image file upload and converting to base64
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, isHotel: boolean) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      alert("Para un rendimiento óptimo de carga, por favor elija una imagen menor a 2MB.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      if (dataUrl) {
+        if (isHotel) {
+          if (editingHotel) {
+            const currentImgs = editingHotel.imagenes || [];
+            if (currentImgs.length >= 5) {
+              alert("Ya has alcanzado el límite de 5 imágenes.");
+              return;
+            }
+            setEditingHotel({
+              ...editingHotel,
+              imagenes: [...currentImgs, dataUrl].slice(0, 5)
+            });
+          }
+        } else {
+          if (editingRoom) {
+            const currentImgs = editingRoom.imagenes || [];
+            if (currentImgs.length >= 5) {
+              alert("Ya has alcanzado el límite de 5 imágenes.");
+              return;
+            }
+            setEditingRoom({
+              ...editingRoom,
+              imagenes: [...currentImgs, dataUrl].slice(0, 5)
+            });
+          }
+        }
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   // Handle Room Save submit form
@@ -425,22 +511,65 @@ export default function AdminView({
       {adminTab === 'dashboard' && (
         <div className="space-y-8 animate-fade-in">
           
-          {/* Dashboard top controls: Hotel localized filter */}
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <h4 className="font-semibold text-lg text-neutral-800">Métricas Consolidadas en Tiempo Real</h4>
-            <div className="flex items-center gap-3 bg-white px-3 py-1.5 rounded-xl border border-neutral-250 text-xs text-neutral-500">
-              <span>Filtrar análisis por Establecimiento:</span>
-              <select
-                value={dashboardHotelFilter}
-                disabled={!isSuper}
-                onChange={(e) => setDashboardHotelFilter(e.target.value)}
-                className="font-bold border-none text-neutral-800 focus:outline-none focus:ring-0 cursor-pointer bg-transparent disabled:opacity-80"
-              >
-                {isSuper && <option value="">Todos los hoteles</option>}
-                {allowedHotels.map(h => (
-                  <option key={h.id} value={h.id}>{h.nombre}</option>
-                ))}
-              </select>
+          {/* Dashboard top controls: Hotel localized filter & Date dynamic inputs */}
+          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 bg-neutral-50 p-4 rounded-2xl border border-neutral-200">
+            <div>
+              <h4 className="font-semibold text-lg text-neutral-800 font-display">Métricas Consolidadas</h4>
+              <p className="text-[10px] text-neutral-450 mt-0.5">Análisis de rendimiento en base al establecimiento y intervalo de tiempo</p>
+            </div>
+            
+            <div className="flex flex-wrap items-center gap-3.5">
+              {/* Hotel Filter */}
+              <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-neutral-250 text-xs text-neutral-500 shadow-sm">
+                <span>Establecimiento:</span>
+                <select
+                  value={dashboardHotelFilter}
+                  disabled={!isSuper}
+                  onChange={(e) => setDashboardHotelFilter(e.target.value)}
+                  className="font-bold border-none text-neutral-800 focus:outline-none focus:ring-0 cursor-pointer bg-transparent disabled:opacity-80"
+                >
+                  {isSuper && <option value="">Todos los hoteles</option>}
+                  {allowedHotels.map(h => (
+                    <option key={h.id} value={h.id}>{h.nombre}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Date Filter: Desde */}
+              <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-neutral-250 text-xs text-neutral-500 shadow-sm">
+                <span>Desde:</span>
+                <input
+                  type="date"
+                  value={dashboardStartDate}
+                  onChange={(e) => setDashboardStartDate(e.target.value)}
+                  className="font-semibold text-neutral-800 focus:outline-none border-none p-0 cursor-pointer bg-transparent text-xs"
+                />
+              </div>
+
+              {/* Date Filter: Hasta */}
+              <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-neutral-250 text-xs text-neutral-500 shadow-sm">
+                <span>Hasta:</span>
+                <input
+                  type="date"
+                  value={dashboardEndDate}
+                  onChange={(e) => setDashboardEndDate(e.target.value)}
+                  className="font-semibold text-neutral-800 focus:outline-none border-none p-0 cursor-pointer bg-transparent text-xs"
+                />
+              </div>
+
+              {/* Clean Button */}
+              {(dashboardStartDate || dashboardEndDate) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDashboardStartDate("");
+                    setDashboardEndDate("");
+                  }}
+                  className="px-3 py-1.5 bg-neutral-900 hover:bg-neutral-850 text-white font-semibold text-xs rounded-xl transition-all cursor-pointer shadow-sm hover:shadow"
+                >
+                  Limpiar Fechas
+                </button>
+              )}
             </div>
           </div>
 
@@ -463,7 +592,7 @@ export default function AdminView({
             <div className="bg-white border border-neutral-200 p-5 rounded-2xl flex items-center justify-between shadow-sm">
               <div className="space-y-1">
                 <span className="text-[10px] text-neutral-400 font-bold block uppercase tracking-wider">Porcentaje Ocupacional</span>
-                <span className="font-mono text-xl md:text-2xl font-bold text-neutral-900">{currentStats.ocupacionActual || currentStats.ocupacionPorcentaje}%</span>
+                <span className="font-mono text-xl md:text-2xl font-bold text-neutral-900">{currentStats.ocupacionPorcentaje}%</span>
                 <div className="w-full bg-neutral-100 h-1 rounded-full overflow-hidden mt-2">
                   <div className="bg-teal-600 h-full rounded-full" style={{ width: `${currentStats.ocupacionPorcentaje}%` }} />
                 </div>
@@ -730,7 +859,7 @@ export default function AdminView({
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="text-[9px] bg-neutral-100 px-1.5 py-0.5 rounded font-mono font-bold">Cuarto {room.numero}</span>
                         <span className="text-[9px] bg-teal-50 text-teal-700 px-1.5 py-0.5 rounded font-semibold">{room.tipo}</span>
-                        <span className="text-[10px] text-neutral-400 font-normal">Hotel: {h?.nombre || 'hotel'}</span>
+                        <span className="text-[10px] text-neutral-400 font-normal">Hotel: {h?.nombre || `Hotel Desconocido (${room.hotelId})`}</span>
                       </div>
                       <h5 className="font-bold text-neutral-800 text-sm mt-1">{room.nombre}</h5>
                       <p className="text-[10px] text-neutral-400">Capacidad: {room.capacidad} personas / Camas: {room.camas}</p>
@@ -939,6 +1068,18 @@ export default function AdminView({
             </div>
           </div>
 
+          {/* Interactive room reservation calendar */}
+          <div className="animate-fade-in duration-300">
+            <RoomReservationCalendar
+              hotels={hotels}
+              rooms={rooms}
+              reservations={reservations}
+              users={users}
+              activeUser={activeUser}
+              onUpdateRoomStatus={onUpdateRoomStatus}
+            />
+          </div>
+
           {/* RESERVATIONS FILTERS BAR */}
           <div className="bg-white p-5 rounded-2xl border border-neutral-200 shadow-sm grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
@@ -1027,7 +1168,7 @@ export default function AdminView({
                             <span className="text-[10px] text-neutral-400 block font-mono">Doc: {guest?.documento || 'N/D'}</span>
                           </td>
                           <td className="p-4 space-y-0.5">
-                            <span className="font-semibold text-neutral-800 block">{hotelInfo?.nombre || 'Establecimiento Aura'}</span>
+                            <span className="font-semibold text-neutral-800 block">{hotelInfo?.nombre || 'Establecimiento Roomia'}</span>
                             <span className="text-[11px] text-teal-700 font-medium block">Suite N° {roomInfo?.numero || 'S/N'} ({roomInfo?.nombre})</span>
                           </td>
                           <td className="p-4 space-y-0.5">
@@ -1112,7 +1253,7 @@ export default function AdminView({
                     type="text" required
                     value={editingHotel.nombre}
                     onChange={(e) => setEditingHotel({ ...editingHotel, nombre: e.target.value })}
-                    placeholder="Ej: Aura Sunset Coast Resort"
+                    placeholder="Ej: Roomia Sunset Coast Resort"
                     className="w-full text-xs border border-neutral-250 p-2 rounded-lg focus:outline-none focus:border-teal-500"
                   />
                 </div>
@@ -1241,6 +1382,140 @@ export default function AdminView({
                     <option value="inactivo">Inactivo / Cerrado Temporalmente</option>
                   </select>
                 </div>
+
+                {/* 5 COMPREHENSIVE HOTEL IMAGES SELECTOR SECTION */}
+                <div className="col-span-2 space-y-3 bg-neutral-50 p-4 rounded-xl border border-neutral-200">
+                  <div className="flex justify-between items-center pb-2 border-b border-neutral-200">
+                    <span className="text-[11px] font-bold text-neutral-700 uppercase tracking-wide">Imágenes Secundarias del Hotel ({(editingHotel.imagenes || []).length}/5)</span>
+                    <span className="text-[10px] text-neutral-400 font-medium">Hasta 5 fotos adicionales para el carrusel del cliente</span>
+                  </div>
+                  
+                  {/* Grid of 5 image slot containers */}
+                  <div className="grid grid-cols-5 gap-2">
+                    {Array.from({ length: 5 }).map((_, idx) => {
+                      const imgUrl = (editingHotel.imagenes || [])[idx];
+                      return (
+                        <div key={idx} className="relative aspect-video rounded-lg overflow-hidden border border-neutral-250 bg-neutral-200 flex items-center justify-center group overflow-hidden">
+                          {imgUrl ? (
+                            <>
+                              <img src={imgUrl} alt={`Hotel Foto ${idx + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                              <div className="absolute top-1 left-1 bg-neutral-900/85 text-white font-mono text-[8px] px-1 rounded">
+                                {idx + 1}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const nextImgs = [...(editingHotel.imagenes || [])];
+                                  nextImgs.splice(idx, 1);
+                                  setEditingHotel({ ...editingHotel, imagenes: nextImgs });
+                                }}
+                                className="absolute inset-0 bg-red-650/90 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer text-[9px] font-bold"
+                              >
+                                Quitar
+                              </button>
+                            </>
+                          ) : (
+                            <div className="text-neutral-455 text-[8px] font-medium p-1 text-center leading-tight">
+                              Vacío<br/>
+                              <span className="text-neutral-400 text-[9px] font-mono font-bold">#{idx + 1}</span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Input link field if we have fewer than 5 images */}
+                  {(!editingHotel.imagenes || editingHotel.imagenes.length < 5) && (
+                    <div className="space-y-2 pt-1 font-sans">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          id="new-hotel-image-input"
+                          placeholder="Pega enlace de la foto del hotel..."
+                          className="flex-1 text-[11px] border border-neutral-255 p-2 rounded-lg bg-white focus:outline-none"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              const input = e.currentTarget;
+                              const val = input.value.trim();
+                              if (val) {
+                                const currentImgs = editingHotel.imagenes || [];
+                                setEditingHotel({ ...editingHotel, imagenes: [...currentImgs, val].slice(0, 5) });
+                                input.value = '';
+                              }
+                            }
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const input = document.getElementById('new-hotel-image-input') as HTMLInputElement;
+                            const val = input?.value?.trim();
+                            if (val) {
+                              const currentImgs = editingHotel.imagenes || [];
+                              setEditingHotel({ ...editingHotel, imagenes: [...currentImgs, val].slice(0, 5) });
+                              if (input) input.value = '';
+                            }
+                          }}
+                          className="px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-lg text-xs cursor-pointer shadow-sm animate-fade-in"
+                        >
+                          Enlace
+                        </button>
+                      </div>
+
+                      {/* Direct file upload from internal storage */}
+                      <div className="flex items-center justify-between gap-2 p-2 bg-white rounded-lg border border-dashed border-neutral-300">
+                        <span className="text-[10px] font-bold text-neutral-500">¿Subir desde almacenamiento interno?</span>
+                        <label className="flex items-center gap-1 py-1 px-2.5 bg-neutral-900 text-white hover:bg-teal-600 rounded-md text-[10px] font-bold cursor-pointer transition-all shadow-sm">
+                          <Upload className="w-3 h-3" />
+                          <span>Elegir Archivo</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => handleImageUpload(e, true)}
+                          />
+                        </label>
+                      </div>
+
+                      {/* Suggestions list of pre-curated gorgeous unsplash hotel facades/pools */}
+                      <div className="space-y-1.5">
+                        <p className="text-[10px] text-neutral-400 font-bold block">Sugerencias estéticas de fachadas e instalaciones:</p>
+                        <div className="flex flex-wrap gap-1">
+                          {[
+                            { label: 'Fachada Moderna', url: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800' },
+                            { label: 'Alberca Elegante', url: 'https://images.unsplash.com/photo-1571896349842-33c89424de2d?w=800' },
+                            { label: 'Lobby de Lujo', url: 'https://images.unsplash.com/photo-1566665797739-1674de7a421a?w=800' },
+                            { label: 'Spa & Wellness', url: 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=800' },
+                            { label: 'Restaurante / Bar', url: 'https://images.unsplash.com/photo-1543007630-9710e4a00a20?w=800' },
+                            { label: 'Terraza Atardecer', url: 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?w=800' }
+                          ].map((suggest, sIdx) => {
+                            const alreadyHas = (editingHotel.imagenes || []).includes(suggest.url);
+                            return (
+                              <button
+                                key={sIdx}
+                                type="button"
+                                disabled={alreadyHas}
+                                onClick={() => {
+                                  const currentImgs = editingHotel.imagenes || [];
+                                  setEditingHotel({ ...editingHotel, imagenes: [...currentImgs, suggest.url].slice(0, 5) });
+                                }}
+                                className={`px-2 py-1 rounded text-[9px] font-semibold border transition-all cursor-pointer ${
+                                  alreadyHas
+                                    ? 'bg-neutral-100 text-neutral-350 border-neutral-200 cursor-not-allowed'
+                                    : 'bg-white text-neutral-600 border-neutral-200 hover:bg-teal-50 hover:text-teal-700 hover:border-teal-200'
+                                }`}
+                              >
+                                + {suggest.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="pt-2 flex gap-3">
@@ -1284,6 +1559,9 @@ export default function AdminView({
                     onChange={(e) => setEditingRoom({ ...editingRoom, hotelId: e.target.value })}
                     className="w-full text-xs border border-neutral-250 p-2 rounded-lg bg-white focus:outline-none cursor-pointer"
                   >
+                    {!allowedHotels.some(h => h.id === editingRoom.hotelId) && (
+                      <option value={editingRoom.hotelId}>Establecimiento desconocido ({editingRoom.hotelId})</option>
+                    )}
                     {allowedHotels.map(h => (
                        <option key={h.id} value={h.id}>{h.nombre}</option>
                     ))}
@@ -1379,6 +1657,141 @@ export default function AdminView({
                     <option value="ocupado">Ocupado</option>
                     <option value="mantenimiento">Mantenimiento</option>
                   </select>
+                </div>
+
+                {/* 5 COMPREHENSIVE SUITE IMAGES SELECTOR SECTION */}
+                <div className="col-span-2 space-y-3 bg-neutral-50 p-4 rounded-xl border border-neutral-200">
+                  <div className="flex justify-between items-center pb-2 border-b border-neutral-200">
+                    <span className="text-[11px] font-bold text-neutral-700 uppercase tracking-wide">Imágenes de la Habitación ({(editingRoom.imagenes || []).length}/5)</span>
+                    <span className="text-[10px] text-neutral-400 font-medium">Permite hasta 5 fotos para el carrusel del cliente</span>
+                  </div>
+                  
+                  {/* Grid of 5 image slot containers */}
+                  <div className="grid grid-cols-5 gap-2">
+                    {Array.from({ length: 5 }).map((_, idx) => {
+                      const imgUrl = (editingRoom.imagenes || [])[idx];
+                      return (
+                        <div key={idx} className="relative aspect-video rounded-lg overflow-hidden border border-neutral-250 bg-neutral-200 flex items-center justify-center group overflow-hidden">
+                          {imgUrl ? (
+                            <>
+                              <img src={imgUrl} alt={`Foto ${idx + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                              <div className="absolute top-1 left-1 bg-neutral-900/85 text-white font-mono text-[8px] px-1 rounded">
+                                {idx + 1}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const nextImgs = [...(editingRoom.imagenes || [])];
+                                  nextImgs.splice(idx, 1);
+                                  setEditingRoom({ ...editingRoom, imagenes: nextImgs });
+                                }}
+                                className="absolute inset-0 bg-red-650/90 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer text-[9px] font-bold"
+                              >
+                                Quitar
+                              </button>
+                            </>
+                          ) : (
+                            <div className="text-neutral-450 text-[8px] font-medium p-1 text-center leading-tight">
+                              Vacío<br/>
+                              <span className="text-neutral-400 text-[9px] font-mono">#{idx + 1}</span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Input link field if we have fewer than 5 images */}
+                  {(!editingRoom.imagenes || editingRoom.imagenes.length < 5) && (
+                    <div className="space-y-2 pt-1 font-sans">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          id="new-room-image-input"
+                          placeholder="Pega enlace URL..."
+                          className="flex-1 text-[11px] border border-neutral-255 p-2 rounded-lg bg-white focus:outline-none"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              const input = e.currentTarget;
+                              const val = input.value.trim();
+                              if (val) {
+                                const currentImgs = editingRoom.imagenes || [];
+                                setEditingRoom({ ...editingRoom, imagenes: [...currentImgs, val].slice(0, 5) });
+                                input.value = '';
+                              }
+                            }
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const input = document.getElementById('new-room-image-input') as HTMLInputElement;
+                            const val = input?.value?.trim();
+                            if (val) {
+                              const currentImgs = editingRoom.imagenes || [];
+                              setEditingRoom({ ...editingRoom, imagenes: [...currentImgs, val].slice(0, 5) });
+                              if (input) input.value = '';
+                            }
+                          }}
+                          className="px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-lg text-xs cursor-pointer shadow-sm animate-fade-in"
+                        >
+                          Enlace
+                        </button>
+                      </div>
+
+                      {/* Direct file upload from internal storage */}
+                      <div className="flex items-center justify-between gap-2 p-2 bg-white rounded-lg border border-dashed border-neutral-300">
+                        <span className="text-[10px] font-bold text-neutral-500">¿Subir desde almacenamiento interno?</span>
+                        <label className="flex items-center gap-1 py-1 px-2.5 bg-neutral-900 text-white hover:bg-teal-600 rounded-md text-[10px] font-bold cursor-pointer transition-all shadow-sm">
+                          <Upload className="w-3 h-3" />
+                          <span>Elegir Archivo</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => handleImageUpload(e, false)}
+                          />
+                        </label>
+                      </div>
+
+                      {/* Suggestions list of pre-curated gorgeous unsplash bed/suite photos */}
+                      <div className="space-y-1.5">
+                        <p className="text-[10px] text-neutral-450 font-bold block">Sugerencias estéticas de Roomia (Click para añadir):</p>
+                        <div className="flex flex-wrap gap-1">
+                          {[
+                            { label: 'Cama King Lujo', url: 'https://images.unsplash.com/photo-1618773928121-c32242e63f39?w=800' },
+                            { label: 'Suite Imperial', url: 'https://images.unsplash.com/photo-1582719508461-905c673771fd?w=800' },
+                            { label: 'Suite Vista Ciudad', url: 'https://images.unsplash.com/photo-1590490360182-c33d57733427?w=800' },
+                            { label: 'Estudio Loft', url: 'https://images.unsplash.com/photo-1596394516093-501ba68a0ba6?w=800' },
+                            { label: 'Salón de Suite', url: 'https://images.unsplash.com/photo-1598928506311-c55ded91a20c?w=800' },
+                            { label: 'Bañera Jacuzzi', url: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=800' },
+                            { label: 'Cama Doble', url: 'https://images.unsplash.com/photo-1566665797739-1674de7a421a?w=800' }
+                          ].map((suggest, sIdx) => {
+                            const alreadyHas = (editingRoom.imagenes || []).includes(suggest.url);
+                            return (
+                              <button
+                                key={sIdx}
+                                type="button"
+                                disabled={alreadyHas}
+                                onClick={() => {
+                                  const currentImgs = editingRoom.imagenes || [];
+                                  setEditingRoom({ ...editingRoom, imagenes: [...currentImgs, suggest.url].slice(0, 5) });
+                                }}
+                                className={`px-2 py-1 rounded text-[9px] font-semibold border transition-all cursor-pointer ${
+                                  alreadyHas
+                                    ? 'bg-neutral-100 text-neutral-350 border-neutral-200 cursor-not-allowed'
+                                    : 'bg-white text-neutral-600 border-neutral-200 hover:bg-teal-50 hover:text-teal-700 hover:border-teal-200'
+                                }`}
+                              >
+                                + {suggest.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {originalRoomStatus && editingRoom.estado !== originalRoomStatus && (

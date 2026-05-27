@@ -53,7 +53,7 @@ export default function InvoicePDF({
         doc.setTextColor(255, 255, 255);
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(22);
-        doc.text('AURA SYSTEM', 15, 18);
+        doc.text('ROOMIA SAAS', 15, 18);
 
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(9);
@@ -81,7 +81,7 @@ export default function InvoicePDF({
         doc.setFontSize(9.5);
         
         // Hotel details lines split helper
-        const hotelName = hotel?.nombre || 'Hotel Aura';
+        const hotelName = hotel?.nombre || 'Hotel Roomia';
         const hotelLocation = hotel?.ubicacion || '';
         const hotelPhone = `Tel: ${hotel?.contacto.telefono || ''}`;
         const hotelEmail = `E-mail: ${hotel?.contacto.email || ''}`;
@@ -237,10 +237,10 @@ export default function InvoicePDF({
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(7);
         doc.setTextColor(150, 150, 150);
-        doc.text('Este documento es una pre-factura valida de reserva simulada generada por AURA S.A. No posee validez legal externa.', 15, footerY + 4);
+        doc.text('Este documento es una pre-factura valida de reserva simulada generada por ROOMIA S.A. No posee validez legal externa.', 15, footerY + 4);
 
         // Save PDF
-        doc.save(`PreFactura_Aura_${reservation.id}.pdf`);
+        doc.save(`PreFactura_Roomia_${reservation.id}.pdf`);
       } catch (err) {
         console.error("PDF Generate Error", err);
         alert("Ocurrio un error generando el PDF: " + (err as any).message);
@@ -305,8 +305,8 @@ export default function InvoicePDF({
           <div className="flex flex-col md:flex-row justify-between items-start gap-6 border-b border-neutral-200 pb-8">
             <div>
               <div className="flex items-center gap-2 mb-2">
-                <span className="w-8 h-8 rounded-lg bg-teal-600 text-white flex items-center justify-center font-display font-bold text-lg">A</span>
-                <span className="font-display font-bold text-xl tracking-tight text-neutral-800">AURA SYSTEM</span>
+                <span className="w-8 h-8 rounded-lg bg-teal-600 text-white flex items-center justify-center font-display font-bold text-lg">R</span>
+                <span className="font-display font-bold text-xl tracking-tight text-neutral-800">ROOMIA SAAS</span>
               </div>
               <p className="text-xs text-neutral-400 font-mono">SISTEMA PMS MULTI-HOTEL CENTRALIZADO</p>
               <p className="text-xs text-neutral-500 mt-1">ID Transación: {reservation.id}</p>
@@ -324,7 +324,7 @@ export default function InvoicePDF({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 py-8 border-b border-neutral-200">
             <div>
               <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">Establecimiento Receptor</p>
-              <h4 className="font-semibold text-neutral-800 text-base">{hotel?.nombre || 'Hotel Aura'}</h4>
+              <h4 className="font-semibold text-neutral-800 text-base">{hotel?.nombre || 'Hotel Roomia'}</h4>
               <p className="text-sm text-neutral-600 mt-1 leading-relaxed">{hotel?.ubicacion}</p>
               <p className="text-xs text-neutral-500 mt-2">Teléfono: {hotel?.contacto.telefono}</p>
               <p className="text-xs text-neutral-500">E-mail: {hotel?.contacto.email}</p>

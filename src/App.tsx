@@ -5,7 +5,6 @@
 
 import { useState, FormEvent } from 'react';
 import { useHotelStore } from './store';
-import SimulationBanner from './components/SimulationBanner';
 import ClientView from './components/ClientView';
 import ReceptionView from './components/ReceptionView';
 import AdminView from './components/AdminView';
@@ -41,8 +40,17 @@ export default function App() {
     updateReservationStatus
   } = store;
 
-  // Track if user explicitly logged out to show login screen
-  const [isLoggedOut, setIsLoggedOut] = useState(false);
+  // Track if user explicitly logged out or lacks active session to show login screen
+  const [isLoggedOut, setIsLoggedOut] = useState(() => {
+    try {
+      const saved = localStorage.getItem('aura_hotel_pms_current_user_id');
+      if (!saved) return true;
+      const parsed = JSON.parse(saved);
+      return !parsed;
+    } catch {
+      return true;
+    }
+  });
 
   // Profile Edit Modal States
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -106,25 +114,17 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#fafafa] flex flex-col font-sans selection:bg-teal-500 selection:text-neutral-900">
       
-      {/* 1. Developer Simulation HUD at header */}
-      <SimulationBanner
-        users={users}
-        activeUserId={activeUserId}
-        onSwitchUser={switchSessionUser}
-        onReset={factoryResetAll}
-      />
-
       {/* 2. Global application Header */}
       <header className="bg-white border-b border-neutral-100 shadow-sm print:hidden">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
           
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-teal-600 text-white flex items-center justify-center font-display font-black text-xl shadow-md cursor-pointer hover:scale-105 transition-transform">
-              A
+              R
             </div>
             <div>
               <span className="font-display font-bold text-neutral-800 text-lg tracking-tight flex items-center gap-1">
-                Aura <span className="text-teal-600">SaaS</span>
+                Roomia <span className="text-teal-600">SaaS</span>
               </span>
               <p className="text-[9px] text-neutral-400 font-mono leading-none tracking-wider font-semibold uppercase">Multi-Hotel PMS Platform</p>
             </div>
@@ -154,7 +154,10 @@ export default function App() {
                 </div>
               </button>
               <button
-                onClick={() => setIsLoggedOut(true)}
+                onClick={() => {
+                  localStorage.removeItem('aura_hotel_pms_current_user_id');
+                  setIsLoggedOut(true);
+                }}
                 title="Cerrar Sesión"
                 className="px-3.5 py-2 bg-red-50 hover:bg-red-100 text-red-650 hover:text-red-700 rounded-xl transition-all border border-red-200 cursor-pointer text-xs font-semibold flex items-center gap-1.5 active:scale-95 shadow-sm"
               >
@@ -193,7 +196,7 @@ export default function App() {
             </motion.div>
           ) : (
             <motion.div
-              key={activeUser.rol}
+              key={activeUser.id}
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -15 }}
@@ -205,6 +208,7 @@ export default function App() {
                   hotels={hotels}
                   rooms={rooms}
                   reservations={reservations}
+                  users={users}
                   activeUser={activeUser}
                   onCreateReservation={createReservation}
                   onCancelReservation={cancelReservation}
@@ -253,7 +257,7 @@ export default function App() {
 
       {/* 4. Tiny visual footer */}
       <footer className="py-6 border-t border-neutral-150 text-center text-[10px] text-neutral-400 font-mono print:hidden">
-        <p>© 2026 Aura System PMS • Multi-Hotel Hospitality SaaS Cloud Suite</p>
+        <p>©2026 Maqyasoft</p>
         <p className="mt-1">Active UTC Session: 2026-05-24T04:47:00Z</p>
       </footer>
 
@@ -393,7 +397,7 @@ export default function App() {
                     type="email" required
                     value={profileEmail}
                     onChange={(e) => setProfileEmail(e.target.value)}
-                    placeholder="sofia@aurasystem.com"
+                    placeholder="contacto@roomiasaas.com"
                     className="w-full text-xs border border-neutral-250 p-2.5 rounded-xl focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-200 font-mono"
                   />
                 </div>

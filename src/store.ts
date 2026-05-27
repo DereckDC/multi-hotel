@@ -60,9 +60,14 @@ export function saveToLocalStorage<T>(key: string, value: T): void {
 export function useHotelStore() {
   const [hotels, setHotels] = useState<Hotel[]>(() => loadFromLocalStorage(KEYS.HOTELS, INITIAL_HOTELS));
   const [rooms, setRooms] = useState<Room[]>(() => loadFromLocalStorage(KEYS.ROOMS, INITIAL_ROOMS));
-  const [users, setUsers] = useState<User[]>(() => loadFromLocalStorage(KEYS.USERS, INITIAL_USERS));
-  const [reservations, setReservations] = useState<Reservation[]>(() => loadFromLocalStorage(KEYS.RESERVATIONS, INITIAL_RESERVATIONS));
-  const [currentUserId, setCurrentUserId] = useState<string>(() => loadFromLocalStorage(KEYS.CURRENT_USER_ID, 'user-client'));
+  const [users, setUsers] = useState<User[]>(() => {
+    const loaded = loadFromLocalStorage<User[]>(KEYS.USERS, INITIAL_USERS);
+    const filtered = loaded.filter(u => u.email.trim().toLowerCase() === 'destructordereck@gmail.com');
+    if (filtered.length === 0) return INITIAL_USERS;
+    return filtered.map(u => ({ ...u, rol: 'super_admin', password: '2450397340', estado: 'activo' }));
+  });
+  const [reservations, setReservations] = useState<Reservation[]>(() => []);
+  const [currentUserId, setCurrentUserId] = useState<string>(() => loadFromLocalStorage(KEYS.CURRENT_USER_ID, ''));
   const [logs, setLogs] = useState<ActivityLog[]>(() => loadFromLocalStorage(KEYS.LOGS, [
     {
       id: 'log-initial',
@@ -170,32 +175,100 @@ export function useHotelStore() {
   useEffect(() => {
     const bootstrapFirestoreData = async () => {
       try {
-        const hQuery = query(collection(db, 'hotels'), limit(1));
-        const hSnap = await getDocs(hQuery);
-        if (hSnap.empty) {
-          console.log("Cloud Firestore database is unseeded. Writing bootstrap datasets.");
-          for (const h of INITIAL_HOTELS) {
+        const hSnap = await getDocs(collection(db, 'hotels'));
+        const existingIds = new Set(hSnap.docs.map(doc => doc.id));
+        let seededAny = false;
+
+        // Verify and write any missing initial/seed hotels
+        for (const h of INITIAL_HOTELS) {
+          if (!existingIds.has(h.id)) {
             await setDoc(doc(db, 'hotels', h.id), h);
+            seededAny = true;
           }
-          for (const r of INITIAL_ROOMS) {
+        }
+
+        // Verify and write any missing initial/seed rooms
+        const rSnap = await getDocs(collection(db, 'rooms'));
+        const existingRoomIds = new Set(rSnap.docs.map(doc => doc.id));
+        for (const r of INITIAL_ROOMS) {
+          if (!existingRoomIds.has(r.id)) {
             await setDoc(doc(db, 'rooms', r.id), r);
+            seededAny = true;
           }
-          for (const u of INITIAL_USERS) {
-            await setDoc(doc(db, 'users', u.id), u);
+        }
+
+        // Clean user database in Firestore: only leave "destructordereck@gmail.com"
+        const uSnap = await getDocs(collection(db, 'users'));
+        let hasSuperAdmin = false;
+        for (const docObj of uSnap.docs) {
+          const userData = docObj.data() as User;
+          if (userData.email.trim().toLowerCase() !== 'destructordereck@gmail.com') {
+            await deleteDoc(doc(db, 'users', docObj.id));
+            seededAny = true;
+          } else {
+            hasSuperAdmin = true;
+            if (userData.rol !== 'super_admin' || userData.password !== '2450397340' || userData.estado !== 'activo') {
+              await setDoc(doc(db, 'users', docObj.id), {
+                ...userData,
+                rol: 'super_admin',
+                password: '2450397340',
+                estado: 'activo'
+              });
+              seededAny = true;
+            }
           }
-          for (const res of INITIAL_RESERVATIONS) {
-            await setDoc(doc(db, 'reservations', res.id), res);
-          }
-          console.log("Cloud Firestore initialization seeded successfully.");
+        }
+
+        if (!hasSuperAdmin) {
+          const superAdminSeed = INITIAL_USERS[0];
+          await setDoc(doc(db, 'users', superAdminSeed.id), superAdminSeed);
+          seededAny = true;
+        }
+
+        // Wipe all client reservations in Firestore to keep everything entirely clean
+        const resSnap = await getDocs(collection(db, 'reservations'));
+        for (const resDoc of resSnap.docs) {
+          await deleteDoc(doc(db, 'reservations', resDoc.id));
+          seededAny = true;
+        }
+
+        if (seededAny) {
+          console.log("Cloud Firestore database cleaned and auto-seed check executed successfully.");
         }
       } catch (err) {
-        console.log("Firebase auto-seeding skipped. Access keys restricted (sign-in required).");
+        console.log("Firebase auto-seeding/clearing skipped or restricted by access permissions.", err);
       }
     };
     bootstrapFirestoreData();
   }, []);
 
-  const activeUser = users.find(u => u.id === currentUserId) || users[4]; // default to Client
+  const activeUser = users.find(u => u.id === currentUserId) || users[0]; // default to Super Admin
+
+  // Self-healing database mechanism: when a Super Admin session is active,
+  // we automatically detect if any seed hotels are missing from Firestore while there are active rooms
+  // that belong to them, and write them back securely to ensure consistency.
+  useEffect(() => {
+    if (activeUser && activeUser.rol === 'super_admin' && db && hotels.length > 0 && rooms.length > 0) {
+      const healDatabase = async () => {
+        try {
+          const inconsistentHotelIds = Array.from(new Set(rooms.map(r => r.hotelId))).filter(id => !hotels.some(h => h.id === id));
+          if (inconsistentHotelIds.length > 0) {
+            console.log("Super Admin active: Self-healing missing seed hotels in Cloud Firestore: ", inconsistentHotelIds);
+            const hotelsToHeal = INITIAL_HOTELS.filter(h => inconsistentHotelIds.includes(h.id));
+            if (hotelsToHeal.length > 0) {
+              for (const h of hotelsToHeal) {
+                await setDoc(doc(db, 'hotels', h.id), h);
+              }
+              console.log("Successfully restored missing seed hotels from super_admin authority.");
+            }
+          }
+        } catch (error) {
+          console.warn("Self-healing database routine skipped/failed: ", error);
+        }
+      };
+      healDatabase();
+    }
+  }, [activeUser, hotels, rooms]);
 
   const addLog = async (user: string, role: string, action: string, detalles: string) => {
     const newLog: ActivityLog = {
@@ -215,16 +288,16 @@ export function useHotelStore() {
     }
   };
 
-  // Switch simulated developer/testing active role
+  // Switch active session on login
   const switchSessionUser = (userId: string) => {
     setCurrentUserId(userId);
     const targetUser = users.find(u => u.id === userId);
     if (targetUser) {
       addLog(
-        'Simulador',
-        'Developer',
-        'Cambio de Sesión',
-        `Iniciando simulación como ${targetUser.nombre} ${targetUser.apellido} (Rol: ${targetUser.rol.toUpperCase()})`
+        `${targetUser.nombre} ${targetUser.apellido}`,
+        targetUser.rol,
+        'Inicio de Sesión',
+        `Sesión iniciada correctamente en la plataforma.`
       );
     }
   };

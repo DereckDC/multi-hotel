@@ -9,6 +9,9 @@ import { Hotel, Room, Reservation, User, RoomStatus } from '../types';
 import { MapPin, Calendar, Compass, List, CreditCard, ChevronRight, Sparkles, Filter, Check, Star, AlertCircle, Eye, Trash2, CalendarCheck, FileText, X } from 'lucide-react';
 import QRView from './QRView';
 import InvoicePDF from './InvoicePDF';
+import { RoomImageGallery } from './RoomImageGallery';
+import { HotelImageGallery } from './HotelImageGallery';
+import { RoomReservationCalendar } from './RoomReservationCalendar';
 
 export function getMapEmbedUrl(ubicacion: string, googleMapsUrl?: string): string {
   if (!ubicacion && !googleMapsUrl) return '';
@@ -59,6 +62,7 @@ interface ClientViewProps {
   hotels: Hotel[];
   rooms: Room[];
   reservations: Reservation[];
+  users?: User[];
   activeUser: User;
   onCreateReservation: (res: Reservation) => void;
   onCancelReservation: (resId: string) => void;
@@ -76,6 +80,7 @@ export default function ClientView({
   hotels,
   rooms,
   reservations,
+  users = [],
   activeUser,
   onCreateReservation,
   onCancelReservation,
@@ -90,15 +95,46 @@ export default function ClientView({
   // Advanced Filter state
   const [selectedService, setSelectedService] = useState<string>('');
   const [maxPrice, setMaxPrice] = useState<number>(500);
-  const [showOnlyAvailableRooms, setShowOnlyAvailableRooms] = useState<boolean>(true); // By default, show available rooms first or filterable
+  const [showOnlyAvailableRooms, setShowOnlyAvailableRooms] = useState<boolean>(false); // By default, show all rooms and browse, as requested by user
+
+  // Detailed room list filters inside a hotel
+  const [roomMaxPrice, setRoomMaxPrice] = useState<number>(1000);
+  const [roomCapacity, setRoomCapacity] = useState<string>('');
+  const [roomTypeFilter, setRoomTypeFilter] = useState<string>('');
+
+  // Date Helpers for today & minimum check-out date calculations
+  const getTodayString = (offsetDays = 0) => {
+    const date = new Date();
+    if (offsetDays !== 0) {
+      date.setDate(date.getDate() + offsetDays);
+    }
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const dd = String(date.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  const getMinCheckOutDate = () => {
+    if (!checkInDate) return getTodayString(1);
+    const parts = checkInDate.split('-');
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const day = parseInt(parts[2], 10);
+    const nextDay = new Date(year, month, day + 1);
+    const yyyy = nextDay.getFullYear();
+    const mm = String(nextDay.getMonth() + 1).padStart(2, '0');
+    const dd = String(nextDay.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
 
   // Booking Flow modal state
   const [bookingRoom, setBookingRoom] = useState<Room | null>(null);
-  const [checkInDate, setCheckInDate] = useState<string>('2026-05-25');
-  const [checkOutDate, setCheckOutDate] = useState<string>('2026-05-28');
+  const [checkInDate, setCheckInDate] = useState<string>(() => getTodayString(0));
+  const [checkOutDate, setCheckOutDate] = useState<string>(() => getTodayString(3));
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [bookingNote, setBookingNote] = useState('');
   const [bookingSuccess, setBookingSuccess] = useState(false);
+  const [bookingError, setBookingError] = useState<string | null>(null);
 
   // Active Invoice preview modal state
   const [previewingRes, setPreviewingRes] = useState<Reservation | null>(null);
@@ -110,10 +146,22 @@ export default function ClientView({
   // Helper getters
   const activeHotel = hotels.find(h => h.id === selectedHotelId);
   const filteredHotels = hotels.filter(h => h.estado === 'activo');
-  const roomsInActiveHotel = rooms.filter(r => 
-    r.hotelId === selectedHotelId &&
-    (!showOnlyAvailableRooms || r.estado === 'disponible')
-  );
+  const roomsInActiveHotel = rooms.filter(r => {
+    if (r.hotelId !== selectedHotelId) return false;
+    if (showOnlyAvailableRooms && r.estado !== 'disponible') return false;
+    if (r.precio > roomMaxPrice) return false;
+    if (roomCapacity !== '') {
+      if (roomCapacity === '1-2') {
+        if (r.capacidad < 1 || r.capacidad > 2) return false;
+      } else if (roomCapacity === '3-4') {
+        if (r.capacidad < 3 || r.capacidad > 4) return false;
+      } else if (roomCapacity === '5-6') {
+        if (r.capacidad < 5 || r.capacidad > 6) return false;
+      }
+    }
+    if (roomTypeFilter !== '' && r.tipo !== roomTypeFilter) return false;
+    return true;
+  });
 
   const myReservations = reservations.filter(r => r.guestId === activeUser.id && !r.eliminadaPorCliente);
 
@@ -148,9 +196,23 @@ export default function ClientView({
     e.preventDefault();
     if (!bookingRoom) return;
 
+    // Validate that date selected is today or future
+    const todayStr = getTodayString(0);
+    if (checkInDate < todayStr) {
+      setBookingError("La fecha de check-in no puede ser anterior al día de hoy. Por favor seleccione una fecha válida.");
+      return;
+    }
+
+    if (checkOutDate <= checkInDate) {
+      setBookingError("La fecha de check-out debe ser posterior a la fecha de entrada.");
+      return;
+    }
+
+    setBookingError(null);
+
     const pricing = getBookingTotal(bookingRoom.precio);
     const resId = `RES-${Math.floor(10000 + Math.random() * 90000)}`;
-    const qrCode = `AURA-${resId}-${bookingRoom.hotelId}-${bookingRoom.id}`;
+    const qrCode = `ROOMIA-${resId}-${bookingRoom.hotelId}-${bookingRoom.id}`;
 
     const newRes: Reservation = {
       id: resId,
@@ -165,7 +227,7 @@ export default function ClientView({
       total: pricing.total,
       qrCode: qrCode,
       estado: 'confirmada', // Client reservations are auto-confirmed for easy simulation flow!
-      fechaRegistro: new Date().toISOString().split('T')[0],
+      fechaRegistro: todayStr,
       notas: bookingNote
     };
 
@@ -176,6 +238,7 @@ export default function ClientView({
       setBookingRoom(null);
       setSelectedServices([]);
       setBookingNote('');
+      setBookingError(null);
       setActiveTab('reservations');
     }, 2000);
   };
@@ -237,7 +300,7 @@ export default function ClientView({
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
                   <h3 className="text-xl font-semibold text-neutral-800">Catálogo de Destinos ({filteredHotels.length})</h3>
-                  <p className="text-xs text-neutral-400">Todos los alojamientos se ajustan a las directrices sanitarias y de mantenimiento modernas de Aura</p>
+                  <p className="text-xs text-neutral-400">Todos los alojamientos se ajustan a las directrices sanitarias y de mantenimiento modernas de Roomia SaaS</p>
                 </div>
                 
                 {/* Visual Filters bar */}
@@ -345,6 +408,229 @@ export default function ClientView({
                   })}
               </div>
             </div>
+          ) : bookingRoom !== null ? (
+            // DEDICATED ROOM RESERVATION VIEW PAGE (replaces old popup modal)
+            <div className="space-y-6 animate-fade-in text-neutral-850">
+              <button
+                onClick={() => setBookingRoom(null)}
+                className="inline-flex items-center gap-2 text-sm text-neutral-500 hover:text-neutral-800 transition-colors font-medium cursor-pointer bg-white px-3 py-1.5 rounded-lg border border-neutral-200 shadow-sm active:scale-95"
+              >
+                ← Volver a las habitaciones de {activeHotel?.nombre}
+              </button>
+
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start animate-fade-in duration-300">
+                
+                {/* Left side: Interactive room availability calendar (7 cols) */}
+                <div className="lg:col-span-7 bg-white p-5 rounded-3xl border border-neutral-200 shadow-sm space-y-4">
+                  <div className="border-b border-neutral-100 pb-3">
+                    <h4 className="font-semibold text-neutral-800 text-lg flex items-center gap-2 font-display">
+                      <Calendar className="w-5 h-5 text-teal-600" />
+                      <span>Calendario de Disponibilidad: Suite {bookingRoom.numero}</span>
+                    </h4>
+                    <p className="text-xs text-neutral-450 mt-1">
+                      Visualice las fechas reservadas (en rojo) para cuadrar su estancia en la habitación seleccionada.
+                    </p>
+                  </div>
+                  <div className="overflow-hidden">
+                    <RoomReservationCalendar
+                      hotels={hotels}
+                      rooms={rooms}
+                      reservations={reservations}
+                      users={users}
+                      activeUser={activeUser}
+                      forceHotelId={bookingRoom.hotelId}
+                      forceRoomId={bookingRoom.id}
+                    />
+                  </div>
+                </div>
+
+                {/* Right side: Checkout form & summary (5 cols) */}
+                <div className="lg:col-span-5 bg-white p-6 rounded-3xl border border-neutral-200 shadow-sm space-y-6">
+                  <div>
+                    <h4 className="font-semibold text-neutral-800 text-xl font-display">Completar Reservación</h4>
+                    <p className="text-xs text-neutral-450 mt-1">Defina las fechas de check-in / check-out, seleccione servicios premium y confirme su reserva.</p>
+                  </div>
+
+                  <form onSubmit={handleCreateBooking} className="space-y-5">
+                    
+                    {/* Selected room details block */}
+                    <div className="p-4 bg-neutral-50 rounded-2xl border border-neutral-100 text-xs flex gap-4 shadow-sm">
+                      {bookingRoom.imagenes && bookingRoom.imagenes.length > 0 && (
+                        <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden shrink-0 border border-neutral-200 bg-white">
+                          <img 
+                            src={bookingRoom.imagenes[0]} 
+                            alt={bookingRoom.nombre} 
+                            className="w-full h-full object-cover" 
+                            referrerPolicy="no-referrer"
+                          />
+                        </div>
+                      )}
+                      <div className="flex-1 flex flex-col justify-between">
+                        <div>
+                          <p className="font-bold text-neutral-800 text-sm leading-tight">{bookingRoom.nombre}</p>
+                          <p className="text-neutral-500 mt-1 font-semibold text-[11px]">
+                            Habitación {bookingRoom.numero} ({bookingRoom.tipo})
+                          </p>
+                          <p className="text-[10px] text-neutral-405 mt-0.5">
+                            Capacidad: {bookingRoom.capacidad} personas • {bookingRoom.camas} {bookingRoom.camas > 1 ? 'camas' : 'cama'}
+                          </p>
+                        </div>
+                        <div className="flex justify-between items-baseline mt-2 pt-1.5 border-t border-neutral-200/50">
+                          <span className="text-neutral-400 text-[10px] uppercase font-bold tracking-wider">Tarifa</span>
+                          <p className="font-mono font-bold text-teal-800 text-sm">${bookingRoom.precio} USD <span className="font-sans font-normal text-[10px] text-neutral-500">/ noche</span></p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Booking success notification banner */}
+                    {bookingSuccess ? (
+                      <div className="bg-emerald-50 border border-emerald-300 text-emerald-800 p-4 rounded-xl flex items-center gap-3 animate-pulse">
+                        <Check className="w-5 h-5 text-emerald-600 shrink-0" />
+                        <div>
+                          <h5 className="font-semibold text-sm">Reserva Procesada Magníficamente</h5>
+                          <p className="text-xs text-emerald-600 mt-0.5">Se redireccionará a su expediente de mis reservaciones.</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        {bookingError && (
+                          <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs flex items-start gap-2.5 animate-pulse font-sans">
+                            <span className="font-bold uppercase text-[10px] shrink-0 bg-rose-200 text-rose-900 rounded px-1.5 py-0.5 mt-0.5">Error</span>
+                            <p className="font-medium leading-normal">{bookingError}</p>
+                          </div>
+                        )}
+
+                        {/* Dates Pickers */}
+                        <div className="grid grid-cols-2 gap-3.5">
+                          <div>
+                            <label className="text-xs font-semibold text-neutral-500 block mb-1.5">Check-In</label>
+                            <input
+                              type="date"
+                              required
+                              min={getTodayString(0)}
+                              value={checkInDate}
+                              onChange={(e) => {
+                                setCheckInDate(e.target.value);
+                                setBookingError(null);
+                              }}
+                              className="w-full text-xs border border-neutral-200 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 focus:outline-none bg-white cursor-pointer"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs font-semibold text-neutral-500 block mb-1.5">Check-Out</label>
+                            <input
+                              type="date"
+                              required
+                              min={getMinCheckOutDate()}
+                              value={checkOutDate}
+                              onChange={(e) => {
+                                setCheckOutDate(e.target.value);
+                                setBookingError(null);
+                              }}
+                              className="w-full text-xs border border-neutral-200 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 focus:outline-none bg-white cursor-pointer"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Additional services checkout menu */}
+                        <div className="space-y-2">
+                          <label className="text-xs font-semibold text-neutral-500 block mb-1">Servicios Estancia Adicionales (Opcional):</label>
+                          <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                            {ADDITIONAL_SERVICES.map(srv => {
+                              const isChecked = selectedServices.includes(srv.id);
+                              return (
+                                <div
+                                  key={srv.id}
+                                  onClick={() => {
+                                    setSelectedServices(prev =>
+                                      isChecked ? prev.filter(id => id !== srv.id) : [...prev, srv.id]
+                                    );
+                                  }}
+                                  className={`p-2.5 rounded-xl border text-xs cursor-pointer transition-all flex justify-between items-center ${
+                                    isChecked
+                                      ? 'bg-teal-50/50 border-teal-300 shadow-sm'
+                                      : 'bg-white hover:bg-neutral-50 border-neutral-200'
+                                  }`}
+                                >
+                                  <div className="pr-4">
+                                    <p className="font-semibold text-neutral-800">{srv.name}</p>
+                                    <p className="text-[10px] text-neutral-400 mt-0.5">{srv.desc}</p>
+                                  </div>
+                                  <div className="shrink-0 text-right flex items-center gap-2">
+                                    <span className="font-mono font-bold text-teal-800">+${srv.price}</span>
+                                    <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${isChecked ? 'bg-teal-600 border-teal-600 text-white' : 'border-neutral-300'}`}>
+                                      {isChecked && <Check className="w-3 h-3" />}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Notas */}
+                        <div>
+                          <label className="text-xs font-semibold text-neutral-500 block mb-1">Peticiones o notas especiales (Opcional)</label>
+                          <textarea
+                            value={bookingNote}
+                            onChange={(e) => setBookingNote(e.target.value)}
+                            placeholder="Ej: Requiere sábanas hipoalergénicas, traslado con rampa, etc."
+                            className="w-full text-xs border border-neutral-200 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 focus:outline-none h-14 bg-white"
+                          />
+                        </div>
+
+                        {/* AUTO COMPUTED PRICE BREAKDOWN PREVIEW */}
+                        <div className="p-4 bg-teal-50/40 rounded-2xl border border-teal-100 space-y-1.5 text-xs text-neutral-600">
+                          <p className="font-bold text-teal-900 uppercase text-[10px] tracking-wider border-b border-teal-100 pb-1 mb-2">Resumen de Pre-Factura Roomia SaaS</p>
+                          <div className="flex justify-between">
+                            <span>Noches de estadía:</span>
+                            <span className="font-semibold">{getNightsCount()} {getNightsCount() > 1 ? 'noches' : 'noche'}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Hospedaje de Suite:</span>
+                            <span className="font-mono">${getBookingSubtotal(bookingRoom.precio)} USD</span>
+                          </div>
+                          {getServicesTotal() > 0 && (
+                            <div className="flex justify-between">
+                              <span>Servicios Adicionales:</span>
+                              <span className="font-mono text-emerald-750">+${getServicesTotal()} USD</span>
+                            </div>
+                          )}
+                          <div className="flex justify-between text-[11px]">
+                            <span>Impuestos (IVA 16%):</span>
+                            <span className="font-mono">${getBookingTotal(bookingRoom.precio).tax.toFixed(2)} USD</span>
+                          </div>
+                          <div className="h-[1px] bg-teal-100/50 my-1.5" />
+                          <div className="flex justify-between font-bold text-neutral-900 text-sm">
+                            <span>Total Estimado:</span>
+                            <span className="font-mono text-teal-800">${getBookingTotal(bookingRoom.precio).total.toFixed(2)} USD</span>
+                          </div>
+                        </div>
+
+                        {/* Submit buttons */}
+                        <div className="pt-2 flex gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setBookingRoom(null)}
+                            className="w-1/2 px-4 py-2.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-semibold rounded-xl text-xs transition-colors cursor-pointer text-center"
+                          >
+                            Volver
+                          </button>
+                          <button
+                            type="submit"
+                            className="w-1/2 px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl text-xs transition-all cursor-pointer text-center shadow-md hover:shadow-lg active:scale-95"
+                          >
+                            Confirmar Reserva
+                          </button>
+                        </div>
+                      </>
+                    )}
+
+                  </form>
+                </div>
+
+              </div>
+            </div>
           ) : (
             // HOTEL DETAIL PAGE & AVAILABLE ROOMS
             <div className="space-y-8 animate-fade-in">
@@ -360,31 +646,17 @@ export default function ClientView({
                 
                 {/* Main description slider */}
                 <div className="lg:col-span-2 space-y-6">
-                  <div className="rounded-2xl overflow-hidden h-80 bg-neutral-100 relative shadow-sm border border-neutral-100">
-                    <img
-                      src={activeHotel?.portada}
-                      alt={activeHotel?.nombre}
-                      className="w-full h-full object-cover"
-                      referrerPolicy="no-referrer"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-neutral-950/65 to-transparent flex items-end p-6">
-                      <div>
-                        <h3 className="text-2xl md:text-3xl font-display font-semibold text-white tracking-tight">{activeHotel?.nombre}</h3>
-                        <div className="flex items-center gap-1.5 text-neutral-200 text-xs mt-1.5">
-                          <MapPin className="w-3.5 h-3.5" />
-                          <span>{activeHotel?.ubicacion}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  {/* Interactive, animated Hotel Image Gallery & Carousel Suite */}
+                  <HotelImageGallery 
+                    imagenes={activeHotel?.imagenes || []} 
+                    portada={activeHotel?.portada || ''} 
+                    hotelNombre={activeHotel?.nombre || ''} 
+                  />
 
-                  {/* Image gallery carousel */}
-                  <div className="grid grid-cols-4 gap-3">
-                    {activeHotel?.imagenes.map((img, i) => (
-                      <div key={i} className="h-16 md:h-24 rounded-xl overflow-hidden bg-neutral-200 border border-neutral-100 hover:scale-105 transition-transform duration-300">
-                        <img src={img} alt="Hotel gallery" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                      </div>
-                    ))}
+                  {/* Aesthetic location and map badge */}
+                  <div className="flex items-center gap-2 text-xs bg-neutral-50 p-3 rounded-xl border border-neutral-200 text-neutral-600 font-medium shadow-sm">
+                    <MapPin className="w-4 h-4 text-teal-600 shrink-0" />
+                    <span>Establecimiento ubicado en: {activeHotel?.ubicacion}</span>
                   </div>
 
                   <div>
@@ -492,36 +764,64 @@ export default function ClientView({
               {/* LIST OF SUITES AVAILABLE IN THIS HOTEL */}
               <div className="space-y-4 pt-4 border-t border-neutral-200">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                  <h4 className="font-semibold text-neutral-850 text-xl font-display">Habitaciones y Suites</h4>
-                  
-                  {/* Selector Filter options */}
-                  <div className="flex items-center gap-3 text-xs font-semibold">
-                    <span className="text-neutral-400 font-medium">Filtrar:</span>
-                    <button
-                      type="button"
-                      onClick={() => setShowOnlyAvailableRooms(true)}
-                      className={`px-3 py-1.5 rounded-lg border transition-all cursor-pointer font-medium ${
-                        showOnlyAvailableRooms
-                          ? 'bg-teal-600 text-white border-teal-600 shadow-sm'
-                          : 'bg-white text-neutral-600 border-neutral-200 hover:bg-neutral-50'
-                      }`}
-                    >
-                      Disponibles ({rooms.filter(r => r.hotelId === selectedHotelId && r.estado === 'disponible').length})
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowOnlyAvailableRooms(false)}
-                      className={`px-3 py-1.5 rounded-lg border transition-all cursor-pointer font-medium ${
-                        !showOnlyAvailableRooms
-                          ? 'bg-teal-600 text-white border-teal-600 shadow-sm'
-                          : 'bg-white text-neutral-600 border-neutral-200 hover:bg-neutral-50'
-                      }`}
-                    >
-                      Todas ({rooms.filter(r => r.hotelId === selectedHotelId).length})
-                    </button>
+                  <div>
+                    <h4 className="font-semibold text-neutral-850 text-xl font-display">Habitaciones y Suites</h4>
+                    <p className="text-xs text-neutral-400 mt-0.5">Explore alojamientos disponibles y personalice su búsqueda con los filtros avanzados.</p>
                   </div>
                 </div>
-                
+
+                 {/* ADVANCED MULTIPLE FILTERS SECTION (Capacity, Prices, Room type) */}
+                <div className="bg-neutral-50 p-4 rounded-2xl border border-neutral-200 grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-medium">
+                  {/* Filter 1: Capacity (Cantidad de personas) */}
+                  <div className="space-y-1.5 col-span-1">
+                    <span className="text-neutral-500 block font-semibold uppercase tracking-wider text-[10px]">Cantidad de Personas</span>
+                    <select
+                      value={roomCapacity}
+                      onChange={(e) => setRoomCapacity(e.target.value)}
+                      className="w-full bg-white border border-neutral-200 rounded-xl p-2 focus:ring-1 focus:ring-teal-500 focus:outline-none cursor-pointer h-[38px] shadow-sm font-semibold"
+                    >
+                      <option value="">Cualquier capacidad (Predeterminado)</option>
+                      <option value="1-2">1-2 personas</option>
+                      <option value="3-4">3-4 personas</option>
+                      <option value="5-6">5-6 personas</option>
+                    </select>
+                  </div>
+
+                  {/* Filter 2: Room Type */}
+                  <div className="space-y-1.5 col-span-1">
+                    <span className="text-neutral-500 block font-semibold uppercase tracking-wider text-[10px]">Tipo de Suite / Habitación</span>
+                    <select
+                      value={roomTypeFilter}
+                      onChange={(e) => setRoomTypeFilter(e.target.value)}
+                      className="w-full bg-white border border-neutral-200 rounded-xl p-2 focus:ring-1 focus:ring-teal-500 focus:outline-none cursor-pointer h-[38px] shadow-sm font-semibold"
+                    >
+                      <option value="">Todos los tipos (Predeterminado)</option>
+                      {Array.from(new Set(rooms.filter(r => r.hotelId === selectedHotelId).map(r => r.tipo))).map(type => (
+                        <option key={type} value={type}>{type}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Filter 3: Price Slider (Precios) */}
+                  <div className="space-y-1.5 col-span-1">
+                    <div className="flex justify-between items-center">
+                      <span className="text-neutral-500 font-semibold uppercase tracking-wider text-[10px]">Precio Máximo por noche</span>
+                      <span className="text-teal-700 font-mono font-bold text-[11px]">${roomMaxPrice} USD</span>
+                    </div>
+                    <div className="flex items-center gap-3 h-[38px] bg-white border border-neutral-200 rounded-xl px-3 shadow-sm">
+                      <input
+                        type="range"
+                        min="50"
+                        max="1000"
+                        step="25"
+                        value={roomMaxPrice}
+                        onChange={(e) => setRoomMaxPrice(parseInt(e.target.value))}
+                        className="w-full accent-teal-600 focus:outline-none cursor-pointer"
+                      />
+                    </div>
+                  </div>
+                </div>
+
                 <div className="space-y-4">
                   {roomsInActiveHotel.length === 0 ? (
                     <div className="bg-neutral-50 rounded-2xl p-8 border border-neutral-200 text-center text-neutral-500 py-12">
@@ -547,15 +847,8 @@ export default function ClientView({
                             : 'border-neutral-100 opacity-65'
                         }`}
                       >
-                        {/* Thumbnail */}
-                        <div className="w-full md:w-56 h-36 rounded-xl overflow-hidden bg-neutral-100 shrink-0 border border-neutral-100">
-                          <img
-                            src={room.imagenes[0] || 'https://images.unsplash.com/photo-1618773928121-c32242e63f39?w=300'}
-                            alt={room.nombre}
-                            className="w-full h-full object-cover"
-                            referrerPolicy="no-referrer"
-                          />
-                        </div>
+                        {/* Animated Photo Gallery Thumbnail */}
+                        <RoomImageGallery imagenes={room.imagenes} roomNombre={room.nombre} />
 
                         {/* Middle detail content */}
                         <div className="flex-1 flex flex-col justify-between">
@@ -682,7 +975,7 @@ export default function ClientView({
                       </div>
 
                       <div className="flex-1 space-y-1">
-                        <h4 className="font-semibold text-neutral-800 text-sm">{hotel?.nombre || 'Hotel Aura'}</h4>
+                        <h4 className="font-semibold text-neutral-800 text-sm">{hotel?.nombre || 'Hotel Roomia'}</h4>
                         <p className="text-xs text-teal-700 font-medium">Habitación {room?.numero || 'S/N'} - {room?.nombre}</p>
                         
                         <div className="flex items-center gap-1.5 text-[11px] text-neutral-500 pt-1">
@@ -798,174 +1091,6 @@ export default function ClientView({
               })}
             </div>
           )}
-        </div>
-      )}
-
-      {/* FLOW MODAL: CONSTRUCT TRANSACTION RESERVATION */}
-      {bookingRoom && activeHotel && (
-        <div className="fixed inset-0 bg-neutral-950/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto border border-neutral-100 flex flex-col">
-            
-            {/* Header */}
-            <div className="px-6 py-4 border-b border-neutral-100 flex justify-between items-center bg-neutral-50 rounded-t-2xl">
-              <div>
-                <h4 className="font-semibold text-neutral-800 text-base">Crear Nueva Reservación</h4>
-                <p className="text-[10px] text-neutral-400 uppercase tracking-widest font-bold mt-0.5">{activeHotel.nombre}</p>
-              </div>
-              <button
-                onClick={() => setBookingRoom(null)}
-                className="p-1 hover:bg-neutral-200 text-neutral-400 hover:text-neutral-600 rounded-full transition-colors cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Content Form */}
-            <form onSubmit={handleCreateBooking} className="p-6 space-y-5">
-              
-              {/* Alert Booking status banner */}
-              {bookingSuccess ? (
-                <div className="bg-emerald-50 border border-emerald-300 text-emerald-800 p-4 rounded-xl flex items-center gap-3 animate-pulse">
-                  <Check className="w-6 h-6 text-emerald-600 shrink-0" />
-                  <div>
-                    <h5 className="font-semibold text-sm">Reserva Procesada Magníficamente</h5>
-                    <p className="text-xs text-emerald-600 mt-0.5">Se redireccionará a su expediente de mis reservaciones.</p>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  {/* Selected room quick banner */}
-                  <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-100 text-xs flex justify-between">
-                    <div>
-                      <p className="font-bold text-neutral-800">{bookingRoom.nombre}</p>
-                      <p className="text-neutral-500 mt-0.5">Habitación {bookingRoom.numero} ({bookingRoom.tipo})</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-mono font-bold text-teal-800">${bookingRoom.precio} USD</p>
-                      <p className="text-neutral-400 text-[10px] font-medium">por noche</p>
-                    </div>
-                  </div>
-
-                  {/* Dates Pickers */}
-                  <div className="grid grid-cols-2 gap-3.5">
-                    <div>
-                      <label className="text-xs font-semibold text-neutral-500 block mb-1.5">Fecha Entrada (Check-In)</label>
-                      <input
-                        type="date"
-                        required
-                        value={checkInDate}
-                        onChange={(e) => setCheckInDate(e.target.value)}
-                        className="w-full text-xs border border-neutral-200 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs font-semibold text-neutral-500 block mb-1.5">Fecha Salida (Check-Out)</label>
-                      <input
-                        type="date"
-                        required
-                        value={checkOutDate}
-                        onChange={(e) => setCheckOutDate(e.target.value)}
-                        className="w-full text-xs border border-neutral-200 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 focus:outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Additional services checkout menu */}
-                  <div className="space-y-2">
-                    <label className="text-xs font-semibold text-neutral-500 block mb-1">Servicios Adicionales (Opcional):</label>
-                    <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
-                      {ADDITIONAL_SERVICES.map(srv => {
-                        const isChecked = selectedServices.includes(srv.id);
-                        return (
-                          <div
-                            key={srv.id}
-                            onClick={() => {
-                              setSelectedServices(prev =>
-                                isChecked ? prev.filter(id => id !== srv.id) : [...prev, srv.id]
-                              );
-                            }}
-                            className={`p-2.5 rounded-xl border text-xs cursor-pointer transition-colors flex justify-between items-center ${
-                              isChecked
-                                ? 'bg-teal-50/50 border-teal-300'
-                                : 'bg-white hover:bg-neutral-50 border-neutral-200'
-                            }`}
-                          >
-                            <div className="pr-4">
-                              <p className="font-semibold text-neutral-800">{srv.name}</p>
-                              <p className="text-[10px] text-neutral-400 mt-0.5">{srv.desc}</p>
-                            </div>
-                            <div className="shrink-0 text-right flex items-center gap-2">
-                              <span className="font-mono font-bold text-teal-800">+${srv.price}</span>
-                              <div className={`w-4 h-4 rounded border flex items-center justify-center ${isChecked ? 'bg-teal-600 border-teal-600 text-white' : 'border-neutral-300'}`}>
-                                {isChecked && <Check className="w-3.5 h-3.5" />}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Notas */}
-                  <div>
-                    <label className="text-xs font-semibold text-neutral-500 block mb-1">Notas especiales o solicitudes (Opcional)</label>
-                    <textarea
-                      value={bookingNote}
-                      onChange={(e) => setBookingNote(e.target.value)}
-                      placeholder="Ej: Requiere sábanas hipoalergénicas, traslado con rampa para silla de ruedas, etc."
-                      className="w-full text-xs border border-neutral-200 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 focus:outline-none h-14"
-                    />
-                  </div>
-
-                  {/* AUTO COMPUTED PRICE BREAKDOWN PREVIEW */}
-                  <div className="p-4 bg-teal-50/40 rounded-xl border border-teal-100 space-y-1.5 text-xs text-neutral-600">
-                    <p className="font-bold text-teal-850 uppercase text-[10px] tracking-wider border-b border-teal-100 pb-1 mb-2">Desglose de Montos de Pre-Factura</p>
-                    <div className="flex justify-between">
-                      <span>Noches de estadía:</span>
-                      <span className="font-semibold">{getNightsCount()} {getNightsCount() > 1 ? 'noches' : 'noche'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Hospedaje de Suite:</span>
-                      <span className="font-mono">${getBookingSubtotal(bookingRoom.precio)} USD</span>
-                    </div>
-                    {getServicesTotal() > 0 && (
-                      <div className="flex justify-between">
-                        <span>Servicios Adicionales:</span>
-                        <span className="font-mono text-emerald-700">+${getServicesTotal()} USD</span>
-                      </div>
-                    )}
-                    <div className="flex justify-between text-[11px]">
-                      <span>Impuestos (IVA 16%):</span>
-                      <span className="font-mono">${getBookingTotal(bookingRoom.precio).tax.toFixed(2)} USD</span>
-                    </div>
-                    <div className="h-[1px] bg-teal-100/50 my-1.5" />
-                    <div className="flex justify-between font-bold text-neutral-900 text-sm">
-                      <span>Total Estimado:</span>
-                      <span className="font-mono text-teal-800">${getBookingTotal(bookingRoom.precio).total.toFixed(2)} USD</span>
-                    </div>
-                  </div>
-
-                  {/* Submit buttons */}
-                  <div className="pt-2 flex gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setBookingRoom(null)}
-                      className="w-1/2 px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-semibold rounded-xl text-xs transition-colors cursor-pointer text-center"
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      type="submit"
-                      className="w-1/2 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer text-center shadow-md active:scale-95"
-                    >
-                      Confirmar Reserva
-                    </button>
-                  </div>
-                </>
-              )}
-
-            </form>
-          </div>
         </div>
       )}
 

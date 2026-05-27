@@ -6,6 +6,7 @@
 import React, { useState, useRef } from 'react';
 import { Hotel, Room, Reservation, User, RoomStatus } from '../types';
 import { QrCode, Search, Check, ShieldAlert, Sparkles, AlertTriangle, Calendar, UserCheck, ShieldCheck, Hammer, HelpCircle, Loader, Coffee } from 'lucide-react';
+import { RoomReservationCalendar } from './RoomReservationCalendar';
 
 interface ReceptionViewProps {
   hotels: Hotel[];
@@ -45,6 +46,9 @@ export default function ReceptionView({
   const [incidentRoomId, setIncidentRoomId] = useState('');
   const [incidentText, setIncidentText] = useState('');
   const [incidentSubmitted, setIncidentSubmitted] = useState(false);
+
+  // Warning state for manual occupied chamber modification
+  const [checkoutWarningRoom, setCheckoutWarningRoom] = useState<Room | null>(null);
 
   // Auto-assign first hotel state if receptionist has one
   const receptionistHotel = hotels.find(h => h.id === activeUser.hotelId) || hotels[0];
@@ -392,6 +396,18 @@ export default function ReceptionView({
           </div>
         </div>
 
+        {/* INTERACTIVE CALENDAR: arrivals & availability tracking */}
+        <div className="animate-fade-in duration-300">
+          <RoomReservationCalendar
+            hotels={hotels}
+            rooms={rooms}
+            reservations={reservations}
+            users={users}
+            activeUser={activeUser}
+            onUpdateRoomStatus={onUpdateRoomStatus}
+          />
+        </div>
+
       </div>
 
       {/* RIGHT COLUMN: OPERATIVE CLINIC & INCIDENCES */}
@@ -408,7 +424,7 @@ export default function ReceptionView({
             >
               <option value="">Mi Hotel</option>
               {hotels.map(h => (
-                <option key={h.id} value={h.id}>{h.nombre.replace('Aura ', '')}</option>
+                <option key={h.id} value={h.id}>{h.nombre.replace('Aura ', '').replace('Roomia ', '')}</option>
               ))}
             </select>
           </div>
@@ -433,7 +449,14 @@ export default function ReceptionView({
                       {/* State switch selector pills */}
                       <select
                         value={room.estado}
-                        onChange={(e) => onUpdateRoomStatus(room.id, e.target.value as RoomStatus)}
+                        onChange={(e) => {
+                          const nextStatus = e.target.value as RoomStatus;
+                          if (room.estado === 'ocupado' && nextStatus !== 'ocupado') {
+                            setCheckoutWarningRoom(room);
+                          } else {
+                            onUpdateRoomStatus(room.id, nextStatus);
+                          }
+                        }}
                         className={`text-[10px] font-bold p-1 rounded-lg border focus:outline-none cursor-pointer uppercase ${
                           room.estado === 'disponible' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' :
                           room.estado === 'reservado' ? 'bg-blue-50 text-blue-800 border-blue-200' :
@@ -509,6 +532,45 @@ export default function ReceptionView({
         </div>
 
       </div>
+
+      {/* CHECK-OUT MANDATORY WARNING MODAL */}
+      {checkoutWarningRoom && (
+        <div className="fixed inset-0 bg-neutral-950/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full border border-neutral-100 p-6 space-y-4">
+            <div className="flex items-center gap-3 text-amber-600">
+              <div className="p-2.5 bg-amber-50 rounded-full">
+                <AlertTriangle className="w-6 h-6 text-amber-600 animate-pulse" />
+              </div>
+              <div>
+                <h4 className="font-bold text-neutral-900 text-sm">Operación Restringida: Check-Out</h4>
+                <p className="text-[10px] text-neutral-400 font-medium">Procedimiento de Auditoría Requerido</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-neutral-600 leading-relaxed font-sans">
+              La habitación <strong className="text-neutral-800">N° {checkoutWarningRoom.numero}</strong> correspondiente a <strong className="text-neutral-800">"{checkoutWarningRoom.nombre}"</strong> actualmente se encuentra registrada bajo el estado <strong className="text-[10px] bg-amber-50 text-amber-850 px-1.5 py-0.5 rounded font-bold uppercase border border-amber-200">Ocupado</strong>.
+            </p>
+            
+            <p className="text-xs text-neutral-600 leading-relaxed font-sans">
+              Para cambiar el estado de este aposento, las normas hoteleras requieren obligatoriamente que se procese su <strong className="text-neutral-800">Check-Out</strong> formal desde la taquilla de recepción para liquidar saldos pendientes, timbrar facturación y transicionar higiénicamente a mantenimiento.
+            </p>
+
+            <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-3 text-[10px] text-zinc-650 leading-normal font-mono">
+              💡 Por favor, diríjase a la columna de la izquierda para buscar al huésped y procesar la facturación de Check-Out.
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setCheckoutWarningRoom(null)}
+                className="w-full px-4 py-2 bg-neutral-900 hover:bg-neutral-850 text-white font-bold rounded-xl text-xs cursor-pointer shadow-sm text-center transition-colors"
+              >
+                Entendido, regresar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

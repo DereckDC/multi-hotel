@@ -55,3 +55,16 @@ h1, h2, h3, h4, .font-display {
   animation: scanline 2s linear infinite;
   background: linear-gradient(to bottom, rgba(20, 184, 166, 0), rgba(20, 184, 166, 1));
 }
+
+/* Progressive multi-color side-to-side shift animation */
+@keyframes progressive-gradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.animate-progressive {
+  background-size: 300% 300%;
+  animation: progressive-gradient 6s ease-in-out infinite;
+}
+
