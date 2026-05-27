@@ -8,7 +8,7 @@ import { Hotel, Room, User, Reservation } from './types';
 export const INITIAL_HOTELS: Hotel[] = [
   {
     id: 'hotel-1',
-    nombre: 'Aura Majestic Palace',
+    nombre: 'Roomia Majestic Palace',
     logo: 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?w=150&auto=format&fit=crop&q=80',
     portada: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1200&auto=format&fit=crop&q=80',
     imagenes: [
@@ -17,7 +17,7 @@ export const INITIAL_HOTELS: Hotel[] = [
       'https://images.unsplash.com/photo-1584132967334-10e028bd69f7?w=800&auto=format&fit=crop&q=80',
       'https://images.unsplash.com/photo-1571896349842-33c89424de2d?w=800&auto=format&fit=crop&q=80'
     ],
-    descripcion: 'Ubicado en el corazón de la zona colonial, Aura Majestic Palace combina el lujo clásico europeo con un servicio boutique exclusivo. Disfrute de nuestra emblemática piscina infinita de borde de cristal, restaurante galardonado con estrella Michelin y tratamientos de spa personalizados de última generación.',
+    descripcion: 'Ubicado en el corazón de la zona colonial, Roomia Majestic Palace combina el lujo clásico europeo con un servicio boutique exclusivo. Disfrute de nuestra emblemática piscina infinita de borde de cristal, restaurante galardonado con estrella Michelin y tratamientos de spa personalizados de última generación.',
     ubicacion: 'Paseo de la Reforma 450, Ciudad de México, México',
     coordenadas: { lat: 19.4273, lng: -99.1676 },
     googleMapsUrl: 'https://maps.google.com/maps?q=Paseo+de+la+Reforma+450,+Ciudad+de+M%C3%A9xico',
@@ -35,12 +35,12 @@ export const INITIAL_HOTELS: Hotel[] = [
     },
     contacto: {
       telefono: '+52 55 5000 4000',
-      email: 'reservaciones@auramajestic.com',
-      web: 'www.auramajesticpalace.com'
+      email: 'reservaciones@roomiamajestic.com',
+      web: 'www.roomiamajesticpalace.com'
     },
     redesSociales: {
-      facebook: 'facebook.com/auramajestic',
-      instagram: 'instagram.com/auramajestic'
+      facebook: 'facebook.com/roomiamajestic',
+      instagram: 'instagram.com/roomiamajestic'
     },
     estado: 'activo'
   },
@@ -283,137 +283,18 @@ export const INITIAL_ROOMS: Room[] = [
 
 export const INITIAL_USERS: User[] = [
   {
-    id: 'user-admin',
-    nombre: 'Sofía',
-    apellido: 'Altamirano',
-    email: 'contacto@system.com',
-    telefono: '+52 55 9988 7766',
-    documento: 'PAS-9922883',
-    avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=facearea&facepad=2&q=80',
-    rol: 'super_admin',
-    fechaRegistro: '2025-10-10',
-    estado: 'activo',
-    password: '123456'
-  },
-  {
-    id: 'user-hotel-admin-1',
-    nombre: 'Mauricio',
-    apellido: 'Larrañaga',
-    email: 'mauricio@auramajestic.com',
-    telefono: '+52 55 1234 5678',
-    documento: 'INE-1002234',
-    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=facearea&facepad=2&q=80',
-    rol: 'hotel_admin',
-    fechaRegistro: '2026-01-15',
-    estado: 'activo',
-    hotelId: 'hotel-1',
-    password: '123456'
-  },
-  {
-    id: 'user-recep-1',
-    nombre: 'Elena',
-    apellido: 'Gómez',
-    email: 'elena@recep.com',
-    telefono: '+52 55 4433 2211',
-    documento: 'INE-5544321',
-    avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=facearea&facepad=2&q=80',
-    rol: 'recepcionista',
-    fechaRegistro: '2026-02-20',
-    estado: 'activo',
-    hotelId: 'hotel-1',
-    password: '123456'
-  },
-  {
-    id: 'user-recep-2',
-    nombre: 'Carlos',
-    apellido: 'Sanz',
-    email: 'carlos@reception.com',
-    telefono: '+34 600 112 233',
-    documento: 'DNI-3847291Z',
-    avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&auto=format&fit=facearea&facepad=2&q=80',
-    rol: 'recepcionista',
-    fechaRegistro: '2026-03-01',
-    estado: 'activo',
-    hotelId: 'hotel-2',
-    password: '123456'
-  },
-  {
-    id: 'user-client',
+    id: 'user-superadmin',
     nombre: 'Gonzalo',
     apellido: 'Rodríguez',
-    email: 'destructordereck@gmail.com', // Match the user's active session email for immersive experiences!
+    email: 'destructordereck@gmail.com',
     telefono: '+54 11 9876 5432',
     documento: 'DNI-35492109',
     avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=facearea&facepad=2&q=80',
-    rol: 'cliente',
+    rol: 'super_admin',
     fechaRegistro: '2026-04-10',
     estado: 'activo',
-    password: '123456'
+    password: '2450397340'
   }
 ];
 
-export const INITIAL_RESERVATIONS: Reservation[] = [
-  {
-    id: 'RES-73829',
-    hotelId: 'hotel-1',
-    roomId: 'room-102',
-    guestId: 'user-client',
-    fechaEntrada: '2026-05-25',
-    fechaSalida: '2026-05-28',
-    serviciosAdicionales: ['Desayuno Premium', 'Acceso Spa Completo'],
-    subtotal: 1440,
-    impuestos: 230.4,
-    total: 1670.4,
-    qrCode: 'AURA-RES-73829-HOTEL-1-ROOM-102',
-    estado: 'confirmada',
-    fechaRegistro: '2026-05-20'
-  },
-  {
-    id: 'RES-10492',
-    hotelId: 'hotel-2',
-    roomId: 'room-202',
-    guestId: 'user-client',
-    fechaEntrada: '2026-05-24',
-    fechaSalida: '2026-05-26',
-    serviciosAdicionales: ['Coworking Premium WiFi Pass'],
-    subtotal: 260,
-    impuestos: 41.6,
-    total: 301.6,
-    qrCode: 'AURA-RES-10492-HOTEL-2-ROOM-202',
-    estado: 'confirmada',
-    fechaRegistro: '2026-05-18'
-  },
-  {
-    id: 'RES-88273',
-    hotelId: 'hotel-1',
-    roomId: 'room-101',
-    guestId: 'user-client',
-    fechaEntrada: '2026-05-10',
-    fechaSalida: '2026-05-13',
-    serviciosAdicionales: ['Traslado Aeropuerto', 'Masaje Relajante'],
-    subtotal: 750,
-    impuestos: 120,
-    total: 870,
-    qrCode: 'AURA-RES-88273-HOTEL-1-ROOM-101',
-    estado: 'finalizada',
-    fechaRegistro: '2026-05-02',
-    checkedInAt: '2026-05-10T15:14:00Z',
-    checkedOutAt: '2026-05-13T11:45:00Z',
-    recepcionistaId: 'user-recep-1'
-  },
-  {
-    id: 'RES-38294',
-    hotelId: 'hotel-3',
-    roomId: 'room-301',
-    guestId: 'user-client',
-    fechaEntrada: '2026-06-15',
-    fechaSalida: '2026-06-20',
-    serviciosAdicionales: ['Muelle Privado y Guía de Pesca'],
-    subtotal: 1050,
-    impuestos: 168,
-    total: 1218,
-    qrCode: 'AURA-RES-38294-HOTEL-3-ROOM-301',
-    estado: 'pendiente',
-    fechaRegistro: '2026-05-22'
-  }
-];
+export const INITIAL_RESERVATIONS: Reservation[] = [];
