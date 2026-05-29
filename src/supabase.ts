@@ -391,27 +391,183 @@ ON CONFLICT (id) DO NOTHING;
 /**
  * Uploads/Syncs a single hotel to Supabase
  */
+export function mapHotelToDb(hotel: Hotel): any {
+  return {
+    id: hotel.id,
+    nombre: hotel.nombre,
+    logo: hotel.logo || null,
+    portada: hotel.portada || null,
+    imagenes: hotel.imagenes || [],
+    descripcion: hotel.descripcion || '',
+    ubicacion: hotel.ubicacion || '',
+    coordenadas: hotel.coordenadas || { lat: 19.4273, lng: -99.1676 },
+    googlemapsurl: hotel.googleMapsUrl || null,
+    servicios: hotel.servicios || [],
+    politicas: hotel.politicas || [],
+    horarios: hotel.horarios || { checkIn: "15:00", checkOut: "12:00" },
+    contacto: hotel.contacto || {},
+    redessociales: hotel.redesSociales || {},
+    estado: hotel.estado || 'activo'
+  };
+}
+
+export function mapHotelFromDb(db: any): Hotel {
+  if (!db) return db;
+  return {
+    id: db.id,
+    nombre: db.nombre,
+    logo: db.logo || '',
+    portada: db.portada || '',
+    imagenes: db.imagenes || [],
+    descripcion: db.descripcion || '',
+    ubicacion: db.ubicacion || '',
+    coordenadas: db.coordenadas || { lat: 19.4273, lng: -99.1676 },
+    googleMapsUrl: db.googlemapsurl !== undefined ? db.googlemapsurl : (db.googleMapsUrl || ''),
+    servicios: db.servicios || [],
+    politicas: db.politicas || [],
+    horarios: db.horarios || { checkIn: '15:00', checkOut: '12:00' },
+    contacto: db.contacto || {},
+    redesSociales: db.redessociales !== undefined ? db.redessociales : (db.redesSociales || {}),
+    estado: db.estado || 'activo'
+  };
+}
+
+export function mapRoomToDb(room: Room): any {
+  return {
+    id: room.id,
+    hotelid: room.hotelId,
+    numero: room.numero,
+    nombre: room.nombre,
+    tipo: room.tipo,
+    precio: room.precio,
+    capacidad: room.capacidad,
+    camas: room.camas,
+    estado: room.estado,
+    imagenes: room.imagenes || [],
+    descripcion: room.descripcion || '',
+    servicios: room.servicios || []
+  };
+}
+
+export function mapRoomFromDb(db: any): Room {
+  if (!db) return db;
+  return {
+    id: db.id,
+    hotelId: db.hotelid !== undefined ? db.hotelid : (db.hotelId || ''),
+    numero: db.numero || '',
+    nombre: db.nombre || '',
+    tipo: db.tipo || 'Estándar',
+    precio: Number(db.precio || 0),
+    capacidad: Number(db.capacidad || 1),
+    camas: Number(db.camas || 1),
+    estado: db.estado || 'disponible',
+    imagenes: db.imagenes || [],
+    descripcion: db.descripcion || '',
+    servicios: db.servicios || db.amenidades || []
+  };
+}
+
+export function mapUserToDb(user: User): any {
+  return {
+    id: user.id,
+    nombre: user.nombre || 'Usuario',
+    apellido: user.apellido || 'Roomia',
+    email: user.email,
+    telefono: user.telefono || '',
+    documento: user.documento || '',
+    avatar: user.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
+    rol: user.rol || 'cliente',
+    fecharegistro: user.fechaRegistro || new Date().toISOString().split('T')[0],
+    estado: user.estado || 'activo',
+    password: user.password || '',
+    hotelid: user.hotelId || null
+  };
+}
+
+export function mapUserFromDb(db: any): User {
+  if (!db) return db;
+  return {
+    id: db.id,
+    nombre: db.nombre || 'Usuario',
+    apellido: db.apellido || 'Roomia',
+    email: db.email || '',
+    telefono: db.telefono || '',
+    documento: db.documento || '',
+    avatar: db.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
+    rol: db.rol || 'cliente',
+    fechaRegistro: db.fecharegistro !== undefined ? db.fecharegistro : (db.fechaRegistro || new Date().toISOString().split('T')[0]),
+    estado: db.estado || 'activo',
+    password: db.password || '',
+    hotelId: db.hotelid !== undefined ? db.hotelid : db.hotelId
+  };
+}
+
+export function mapReservationToDb(res: Reservation): any {
+  const entrada = new Date(res.fechaEntrada);
+  const salida = new Date(res.fechaSalida);
+  const diffTime = Math.abs(salida.getTime() - entrada.getTime());
+  const nochesCalc = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) || 1;
+
+  return {
+    id: res.id,
+    roomid: res.roomId,
+    hotelid: res.hotelId,
+    guestid: res.guestId,
+    fechaentrada: res.fechaEntrada,
+    fechasalida: res.fechaSalida,
+    noches: (res as any).noches || nochesCalc,
+    total: res.total,
+    estado: res.estado,
+    qrcode: res.qrCode || '',
+    checkedinat: res.checkedInAt || null,
+    checkedoutat: res.checkedOutAt || null,
+    recepcionistaid: res.recepcionistaId || null,
+    modificadopor: res.modificadoPor || null,
+    mensajecambio: res.mensajeCambio || null,
+    fechacambio: res.fechaCambio || null,
+    eliminadaporcliente: res.eliminadaPorCliente === undefined ? false : res.eliminadaPorCliente,
+    serviciosadicionales: res.serviciosAdicionales || [],
+    subtotal: res.subtotal || 0,
+    impuestos: res.impuestos || 0,
+    notes: res.notas || '',
+    cambiadoporid: res.cambiadoPorId || null
+  };
+}
+
+export function mapReservationFromDb(db: any): Reservation {
+  if (!db) return db;
+  return {
+    id: db.id,
+    roomId: db.roomid !== undefined ? db.roomid : (db.roomId || ''),
+    hotelId: db.hotelid !== undefined ? db.hotelid : (db.hotelId || ''),
+    guestId: db.guestid !== undefined ? db.guestid : (db.guestId || ''),
+    fechaEntrada: db.fechaentrada !== undefined ? db.fechaentrada : (db.fechaEntrada || ''),
+    fechaSalida: db.fechasalida !== undefined ? db.fechasalida : (db.fechaSalida || ''),
+    noches: Number(db.noches || 1),
+    total: Number(db.total || 0),
+    estado: db.estado || 'pendiente',
+    qrCode: db.qrcode !== undefined ? db.qrcode : (db.qrCode || ''),
+    checkedInAt: db.checkedinat !== undefined ? db.checkedinat : (db.checkedInAt || undefined),
+    checkedOutAt: db.checkedoutat !== undefined ? db.checkedoutat : (db.checkedOutAt || undefined),
+    recepcionistaId: db.recepcionistaid !== undefined ? db.recepcionistaid : (db.recepcionistaId || undefined),
+    modificadoPor: db.modificadopor !== undefined ? db.modificadopor : (db.modificadoPor || undefined),
+    mensajeCambio: db.mensajecambio !== undefined ? db.mensajecambio : (db.mensajeCambio || undefined),
+    fechaCambio: db.fechacambio !== undefined ? db.fechacambio : (db.fechaCambio || undefined),
+    eliminadaPorCliente: db.eliminadaporcliente !== undefined ? db.eliminadaporcliente : (db.eliminadaPorCliente || false),
+    serviciosAdicionales: db.serviciosadicionales || db.serviciosAdicionales || [],
+    subtotal: Number(db.subtotal || 0),
+    impuestos: Number(db.impuestos || 0),
+    notas: db.notes || db.notas || '',
+    cambiadoPorId: db.cambiadoporid !== undefined ? db.cambiadoporid : (db.cambiadoPorId || undefined),
+    fechaRegistro: db.fecharegistro !== undefined ? db.fecharegistro : (db.fechaRegistro || new Date().toISOString().split('T')[0])
+  } as any;
+}
+
 export async function syncHotelToSupabase(hotel: Hotel): Promise<{ success: boolean; error?: string }> {
   try {
     const { error } = await supabase
       .from('hotels')
-      .upsert({
-        id: hotel.id,
-        nombre: hotel.nombre,
-        logo: hotel.logo || null,
-        portada: hotel.portada || null,
-        imagenes: hotel.imagenes || [],
-        descripcion: hotel.descripcion || '',
-        ubicacion: hotel.ubicacion || '',
-        coordenadas: hotel.coordenadas || { lat: 19.4273, lng: -99.1676 },
-        googleMapsUrl: hotel.googleMapsUrl || '',
-        servicios: hotel.servicios || [],
-        politicas: hotel.politicas || [],
-        horarios: hotel.horarios || { checkIn: "15:00", checkOut: "12:00" },
-        contacto: hotel.contacto || {},
-        redesSociales: hotel.redesSociales || {},
-        estado: hotel.estado || 'activo'
-      });
+      .upsert(mapHotelToDb(hotel));
 
     if (error) {
       console.warn('Supabase syncHotel error:', error);
@@ -430,20 +586,7 @@ export async function syncRoomToSupabase(room: Room): Promise<{ success: boolean
   try {
     const { error } = await supabase
       .from('rooms')
-      .upsert({
-        id: room.id,
-        hotelId: room.hotelId,
-        numero: room.numero,
-        nombre: room.nombre,
-        tipo: room.tipo,
-        precio: room.precio,
-        capacidad: room.capacidad,
-        camas: room.camas,
-        estado: room.estado,
-        imagenes: room.imagenes || [],
-        descripcion: room.descripcion || '',
-        servicios: room.servicios || []
-      });
+      .upsert(mapRoomToDb(room));
 
     if (error) {
       console.warn('Supabase syncRoom error:', error);
@@ -462,20 +605,7 @@ export async function syncUserToSupabase(user: User): Promise<{ success: boolean
   try {
     const { error } = await supabase
       .from('users')
-      .upsert({
-        id: user.id,
-        nombre: user.nombre || 'Usuario',
-        apellido: user.apellido || 'Roomia',
-        email: user.email,
-        telefono: user.telefono || '',
-        documento: user.documento || '',
-        avatar: user.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
-        rol: user.rol || 'cliente',
-        fechaRegistro: user.fechaRegistro || new Date().toISOString().split('T')[0],
-        estado: user.estado || 'activo',
-        password: user.password || '',
-        hotelId: user.hotelId || null
-      });
+      .upsert(mapUserToDb(user));
 
     if (error) {
       console.warn('Supabase syncUser error:', error);
@@ -492,37 +622,9 @@ export async function syncUserToSupabase(user: User): Promise<{ success: boolean
  */
 export async function syncReservationToSupabase(res: Reservation): Promise<{ success: boolean; error?: string }> {
   try {
-    const entrada = new Date(res.fechaEntrada);
-    const salida = new Date(res.fechaSalida);
-    const diffTime = Math.abs(salida.getTime() - entrada.getTime());
-    const nochesCalc = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) || 1;
-
     const { error } = await supabase
       .from('reservations')
-      .upsert({
-        id: res.id,
-        roomId: res.roomId,
-        hotelId: res.hotelId,
-        guestId: res.guestId,
-        fechaEntrada: res.fechaEntrada,
-        fechaSalida: res.fechaSalida,
-        noches: (res as any).noches || nochesCalc,
-        total: res.total,
-        estado: res.estado,
-        qrCode: res.qrCode || '',
-        checkedInAt: res.checkedInAt || null,
-        checkedOutAt: res.checkedOutAt || null,
-        recepcionistaId: res.recepcionistaId || null,
-        modificadoPor: res.modificadoPor || null,
-        mensajeCambio: res.mensajeCambio || null,
-        fechaCambio: res.fechaCambio || null,
-        eliminadaPorCliente: res.eliminadaPorCliente === undefined ? false : res.eliminadaPorCliente,
-        serviciosAdicionales: res.serviciosAdicionales || [],
-        subtotal: res.subtotal || 0,
-        impuestos: res.impuestos || 0,
-        notes: res.notas || '',
-        cambiadoPorId: res.cambiadoPorId || null
-      });
+      .upsert(mapReservationToDb(res));
 
     if (error) {
       console.warn('Supabase syncReservation error:', error);

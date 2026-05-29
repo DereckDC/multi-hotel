@@ -13,7 +13,11 @@ import {
   syncUserToSupabase,
   syncReservationToSupabase,
   syncLogToSupabase,
-  deleteRowFromSupabase
+  deleteRowFromSupabase,
+  mapHotelFromDb,
+  mapRoomFromDb,
+  mapUserFromDb,
+  mapReservationFromDb
 } from './supabase';
 
 // Safe standard local storage storage key constants
@@ -101,28 +105,25 @@ export function useHotelStore() {
         // Fetch hotels from Supabase
         const { data: dbHotels, error: hErr } = await supabase.from('hotels').select('*');
         if (!hErr && dbHotels && dbHotels.length > 0) {
-          setHotels(dbHotels as Hotel[]);
+          setHotels(dbHotels.map(mapHotelFromDb));
         }
 
         // Fetch rooms from Supabase
         const { data: dbRooms, error: rErr } = await supabase.from('rooms').select('*');
         if (!rErr && dbRooms && dbRooms.length > 0) {
-          setRooms(dbRooms.map(r => ({
-            ...r,
-            servicios: r.amenidades || r.servicios // fallback field mismatch
-          })) as Room[]);
+          setRooms(dbRooms.map(mapRoomFromDb));
         }
 
         // Fetch users from Supabase
         const { data: dbUsers, error: uErr } = await supabase.from('users').select('*');
         if (!uErr && dbUsers && dbUsers.length > 0) {
-          setUsers(dbUsers as User[]);
+          setUsers(dbUsers.map(mapUserFromDb));
         }
 
         // Fetch reservations from Supabase
         const { data: dbRes, error: resErr } = await supabase.from('reservations').select('*');
         if (!resErr && dbRes && dbRes.length > 0) {
-          setReservations(dbRes as Reservation[]);
+          setReservations(dbRes.map(mapReservationFromDb));
         }
 
         // Fetch logs from Supabase
@@ -143,19 +144,19 @@ export function useHotelStore() {
       .channel('schema-db-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'hotels' }, async () => {
         const { data } = await supabase.from('hotels').select('*');
-        if (data) setHotels(data as Hotel[]);
+        if (data) setHotels(data.map(mapHotelFromDb));
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms' }, async () => {
         const { data } = await supabase.from('rooms').select('*');
-        if (data) setRooms(data.map(r => ({ ...r, servicios: r.amenidades || r.servicios })) as Room[]);
+        if (data) setRooms(data.map(mapRoomFromDb));
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, async () => {
         const { data } = await supabase.from('users').select('*');
-        if (data) setUsers(data as User[]);
+        if (data) setUsers(data.map(mapUserFromDb));
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations' }, async () => {
         const { data } = await supabase.from('reservations').select('*');
-        if (data) setReservations(data as Reservation[]);
+        if (data) setReservations(data.map(mapReservationFromDb));
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'logs' }, async () => {
         const { data } = await supabase.from('logs').select('*');
@@ -205,16 +206,16 @@ export function useHotelStore() {
           
           // Refresh state from freshly seeded tables
           const { data: dbHotels } = await supabase.from('hotels').select('*');
-          if (dbHotels) setHotels(dbHotels as Hotel[]);
+          if (dbHotels) setHotels(dbHotels.map(mapHotelFromDb));
 
           const { data: dbRooms } = await supabase.from('rooms').select('*');
-          if (dbRooms) setRooms(dbRooms.map(r => ({ ...r, servicios: r.amenidades || r.servicios })) as Room[]);
+          if (dbRooms) setRooms(dbRooms.map(mapRoomFromDb));
 
           const { data: dbUsers } = await supabase.from('users').select('*');
-          if (dbUsers) setUsers(dbUsers as User[]);
+          if (dbUsers) setUsers(dbUsers.map(mapUserFromDb));
 
           const { data: dbRes } = await supabase.from('reservations').select('*');
-          if (dbRes) setReservations(dbRes as Reservation[]);
+          if (dbRes) setReservations(dbRes.map(mapReservationFromDb));
         } else {
           // Double check that "destructordereck@gmail.com" resides in the Supabase users database as Super Admin
           const { data: matchedAdmin, error: adminErr } = await supabase
@@ -229,18 +230,21 @@ export function useHotelStore() {
             await syncUserToSupabase(superAdminObj);
             
             const { data: refUsers } = await supabase.from('users').select('*');
-            if (refUsers) setUsers(refUsers as User[]);
-          } else if (matchedAdmin.rol !== 'super_admin' || matchedAdmin.password !== '2450397340' || matchedAdmin.estado !== 'activo') {
-            const correctedAdmin = {
-              ...matchedAdmin,
-              rol: 'super_admin' as UserRole,
-              password: '2450397340',
-              estado: 'activo' as const
-            };
-            await syncUserToSupabase(correctedAdmin);
-            
-            const { data: refUsers } = await supabase.from('users').select('*');
-            if (refUsers) setUsers(refUsers as User[]);
+            if (refUsers) setUsers(refUsers.map(mapUserFromDb));
+          } else {
+            const mappedAdmin = mapUserFromDb(matchedAdmin);
+            if (mappedAdmin.rol !== 'super_admin' || mappedAdmin.password !== '2450397340' || mappedAdmin.estado !== 'activo') {
+              const correctedAdmin: User = {
+                ...mappedAdmin,
+                rol: 'super_admin' as UserRole,
+                password: '2450397340',
+                estado: 'activo' as const
+              };
+              await syncUserToSupabase(correctedAdmin);
+              
+              const { data: refUsers } = await supabase.from('users').select('*');
+              if (refUsers) setUsers(refUsers.map(mapUserFromDb));
+            }
           }
         }
       } catch (err) {

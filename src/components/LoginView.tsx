@@ -224,9 +224,16 @@ El Equipo de Hospitalidad de Roomia PMS.`;
       if (error) throw error;
     } catch (err: any) {
       console.error("Google Auth failed inside preview container: ", err);
-      setErrorMsg(
-        `Error de Google Auth: ${err.message}. (Si estás previsualizando en el iframe, por favor abre la app en pestaña nueva con el botón de salir de iframe arriba a la derecha para permitir la autenticación de Google real, o regístrese con un correo electrónico real en los campos normales).`
-      );
+      const errMsg = err.message || String(err);
+      if (errMsg.includes("Unsupported provider") || errMsg.includes("not enabled")) {
+        setErrorMsg(
+          "El proveedor de iniciar sesión con Google no está habilitado en tu consola de Supabase. Para habilitarlo: 1) Entra en Supabase Dashboard -> Authentication -> Providers. 2) Habilita Google e introduce tus datos de Google Client. Mientras tanto, puedes usar el formulario inferior para registrarte e iniciar sesión al instante con cualquier correo."
+        );
+      } else {
+        setErrorMsg(
+          `Error de Google Auth: ${errMsg}. (Si estás previsualizando en el iframe, por favor abre la app en pestaña nueva con el botón de salir de iframe arriba a la derecha para permitir la autenticación de Google real, o regístrese con un correo electrónico real en los campos normales).`
+        );
+      }
     } finally {
       setLoadingType(null);
     }
