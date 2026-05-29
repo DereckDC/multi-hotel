@@ -576,20 +576,27 @@ export function useHotelStore() {
     }
 
     // Dispatch beautiful welcome email using real SMTP API endpoint
-    const emailSubject = '¡Bienvenido/a a Roomia PMS Hospitality SaaS! 🏨✨';
+    const emailSubject = user.debeCambiarPassword 
+      ? '¡Bienvenido/a a Roomia PMS! Detalles de tu cuenta y clave temporal 🏨🔑'
+      : '¡Bienvenido/a a Roomia PMS Hospitality SaaS! 🏨✨';
+
     const emailBody = `Estimado/a ${user.nombre} ${user.apellido},
 
-¡Le damos una cálida bienvenida a Roomia PMS! Su expediente de huésped VIP ha sido creado exitosamente en nuestra plataforma de administración de estadías de lujo.
+¡Le damos una cálida bienvenida a Roomia PMS! Su expediente de huésped ha sido creado exitosamente en nuestra plataforma de administración de estadías.
 
-A partir de este momento, podrá gestionar sus reservaciones, realizar Check-In express con QR, solicitar servicios boutique (Spa, traslado privado) y visualizar sus facturas fiscales al instante.
+${user.debeCambiarPassword ? `⚠️ ACCIÓN REQUERIDA - CAMBIO DE CONTRASEÑA OBLIGATORIO:
+Su cuenta fue creada por nuestro personal de recepción. Al ingresar por primera vez, el sistema le solicitará cambiar su contraseña para garantizar la seguridad de su cuenta.\n` : ''}
+A partir de este momento, podrá gestionar sus reservaciones, realizar Check-In express con QR, solicitar servicios adicionales y visualizar sus facturas fiscales al instante.
 
 Detalles del Perfil:
 • Cliente: ${user.nombre} ${user.apellido}
 • Correo de Acceso: ${user.email}
-${user.password ? `• Contraseña de Acceso: ${user.password}\n` : ''}• Teléfono: ${user.telefono || 'No especificado'}
+${user.password ? `• Contraseña Temporal de Acceso: ${user.password}\n` : ''}• Teléfono: ${user.telefono || 'No especificado'}
 • Documento de Identidad: ${user.documento || 'No especificado'}
 • Fecha de Registro: ${user.fechaRegistro}
 • Estado: Activo
+
+${user.debeCambiarPassword ? `Por favor, diríjase a ${window.location.origin} para iniciar sesión con su correo electrónico y su contraseña temporal, luego proceda de inmediato con la renovación de su contraseña.` : ''}
 
 Agradecemos su confianza y le aseguramos que cada una de sus estadías será memorable.
 
@@ -618,7 +625,7 @@ El Equipo de Hospitalidad de Roomia PMS.`;
       'Sistema',
       'guest',
       'Registro',
-      `Nuevo usuario registrado: ${user.nombre} ${user.apellido} (${user.email})`
+      `Nuevo usuario registrado: ${user.nombre} ${user.apellido} (${user.email}). ${user.debeCambiarPassword ? 'Clave temporal enviada por correo.' : ''}`
     );
   };
 
@@ -721,6 +728,62 @@ El Equipo de Hospitalidad de Roomia PMS.`;
       'Actualizar Perfil',
       `Se actualizaron los datos personales de contacto, documento o imagen de foto de perfil.`
     );
+  };
+
+  const changeUserPassword = async (userId: string, newPass: string, changedByAdmin = false) => {
+    // Find user first from current users state array
+    const targetUser = users.find(u => u.id === userId);
+    
+    // Update local React state
+    setUsers(prev => prev.map(u => u.id === userId ? { ...u, password: newPass, debeCambiarPassword: false } : u));
+
+    if (!targetUser) {
+      return { success: false, error: 'Usuario no encontrado' };
+    }
+
+    try {
+      await syncUserToSupabase({ ...targetUser, password: newPass, debeCambiarPassword: false });
+    } catch (err) {
+      console.warn("Supabase changeUserPassword sync error:", err);
+    }
+
+    const editorName = activeUser ? `${activeUser.nombre} ${activeUser.apellido}` : 'Sistema';
+    addLog(
+      editorName,
+      activeUser?.rol || 'super_admin',
+      'Cambio Contraseña',
+      `Se actualizó la contraseña del usuario ${targetUser.nombre} ${targetUser.apellido} (${targetUser.email}).`
+    );
+
+    // Send real email notification about password change
+    const emailSubject = 'Actualización de Seguridad: Cambio de Contraseña - Roomia PMS 🔐';
+    const emailBody = `Estimado/a ${targetUser.nombre} ${targetUser.apellido},
+
+Le informamos que su contraseña de acceso para Roomia PMS ha sido actualizada exitosamente.
+${changedByAdmin 
+  ? `Su contraseña ha sido restablecida por el personal de administración.\n\nSu nueva contraseña de acceso es: \n👉  ${newPass}  👈\n\nPor favor, guarde esta información de manera confidencial y proceda a ingresar al sistema.` 
+  : `La modificación se realizó de forma conforme desde su propio perfil de usuario.\n\nContraseña actualizada: ${newPass}\n\nSi usted no realizó esta acción, por favor comuníquese de inmediato con recepción para proteger su cuenta.`}
+
+Atentamente,
+El Equipo de Hospitalidad de Roomia PMS.`;
+
+    try {
+      await fetch('/api/send-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          to: targetUser.email,
+          subject: emailSubject,
+          text: emailBody
+        })
+      });
+    } catch (mailErr) {
+      console.error("Failed to dispatcher email notification on password change:", mailErr);
+    }
+
+    return { success: true };
   };
 
   const updateReservationStatus = async (
@@ -1099,6 +1162,7 @@ El Equipo de Hospitalidad de Roomia PMS.`;
     toggleUserStatus,
     registerUser,
     updateUserProfile,
+    changeUserPassword,
     createReservation,
     cancelReservation,
     deleteReservation,

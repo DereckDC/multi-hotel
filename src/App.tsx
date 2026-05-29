@@ -10,7 +10,7 @@ import ReceptionView from './components/ReceptionView';
 import AdminView from './components/AdminView';
 import LoginView from './components/LoginView';
 import LandingPageView from './components/LandingPageView';
-import { LayoutDashboard, Users, User as UserIcon, CalendarDays, KeyRound, Star, Sparkles, Building2, ShieldAlert, LogOut, Edit3, Camera, Check, X } from 'lucide-react';
+import { LayoutDashboard, Users, User as UserIcon, CalendarDays, KeyRound, Star, Sparkles, Building2, ShieldAlert, LogOut, Edit3, Camera, Check, X, Shield, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function App() {
@@ -35,6 +35,7 @@ export default function App() {
     toggleUserStatus,
     registerUser,
     updateUserProfile,
+    changeUserPassword,
     createReservation,
     cancelReservation,
     deleteReservation,
@@ -63,6 +64,14 @@ export default function App() {
   const [profileDocumento, setProfileDocumento] = useState('');
   const [profileAvatar, setProfileAvatar] = useState('');
   const [profileEmail, setProfileEmail] = useState('');
+  const [profilePassword, setProfilePassword] = useState('');
+
+  // Forced password change screen state variables
+  const [forcedPassInput, setForcedPassInput] = useState('');
+  const [forcedConfirmPassInput, setForcedConfirmPassInput] = useState('');
+  const [forcedPassLoading, setForcedPassLoading] = useState(false);
+  const [forcedPassSuccess, setForcedPassSuccess] = useState('');
+  const [forcedPassError, setForcedPassError] = useState('');
 
   const PRESET_AVATARS = [
     { url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=facearea&facepad=2&q=80', label: 'Invitado Sophisticated' },
@@ -82,10 +91,11 @@ export default function App() {
     setProfileDocumento(activeUser.documento);
     setProfileAvatar(activeUser.avatar);
     setProfileEmail(activeUser.email);
+    setProfilePassword('');
     setShowProfileModal(true);
   };
 
-  const handleProfileSubmit = (e: FormEvent) => {
+  const handleProfileSubmit = async (e: FormEvent) => {
     e.preventDefault();
     updateUserProfile(activeUser.id, {
       nombre: profileNombre,
@@ -95,6 +105,9 @@ export default function App() {
       avatar: profileAvatar,
       email: profileEmail
     });
+    if (profilePassword.trim()) {
+      await changeUserPassword(activeUser.id, profilePassword.trim(), false);
+    }
     setShowProfileModal(false);
   };
 
@@ -264,6 +277,7 @@ export default function App() {
                   onUpdateUserRole={updateUserRole}
                   onUpdateUserHotel={updateUserHotel}
                   onToggleUserStatus={toggleUserStatus}
+                  onChangeUserPassword={changeUserPassword}
                   statistics={stats}
                   onUpdateRoomStatus={updateRoomStatus}
                   onUpdateReservationStatus={updateReservationStatus}
@@ -443,6 +457,18 @@ export default function App() {
                     className="w-full text-xs border border-neutral-250 p-2.5 rounded-xl focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-200 font-mono"
                   />
                 </div>
+
+                <div className="col-span-2 border-t border-neutral-100 pt-3 mt-1">
+                  <label className="text-[11px] font-bold text-amber-750 uppercase tracking-wide block mb-1">🔐 Cambiar Clave de Acceso:</label>
+                  <input
+                    type="password"
+                    value={profilePassword}
+                    onChange={(e) => setProfilePassword(e.target.value)}
+                    placeholder="Deje en blanco para conservar su clave de acceso habitual"
+                    className="w-full text-xs border border-neutral-250 p-2.5 rounded-xl focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-200 font-sans bg-amber-50/10 placeholder-neutral-400 font-semibold"
+                  />
+                  <p className="text-[10px] text-neutral-400 mt-1">Al ingresar una nueva clave, se modificará su acceso y recibirá una notificación de seguridad por correo.</p>
+                </div>
               </div>
 
               {/* Action Buttons */}
@@ -462,6 +488,110 @@ export default function App() {
                 </button>
               </div>
 
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* FORCED PASSWORD CHANGE SCREEN (ONLY FOR FIRST LOGIN OR RESET BY ADMIN) */}
+      {activeUser && activeUser.debeCambiarPassword && !isLoggedOut && (
+        <div className="fixed inset-0 bg-[#0f172a]/95 flex items-center justify-center p-4 z-[99999] backdrop-blur-md animate-fade-in font-sans">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full border border-neutral-100 flex flex-col p-6 space-y-4">
+            <div className="text-center space-y-2">
+              <div className="w-12 h-12 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto border border-amber-200 shadow-sm">
+                <Shield className="w-6 h-6 text-amber-600 animate-bounce" />
+              </div>
+              <h3 className="text-base font-bold text-neutral-850">Cambio de Contraseña Obligatorio</h3>
+              <p className="text-[11px] text-neutral-500 leading-relaxed">
+                Por seguridad y resguardo, es obligatorio actualizar la clave temporal ingresando una nueva clave personalizada antes de usar Roomia PMS.
+              </p>
+            </div>
+
+            {forcedPassSuccess && (
+              <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-3 rounded-xl text-xs flex items-center gap-2 animate-fade-in">
+                <Check className="w-4.5 h-4.5 text-emerald-600 shrink-0" />
+                <span>{forcedPassSuccess}</span>
+              </div>
+            )}
+
+            {forcedPassError && (
+              <div className="bg-red-50 border border-red-200 text-red-850 p-3 rounded-xl text-xs flex items-center gap-2 animate-fade-in">
+                <AlertCircle className="w-4.5 h-4.5 text-red-600 shrink-0" />
+                <span>{forcedPassError}</span>
+              </div>
+            )}
+
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              if (forcedPassInput.trim().length < 4) {
+                setForcedPassError("La contraseña debe componerse de al menos 4 caracteres.");
+                return;
+              }
+              if (forcedPassInput.trim() !== forcedConfirmPassInput.trim()) {
+                setForcedPassError("Las contraseñas no coinciden.");
+                return;
+              }
+              setForcedPassLoading(true);
+              setForcedPassSuccess("");
+              setForcedPassError("");
+              try {
+                const res = await changeUserPassword(activeUser.id, forcedPassInput.trim(), false);
+                if (res.success) {
+                  setForcedPassSuccess("¡Contraseña actualizada! Accediendo...");
+                  setTimeout(() => {
+                    // Success state transitions automatically because activeUser is updated in store
+                  }, 1200);
+                } else {
+                  setForcedPassError(res.error || "Error al actualizar la contraseña.");
+                }
+              } catch (err: any) {
+                setForcedPassError(err.message || String(err));
+              } finally {
+                setForcedPassLoading(false);
+              }
+            }} className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-neutral-400 uppercase tracking-wide block">Nueva Contraseña de Acceso:</label>
+                <input
+                  type="password"
+                  required
+                  value={forcedPassInput}
+                  onChange={(e) => setForcedPassInput(e.target.value)}
+                  placeholder="Por favor, ingrese su nueva contraseña"
+                  className="w-full text-xs border border-neutral-250 p-2.5 rounded-xl focus:outline-none focus:border-teal-500 font-mono text-center tracking-widest bg-slate-50 font-bold"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-neutral-400 uppercase tracking-wide block">Confirmar Contraseña:</label>
+                <input
+                  type="password"
+                  required
+                  value={forcedConfirmPassInput}
+                  onChange={(e) => setForcedConfirmPassInput(e.target.value)}
+                  placeholder="Re-escriba su contraseña"
+                  className="w-full text-xs border border-neutral-250 p-2.5 rounded-xl focus:outline-none focus:border-teal-500 font-mono text-center tracking-widest bg-slate-50 font-bold"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={forcedPassLoading || !forcedPassInput.trim() || forcedPassInput !== forcedConfirmPassInput}
+                className="w-full py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl transition-all shadow-md cursor-pointer flex items-center justify-center gap-1.5 active:scale-95 disabled:bg-neutral-200 disabled:text-neutral-405 disabled:cursor-not-allowed"
+              >
+                {forcedPassLoading ? (
+                  <span>Guardando...</span>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" />
+                    <span>Establecer Nueva Contraseña</span>
+                  </>
+                )}
+              </button>
+              
+              {forcedPassInput && forcedConfirmPassInput && forcedPassInput !== forcedConfirmPassInput && (
+                <p className="text-[10px] text-red-500 text-center font-semibold">Las contraseñas no coinciden.</p>
+              )}
             </form>
           </div>
         </div>

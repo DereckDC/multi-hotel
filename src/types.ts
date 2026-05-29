@@ -22,6 +22,7 @@ export interface User {
   estado: 'activo' | 'inactivo';
   hotelId?: string; // If hotel_admin or receptionist is assigned to a specific hotel
   password?: string; // Optional classic login password
+  debeCambiarPassword?: boolean;
 }
 
 export interface Hotel {

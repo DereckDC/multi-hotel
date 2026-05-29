@@ -21,21 +21,21 @@ async function startServer() {
         return res.status(400).json({ error: "Faltan datos obligatorios (destinatario, asunto)" });
       }
 
-      const smtpHost = process.env.SMTP_HOST || "";
+      const smtpHost = process.env.SMTP_HOST || "smtp.gmail.com";
       const smtpPort = parseInt(process.env.SMTP_PORT || "587");
       const smtpUser = process.env.SMTP_USER || "";
       const smtpPass = process.env.SMTP_PASS || "";
-      const smtpFrom = process.env.SMTP_FROM || "Roomia PMS <noreply@roomia.com>";
+      const smtpFrom = process.env.SMTP_FROM || `Roomia PMS <${smtpUser || "noreply@roomia.com"}>`;
 
       // Self-healing / graceful logging if SMTP is missing
-      if (!smtpHost || !smtpUser || !smtpPass) {
+      if (!smtpUser || !smtpPass) {
         console.warn("[MAIL WARNING] SMTP credentials are not configured in environment secrets.");
         console.log(`[SIMULATED MAIL SEND] To: ${to} | Subject: ${subject}`);
         console.log(`Body: ${text || html}`);
         return res.json({
           success: true,
           simulated: true,
-          message: "El servidor recibió la solicitud, pero no hay credenciales SMTP de producción configuradas en variables de entorno. Puedes agregar estas variables para enviar el correo real."
+          message: "El servidor recibió la solicitud, pero no hay credenciales SMTP de producción (usuario/contraseña) configuradas en variables de entorno. Puedes agregar estas variables para enviar el correo real."
         });
       }
 
