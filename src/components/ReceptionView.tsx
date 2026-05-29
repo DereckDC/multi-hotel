@@ -18,6 +18,8 @@ interface ReceptionViewProps {
   onUpdateRoomStatus: (roomId: string, status: RoomStatus) => void;
   users: User[];
   onAddLog: (action: string, details: string) => void;
+  onCreateReservation?: (newRes: Reservation) => void;
+  onRegisterUser?: (newUser: User) => Promise<any> | void;
 }
 
 export default function ReceptionView({
@@ -29,7 +31,9 @@ export default function ReceptionView({
   onPerformCheckOut,
   onUpdateRoomStatus,
   users,
-  onAddLog
+  onAddLog,
+  onCreateReservation,
+  onRegisterUser
 }: ReceptionViewProps) {
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -52,6 +56,146 @@ export default function ReceptionView({
 
   // Auto-assign first hotel state if receptionist has one
   const receptionistHotel = hotels.find(h => h.id === activeUser.hotelId) || hotels[0];
+
+  // Presencial reservation states
+  const [resType, setResType] = useState<'new' | 'existing'>('new');
+  const [selectedGuestId, setSelectedGuestId] = useState('');
+  
+  // New Guest walk-in details
+  const [walkInNombre, setWalkInNombre] = useState('');
+  const [walkInApellido, setWalkInApellido] = useState('');
+  const [walkInEmail, setWalkInEmail] = useState('');
+  const [walkInTelefono, setWalkInTelefono] = useState('');
+  const [walkInDocumento, setWalkInDocumento] = useState('');
+
+  // Booking details
+  const [bookRoomId, setBookRoomId] = useState('');
+  const [bookCheckIn, setBookCheckIn] = useState(() => new Date().toISOString().split('T')[0]);
+  const [bookCheckOut, setBookCheckOut] = useState(() => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return tomorrow.toISOString().split('T')[0];
+  });
+  const [bookNotas, setBookNotas] = useState('');
+  const [bookStatus, setBookStatus] = useState<'confirmada' | 'ocupada'>('confirmada');
+  const [resSuccessMsg, setResSuccessMsg] = useState('');
+
+  const selectedRoom = rooms.find(r => r.id === bookRoomId);
+  const roomPrice = selectedRoom ? selectedRoom.precio : 0;
+  
+  let nights = 1;
+  if (bookCheckIn && bookCheckOut) {
+    const diff = new Date(bookCheckOut).getTime() - new Date(bookCheckIn).getTime();
+    nights = Math.ceil(diff / (1000 * 60 * 60 * 24));
+    if (nights <= 0) nights = 1;
+  }
+
+  const calculatedSubtotal = roomPrice * nights;
+  const calculatedImpuestos = parseFloat((calculatedSubtotal * 0.12).toFixed(2));
+  const calculatedTotal = parseFloat((calculatedSubtotal + calculatedImpuestos).toFixed(2));
+
+  const handleCreatePresencialRes = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResSuccessMsg('');
+
+    if (!bookRoomId) {
+      alert('Por favor selecciona una habitación.');
+      return;
+    }
+
+    if (!receptionistHotel) {
+      alert('Error: Debe estar enlazado a un hotel válido.');
+      return;
+    }
+
+    let targetGuestId = '';
+
+    if (resType === 'new') {
+      if (!walkInNombre || !walkInApellido || !walkInEmail || !walkInTelefono || !walkInDocumento) {
+        alert('Por favor completa todos los campos del huésped nuevo.');
+        return;
+      }
+
+      // Check if email already exists in system to prevent duplicate
+      const matchedUser = users.find(u => u.email.toLowerCase() === walkInEmail.toLowerCase());
+      if (matchedUser) {
+        targetGuestId = matchedUser.id;
+      } else {
+        // Create new user in the system
+        const generatedId = 'usr-' + Date.now();
+        const genPassword = 'RoomiaPass' + Math.floor(1000 + Math.random() * 9000);
+        const newUser = {
+          id: generatedId,
+          nombre: walkInNombre.trim(),
+          apellido: walkInApellido.trim(),
+          email: walkInEmail.trim().toLowerCase(),
+          telefono: walkInTelefono.trim(),
+          documento: walkInDocumento.trim(),
+          avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=facearea&facepad=2&q=80',
+          rol: 'cliente' as const,
+          fechaRegistro: new Date().toISOString().split('T')[0],
+          estado: 'activo' as const,
+          password: genPassword
+        };
+
+        if (onRegisterUser) {
+          await onRegisterUser(newUser);
+        }
+        targetGuestId = generatedId;
+      }
+    } else {
+      if (!selectedGuestId) {
+        alert('Por favor selecciona un huésped existente de la lista.');
+        return;
+      }
+      targetGuestId = selectedGuestId;
+    }
+
+    // Now construct the reservation
+    const generatedResId = 'RES-' + Math.floor(10000 + Math.random() * 90000);
+
+    const newRes = {
+      id: generatedResId,
+      hotelId: receptionistHotel.id,
+      roomId: bookRoomId,
+      guestId: targetGuestId,
+      fechaEntrada: bookCheckIn,
+      fechaSalida: bookCheckOut,
+      serviciosAdicionales: [],
+      subtotal: calculatedSubtotal,
+      impuestos: calculatedImpuestos,
+      total: calculatedTotal,
+      qrCode: 'PRESENTIAL-' + Date.now(),
+      estado: bookStatus, // confirmada or ocupada
+      fechaRegistro: new Date().toISOString().split('T')[0],
+      notas: bookNotas.trim() || 'Reserva ingresada presencialmente por Taquilla de recepción.',
+      recepcionistaId: activeUser.id
+    };
+
+    if (onCreateReservation) {
+      await onCreateReservation(newRes);
+      
+      // If bookStatus is immediately 'ocupada' (instant checkin), trigger checkout/checkin logic or status update
+      if (bookStatus === 'ocupada') {
+        onUpdateRoomStatus(bookRoomId, 'ocupado');
+      }
+
+      setResSuccessMsg(`¡Reserva presencial ${generatedResId} creada de forma exitosa!`);
+      onAddLog('Reserva Presencial', `Se registró la reserva presencial N° ${generatedResId} para la Habitación ${selectedRoom?.numero}`);
+      
+      // Reset walk-in form
+      setWalkInNombre('');
+      setWalkInApellido('');
+      setWalkInEmail('');
+      setWalkInTelefono('');
+      setWalkInDocumento('');
+      setBookRoomId('');
+      setBookNotas('');
+      setSelectedGuestId('');
+    } else {
+      alert('Error en la integración de la base de datos al guardar la reserva.');
+    }
+  };
 
   // Helper lists
   const pendingCheckIns = reservations.filter(r => r.estado === 'confirmada' || r.estado === 'pendiente');
@@ -480,6 +624,226 @@ export default function ReceptionView({
               })}
             </div>
           </div>
+        </div>
+
+        {/* MODULO REGISTRO PRESENCIAL (WALK-IN) */}
+        <div className="bg-white rounded-3xl p-6 border border-neutral-200 shadow-sm space-y-4">
+          <div className="border-b border-neutral-100 pb-3 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Calendar className="w-5 h-5 text-teal-600" />
+              <h4 className="font-semibold text-neutral-900 text-base">Reserva Presencial Walk-In</h4>
+            </div>
+            <span className="text-[10px] bg-teal-50 text-teal-700 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider font-mono">
+              Taquilla 🛎️
+            </span>
+          </div>
+
+          <form onSubmit={handleCreatePresencialRes} className="space-y-4 font-sans">
+            {resSuccessMsg && (
+              <div className="bg-emerald-50 border border-emerald-300 text-emerald-800 p-3 rounded-xl text-xs font-semibold animate-fade-in">
+                {resSuccessMsg}
+              </div>
+            )}
+
+            {/* Guest Selection Mode Toggle */}
+            <div className="grid grid-cols-2 gap-2 bg-neutral-50 p-1 rounded-xl border border-neutral-150">
+              <button
+                type="button"
+                onClick={() => setResType('new')}
+                className={`py-1.5 text-center text-xs font-semibold rounded-lg transition-all ${
+                  resType === 'new' 
+                    ? 'bg-[#344D67] text-[#6ECCAF] shadow-sm' 
+                    : 'text-neutral-500 hover:text-neutral-800'
+                }`}
+              >
+                Huésped Nuevo
+              </button>
+              <button
+                type="button"
+                onClick={() => setResType('existing')}
+                className={`py-1.5 text-center text-xs font-semibold rounded-lg transition-all ${
+                  resType === 'existing' 
+                    ? 'bg-[#344D67] text-[#6ECCAF] shadow-sm' 
+                    : 'text-neutral-500 hover:text-neutral-800'
+                }`}
+              >
+                Buscar Registrado
+              </button>
+            </div>
+
+            {/* New Guest Field Set */}
+            {resType === 'new' ? (
+              <div className="space-y-3.5 p-3.5 bg-slate-50/50 rounded-2xl border border-slate-100">
+                <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest leading-none">Datos del Cliente</p>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="text-[10px] font-bold text-neutral-500 block mb-1">Nombre *</label>
+                    <input
+                      type="text"
+                      required={resType === 'new'}
+                      value={walkInNombre}
+                      onChange={(e) => setWalkInNombre(e.target.value)}
+                      placeholder="Juan"
+                      className="w-full text-xs border border-neutral-250 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 bg-white focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-neutral-500 block mb-1">Apellido *</label>
+                    <input
+                      type="text"
+                      required={resType === 'new'}
+                      value={walkInApellido}
+                      onChange={(e) => setWalkInApellido(e.target.value)}
+                      placeholder="Castro"
+                      className="w-full text-xs border border-neutral-250 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 bg-white focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold text-neutral-500 block mb-1">Correo Electrónico *</label>
+                  <input
+                    type="email"
+                    required={resType === 'new'}
+                    value={walkInEmail}
+                    onChange={(e) => setWalkInEmail(e.target.value)}
+                    placeholder="cliente@ejemplo.com"
+                    className="w-full text-xs border border-neutral-250 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 bg-white focus:outline-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="text-[10px] font-bold text-neutral-500 block mb-1">Teléfono Móvil *</label>
+                    <input
+                      type="text"
+                      required={resType === 'new'}
+                      value={walkInTelefono}
+                      onChange={(e) => setWalkInTelefono(e.target.value)}
+                      placeholder="+593..."
+                      className="w-full text-xs border border-neutral-250 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 bg-white focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-neutral-500 block mb-1">Cédula / Documentado *</label>
+                    <input
+                      type="text"
+                      required={resType === 'new'}
+                      value={walkInDocumento}
+                      onChange={(e) => setWalkInDocumento(e.target.value)}
+                      placeholder="09..."
+                      className="w-full text-xs border border-neutral-250 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 bg-white focus:outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="p-3.5 bg-slate-50/50 rounded-2xl border border-slate-100">
+                <label className="text-[10px] font-bold text-neutral-500 block mb-1">Buscar Huésped Registrado *</label>
+                <select
+                  required={resType === 'existing'}
+                  value={selectedGuestId}
+                  onChange={(e) => setSelectedGuestId(e.target.value)}
+                  className="w-full text-xs border border-neutral-250 rounded-lg p-2.5 bg-white focus:ring-1 focus:ring-teal-500 focus:outline-none cursor-pointer text-neutral-800"
+                >
+                  <option value="">-- Elige un huésped registrado --</option>
+                  {users.filter(u => u.rol === 'cliente').map(u => (
+                    <option key={u.id} value={u.id}>
+                      {u.nombre} {u.apellido} ({u.documento} - {u.email})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Booking Parameters */}
+            <div className="space-y-3 p-3.5 bg-indigo-50/30 rounded-2xl border border-indigo-100/40">
+              <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest leading-none">Habitación & Estadía</p>
+              
+              <div>
+                <label className="text-[10px] font-bold text-neutral-500 block mb-1">Seleccionar Habitación *</label>
+                <select
+                  required
+                  value={bookRoomId}
+                  onChange={(e) => setBookRoomId(e.target.value)}
+                  className="w-full text-xs border border-neutral-250 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 focus:outline-none bg-white cursor-pointer"
+                >
+                  <option value="">-- Elija Habitación disponible --</option>
+                  {rooms
+                    .filter(r => r.hotelId === receptionistHotel?.id)
+                    .map(r => (
+                      <option key={r.id} value={r.id}>
+                        Hab. {r.numero} - {r.nombre} ({r.estado.toUpperCase()} - ${r.precio}/Noche)
+                      </option>
+                    ))}
+                </select>
+                {selectedRoom && selectedRoom.estado !== 'disponible' && (
+                  <p className="text-[10px] font-semibold text-amber-600 mt-1">
+                    ⚠️ Advertencia: El aposento no figura como Disponible.
+                  </p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="text-[10px] font-bold text-neutral-500 block mb-1">Fecha Entrada *</label>
+                  <input
+                    type="date"
+                    required
+                    value={bookCheckIn}
+                    onChange={(e) => setBookCheckIn(e.target.value)}
+                    className="w-full text-xs border border-neutral-250 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-neutral-500 block mb-1">Fecha Salida *</label>
+                  <input
+                    type="date"
+                    required
+                    value={bookCheckOut}
+                    onChange={(e) => setBookCheckOut(e.target.value)}
+                    className="w-full text-xs border border-neutral-250 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 bg-white"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="text-[10px] font-bold text-neutral-500 block mb-1">Estado Reserva</label>
+                  <select
+                    value={bookStatus}
+                    onChange={(e) => setBookStatus(e.target.value as 'confirmada' | 'ocupada')}
+                    className="w-full text-xs border border-neutral-250 rounded-lg p-1.5 focus:ring-1 focus:ring-teal-500 bg-white cursor-pointer text-neutral-800"
+                  >
+                    <option value="confirmada">Confirmada</option>
+                    <option value="ocupada">Ingreso Inmediato (Check-In)</option>
+                  </select>
+                </div>
+                <div className="bg-slate-900 rounded-xl p-2.5 text-right text-white space-y-0.5 shadow-inner">
+                  <span className="text-[9px] text-slate-400 font-medium block">Total Estimado ({nights} N):</span>
+                  <p className="text-[11px] text-[#6ECCAF] font-bold font-mono">${calculatedTotal} USD <span className="text-[8px] text-slate-400 font-sans block leading-none">(Impuestos inc)</span></p>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-neutral-500 block mb-1">Notas Internas:</label>
+                <textarea
+                  placeholder="Instrucciones especiales..."
+                  value={bookNotas}
+                  onChange={(e) => setBookNotas(e.target.value)}
+                  className="w-full text-xs border border-neutral-250 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 focus:outline-none h-12"
+                />
+              </div>
+
+            </div>
+
+            <button
+              type="submit"
+              className="w-full bg-[#344D67] hover:bg-[#1E2E3E] text-[#6ECCAF] font-bold py-2.5 rounded-xl text-xs transition-all tracking-wide cursor-pointer shadow-md select-none text-center active:scale-95"
+            >
+              Registrar Reserva Presencial 🛎️📝
+            </button>
+          </form>
         </div>
 
         {/* INCIDENCES REGISTER */}

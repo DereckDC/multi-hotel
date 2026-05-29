@@ -9,6 +9,7 @@ import ClientView from './components/ClientView';
 import ReceptionView from './components/ReceptionView';
 import AdminView from './components/AdminView';
 import LoginView from './components/LoginView';
+import LandingPageView from './components/LandingPageView';
 import { LayoutDashboard, Users, User as UserIcon, CalendarDays, KeyRound, Star, Sparkles, Building2, ShieldAlert, LogOut, Edit3, Camera, Check, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -51,6 +52,8 @@ export default function App() {
       return true;
     }
   });
+
+  const [showLandingPage, setShowLandingPage] = useState(false);
 
   // Profile Edit Modal States
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -115,85 +118,99 @@ export default function App() {
     <div className="min-h-screen bg-[#fafafa] flex flex-col font-sans selection:bg-teal-500 selection:text-neutral-900">
       
       {/* 2. Global application Header */}
-      <header className="bg-white border-b border-neutral-100 shadow-sm print:hidden">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-teal-600 text-white flex items-center justify-center font-display font-black text-xl shadow-md cursor-pointer hover:scale-105 transition-transform">
-              R
+      {!showLandingPage && (
+        <header className="bg-white border-b border-neutral-100 shadow-sm print:hidden">
+          <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+            
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-teal-600 text-white flex items-center justify-center font-display font-black text-xl shadow-md cursor-pointer hover:scale-105 transition-transform">
+                R
+              </div>
+              <div>
+                <span className="font-display font-bold text-neutral-800 text-lg tracking-tight flex items-center gap-1">
+                  Roomia <span className="text-teal-600">SaaS</span>
+                </span>
+                <p className="text-[9px] text-neutral-400 font-mono leading-none tracking-wider font-semibold uppercase">Multi-Hotel PMS Platform</p>
+              </div>
             </div>
-            <div>
-              <span className="font-display font-bold text-neutral-800 text-lg tracking-tight flex items-center gap-1">
-                Roomia <span className="text-teal-600">SaaS</span>
-              </span>
-              <p className="text-[9px] text-neutral-400 font-mono leading-none tracking-wider font-semibold uppercase">Multi-Hotel PMS Platform</p>
-            </div>
-          </div>
 
-          {/* Current Persona signature badge */}
-          {!isLoggedOut ? (
-            <div className="flex items-center gap-3">
-              <button
-                onClick={openProfileModal}
-                className="flex items-center gap-3 bg-neutral-50 hover:bg-neutral-100 px-3.5 py-1.5 rounded-2xl border border-neutral-200 shadow-inner group transition-all text-left cursor-pointer relative"
-                title="Haga clic para editar sus datos personales y de contacto o cambiar la foto de su perfil"
-              >
-                <div className="text-right hidden sm:block">
-                  <span className="font-semibold text-neutral-800 text-xs block leading-tight group-hover:text-teal-700 transition-colors">{activeUser.nombre} {activeUser.apellido}</span>
-                  <span className="text-[9px] text-[#344D67] font-semibold capitalize block">{activeUser.rol.replace('_', ' ')}</span>
-                </div>
-                <div className="relative">
-                  <img
-                    src={activeUser.avatar}
-                    alt={activeUser.nombre}
-                    className="w-8 h-8 rounded-full border border-neutral-200 shrink-0 shadow group-hover:scale-105 transition-transform"
-                  />
-                  <div className="absolute -bottom-1 -right-1 bg-teal-600 text-white rounded-full p-0.5 border border-white shadow scale-90 group-hover:scale-100 transition-transform">
-                    <Edit3 className="w-2 h-2" />
+            {/* Current Persona signature badge */}
+            {!isLoggedOut ? (
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={openProfileModal}
+                  className="flex items-center gap-3 bg-neutral-50 hover:bg-neutral-100 px-3.5 py-1.5 rounded-2xl border border-neutral-200 shadow-inner group transition-all text-left cursor-pointer relative"
+                  title="Haga clic para editar sus datos personales y de contacto o cambiar la foto de su perfil"
+                >
+                  <div className="text-right hidden sm:block">
+                    <span className="font-semibold text-neutral-800 text-xs block leading-tight group-hover:text-teal-700 transition-colors">{activeUser.nombre} {activeUser.apellido}</span>
+                    <span className="text-[9px] text-[#344D67] font-semibold capitalize block">{activeUser.rol.replace('_', ' ')}</span>
                   </div>
-                </div>
-              </button>
-              <button
-                onClick={() => {
-                  localStorage.removeItem('aura_hotel_pms_current_user_id');
-                  setIsLoggedOut(true);
-                }}
-                title="Cerrar Sesión"
-                className="px-3.5 py-2 bg-red-50 hover:bg-red-100 text-red-650 hover:text-red-700 rounded-xl transition-all border border-red-200 cursor-pointer text-xs font-semibold flex items-center gap-1.5 active:scale-95 shadow-sm"
-              >
-                <LogOut className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Cerrar Sesión</span>
-              </button>
-            </div>
-          ) : (
-            <div className="bg-emerald-50 text-emerald-700 border border-emerald-250 px-3.5 py-1.5 rounded-2xl text-xs font-bold font-mono tracking-wide animate-pulse">
-              ● MODO AUTENTICACION
-            </div>
-          )}
+                  <div className="relative">
+                    <img
+                      src={activeUser.avatar}
+                      alt={activeUser.nombre}
+                      className="w-8 h-8 rounded-full border border-neutral-200 shrink-0 shadow group-hover:scale-105 transition-transform"
+                    />
+                    <div className="absolute -bottom-1 -right-1 bg-teal-600 text-white rounded-full p-0.5 border border-white shadow scale-90 group-hover:scale-100 transition-transform">
+                      <Edit3 className="w-2 h-2" />
+                    </div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => {
+                    localStorage.removeItem('aura_hotel_pms_current_user_id');
+                    setIsLoggedOut(true);
+                  }}
+                  title="Cerrar Sesión"
+                  className="px-3.5 py-2 bg-red-50 hover:bg-red-100 text-red-650 hover:text-red-700 rounded-xl transition-all border border-red-200 cursor-pointer text-xs font-semibold flex items-center gap-1.5 active:scale-95 shadow-sm"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Cerrar Sesión</span>
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowLandingPage(true)}
+                  className="bg-teal-600 hover:bg-teal-700 text-white font-bold py-1.5 px-3.5 rounded-xl text-xs transition-colors cursor-pointer flex items-center gap-1 shadow-sm active:scale-95 shrink-0"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>¿Quieres contratar? Ver Beneficios 🚀</span>
+                </button>
+              </div>
+            )}
 
-        </div>
-      </header>
+          </div>
+        </header>
+      )}
 
       {/* 3. Panel Container with responsive grid animations */}
       <main className="flex-1 pb-16">
         <AnimatePresence mode="wait">
           {isLoggedOut ? (
-            <motion.div
-              key="login-screen-view"
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -15 }}
-              transition={{ duration: 0.25 }}
-            >
-              <LoginView
-                users={users}
-                onLoginSuccess={(uid) => {
-                  switchSessionUser(uid);
-                  setIsLoggedOut(false);
-                }}
-                onRegisterUser={registerUser}
-              />
-            </motion.div>
+            showLandingPage ? (
+              <LandingPageView onClose={() => setShowLandingPage(false)} />
+            ) : (
+              <motion.div
+                key="login-screen-view"
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -15 }}
+                transition={{ duration: 0.25 }}
+              >
+                <LoginView
+                  users={users}
+                  onLoginSuccess={(uid) => {
+                    switchSessionUser(uid);
+                    setIsLoggedOut(false);
+                  }}
+                  onRegisterUser={registerUser}
+                  onShowLanding={() => setShowLandingPage(true)}
+                />
+              </motion.div>
+            )
           ) : (
             <motion.div
               key={activeUser.id}
@@ -227,6 +244,8 @@ export default function App() {
                   onUpdateRoomStatus={updateRoomStatus}
                   users={users}
                   onAddLog={handleAddLogSimulated}
+                  onCreateReservation={createReservation}
+                  onRegisterUser={registerUser}
                 />
               )}
 

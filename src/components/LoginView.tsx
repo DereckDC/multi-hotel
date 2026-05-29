@@ -13,12 +13,14 @@ interface LoginViewProps {
   users: User[];
   onLoginSuccess: (userId: string) => void;
   onRegisterUser: (newUser: User) => Promise<any> | void;
+  onShowLanding?: () => void;
 }
 
 export default function LoginView({ 
   users, 
   onLoginSuccess, 
-  onRegisterUser
+  onRegisterUser,
+  onShowLanding
 }: LoginViewProps) {
   const [emailInput, setEmailInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
@@ -550,12 +552,27 @@ El Equipo de Hospitalidad de Roomia PMS.`;
                 className="space-y-6"
               >
                 <div>
-                  <h2 className="text-2xl font-bold tracking-tight text-neutral-800">
-                    Bienvenido de vuelta
-                  </h2>
-                  <p className="text-xs text-neutral-400 mt-1">
-                    Ingrese con su cuenta registrada o simule acceso directo.
-                  </p>
+                  <div className="flex justify-between items-start gap-3">
+                    <div>
+                      <h2 className="text-2xl font-bold tracking-tight text-neutral-800">
+                        Bienvenido de vuelta
+                      </h2>
+                      <p className="text-xs text-neutral-400 mt-0.5 leading-relaxed">
+                        Ingrese con su cuenta registrada.
+                      </p>
+                    </div>
+                    {onShowLanding && (
+                      <button
+                        type="button"
+                        onClick={onShowLanding}
+                        className="bg-teal-50 hover:bg-teal-100 text-teal-800 font-bold border border-teal-200/50 px-2 py-1.5 rounded-xl text-[10px] flex items-center gap-1 cursor-pointer shadow-sm active:scale-95 transition-all shrink-0"
+                        title="Ver beneficios, funciones e información de contratación"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-teal-650" />
+                        <span>Ver Beneficios 🌟</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {errorMsg && (

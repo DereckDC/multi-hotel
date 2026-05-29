@@ -472,26 +472,46 @@ export function useHotelStore() {
 
   // --- CRUD USERS & ROLES ---
   const updateUserRole = async (userId: string, newRole: UserRole) => {
-    setUsers(prev => prev.map(u => u.id === userId ? { ...u, rol: newRole } : u));
     const target = users.find(u => u.id === userId);
+    if (!target) return;
 
-    if (target) {
-      try {
-        await syncUserToSupabase({ ...target, rol: newRole });
-      } catch (err) {
-        console.warn("Supabase updateUserRole sync error:", err);
+    // RBAC Security Rules:
+    // Normal administrators can only assign roles in the hotel they are linked to.
+    if (activeUser.rol !== 'super_admin') {
+      if (target.hotelId !== activeUser.hotelId) {
+        console.error("Acceso denegado: El administrador normal sólo puede asignar roles en su mismo hotel.");
+        return;
       }
+      if (newRole === 'super_admin') {
+        console.error("Acceso denegado: El administrador normal no puede otorgar privilegios de Super Admin.");
+        return;
+      }
+    }
+
+    setUsers(prev => prev.map(u => u.id === userId ? { ...u, rol: newRole } : u));
+
+    try {
+      await syncUserToSupabase({ ...target, rol: newRole });
+    } catch (err) {
+      console.warn("Supabase updateUserRole sync error:", err);
     }
 
     addLog(
       `${activeUser.nombre} ${activeUser.apellido}`,
       activeUser.rol,
       'Privilegios Modificados',
-      `Se modificó el rol de ${target?.nombre} ${target?.apellido} a [${newRole.toUpperCase()}]`
+      `Se modificó el rol de ${target.nombre} ${target.apellido} a [${newRole.toUpperCase()}]`
     );
   };
 
   const updateUserHotel = async (userId: string, hotelId: string | undefined) => {
+    // RBAC Security Rules:
+    // Only the Super Admin can change a user's linked hotel.
+    if (activeUser.rol !== 'super_admin') {
+      console.error("Acceso denegado: Únicamente el Super Admin puede cambiar el hotel enlazado.");
+      return;
+    }
+
     setUsers(prev => prev.map(u => u.id === userId ? { ...u, hotelId } : u));
     const target = users.find(u => u.id === userId);
 
