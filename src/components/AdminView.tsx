@@ -1009,6 +1009,10 @@ export default function AdminView({
                         <td className="py-3 px-4 text-left">
                           {u.rol === 'super_admin' ? (
                             <span className="text-[10px] text-neutral-400 italic">Todos / Global</span>
+                          ) : !isSuper ? (
+                            <span className="text-[10px] font-semibold text-neutral-600 bg-slate-100 px-2 py-1 rounded">
+                              {hotels.find(h => h.id === u.hotelId)?.nombre || 'Ninguno / Libre'}
+                            </span>
                           ) : (
                             <select
                               value={u.hotelId || ''}
@@ -1025,11 +1029,11 @@ export default function AdminView({
                         <td className="py-3 px-4 text-right">
                           <select
                             value={u.rol}
-                            disabled={isSelf} // Self prevention to avoid self lockout!
+                            disabled={isSelf || (!isSuper && u.hotelId !== myHotelId)} // Restricted to same hotel or if self edit
                             onChange={(e) => onUpdateUserRole(u.id, e.target.value as UserRole)}
                             className="bg-white border border-neutral-200 rounded text-[10px] font-semibold py-1 px-1.5 focus:outline-none cursor-pointer disabled:bg-neutral-100 disabled:cursor-not-allowed"
                           >
-                            <option value="super_admin">Super Admin</option>
+                            {isSuper && <option value="super_admin">Super Admin</option>}
                             <option value="hotel_admin">Hotel Admin</option>
                             <option value="recepcionista">Recepcionista</option>
                             <option value="cliente">Cliente</option>
