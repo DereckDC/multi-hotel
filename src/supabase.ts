@@ -398,19 +398,19 @@ export async function syncHotelToSupabase(hotel: Hotel): Promise<{ success: bool
       .upsert({
         id: hotel.id,
         nombre: hotel.nombre,
-        logo: hotel.logo,
-        portada: hotel.portada,
-        imagenes: hotel.imagenes,
-        descripcion: hotel.descripcion,
-        ubicacion: hotel.ubicacion,
-        coordenadas: hotel.coordenadas,
-        googleMapsUrl: hotel.googleMapsUrl,
-        servicios: hotel.servicios,
-        habitaciones_totales: (hotel as any).habitaciones_totales || JSON.parse(localStorage.getItem('aura_hotel_pms_rooms') || '[]').filter((r: any) => r.hotelId === hotel.id).length || 0,
-        caracteristicas: (hotel as any).caracteristicas || hotel.servicios,
-        contacto: hotel.contacto,
-        redesSociales: hotel.redesSociales,
-        estado: hotel.estado
+        logo: hotel.logo || null,
+        portada: hotel.portada || null,
+        imagenes: hotel.imagenes || [],
+        descripcion: hotel.descripcion || '',
+        ubicacion: hotel.ubicacion || '',
+        coordenadas: hotel.coordenadas || { lat: 19.4273, lng: -99.1676 },
+        googleMapsUrl: hotel.googleMapsUrl || '',
+        servicios: hotel.servicios || [],
+        politicas: hotel.politicas || [],
+        horarios: hotel.horarios || { checkIn: "15:00", checkOut: "12:00" },
+        contacto: hotel.contacto || {},
+        redesSociales: hotel.redesSociales || {},
+        estado: hotel.estado || 'activo'
       });
 
     if (error) {
@@ -440,9 +440,9 @@ export async function syncRoomToSupabase(room: Room): Promise<{ success: boolean
         capacidad: room.capacidad,
         camas: room.camas,
         estado: room.estado,
-        imagenes: room.imagenes,
-        descripcion: room.descripcion,
-        amenidades: (room as any).amenidades || room.servicios
+        imagenes: room.imagenes || [],
+        descripcion: room.descripcion || '',
+        servicios: room.servicios || []
       });
 
     if (error) {
@@ -464,17 +464,17 @@ export async function syncUserToSupabase(user: User): Promise<{ success: boolean
       .from('users')
       .upsert({
         id: user.id,
-        nombre: user.nombre,
-        apellido: user.apellido,
+        nombre: user.nombre || 'Usuario',
+        apellido: user.apellido || 'Roomia',
         email: user.email,
-        telefono: user.telefono,
-        documento: user.documento,
-        avatar: user.avatar,
-        rol: user.rol,
-        fechaRegistro: user.fechaRegistro,
-        estado: user.estado,
-        password: user.password,
-        hotelId: user.hotelId
+        telefono: user.telefono || '',
+        documento: user.documento || '',
+        avatar: user.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
+        rol: user.rol || 'cliente',
+        fechaRegistro: user.fechaRegistro || new Date().toISOString().split('T')[0],
+        estado: user.estado || 'activo',
+        password: user.password || '',
+        hotelId: user.hotelId || null
       });
 
     if (error) {
@@ -509,14 +509,19 @@ export async function syncReservationToSupabase(res: Reservation): Promise<{ suc
         noches: (res as any).noches || nochesCalc,
         total: res.total,
         estado: res.estado,
-        qrCode: res.qrCode,
-        checkedInAt: res.checkedInAt,
-        checkedOutAt: res.checkedOutAt,
-        recepcionistaId: res.recepcionistaId,
-        modificadoPor: res.modificadoPor,
-        mensajeCambio: res.mensajeCambio,
-        fechaCambio: res.fechaCambio,
-        eliminadaPorCliente: res.eliminadaPorCliente === undefined ? false : res.eliminadaPorCliente
+        qrCode: res.qrCode || '',
+        checkedInAt: res.checkedInAt || null,
+        checkedOutAt: res.checkedOutAt || null,
+        recepcionistaId: res.recepcionistaId || null,
+        modificadoPor: res.modificadoPor || null,
+        mensajeCambio: res.mensajeCambio || null,
+        fechaCambio: res.fechaCambio || null,
+        eliminadaPorCliente: res.eliminadaPorCliente === undefined ? false : res.eliminadaPorCliente,
+        serviciosAdicionales: res.serviciosAdicionales || [],
+        subtotal: res.subtotal || 0,
+        impuestos: res.impuestos || 0,
+        notes: res.notas || '',
+        cambiadoPorId: res.cambiadoPorId || null
       });
 
     if (error) {
