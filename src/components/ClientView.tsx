@@ -1104,7 +1104,6 @@ export default function ClientView({
           onClose={() => setPreviewingRes(null)}
         />
       )}
-
     </div>
   );
 }

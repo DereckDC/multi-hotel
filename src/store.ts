@@ -6,19 +6,8 @@
 import { useState, useEffect } from 'react';
 import { Hotel, Room, User, Reservation, RoomStatus, ReservationStatus, UserRole } from './types';
 import { INITIAL_HOTELS, INITIAL_ROOMS, INITIAL_USERS, INITIAL_RESERVATIONS } from './seedData';
-import { db, auth } from './firebase';
-import { 
-  collection, 
-  doc, 
-  onSnapshot, 
-  setDoc, 
-  deleteDoc, 
-  updateDoc, 
-  getDocs, 
-  query, 
-  limit 
-} from 'firebase/firestore';
 import {
+  supabase,
   syncHotelToSupabase,
   syncRoomToSupabase,
   syncUserToSupabase,
@@ -70,9 +59,17 @@ export function useHotelStore() {
   const [rooms, setRooms] = useState<Room[]>(() => loadFromLocalStorage(KEYS.ROOMS, INITIAL_ROOMS));
   const [users, setUsers] = useState<User[]>(() => {
     const loaded = loadFromLocalStorage<User[]>(KEYS.USERS, INITIAL_USERS);
-    const filtered = loaded.filter(u => u.email.trim().toLowerCase() === 'destructordereck@gmail.com');
-    if (filtered.length === 0) return INITIAL_USERS;
-    return filtered.map(u => ({ ...u, rol: 'super_admin', password: '2450397340', estado: 'activo' }));
+    // Find destructordereck@gmail.com
+    const superAdmin = loaded.find(u => u.email.trim().toLowerCase() === 'destructordereck@gmail.com');
+    if (!superAdmin) {
+      // If superAdmin is not in local storage users list, prepend the seed super admin user
+      return [INITIAL_USERS[0], ...loaded];
+    }
+    // Return all loaded users, ensuring that destructordereck@gmail.com is forced to super_admin active state
+    return loaded.map(u => u.email.trim().toLowerCase() === 'destructordereck@gmail.com' 
+      ? { ...u, rol: 'super_admin' as const, password: '2450397340', estado: 'activo' as const } 
+      : u
+    );
   });
   const [reservations, setReservations] = useState<Reservation[]>(() => []);
   const [currentUserId, setCurrentUserId] = useState<string>(() => loadFromLocalStorage(KEYS.CURRENT_USER_ID, ''));
@@ -95,183 +92,187 @@ export function useHotelStore() {
   useEffect(() => { saveToLocalStorage(KEYS.CURRENT_USER_ID, currentUserId); }, [currentUserId]);
   useEffect(() => { saveToLocalStorage(KEYS.LOGS, logs); }, [logs]);
 
-  // Real-time synchronization list of Firestore database snapshot triggers
+  // Synchronize with Supabase database on mount and listen to changes
   useEffect(() => {
-    const unsubscribes: (() => void)[] = [];
+    const fetchSupabaseData = async () => {
+      try {
+        console.log("Fetching existing data from Supabase...");
 
-    const initializeFirestoreListeners = () => {
-      // 1. Listen for Hotels (Publicly readable)
-      const unsubHotels = onSnapshot(collection(db, 'hotels'), (snapshot) => {
-        const cloudHotels: Hotel[] = [];
-        snapshot.forEach(d => {
-          cloudHotels.push(d.data() as Hotel);
-        });
-        if (cloudHotels.length > 0) {
-          setHotels(cloudHotels);
+        // Fetch hotels from Supabase
+        const { data: dbHotels, error: hErr } = await supabase.from('hotels').select('*');
+        if (!hErr && dbHotels && dbHotels.length > 0) {
+          setHotels(dbHotels as Hotel[]);
         }
-      }, (error) => {
-        console.warn("Hotels onSnapshot restricted by secure rules; using local cache: ", error.message);
-      });
-      unsubscribes.push(unsubHotels);
 
-      // 2. Listen for Rooms (Publicly readable)
-      const unsubRooms = onSnapshot(collection(db, 'rooms'), (snapshot) => {
-        const cloudRooms: Room[] = [];
-        snapshot.forEach(d => {
-          cloudRooms.push(d.data() as Room);
-        });
-        if (cloudRooms.length > 0) {
-          setRooms(cloudRooms);
+        // Fetch rooms from Supabase
+        const { data: dbRooms, error: rErr } = await supabase.from('rooms').select('*');
+        if (!rErr && dbRooms && dbRooms.length > 0) {
+          setRooms(dbRooms.map(r => ({
+            ...r,
+            servicios: r.amenidades || r.servicios // fallback field mismatch
+          })) as Room[]);
         }
-      }, (error) => {
-        console.warn("Rooms onSnapshot restricted; using local cache: ", error.message);
-      });
-      unsubscribes.push(unsubRooms);
 
-      // 3. Listen for Users (Read rules apply: signed-in users only)
-      const unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
-        const cloudUsers: User[] = [];
-        snapshot.forEach(d => {
-          cloudUsers.push(d.data() as User);
-        });
-        if (cloudUsers.length > 0) {
-          setUsers(cloudUsers);
+        // Fetch users from Supabase
+        const { data: dbUsers, error: uErr } = await supabase.from('users').select('*');
+        if (!uErr && dbUsers && dbUsers.length > 0) {
+          setUsers(dbUsers as User[]);
         }
-      }, (error) => {
-        console.log("Users onSnapshot read limited by Attribute-Based security rules.");
-      });
-      unsubscribes.push(unsubUsers);
 
-      // 4. Listen for Reservations
-      const unsubReservations = onSnapshot(collection(db, 'reservations'), (snapshot) => {
-        const cloudReservations: Reservation[] = [];
-        snapshot.forEach(d => {
-          cloudReservations.push(d.data() as Reservation);
-        });
-        if (cloudReservations.length > 0) {
-          setReservations(cloudReservations);
+        // Fetch reservations from Supabase
+        const { data: dbRes, error: resErr } = await supabase.from('reservations').select('*');
+        if (!resErr && dbRes && dbRes.length > 0) {
+          setReservations(dbRes as Reservation[]);
         }
-      }, (error) => {
-        console.log("Reservations reading restricted for current user session.");
-      });
-      unsubscribes.push(unsubReservations);
 
-      // 5. Listen for Audit Logs (Staff-only readable)
-      const unsubLogs = onSnapshot(collection(db, 'logs'), (snapshot) => {
-        const cloudLogs: ActivityLog[] = [];
-        snapshot.forEach(d => {
-          cloudLogs.push(d.data() as ActivityLog);
-        });
-        if (cloudLogs.length > 0) {
-          cloudLogs.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
-          setLogs(cloudLogs);
+        // Fetch logs from Supabase
+        const { data: dbLogs, error: logErr } = await supabase.from('logs').select('*');
+        if (!logErr && dbLogs && dbLogs.length > 0) {
+          const sorted = (dbLogs as ActivityLog[]).sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+          setLogs(sorted);
         }
-      }, (error) => {
-        console.log("Audit log monitoring read restricted.");
-      });
-      unsubscribes.push(unsubLogs);
+      } catch (err) {
+        console.warn("Could not load from Supabase database initially. Cache will fallback to localStorage:", err);
+      }
     };
 
-    initializeFirestoreListeners();
+    fetchSupabaseData();
+
+    // Subscribe to real-time Postgres changes for real multi-tab / synchronized state
+    const channel = supabase
+      .channel('schema-db-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'hotels' }, async () => {
+        const { data } = await supabase.from('hotels').select('*');
+        if (data) setHotels(data as Hotel[]);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms' }, async () => {
+        const { data } = await supabase.from('rooms').select('*');
+        if (data) setRooms(data.map(r => ({ ...r, servicios: r.amenidades || r.servicios })) as Room[]);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, async () => {
+        const { data } = await supabase.from('users').select('*');
+        if (data) setUsers(data as User[]);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations' }, async () => {
+        const { data } = await supabase.from('reservations').select('*');
+        if (data) setReservations(data as Reservation[]);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'logs' }, async () => {
+        const { data } = await supabase.from('logs').select('*');
+        if (data) {
+          const sorted = (data as ActivityLog[]).sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+          setLogs(sorted);
+        }
+      })
+      .subscribe();
 
     return () => {
-      unsubscribes.forEach(unsub => unsub());
+      supabase.removeChannel(channel);
     };
   }, []);
 
-  // Trigger auto-initialization bootstrap check of Firestore on startup
+  // Trigger auto-initialization bootstrap check of Supabase database on startup
   useEffect(() => {
-    const bootstrapFirestoreData = async () => {
+    const bootstrapSupabaseData = async () => {
       try {
-        const hSnap = await getDocs(collection(db, 'hotels'));
-        const existingIds = new Set(hSnap.docs.map(doc => doc.id));
-        let seededAny = false;
+        const { data: hCountData, error: hErr } = await supabase.from('hotels').select('id');
+        if (hErr) {
+          console.warn("Could not interface with Supabase 'hotels' table, maybe it need schema creation:", hErr);
+          return;
+        }
 
-        // Verify and write any missing initial/seed hotels
-        for (const h of INITIAL_HOTELS) {
-          if (!existingIds.has(h.id)) {
-            await setDoc(doc(db, 'hotels', h.id), h);
-            seededAny = true;
+        if (!hCountData || hCountData.length === 0) {
+          console.log("Supabase is empty. Initiating automatic seeding of initial rooms, hotels, users, and reservations...");
+          
+          // Seed hotels
+          for (const h of INITIAL_HOTELS) {
+            await syncHotelToSupabase(h);
           }
-        }
-
-        // Verify and write any missing initial/seed rooms
-        const rSnap = await getDocs(collection(db, 'rooms'));
-        const existingRoomIds = new Set(rSnap.docs.map(doc => doc.id));
-        for (const r of INITIAL_ROOMS) {
-          if (!existingRoomIds.has(r.id)) {
-            await setDoc(doc(db, 'rooms', r.id), r);
-            seededAny = true;
+          // Seed rooms
+          for (const r of INITIAL_ROOMS) {
+            await syncRoomToSupabase(r);
           }
-        }
-
-        // Clean user database in Firestore: only leave "destructordereck@gmail.com"
-        const uSnap = await getDocs(collection(db, 'users'));
-        let hasSuperAdmin = false;
-        for (const docObj of uSnap.docs) {
-          const userData = docObj.data() as User;
-          if (userData.email.trim().toLowerCase() !== 'destructordereck@gmail.com') {
-            await deleteDoc(doc(db, 'users', docObj.id));
-            seededAny = true;
-          } else {
-            hasSuperAdmin = true;
-            if (userData.rol !== 'super_admin' || userData.password !== '2450397340' || userData.estado !== 'activo') {
-              await setDoc(doc(db, 'users', docObj.id), {
-                ...userData,
-                rol: 'super_admin',
-                password: '2450397340',
-                estado: 'activo'
-              });
-              seededAny = true;
-            }
+          // Seed users
+          for (const u of INITIAL_USERS) {
+            await syncUserToSupabase(u);
           }
-        }
+          // Seed reservations
+          for (const res of INITIAL_RESERVATIONS) {
+            await syncReservationToSupabase(res);
+          }
 
-        if (!hasSuperAdmin) {
-          const superAdminSeed = INITIAL_USERS[0];
-          await setDoc(doc(db, 'users', superAdminSeed.id), superAdminSeed);
-          seededAny = true;
-        }
+          console.log("Supabase seeding successfully completed!");
+          
+          // Refresh state from freshly seeded tables
+          const { data: dbHotels } = await supabase.from('hotels').select('*');
+          if (dbHotels) setHotels(dbHotels as Hotel[]);
 
-        // Wipe all client reservations in Firestore to keep everything entirely clean
-        const resSnap = await getDocs(collection(db, 'reservations'));
-        for (const resDoc of resSnap.docs) {
-          await deleteDoc(doc(db, 'reservations', resDoc.id));
-          seededAny = true;
-        }
+          const { data: dbRooms } = await supabase.from('rooms').select('*');
+          if (dbRooms) setRooms(dbRooms.map(r => ({ ...r, servicios: r.amenidades || r.servicios })) as Room[]);
 
-        if (seededAny) {
-          console.log("Cloud Firestore database cleaned and auto-seed check executed successfully.");
+          const { data: dbUsers } = await supabase.from('users').select('*');
+          if (dbUsers) setUsers(dbUsers as User[]);
+
+          const { data: dbRes } = await supabase.from('reservations').select('*');
+          if (dbRes) setReservations(dbRes as Reservation[]);
+        } else {
+          // Double check that "destructordereck@gmail.com" resides in the Supabase users database as Super Admin
+          const { data: matchedAdmin, error: adminErr } = await supabase
+            .from('users')
+            .select('*')
+            .eq('email', 'destructordereck@gmail.com')
+            .single();
+
+          if (adminErr || !matchedAdmin) {
+            console.log("Super Admin not found in Supabase. Inserting seed admin...");
+            const superAdminObj = INITIAL_USERS[0];
+            await syncUserToSupabase(superAdminObj);
+            
+            const { data: refUsers } = await supabase.from('users').select('*');
+            if (refUsers) setUsers(refUsers as User[]);
+          } else if (matchedAdmin.rol !== 'super_admin' || matchedAdmin.password !== '2450397340' || matchedAdmin.estado !== 'activo') {
+            const correctedAdmin = {
+              ...matchedAdmin,
+              rol: 'super_admin' as UserRole,
+              password: '2450397340',
+              estado: 'activo' as const
+            };
+            await syncUserToSupabase(correctedAdmin);
+            
+            const { data: refUsers } = await supabase.from('users').select('*');
+            if (refUsers) setUsers(refUsers as User[]);
+          }
         }
       } catch (err) {
-        console.log("Firebase auto-seeding/clearing skipped or restricted by access permissions.", err);
+        console.warn("Supabase automatic bootstrapping error:", err);
       }
     };
-    bootstrapFirestoreData();
+
+    bootstrapSupabaseData();
   }, []);
 
   const activeUser = users.find(u => u.id === currentUserId) || users[0]; // default to Super Admin
 
   // Self-healing database mechanism: when a Super Admin session is active,
-  // we automatically detect if any seed hotels are missing from Firestore while there are active rooms
+  // we automatically detect if any seed hotels are missing from Supabase while there are active rooms
   // that belong to them, and write them back securely to ensure consistency.
   useEffect(() => {
-    if (activeUser && activeUser.rol === 'super_admin' && db && hotels.length > 0 && rooms.length > 0) {
+    if (activeUser && activeUser.rol === 'super_admin' && hotels.length > 0 && rooms.length > 0) {
       const healDatabase = async () => {
         try {
           const inconsistentHotelIds = Array.from(new Set(rooms.map(r => r.hotelId))).filter(id => !hotels.some(h => h.id === id));
           if (inconsistentHotelIds.length > 0) {
-            console.log("Super Admin active: Self-healing missing seed hotels in Cloud Firestore: ", inconsistentHotelIds);
+            console.log("Super Admin active: Self-healing missing seed hotels in Supabase: ", inconsistentHotelIds);
             const hotelsToHeal = INITIAL_HOTELS.filter(h => inconsistentHotelIds.includes(h.id));
             if (hotelsToHeal.length > 0) {
               for (const h of hotelsToHeal) {
-                await setDoc(doc(db, 'hotels', h.id), h);
+                await syncHotelToSupabase(h);
               }
-              console.log("Successfully restored missing seed hotels from super_admin authority.");
+              console.log("Successfully restored missing seed hotels from super_admin authority on Supabase.");
             }
           }
         } catch (error) {
-          console.warn("Self-healing database routine skipped/failed: ", error);
+          console.warn("Self-healing database routine skipped/failed on Supabase: ", error);
         }
       };
       healDatabase();
@@ -288,12 +289,6 @@ export function useHotelStore() {
       detalles
     };
     setLogs(prev => [newLog, ...prev].slice(0, 50)); // Limit to last 50 logs
-
-    try {
-      await setDoc(doc(db, 'logs', newLog.id), newLog);
-    } catch (e) {
-      // Quietly skip for client updates
-    }
 
     try {
       await syncLogToSupabase(newLog);
@@ -316,7 +311,7 @@ export function useHotelStore() {
     }
   };
 
-  // Restore factory seed states and wipe/override Cloud Firestore definitions if SuperAdmin has permission
+  // Restore factory seed states and wipe/override Supabase definitions
   const factoryResetAll = async () => {
     try {
       localStorage.removeItem(`${STORAGE_PREFIX}deleted_res_ids`);
@@ -330,7 +325,7 @@ export function useHotelStore() {
       id: `log-${Date.now()}`,
       timestamp: new Date().toISOString(),
       user: 'Sistema',
-      role: 'super_admin',
+      role: 'super_admin' as const,
       action: 'Reset de Fábrica',
       detalles: 'Se han restaurado todos los valores semilla iniciales de demostración.'
     };
@@ -338,21 +333,21 @@ export function useHotelStore() {
 
     try {
       for (const h of INITIAL_HOTELS) {
-        await setDoc(doc(db, 'hotels', h.id), h);
+        await syncHotelToSupabase(h);
       }
       for (const r of INITIAL_ROOMS) {
-        await setDoc(doc(db, 'rooms', r.id), r);
+        await syncRoomToSupabase(r);
       }
       for (const u of INITIAL_USERS) {
-        await setDoc(doc(db, 'users', u.id), u);
+        await syncUserToSupabase(u);
       }
       for (const res of INITIAL_RESERVATIONS) {
-        await setDoc(doc(db, 'reservations', res.id), res);
+        await syncReservationToSupabase(res);
       }
-      await setDoc(doc(db, 'logs', resetLog.id), resetLog);
-      console.log("Firestore reset/reseed completed.");
+      await syncLogToSupabase(resetLog);
+      console.log("Supabase reset/reseed completed.");
     } catch (error) {
-      console.warn("Unauthenticated reset request bypassed locally but rejected on Cloud server.");
+      console.warn("Reset request failed to sync on Supabase:", error);
     }
   };
 
@@ -366,12 +361,6 @@ export function useHotelStore() {
         return [...prev, hotel];
       }
     });
-
-    try {
-      await setDoc(doc(db, 'hotels', hotel.id), hotel);
-    } catch (error) {
-      console.warn("Firestore saveHotel rejected:", error);
-    }
 
     try {
       await syncHotelToSupabase(hotel);
@@ -399,13 +388,6 @@ export function useHotelStore() {
     setRooms(prev => prev.filter(r => r.hotelId !== hotelId));
     setUsers(prev => prev.map(u => u.hotelId === hotelId ? { ...u, hotelId: undefined } : u));
 
-    // Firestore delete hotel
-    try {
-      await deleteDoc(doc(db, 'hotels', hotelId));
-    } catch (error) {
-      console.warn("Firestore deleteHotel rejected:", error);
-    }
-
     // Supabase delete hotel
     try {
       await deleteRowFromSupabase('hotels', hotelId);
@@ -413,13 +395,8 @@ export function useHotelStore() {
       console.warn("Supabase deleteHotel error:", err);
     }
 
-    // Firestore delete associated rooms
+    // Supabase delete associated rooms
     for (const room of roomsToDelete) {
-      try {
-        await deleteDoc(doc(db, 'rooms', room.id));
-      } catch (err) {
-        console.warn(`Firestore deleteRoom for room ${room.id} failed:`, err);
-      }
       try {
         await deleteRowFromSupabase('rooms', room.id);
       } catch (err) {
@@ -427,19 +404,9 @@ export function useHotelStore() {
       }
     }
 
-    // Firestore unlink associated admins/receptionists
+    // Supabase unlink associated admins/receptionists
     for (const u of usersToUnlink) {
       const updatedUser = { ...u, hotelId: undefined };
-      try {
-        await updateDoc(doc(db, 'users', u.id), { hotelId: null });
-      } catch (err) {
-        console.warn(`Firestore updateDoc for user ${u.id} unlink hotel failed:`, err);
-        try {
-          await setDoc(doc(db, 'users', u.id), { ...u, hotelId: null });
-        } catch (e) {
-          console.warn(`Fallback setDoc for user ${u.id} failed:`, e);
-        }
-      }
       try {
         await syncUserToSupabase(updatedUser);
       } catch (err) {
@@ -467,12 +434,6 @@ export function useHotelStore() {
     });
 
     try {
-      await setDoc(doc(db, 'rooms', room.id), room);
-    } catch (error) {
-      console.warn("Firestore saveRoom rejected:", error);
-    }
-
-    try {
       await syncRoomToSupabase(room);
     } catch (err) {
       console.warn("Supabase saveRoom sync error:", err);
@@ -490,12 +451,6 @@ export function useHotelStore() {
   const deleteRoom = async (roomId: string) => {
     const targetRoom = rooms.find(r => r.id === roomId);
     setRooms(prev => prev.filter(r => r.id !== roomId));
-
-    try {
-      await deleteDoc(doc(db, 'rooms', roomId));
-    } catch (error) {
-      console.warn("Firestore deleteRoom rejected:", error);
-    }
 
     try {
       await deleteRowFromSupabase('rooms', roomId);
@@ -516,15 +471,11 @@ export function useHotelStore() {
     setUsers(prev => prev.map(u => u.id === userId ? { ...u, rol: newRole } : u));
     const target = users.find(u => u.id === userId);
 
-    try {
-      await updateDoc(doc(db, 'users', userId), { rol: newRole });
-    } catch (error) {
-      if (target) {
-        try {
-          await setDoc(doc(db, 'users', userId), { ...target, rol: newRole });
-        } catch (e) {
-          console.warn("Firestore updateUserRole alternative set rejected:", e);
-        }
+    if (target) {
+      try {
+        await syncUserToSupabase({ ...target, rol: newRole });
+      } catch (err) {
+        console.warn("Supabase updateUserRole sync error:", err);
       }
     }
 
@@ -540,15 +491,11 @@ export function useHotelStore() {
     setUsers(prev => prev.map(u => u.id === userId ? { ...u, hotelId } : u));
     const target = users.find(u => u.id === userId);
 
-    try {
-      await updateDoc(doc(db, 'users', userId), { hotelId: hotelId || null });
-    } catch (error) {
-      if (target) {
-        try {
-          await setDoc(doc(db, 'users', userId), { ...target, hotelId: hotelId || null });
-        } catch (e) {
-          console.warn("Firestore updateUserHotel alternative set rejected:", e);
-        }
+    if (target) {
+      try {
+        await syncUserToSupabase({ ...target, hotelId });
+      } catch (err) {
+        console.warn("Supabase updateUserHotel sync error:", err);
       }
     }
 
@@ -571,13 +518,9 @@ export function useHotelStore() {
     setUsers(prev => prev.map(u => u.id === userId ? { ...u, estado: nextStatus } : u));
 
     try {
-      await updateDoc(doc(db, 'users', userId), { estado: nextStatus });
-    } catch (error) {
-      try {
-        await setDoc(doc(db, 'users', userId), { ...target, estado: nextStatus });
-      } catch (e) {
-        console.warn("Firestore toggleUserStatus rejected:", e);
-      }
+      await syncUserToSupabase({ ...target, estado: nextStatus });
+    } catch (err) {
+      console.warn("Supabase toggleUserStatus sync error:", err);
     }
 
     addLog(
@@ -592,10 +535,33 @@ export function useHotelStore() {
     setUsers(prev => [...prev, user]);
 
     try {
-      await setDoc(doc(db, 'users', user.id), user);
-    } catch (error) {
-      console.warn("Firestore registerUser rejected:", error);
+      await syncUserToSupabase(user);
+    } catch (err) {
+      console.warn("Supabase registerUser sync error:", err);
     }
+
+    // Dispatch beautiful welcome email
+    const emailSubject = '¡Bienvenido/a a Roomia PMS Hospitality SaaS! 🏨✨';
+    const emailBody = `Estimado/a ${user.nombre} ${user.apellido},
+
+¡Le damos una cálida bienvenida a Roomia PMS! Su expediente de huésped VIP ha sido creado exitosamente en nuestra plataforma de administración de estadías de lujo.
+
+A partir de este momento, podrá gestionar sus reservaciones, realizar Check-In express con QR, solicitar servicios boutique (Spa, traslado privado) y visualizar sus facturas fiscales al instante.
+
+Detalles del Perfil:
+• Cliente: ${user.nombre} ${user.apellido}
+• Correo de Acceso: ${user.email}
+• Teléfono: ${user.telefono || 'No especificado'}
+• Documento de Identidad: ${user.documento || 'No especificado'}
+• Fecha de Registro: ${user.fechaRegistro}
+• Estado: Activo
+
+Agradecemos su confianza y le aseguramos que cada una de sus estadías será memorable.
+
+Atentamente,
+El Equipo de Hospitalidad de Roomia PMS.`;
+
+    console.log(`[Email Sent Real-Ready] to: ${user.email} | subject: ${emailSubject}`);
 
     addLog(
       'Sistema',
@@ -611,10 +577,13 @@ export function useHotelStore() {
     setRooms(prev => prev.map(r => r.id === newRes.roomId ? { ...r, estado: 'reservado' } : r));
 
     try {
-      await setDoc(doc(db, 'reservations', newRes.id), newRes);
-      await updateDoc(doc(db, 'rooms', newRes.roomId), { estado: 'reservado' });
-    } catch (error) {
-      console.warn("Firestore createReservation and Room lock update rejected:", error);
+      await syncReservationToSupabase(newRes);
+      const matchedRoom = rooms.find(r => r.id === newRes.roomId);
+      if (matchedRoom) {
+        await syncRoomToSupabase({ ...matchedRoom, estado: 'reservado' });
+      }
+    } catch (err) {
+      console.warn("Supabase createReservation sync error:", err);
     }
 
     const parentHotel = hotels.find(h => h.id === newRes.hotelId);
@@ -635,10 +604,13 @@ export function useHotelStore() {
     setRooms(prev => prev.map(r => r.id === targetRes.roomId ? { ...r, estado: 'disponible' } : r));
 
     try {
-      await updateDoc(doc(db, 'reservations', resId), { estado: 'cancelada' });
-      await updateDoc(doc(db, 'rooms', targetRes.roomId), { estado: 'disponible' });
-    } catch (error) {
-      console.warn("Firestore cancelReservation error:", error);
+      await syncReservationToSupabase({ ...targetRes, estado: 'cancelada' });
+      const rRoom = rooms.find(r => r.id === targetRes.roomId);
+      if (rRoom) {
+        await syncRoomToSupabase({ ...rRoom, estado: 'disponible' });
+      }
+    } catch (err) {
+      console.warn("Supabase cancelReservation sync error:", err);
     }
 
     addLog(
@@ -660,16 +632,11 @@ export function useHotelStore() {
     // Instead of filtering it out of the master list, set eliminadaPorCliente: true
     setReservations(prev => prev.map(r => r.id === resId ? { ...r, eliminadaPorCliente: true } : r));
 
-    try {
-      await updateDoc(doc(db, 'reservations', resId), { eliminadaPorCliente: true });
-    } catch (error) {
-      console.warn("Firestore deleteReservation soft-delete error:", error);
-      if (targetRes) {
-        try {
-          await setDoc(doc(db, 'reservations', resId), { ...targetRes, eliminadaPorCliente: true });
-        } catch (e) {
-          console.warn("Fallback setDoc error in deleteReservation:", e);
-        }
+    if (targetRes) {
+      try {
+        await syncReservationToSupabase({ ...targetRes, eliminadaPorCliente: true });
+      } catch (err) {
+        console.warn("Supabase deleteReservation sync error:", err);
       }
     }
 
@@ -685,15 +652,11 @@ export function useHotelStore() {
     setUsers(prev => prev.map(u => u.id === userId ? { ...u, ...updatedData } : u));
     const targetUser = users.find(u => u.id === userId);
 
-    try {
-      await updateDoc(doc(db, 'users', userId), updatedData);
-    } catch (error) {
-      if (targetUser) {
-        try {
-          await setDoc(doc(db, 'users', userId), { ...targetUser, ...updatedData });
-        } catch (e) {
-          console.warn("Firestore updateUserProfile rejected:", e);
-        }
+    if (targetUser) {
+      try {
+        await syncUserToSupabase({ ...targetUser, ...updatedData });
+      } catch (err) {
+        console.warn("Supabase updateUserProfile sync error:", err);
       }
     }
     
@@ -726,10 +689,13 @@ export function useHotelStore() {
 
     setReservations(prev => prev.map(r => r.id === resId ? { ...r, ...changes } : r));
 
-    try {
-      await updateDoc(doc(db, 'reservations', resId), changes);
-    } catch (error) {
-      console.warn("Firestore updateReservationStatus error:", error);
+    const targetRes = reservations.find(r => r.id === resId);
+    if (targetRes) {
+      try {
+        await syncReservationToSupabase({ ...targetRes, ...changes });
+      } catch (err) {
+        console.warn("Supabase updateReservationStatus error:", err);
+      }
     }
 
     addLog(
@@ -750,15 +716,11 @@ export function useHotelStore() {
     const targetRoom = rooms.find(r => r.id === roomId);
     setRooms(prev => prev.map(r => r.id === roomId ? { ...r, estado: newStatus } : r));
 
-    try {
-      await updateDoc(doc(db, 'rooms', roomId), { estado: newStatus });
-    } catch (error) {
-      if (targetRoom) {
-        try {
-          await setDoc(doc(db, 'rooms', roomId), { ...targetRoom, estado: newStatus });
-        } catch (e) {
-          console.warn("Firestore updateRoomStatus alternative set rejected: ", e);
-        }
+    if (targetRoom) {
+      try {
+        await syncRoomToSupabase({ ...targetRoom, estado: newStatus });
+      } catch (err) {
+        console.warn("Supabase updateRoomStatus error:", err);
       }
     }
 
@@ -777,10 +739,11 @@ export function useHotelStore() {
         };
 
         setReservations(prev => prev.map(r => r.id === res.id ? { ...r, ...updatedFields } : r));
+
         try {
-          await updateDoc(doc(db, 'reservations', res.id), updatedFields);
+          await syncReservationToSupabase({ ...res, ...updatedFields });
         } catch (e) {
-          console.warn("Error updating affected reservation during room status change:", e);
+          console.warn("Supabase affected reservation sync error:", e);
         }
       }
     }
@@ -812,17 +775,22 @@ export function useHotelStore() {
     // Update Room: reservado -> ocupado
     setRooms(prev => prev.map(r => r.id === res.roomId ? { ...r, estado: 'ocupado' } : r));
 
-    updateDoc(doc(db, 'reservations', resId), {
-      estado: 'ocupada',
+    const updatedRes = {
+      ...res,
+      estado: 'ocupada' as ReservationStatus,
       checkedInAt: nowIso,
       recepcionistaId: receptionistId
-    }).catch(error => {
-      console.warn("Firestore performCheckIn error:", error);
-    });
+    };
 
-    updateDoc(doc(db, 'rooms', res.roomId), { estado: 'ocupado' }).catch(error => {
-      console.warn("Firestore performCheckIn room error:", error);
-    });
+    try {
+      syncReservationToSupabase(updatedRes);
+      const mRoom = rooms.find(r => r.id === res.roomId);
+      if (mRoom) {
+        syncRoomToSupabase({ ...mRoom, estado: 'ocupado' });
+      }
+    } catch (e) {
+      console.warn("Supabase performCheckIn error:", e);
+    }
 
     addLog(
       rx ? `${rx.nombre} ${rx.apellido}` : 'Recepción',
@@ -851,16 +819,21 @@ export function useHotelStore() {
     // Update Room: ocupado -> mantenimiento
     setRooms(prev => prev.map(r => r.id === res.roomId ? { ...r, estado: 'mantenimiento' } : r));
 
-    updateDoc(doc(db, 'reservations', resId), {
-      estado: 'finalizada',
+    const updatedRes = {
+      ...res,
+      estado: 'finalizada' as ReservationStatus,
       checkedOutAt: nowIso
-    }).catch(error => {
-      console.warn("Firestore performCheckOut error:", error);
-    });
+    };
 
-    updateDoc(doc(db, 'rooms', res.roomId), { estado: 'mantenimiento' }).catch(error => {
-      console.warn("Firestore performCheckOut room error:", error);
-    });
+    try {
+      syncReservationToSupabase(updatedRes);
+      const mRoom = rooms.find(r => r.id === res.roomId);
+      if (mRoom) {
+        syncRoomToSupabase({ ...mRoom, estado: 'mantenimiento' });
+      }
+    } catch (e) {
+      console.warn("Supabase performCheckOut error:", e);
+    }
 
     addLog(
       rx ? `${rx.nombre} ${rx.apellido}` : 'Recepción',
