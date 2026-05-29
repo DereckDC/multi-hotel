@@ -532,15 +532,26 @@ export function useHotelStore() {
   };
 
   const registerUser = async (user: User) => {
-    setUsers(prev => [...prev, user]);
+    // Check if user already exists to prevent duplicate local state items
+    setUsers(prev => {
+      if (prev.some(u => u.id === user.id || u.email.toLowerCase() === user.email.toLowerCase())) {
+        return prev.map(u => u.email.toLowerCase() === user.email.toLowerCase() ? { ...u, ...user } : u);
+      }
+      return [...prev, user];
+    });
 
     try {
-      await syncUserToSupabase(user);
+      const result = await syncUserToSupabase(user);
+      if (!result.success) {
+        console.error("Supabase manual user registration sync failed:", result.error);
+      } else {
+        console.log("Successfully synced registered user to Supabase:", user.email);
+      }
     } catch (err) {
-      console.warn("Supabase registerUser sync error:", err);
+      console.warn("Supabase registerUser sync exception:", err);
     }
 
-    // Dispatch beautiful welcome email
+    // Dispatch beautiful welcome email using real SMTP API endpoint
     const emailSubject = '¡Bienvenido/a a Roomia PMS Hospitality SaaS! 🏨✨';
     const emailBody = `Estimado/a ${user.nombre} ${user.apellido},
 
@@ -551,7 +562,7 @@ A partir de este momento, podrá gestionar sus reservaciones, realizar Check-In 
 Detalles del Perfil:
 • Cliente: ${user.nombre} ${user.apellido}
 • Correo de Acceso: ${user.email}
-• Teléfono: ${user.telefono || 'No especificado'}
+${user.password ? `• Contraseña de Acceso: ${user.password}\n` : ''}• Teléfono: ${user.telefono || 'No especificado'}
 • Documento de Identidad: ${user.documento || 'No especificado'}
 • Fecha de Registro: ${user.fechaRegistro}
 • Estado: Activo
@@ -561,7 +572,23 @@ Agradecemos su confianza y le aseguramos que cada una de sus estadías será mem
 Atentamente,
 El Equipo de Hospitalidad de Roomia PMS.`;
 
-    console.log(`[Email Sent Real-Ready] to: ${user.email} | subject: ${emailSubject}`);
+    try {
+      const emailResponse = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          to: user.email,
+          subject: emailSubject,
+          text: emailBody
+        })
+      });
+      const emailData = await emailResponse.json();
+      console.log("[SMTP DISPATCH ATTEMPT]", emailData);
+    } catch (mailErr) {
+      console.error("Failed to dispatch real welcoming email through server:", mailErr);
+    }
 
     addLog(
       'Sistema',

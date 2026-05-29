@@ -12,7 +12,7 @@ import { supabase } from '../supabase';
 interface LoginViewProps {
   users: User[];
   onLoginSuccess: (userId: string) => void;
-  onRegisterUser: (newUser: User) => void;
+  onRegisterUser: (newUser: User) => Promise<any> | void;
 }
 
 export default function LoginView({ 
@@ -62,18 +62,47 @@ export default function LoginView({
     const matchedUser = users.find(u => u.email.toLowerCase() === recoveryEmail.trim().toLowerCase());
 
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(recoveryEmail.trim(), {
-        redirectTo: `${window.location.origin}/reset-password`
+      // Gracefully invoke Supabase auth reset, but do not block if it fails on unconfirmed/imported profiles
+      try {
+        await supabase.auth.resetPasswordForEmail(recoveryEmail.trim(), {
+          redirectTo: `${window.location.origin}/reset-password`
+        });
+      } catch (authErr) {
+        console.warn("Supabase Auth reset initiation skipped; carrying on with metadata mail proxy.", authErr);
+      }
+
+      const pass = matchedUser ? (matchedUser.password || 'BoutiquePassword123!') : 'NuevaPlataformaRoomiaSaaS!';
+      const clientName = matchedUser ? `${matchedUser.nombre} ${matchedUser.apellido}` : 'Cliente de Roomia';
+
+      const emailSubject = 'Recuperación de Contraseña - Roomia PMS 🏨🔑';
+      const emailText = `Estimado/a ${clientName},
+
+Se ha solicitado la recuperación de su contraseña de acceso para su cuenta en la plataforma de Roomia PMS Hospitalidad.
+
+De acuerdo con sus datos de registro seguro, su contraseña confidencial actual de acceso es:
+👉  ${pass}  👈
+
+Le sugerimos mantener esta clave bajo resguardo y no compartirla con terceros para garantizar la integridad de su expediente de huésped y de sus reservaciones activas.
+
+Si usted no solicitó esta recuperación, por favor ignore este correo o póngase en contacto con el personal del hotel.
+
+Atentamente,
+El Equipo de Hospitalidad de Roomia PMS.`;
+
+      // Send the real email containing raw password
+      await fetch('/api/send-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          to: recoveryEmail.trim(),
+          subject: emailSubject,
+          text: emailText
+        })
       });
 
-      if (error) throw error;
-
-      if (matchedUser) {
-        const pass = matchedUser.password || 'BoutiquePassword123!';
-        setRecoveredPassword(pass);
-      } else {
-        setRecoveredPassword('NuevaPlataformaRoomiaSaaS!');
-      }
+      setRecoveredPassword(pass);
       setRecoverySuccess(true);
       setErrorMsg('');
     } catch (error: any) {
@@ -157,7 +186,7 @@ export default function LoginView({
           estado: 'activo',
           password: passwordInput
         };
-        onRegisterUser(newUser);
+        await onRegisterUser(newUser);
         onLoginSuccess(newUser.id);
       }
     } catch (error: any) {
@@ -270,7 +299,7 @@ export default function LoginView({
           estado: 'activo',
           password: newPassword
         };
-        onRegisterUser(localUser);
+        await onRegisterUser(localUser);
         onLoginSuccess(localUser.id);
         setErrorMsg('');
         setLoadingType(null);
@@ -296,7 +325,7 @@ export default function LoginView({
         password: newPassword
       };
 
-      onRegisterUser(newUser);
+      await onRegisterUser(newUser);
       onLoginSuccess(newUser.id);
       setErrorMsg('');
     } catch (error: any) {
@@ -317,7 +346,7 @@ export default function LoginView({
       if (user) {
         if (user.email_confirmed_at) {
           if (pendingDraftUser) {
-            onRegisterUser(pendingDraftUser);
+            await onRegisterUser(pendingDraftUser);
           }
           onLoginSuccess(user.id);
         } else {
