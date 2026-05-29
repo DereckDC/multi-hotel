@@ -9,7 +9,7 @@ import { RoomReservationCalendar } from './RoomReservationCalendar';
 import { SUPABASE_SQL_SCHEMA } from '../supabase';
 
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, AreaChart, Area } from 'recharts';
-import { Plus, Edit3, Trash2, Shield, Users, HotelIcon, List, LayoutDashboard, Calendar, DollarSign, Percent, TrendingUp, AlertCircle, MapPin, EyeOff, ClipboardList, ToggleLeft, ToggleRight, Check, X, Upload, Database, Sparkles, Copy } from 'lucide-react';
+import { Plus, Edit3, Trash2, Shield, Users, HotelIcon, List, LayoutDashboard, Calendar, DollarSign, Percent, TrendingUp, AlertCircle, MapPin, EyeOff, ClipboardList, ToggleLeft, ToggleRight, Check, X, Upload, Database, Sparkles, Copy, Key } from 'lucide-react';
 
 export function getMapEmbedUrl(ubicacion: string, googleMapsUrl?: string): string {
   if (!ubicacion && !googleMapsUrl) return '';
@@ -83,6 +83,7 @@ interface AdminViewProps {
       logs: { count: number; error?: string };
     };
   }>;
+  onChangeUserPassword?: (userId: string, newPass: string, changedByAdmin?: boolean) => Promise<{ success: boolean; error?: string }>;
 }
 
 export default function AdminView({
@@ -102,7 +103,8 @@ export default function AdminView({
   statistics,
   onUpdateRoomStatus,
   onUpdateReservationStatus,
-  onSyncAllToSupabase
+  onSyncAllToSupabase,
+  onChangeUserPassword
 }: AdminViewProps) {
   // Navigation tabs within Admin: 'dashboard' | 'hotels' | 'rooms' | 'users' | 'logs' | 'reservations'
   const [adminTab, setAdminTab] = useState<'dashboard' | 'hotels' | 'rooms' | 'users' | 'logs' | 'reservations'>('dashboard');
@@ -186,6 +188,14 @@ export default function AdminView({
   const [showResStatusModal, setShowResStatusModal] = useState(false);
   const [newResStatus, setNewResStatus] = useState<any>(null);
   const [statusChangeMessage, setStatusChangeMessage] = useState("");
+
+  // Admin password edit state for any user
+  const [editingUserForPass, setEditingUserForPass] = useState<User | null>(null);
+  const [tempNewPass, setTempNewPass] = useState("");
+  const [showPassModal, setShowPassModal] = useState(false);
+  const [passModalLoading, setPassModalLoading] = useState(false);
+  const [passModalSuccess, setPassModalSuccess] = useState("");
+  const [passModalError, setPassModalError] = useState("");
 
   // Supabase states for database administration and setup
   const [supabaseSyncLoading, setSupabaseSyncLoading] = useState(false);
@@ -965,7 +975,7 @@ export default function AdminView({
                     <th className="py-3 px-4">Estado Cuenta</th>
                     <th className="py-3 px-4 text-center">Rol del Sistema</th>
                     <th className="py-3 px-4 text-left">Hotel Enlazado</th>
-                    <th className="py-3 px-4 text-right">Acción Rol</th>
+                    <th className="py-3 px-4 text-right">Acción Rol / Seguridad</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-neutral-100">
@@ -1026,18 +1036,35 @@ export default function AdminView({
                             </select>
                           )}
                         </td>
-                        <td className="py-3 px-4 text-right">
-                          <select
-                            value={u.rol}
-                            disabled={isSelf || (!isSuper && u.hotelId !== myHotelId)} // Restricted to same hotel or if self edit
-                            onChange={(e) => onUpdateUserRole(u.id, e.target.value as UserRole)}
-                            className="bg-white border border-neutral-200 rounded text-[10px] font-semibold py-1 px-1.5 focus:outline-none cursor-pointer disabled:bg-neutral-100 disabled:cursor-not-allowed"
-                          >
-                            {isSuper && <option value="super_admin">Super Admin</option>}
-                            <option value="hotel_admin">Hotel Admin</option>
-                            <option value="recepcionista">Recepcionista</option>
-                            <option value="cliente">Cliente</option>
-                          </select>
+                        <td className="py-3 px-4">
+                          <div className="flex items-center justify-end gap-2">
+                            <select
+                              value={u.rol}
+                              disabled={isSelf || (!isSuper && u.hotelId !== myHotelId)} // Restricted to same hotel or if self edit
+                              onChange={(e) => onUpdateUserRole(u.id, e.target.value as UserRole)}
+                              className="bg-white border border-neutral-200 rounded text-[10px] font-semibold py-1 px-1.5 focus:outline-none cursor-pointer disabled:bg-neutral-100 disabled:cursor-not-allowed"
+                            >
+                              {isSuper && <option value="super_admin">Super Admin</option>}
+                              <option value="hotel_admin">Hotel Admin</option>
+                              <option value="recepcionista">Recepcionista</option>
+                              <option value="cliente">Cliente</option>
+                            </select>
+
+                            <button
+                              onClick={() => {
+                                setEditingUserForPass(u);
+                                setTempNewPass("");
+                                setPassModalSuccess("");
+                                setPassModalError("");
+                                setShowPassModal(true);
+                              }}
+                              className="flex items-center gap-1 py-1 px-2.5 bg-neutral-105 hover:bg-neutral-200 text-neutral-700 rounded text-[10px] font-bold cursor-pointer transition-all active:scale-95 border border-neutral-200 shadow-sm"
+                              title="Establecer nueva contraseña de acceso segura"
+                            >
+                              <Key className="w-3 h-3 text-teal-600" />
+                              <span>Generar Clave</span>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -1249,6 +1276,129 @@ export default function AdminView({
                   )}
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SECURITY MODAL: CHANGE PASSWORD OF ANY USER */}
+      {showPassModal && editingUserForPass && (
+        <div className="fixed inset-0 bg-neutral-950/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm animate-fade-in font-sans">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full border border-neutral-105 flex flex-col scale-100 transition-all duration-200">
+            
+            {/* Header */}
+            <div className="px-6 py-4.5 border-b border-neutral-100 flex justify-between items-center bg-neutral-50 rounded-t-3xl">
+              <div className="flex items-center gap-2">
+                <Key className="w-5 h-5 text-teal-600 animate-pulse" />
+                <div>
+                  <h4 className="font-bold text-neutral-850 text-sm">Cambiar Clave de Acceso</h4>
+                  <p className="text-[10px] text-neutral-400 font-mono uppercase">{editingUserForPass.email}</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowPassModal(false)} 
+                className="p-1.5 hover:bg-neutral-200 rounded-full cursor-pointer text-neutral-400 hover:text-neutral-600 transition-colors"
+                title="Cerrar modal"
+              >
+                <X className="w-4.5 h-4.5" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 space-y-4">
+              <div className="p-3.5 bg-neutral-50 rounded-xl border border-neutral-200 text-xs text-neutral-600 leading-relaxed block">
+                Establezca una nueva contraseña para <strong>{editingUserForPass.nombre} {editingUserForPass.apellido}</strong>.
+                Se actualizará la contraseña y se enviará una notificación con el acceso por correo real.
+              </div>
+
+              {passModalSuccess && (
+                <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-3.5 rounded-xl text-xs flex items-center gap-2 animate-fade-in font-sans">
+                  <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>{passModalSuccess}</span>
+                </div>
+              )}
+
+              {passModalError && (
+                <div className="bg-red-50 border border-red-200 text-red-855 p-3.5 rounded-xl text-xs flex items-center gap-2 animate-fade-in font-sans">
+                  <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                  <span>{passModalError}</span>
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-neutral-400 uppercase tracking-wide block">Nueva Contraseña de Acceso:</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={tempNewPass}
+                    onChange={(e) => setTempNewPass(e.target.value)}
+                    placeholder="Escriba o auto-genere"
+                    className="flex-1 text-xs border border-neutral-250 p-2.5 rounded-xl focus:outline-none focus:border-teal-500 font-mono tracking-wider bg-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const randPass = 'Roomia' + Math.floor(1000 + Math.random() * 9000);
+                      setTempNewPass(randPass);
+                    }}
+                    className="px-3 bg-neutral-100 hover:bg-neutral-200 border border-neutral-200 text-neutral-700 rounded-xl text-xs font-semibold cursor-pointer transition-colors active:scale-95"
+                  >
+                    Generar
+                  </button>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button" 
+                  onClick={() => setShowPassModal(false)}
+                  className="w-1/2 px-4 py-2.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-semibold rounded-xl text-xs cursor-pointer transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  disabled={passModalLoading || !tempNewPass.trim()}
+                  onClick={async () => {
+                    if (!tempNewPass.trim()) return;
+                    setPassModalLoading(true);
+                    setPassModalSuccess("");
+                    setPassModalError("");
+                    try {
+                      if (onChangeUserPassword) {
+                        const res = await onChangeUserPassword(editingUserForPass.id, tempNewPass.trim(), true);
+                        if (res.success) {
+                          setPassModalSuccess("¡Contraseña actualizada y enviada!");
+                          setTimeout(() => {
+                            setShowPassModal(false);
+                            setEditingUserForPass(null);
+                          }, 1500);
+                        } else {
+                          setPassModalError(res.error || "No se pudo actualizar la contraseña.");
+                        }
+                      } else {
+                        setPassModalError("Servicio de seguridad no enlazado.");
+                      }
+                    } catch (err: any) {
+                      setPassModalError(err.message || String(err));
+                    } finally {
+                      setPassModalLoading(false);
+                    }
+                  }}
+                  className="w-1/2 px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl text-xs cursor-pointer shadow-md transition-colors flex items-center justify-center gap-1.5 disabled:bg-neutral-300 disabled:text-neutral-500 disabled:cursor-not-allowed"
+                >
+                  {passModalLoading ? (
+                    <span>Guardando...</span>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4" />
+                      <span>Guardar & Enviar</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
             </div>
           </div>
         </div>

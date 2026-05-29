@@ -104,7 +104,7 @@ El Equipo de Hospitalidad de Roomia PMS.`;
         })
       });
 
-      setRecoveredPassword(pass);
+      setRecoveredPassword('');
       setRecoverySuccess(true);
       setErrorMsg('');
     } catch (error: any) {
@@ -467,22 +467,19 @@ El Equipo de Hospitalidad de Roomia PMS.`;
                   <div className="bg-emerald-50 border border-emerald-300 text-emerald-850 p-5 rounded-2xl space-y-3 animate-fade-in duration-350">
                     <div className="flex items-center gap-2.5">
                       <Check className="w-5 h-5 text-emerald-600 shrink-0" />
-                      <h5 className="font-semibold text-sm">Contraseña enviada con éxito</h5>
+                      <h5 className="font-semibold text-sm">Mensaje enviado con éxito</h5>
                     </div>
                     <p className="text-xs text-neutral-600 leading-relaxed font-sans">
-                      Se ha despachado un correo de recuperación de Roomia SaaS a <span className="font-semibold">{recoveryEmail.trim()}</span> con la contraseña de acceso:
+                      Se ha despachado un correo de recuperación de Roomia SaaS a <span className="font-semibold">{recoveryEmail.trim()}</span> con las credenciales de acceso privadas.
                     </p>
-                    <div className="bg-white p-3.5 rounded-xl border border-emerald-200/80 space-y-2.5 font-sans shadow-sm">
-                      <p className="text-[10px] uppercase tracking-wider font-bold text-neutral-400">Mensaje de Recuperación Enviado:</p>
-                      <div className="text-xs border-l-2 border-[#344D67] pl-3 py-1 space-y-1">
-                        <p className="font-medium text-neutral-800">Estimado/a Huésped / Colaborador,</p>
-                        <p className="text-neutral-600 text-[11px] leading-relaxed">
-                          La contraseña registrada en su expediente del sistema Roomia SaaS es:
-                        </p>
-                        <p className="font-mono text-sm text-[#344D67] bg-slate-50 px-2.5 py-2.5 rounded border border-neutral-150 inline-block font-bold mt-1 tracking-wider select-text">
-                          {recoveredPassword}
-                        </p>
-                      </div>
+                    <div className="bg-white p-4 rounded-xl border border-emerald-200/80 space-y-2.5 font-sans shadow-sm">
+                      <p className="text-[10px] uppercase tracking-wider font-bold text-teal-700">🔐 Protección de Privacidad Activa</p>
+                      <p className="text-neutral-600 text-[11px] leading-relaxed">
+                        Por raciones de ciberseguridad y resguardo de datos, su contraseña de acceso <strong>no se muestra directamente en la pantalla de este navegador</strong>.
+                      </p>
+                      <p className="text-neutral-600 text-[11px] leading-relaxed">
+                        En su lugar, se ha enviado de forma automatizada por correo real. Por favor, <strong>revise su bandeja de entrada principal o su carpeta de Spam</strong> para obtener las credenciales.
+                      </p>
                     </div>
                     
                     <button

@@ -480,7 +480,8 @@ export function mapUserToDb(user: User): any {
     fecharegistro: user.fechaRegistro || new Date().toISOString().split('T')[0],
     estado: user.estado || 'activo',
     password: user.password || '',
-    hotelid: user.hotelId || null
+    hotelid: user.hotelId || null,
+    debecambiarpassword: user.debeCambiarPassword !== undefined ? user.debeCambiarPassword : false
   };
 }
 
@@ -498,7 +499,8 @@ export function mapUserFromDb(db: any): User {
     fechaRegistro: db.fecharegistro !== undefined ? db.fecharegistro : (db.fechaRegistro || new Date().toISOString().split('T')[0]),
     estado: db.estado || 'activo',
     password: db.password || '',
-    hotelId: db.hotelid !== undefined ? db.hotelid : db.hotelId
+    hotelId: db.hotelid !== undefined ? db.hotelid : db.hotelId,
+    debeCambiarPassword: db.debecambiarpassword !== undefined ? db.debecambiarpassword : false
   };
 }
 
