@@ -283,6 +283,109 @@ export function useHotelStore() {
     }
   }, [activeUser, hotels, rooms]);
 
+  // Synchronize Google Auth / Gmail login sessions securely on load and live events
+  useEffect(() => {
+    let active = true;
+
+    const checkSession = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) throw error;
+        if (session && session.user && active) {
+          const sbUser = session.user;
+          const userEmail = sbUser.email?.toLowerCase().trim();
+          if (!userEmail) return;
+
+          // Check if we already have this user loaded in local state
+          const exists = users.find(u => u.email.toLowerCase().trim() === userEmail || u.id === sbUser.id);
+          if (exists) {
+            if (currentUserId !== exists.id) {
+              console.log("[OAUTH SUCCESS] Google user profile matched:", exists.email);
+              setCurrentUserId(exists.id);
+            }
+          } else {
+            // Register as new user via Google info
+            const fullName = sbUser.user_metadata?.full_name || 'Huésped Google';
+            const parts = fullName.split(' ');
+            const nombre = sbUser.user_metadata?.nombre || parts[0] || 'Usuario';
+            const apellido = sbUser.user_metadata?.apellido || parts.slice(1).join(' ') || 'Google';
+
+            const newUser: User = {
+              id: sbUser.id,
+              nombre: nombre,
+              apellido: apellido,
+              email: userEmail,
+              telefono: sbUser.phone || '+52 55 0000 0000',
+              documento: 'ID-GOOGLE-OAUTH',
+              avatar: sbUser.user_metadata?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
+              rol: 'cliente',
+              fechaRegistro: new Date().toISOString().split('T')[0],
+              estado: 'activo',
+              password: '',
+              debeCambiarPassword: false
+            };
+
+            console.log("[OAUTH NEW] Registering new Google profile in database:", newUser);
+            await registerUser(newUser);
+            setCurrentUserId(newUser.id);
+          }
+        }
+      } catch (err) {
+        console.warn("Auth check session error:", err);
+      }
+    };
+
+    // Only run if users have been initialized to avoid race conditions
+    if (users.length > 0) {
+      checkSession();
+    }
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!active) return;
+      if (session && session.user && users.length > 0) {
+        const sbUser = session.user;
+        const userEmail = sbUser.email?.toLowerCase().trim();
+        if (!userEmail) return;
+
+        const exists = users.find(u => u.email.toLowerCase().trim() === userEmail || u.id === sbUser.id);
+        if (exists) {
+          if (currentUserId !== exists.id) {
+            console.log("[OAUTH EVENT] Google session authenticated:", exists.email);
+            setCurrentUserId(exists.id);
+          }
+        } else {
+          const fullName = sbUser.user_metadata?.full_name || 'Huésped Google';
+          const parts = fullName.split(' ');
+          const nombre = sbUser.user_metadata?.nombre || parts[0] || 'Usuario';
+          const apellido = sbUser.user_metadata?.apellido || parts.slice(1).join(' ') || 'Google';
+
+          const newUser: User = {
+            id: sbUser.id,
+            nombre: nombre,
+            apellido: apellido,
+            email: userEmail,
+            telefono: sbUser.phone || '+52 55 0000 0000',
+            documento: 'ID-GOOGLE-OAUTH',
+            avatar: sbUser.user_metadata?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
+            rol: 'cliente',
+            fechaRegistro: new Date().toISOString().split('T')[0],
+            estado: 'activo',
+            password: '',
+            debeCambiarPassword: false
+          };
+          console.log("[OAUTH EVENT] Registering new Google profile in database:", newUser);
+          await registerUser(newUser);
+          setCurrentUserId(newUser.id);
+        }
+      }
+    });
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, [users, currentUserId]);
+
   const addLog = async (user: string, role: string, action: string, detalles: string) => {
     const newLog: ActivityLog = {
       id: `log-${Date.now()}`,
