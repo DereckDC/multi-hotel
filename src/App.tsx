@@ -3,8 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, FormEvent } from 'react';
+import { useState, FormEvent, useEffect } from 'react';
 import { useHotelStore } from './store';
+import { supabase } from './supabase';
 import ClientView from './components/ClientView';
 import ReceptionView from './components/ReceptionView';
 import AdminView from './components/AdminView';
@@ -53,6 +54,15 @@ export default function App() {
       return true;
     }
   });
+
+  // Synchronize local isLoggedOut state reactively with store's activeUserId changes
+  useEffect(() => {
+    if (activeUserId) {
+      setIsLoggedOut(false);
+    } else {
+      setIsLoggedOut(true);
+    }
+  }, [activeUserId]);
 
   const [showLandingPage, setShowLandingPage] = useState(false);
 
@@ -171,9 +181,15 @@ export default function App() {
                   </div>
                 </button>
                 <button
-                  onClick={() => {
+                  onClick={async () => {
                     localStorage.removeItem('aura_hotel_pms_current_user_id');
+                    switchSessionUser('');
                     setIsLoggedOut(true);
+                    try {
+                      await supabase.auth.signOut();
+                    } catch (e) {
+                      console.warn("Supabase auth sign out error:", e);
+                    }
                   }}
                   title="Cerrar Sesión"
                   className="px-3.5 py-2 bg-red-50 hover:bg-red-100 text-red-650 hover:text-red-700 rounded-xl transition-all border border-red-200 cursor-pointer text-xs font-semibold flex items-center gap-1.5 active:scale-95 shadow-sm"
