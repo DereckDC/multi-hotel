@@ -190,7 +190,7 @@ export default function App() {
                   className="bg-teal-600 hover:bg-teal-700 text-white font-bold py-1.5 px-3.5 rounded-xl text-xs transition-colors cursor-pointer flex items-center gap-1 shadow-sm active:scale-95 shrink-0"
                 >
                   <Sparkles className="w-3.5 h-3.5" />
-                  <span>¿Quieres contratar? Ver Beneficios 🚀</span>
+                  <span>contratanos</span>
                 </button>
               </div>
             )}
