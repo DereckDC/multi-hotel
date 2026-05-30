@@ -135,7 +135,8 @@ export default function ReceptionView({
           rol: 'cliente' as const,
           fechaRegistro: new Date().toISOString().split('T')[0],
           estado: 'activo' as const,
-          password: genPassword
+          password: genPassword,
+          debeCambiarPassword: true
         };
 
         if (onRegisterUser) {
