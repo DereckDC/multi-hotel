@@ -7,7 +7,7 @@ import React, { useState } from 'react';
 import { User } from '../types';
 import { Mail, Sparkles, Check, Chrome, ShieldAlert, KeyRound, Loader2, ArrowRight, Inbox, RefreshCw, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { supabase } from '../supabase';
+import { supabase, syncUserToSupabase } from '../supabase';
 
 interface LoginViewProps {
   users: User[];
@@ -60,39 +60,102 @@ export default function LoginView({
 
     setLoadingType('email');
 
-    // Look up user's password in the system
-    const matchedUser = users.find(u => u.email.toLowerCase() === recoveryEmail.trim().toLowerCase());
-
     try {
-      // Gracefully invoke Supabase auth reset, but do not block if it fails on unconfirmed/imported profiles
-      try {
-        await supabase.auth.resetPasswordForEmail(recoveryEmail.trim(), {
-          redirectTo: `${window.location.origin}/reset-password`
-        });
-      } catch (authErr) {
-        console.warn("Supabase Auth reset initiation skipped; carrying on with metadata mail proxy.", authErr);
+      // Look up user in local state first
+      let matchedUser = users.find(u => u.email.toLowerCase() === recoveryEmail.trim().toLowerCase());
+
+      // Try direct database lookup fallback to handle replication lag or un-synchronized users
+      if (!matchedUser) {
+        const { data: dbUser, error: dbQueryErr } = await supabase
+          .from('users')
+          .select('*')
+          .eq('email', recoveryEmail.trim())
+          .maybeSingle();
+
+        if (!dbQueryErr && dbUser) {
+          const { mapUserFromDb } = await import('../supabase');
+          matchedUser = mapUserFromDb(dbUser);
+        }
       }
 
-      const pass = matchedUser ? (matchedUser.password || 'BoutiquePassword123!') : 'NuevaPlataformaRoomiaSaaS!';
-      const clientName = matchedUser ? `${matchedUser.nombre} ${matchedUser.apellido}` : 'Cliente de Roomia';
+      if (!matchedUser) {
+        throw new Error('No se encontró ninguna cuenta registrada con el correo electrónico especificado en el sistema.');
+      }
 
-      const emailSubject = 'Recuperación de Contraseña - Roomia PMS 🏨🔑';
-      const emailText = `Estimado/a ${clientName},
+      // Generate a highly secure temporary password for single use
+      const tempPassword = `RoomiaTemp-${Math.floor(100000 + Math.random() * 900000)}`;
 
-Se ha solicitado la recuperación de su contraseña de acceso para su cuenta en la plataforma de Roomia PMS Hospitalidad.
+      // Update the user profile in Supabase to set the new temporary password and force forced-password-screen
+      const updatedUser: User = {
+        ...matchedUser,
+        password: tempPassword,
+        debeCambiarPassword: true
+      };
 
-De acuerdo con sus datos de registro seguro, su contraseña confidencial actual de acceso es:
-👉  ${pass}  👈
+      const syncRes = await syncUserToSupabase(updatedUser);
+      if (!syncRes.success) {
+        throw new Error(syncRes.error || 'Error al intentar actualizar la clave temporal en la base de datos de Supabase.');
+      }
 
-Le sugerimos mantener esta clave bajo resguardo y no compartirla con terceros para garantizar la integridad de su expediente de huésped y de sus reservaciones activas.
+      // Gracefully notify Supabase Authentication logic if desired, but carry on focusing on metadata DB credentials
+      try {
+        await supabase.auth.resetPasswordForEmail(recoveryEmail.trim(), {
+          redirectTo: `${window.location.origin}`
+        });
+      } catch (authErr) {
+        console.warn("Supabase Auth reset initiation bypassed natively for imported user profile metadata:", authErr);
+      }
 
-Si usted no solicitó esta recuperación, por favor ignore este correo o póngase en contacto con el personal del hotel.
+      const clientName = `${matchedUser.nombre} ${matchedUser.apellido}`;
+      const emailSubject = 'Clave Temporal de Acceso Requerida - Roomia PMS 🏨🔑';
+      const emailText = `Estimado/a ${clientName},\n\nSe ha solicitado la recuperación de su contraseña de acceso para su cuenta en Roomia PMS.\n\nSu contraseña anterior ha sido dada de baja de manera inmediata. Se ha generado una Clave Temporal de Acceso de uso único:\n👉  ${tempPassword}  👈\n\nPor favor, copie esta clave temporal, ingrese a la plataforma, y proceda a cambiarla por una contraseña permanente.\n\nAtentamente,\nEl Equipo de Hospitalidad de Roomia PMS.`;
 
-Atentamente,
-El Equipo de Hospitalidad de Roomia PMS.`;
+      const emailHtml = `
+        <div style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 580px; margin: 0 auto; padding: 32px; border: 1px solid #f1f5f9; border-radius: 20px; color: #334155; background-color: #ffffff; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);">
+          <div style="text-align: center; margin-bottom: 32px;">
+            <div style="display: inline-block; padding: 12px 20px; background-color: #f1f5f9; border-radius: 12px; font-weight: 700; color: #0d9488; letter-spacing: 0.05em; font-size: 14px;">
+              🏨 ROOMIA PMS Hospitality
+            </div>
+          </div>
+          
+          <h2 style="color: #0f172a; font-size: 20px; font-weight: 700; text-align: center; margin: 0 0 16px 0; letter-spacing: -0.025em; line-height: 1.3;">
+            Clave Temporal de Acceso Solicitada
+          </h2>
+          
+          <p style="font-size: 14px; line-height: 1.6; color: #475569; margin-bottom: 24px; text-align: center;">
+            Estimado/a <strong>${clientName}</strong>,<br/>
+            Se ha procesado exitosamente la solicitud de recuperación para su cuenta de Roomia PMS S.A.S.
+          </p>
+          
+          <div style="background-color: #fafafa; border: 1px solid #e2e8f0; border-radius: 16px; padding: 24px; text-align: center; margin-bottom: 28px;">
+            <span style="font-size: 11px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.1em; display: block; margin-bottom: 8px;">🔑 Su Nueva Clave Temporal:</span>
+            <code style="font-family: 'Courier New', Courier, monospace; font-size: 22px; font-weight: 800; color: #0f172a; letter-spacing: 0.05em; display: block; background-color: #f1f5f9; padding: 12px; border-radius: 10px; margin-bottom: 12px; user-select: all;">${tempPassword}</code>
+            <span style="font-size: 11px; color: #ef4444; font-weight: 600; display: block;">🚨 Requiere cambio obligatorio al ingresar.</span>
+          </div>
+          
+          <p style="font-size: 12.5px; line-height: 1.6; color: #64748b; margin-bottom: 24px; text-align: justify;">
+            Por políticas de ciberseguridad, su clave anterior ha sido dada de baja de manera inmediata. Al iniciar sesión en la plataforma con esta clave temporal, el sistema le solicitará de forma automática restablecer una contraseña permanente y personalizada antes de acceder al panel de control.
+          </p>
+          
+          <div style="text-align: center; margin-bottom: 32px;">
+            <a href="${window.location.origin}" style="display: inline-block; background-color: #0f172a; color: #6eccaf; font-weight: 750; text-decoration: none; padding: 14px 34px; border-radius: 12px; font-size: 13px; box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);">
+              Ingresar a la Plataforma
+            </a>
+          </div>
+          
+          <hr style="border: 0; border-top: 1px solid #f1f5f9; margin: 24px 0;" />
+          
+          <p style="font-size: 11px; color: #94a3b8; line-height: 1.6; margin: 0; text-align: center;">
+            Si usted no inició este proceso, por favor ignore este correo o comuníquese con el personal de soporte para verificar la integridad de su expediente.
+          </p>
+          <p style="font-size: 10px; color: #94a3b8; margin: 8px 0 0 0; text-align: center; font-weight: 500;">
+            Roomia PMS Hotel Management Co. • Todos los derechos reservados.
+          </p>
+        </div>
+      `;
 
-      // Send the real email containing raw password
-      await fetch('/api/send-email', {
+      // Send the real email containing the temporary password via local express Nodemailer transporter proxy
+      const mailResponse = await fetch('/api/send-email', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -100,9 +163,15 @@ El Equipo de Hospitalidad de Roomia PMS.`;
         body: JSON.stringify({
           to: recoveryEmail.trim(),
           subject: emailSubject,
-          text: emailText
+          text: emailText,
+          html: emailHtml
         })
       });
+
+      if (!mailResponse.ok) {
+        const mailErrData = await mailResponse.json();
+        throw new Error(mailErrData.error || 'Fallo al procesar el envío de correo de recuperación.');
+      }
 
       setRecoveredPassword('');
       setRecoverySuccess(true);
