@@ -281,35 +281,6 @@ export default function LoginView({
     }
   };
 
-  const handleSimulateGoogle = async () => {
-    setErrorMsg('');
-    setLoadingType('google');
-
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: window.location.origin
-        }
-      });
-      if (error) throw error;
-    } catch (err: any) {
-      console.error("Google Auth failed inside preview container: ", err);
-      const errMsg = err.message || String(err);
-      if (errMsg.includes("Unsupported provider") || errMsg.includes("not enabled")) {
-        setErrorMsg(
-          "El proveedor de iniciar sesión con Google no está habilitado en tu consola de Supabase. Para habilitarlo: 1) Entra en Supabase Dashboard -> Authentication -> Providers. 2) Habilita Google e introduce tus datos de Google Client. Mientras tanto, puedes usar el formulario inferior para registrarte e iniciar sesión al instante con cualquier correo."
-        );
-      } else {
-        setErrorMsg(
-          `Error de Google Auth: ${errMsg}. (Si estás previsualizando en el iframe, por favor abre la app en pestaña nueva con el botón de salir de iframe arriba a la derecha para permitir la autenticación de Google real, o regístrese con un correo electrónico real en los campos normales).`
-        );
-      }
-    } finally {
-      setLoadingType(null);
-    }
-  };
-
   const handleCustomRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
@@ -481,11 +452,14 @@ export default function LoginView({
               <Sparkles className="w-3.5 h-3.5" />
               <span>ROOMIA PMS Hospitality SaaS</span>
             </div>
-            <h1 className="text-3xl md:text-4xl font-display font-semibold tracking-tight leading-tight">
-              Gestión Integral de Estadías de Lujo
+            <h1 className="text-3xl md:text-4xl font-display font-extrabold tracking-tight leading-tight">
+              Roomia: Automatización PMS y Gestión Hotelera Elite
             </h1>
-            <p className="text-neutral-300 text-xs md:text-sm mt-3 leading-relaxed">
-              Inicie sesión para acceder a su portal integrado. Dependiendo del rol de su cuenta, podrá realizar reservas boutique, procesar Check-In con códigos QR, o auditores métricas globales.
+            <p className="text-neutral-200 text-xs md:text-sm mt-4 leading-relaxed font-sans">
+              Descubra el software líder en hospitalidad que redefine la administración hotelera. Roomia unifica la asignación inteligente de habitaciones, pasarelas de reservas, control analítico financiero y auditorías de servicio en un panel centralizado.
+            </p>
+            <p className="text-neutral-300 text-[11px] md:text-xs mt-3 leading-relaxed font-sans">
+              Potenciado con lectura ágil por código QR para Check-Ins instantáneos, autogestión de tarifas segmentadas y monitoreo de inventario de cuartos en tiempo real para optimizar la rentabilidad de su propiedad desde el primer día.
             </p>
           </div>
         </div>
@@ -723,21 +697,7 @@ export default function LoginView({
                       </button>
                     </form>
 
-                    <div className="flex items-center justify-between text-xs text-neutral-300">
-                      <div className="h-[1px] bg-neutral-200 w-[42%]" />
-                      <span>O</span>
-                      <div className="h-[1px] bg-neutral-200 w-[42%]" />
-                    </div>
 
-                    {/* Google OAuth simulation button */}
-                    <button
-                      onClick={handleSimulateGoogle}
-                      type="button"
-                      className="w-full py-3 bg-white border border-neutral-250 hover:bg-neutral-50 text-neutral-700 text-xs font-semibold rounded-xl transition-all shadow-sm flex items-center justify-center gap-2.5 cursor-pointer"
-                    >
-                      <Chrome className="w-4.5 h-4.5 text-red-500 fill-red-550" />
-                      <span>Inicia sesión con Google (Gmail)</span>
-                    </button>
 
                     {/* Direct explicit register option */}
                     <div className="text-center pt-2">
@@ -860,25 +820,7 @@ export default function LoginView({
                       </p>
                     </div>
 
-                    <div className="bg-teal-50/50 p-3 rounded-xl border border-teal-200/55 space-y-2 mb-4">
-                      <p className="text-[10px] text-teal-800 font-semibold leading-relaxed">
-                        ¿Prefieres usar Google? Puedes completar tus datos al instante usando tu cuenta Gmail:
-                      </p>
-                      <button
-                        onClick={handleSimulateGoogle}
-                        type="button"
-                        className="w-full py-2 bg-white border border-[#344D67]/20 hover:bg-teal-50 text-neutral-700 text-xs font-semibold rounded-lg transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer"
-                      >
-                        <Chrome className="w-4 h-4 text-red-500 fill-red-550" />
-                        <span>Llenar datos con Google (Gmail)</span>
-                      </button>
-                    </div>
 
-                    <div className="flex items-center justify-between text-xs text-neutral-300 py-1">
-                      <div className="h-[1px] bg-neutral-200 w-[35%]" />
-                      <span className="text-[9px] uppercase font-bold text-neutral-400 font-mono">O Registro Manual</span>
-                      <div className="h-[1px] bg-neutral-200 w-[35%]" />
-                    </div>
 
                     <form onSubmit={handleCustomRegister} className="space-y-3">
                       <div>

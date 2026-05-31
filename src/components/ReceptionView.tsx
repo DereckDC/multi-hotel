@@ -412,7 +412,6 @@ export default function ReceptionView({
             </div>
           </div>
           <div className="text-right">
-            <span className="text-[10px] text-neutral-400 block font-semibold font-mono">USUARIO ID: {activeUser.id}</span>
             <span className="px-2.5 py-0.5 rounded bg-emerald-50 text-emerald-800 text-[10px] font-bold border border-emerald-100 uppercase uppercase">Operativo</span>
           </div>
         </div>
