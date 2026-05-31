@@ -7,6 +7,7 @@ import React, { useState, useRef } from 'react';
 import { Hotel, Room, Reservation, User, RoomStatus } from '../types';
 import { QrCode, Search, Check, ShieldAlert, Sparkles, AlertTriangle, Calendar, UserCheck, ShieldCheck, Hammer, HelpCircle, Loader, Coffee } from 'lucide-react';
 import { RoomReservationCalendar } from './RoomReservationCalendar';
+import { Html5Qrcode } from 'html5-qrcode';
 
 interface ReceptionViewProps {
   hotels: Hotel[];
@@ -45,6 +46,101 @@ export default function ReceptionView({
   const [scannedResId, setScannedResId] = useState<string | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
   const [scannedResult, setScannedResult] = useState<Reservation | null>(null);
+
+  // Real QR Camera Scanner state
+  const [useRealCamera, setUseRealCamera] = useState(false);
+  const [activeCamId, setActiveCamId] = useState<string>('');
+  const [cameras, setCameras] = useState<any[]>([]);
+  const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
+
+  // Stop current active scanner
+  const stopRealCamera = async () => {
+    if (html5QrCodeRef.current) {
+      if (html5QrCodeRef.current.isScanning) {
+        try {
+          await html5QrCodeRef.current.stop();
+        } catch (err) {
+          console.warn("Failed to stop camera scan:", err);
+        }
+      }
+      html5QrCodeRef.current = null;
+    }
+    setUseRealCamera(false);
+  };
+
+  // Start real camera scanner
+  const startRealCamera = async (cameraId?: string) => {
+    setScanError(null);
+    setScannedResult(null);
+    setUseRealCamera(true);
+    setIsScanning(false);
+    
+    // Stop any running camera
+    if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
+      try {
+        await html5QrCodeRef.current.stop();
+      } catch (err) {}
+    }
+
+    setTimeout(async () => {
+      try {
+        const scannerElement = document.getElementById('qr-camera-element');
+        if (!scannerElement) {
+          throw new Error("Contenedor de cámara no encontrado");
+        }
+
+        const html5QrCode = new Html5Qrcode("qr-camera-element");
+        html5QrCodeRef.current = html5QrCode;
+
+        // Fetch cameras if not loaded
+        let currentCamId = cameraId || activeCamId;
+        if (!currentCamId) {
+          const devices = await Html5Qrcode.getCameras();
+          if (devices && devices.length > 0) {
+            setCameras(devices);
+            currentCamId = devices[0].id;
+            setActiveCamId(currentCamId);
+          } else {
+            throw new Error("No se detectaron cámaras en el dispositivo ni permisos de cámara concedidos.");
+          }
+        }
+
+        await html5QrCode.start(
+          currentCamId,
+          {
+            fps: 15,
+            qrbox: (width, height) => {
+              const exactSize = Math.min(width, height) * 0.7;
+              return { width: exactSize, height: exactSize };
+            }
+          },
+          (decodedText) => {
+            console.log("Real QR code scanned successfully:", decodedText);
+            // Handle scanned code
+            completeScan(decodedText);
+            // Stop and disable camera view on success
+            stopRealCamera();
+          },
+          () => {} // silent frame reject errors
+        );
+      } catch (err: any) {
+        console.error("Error starting camera qr scanner:", err);
+        setScanError(`No se pudo arrancar la cámara: ${err.message || String(err)}. Si estás en un iframe-sandbox central, por favor abre la aplicación en una pestaña nueva del navegador usando el botón Salir de Iframe de la esquina superior derecha para conceder permisos a la cámara correctamente.`);
+        setUseRealCamera(false);
+      }
+    }, 150);
+  };
+
+  // Cleanup camera scanning on unmount
+  React.useEffect(() => {
+    return () => {
+      if (html5QrCodeRef.current) {
+        if (html5QrCodeRef.current.isScanning) {
+          html5QrCodeRef.current.stop().catch(err => console.warn(err));
+        }
+      }
+    };
+  }, []);
 
   // Incidences report
   const [incidentRoomId, setIncidentRoomId] = useState('');
@@ -336,9 +432,45 @@ export default function ReceptionView({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
             
             {/* Visual Screen of simulated scanner */}
-            <div className="bg-neutral-950 border border-neutral-800 rounded-2xl h-56 relative overflow-hidden flex flex-col items-center justify-center p-4">
+            <div className={`bg-neutral-950 border border-neutral-800 rounded-2xl h-56 relative overflow-hidden flex flex-col items-center justify-center ${useRealCamera ? 'p-0' : 'p-4'}`}>
               
-              {isScanning ? (
+              {useRealCamera ? (
+                // Real Live camera reader
+                <div className="w-full h-full p-0 relative flex flex-col justify-end bg-black">
+                  <div id="qr-camera-element" className="w-full h-full object-cover" />
+                  
+                  {/* Camera overlays & controls */}
+                  <div className="absolute top-2 left-2 text-[8px] bg-red-600 text-white font-mono font-bold uppercase tracking-widest px-1.5 py-0.5 rounded flex items-center gap-1 animate-pulse z-15">
+                    <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                    <span>LENTE ACTIVO (CAPACITOR/WEB)</span>
+                  </div>
+                  
+                  {cameras.length > 1 && (
+                    <div className="absolute top-2 right-2 flex gap-1 z-15">
+                      <select 
+                        value={activeCamId}
+                        onChange={(e) => {
+                          setActiveCamId(e.target.value);
+                          startRealCamera(e.target.value);
+                        }}
+                        className="bg-neutral-900/90 hover:bg-neutral-800 text-[9px] text-white font-semibold font-mono rounded border border-neutral-750 px-1 py-0.5 focus:outline-none"
+                      >
+                        {cameras.map((c, idx) => (
+                          <option key={c.id} value={c.id}>Cámara {idx + 1}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  <button 
+                    onClick={stopRealCamera}
+                    type="button"
+                    className="absolute bottom-2 left-1/2 transform -translate-x-1/2 bg-neutral-900 hover:bg-neutral-850 text-red-400 text-[9px] font-bold tracking-wider px-3 py-1.5 rounded-lg border border-neutral-800 focus:outline-none transition-all duration-150 z-20 cursor-pointer flex items-center gap-1 shadow-md uppercase"
+                  >
+                    <span>Cerrar Cámara ✖</span>
+                  </button>
+                </div>
+              ) : isScanning ? (
                 // Scanning screen
                 <div className="text-center space-y-3 w-full">
                   <div className="w-full h-1 bg-teal-500/10 rounded overflow-hidden relative">
@@ -369,6 +501,7 @@ export default function ReceptionView({
                   <p className="text-[10px] text-neutral-500 leading-normal">{scanError}</p>
                   <button
                     onClick={() => setScanError(null)}
+                    type="button"
                     className="px-2.5 py-1 bg-neutral-800 text-neutral-300 rounded hover:bg-neutral-700 cursor-pointer"
                   >
                     Reintentar
@@ -376,13 +509,22 @@ export default function ReceptionView({
                 </div>
               ) : (
                 // Default IDLE scanner screen
-                <div className="text-center space-y-3">
+                <div className="text-center space-y-3 p-4">
                   <div className="w-16 h-16 border-2 border-dashed border-neutral-700 rounded-xl flex items-center justify-center text-neutral-600 mx-auto">
                     <QrCode className="w-8 h-8" />
                   </div>
                   <div>
-                    <p className="text-xs text-neutral-400">Sensor listo para leer códigos del Huésped</p>
-                    <p className="text-[10px] text-neutral-600 mt-1">Busque manualmente o presione un QR rápido de prueba abajo</p>
+                    <p className="text-xs text-neutral-400 font-bold">¡Lente sensor listo!</p>
+                    <p className="text-[9px] text-neutral-600 mt-1">Busque manual, use demostración o active cámara:</p>
+                  </div>
+                  <div className="pt-2">
+                    <button
+                      onClick={() => startRealCamera()}
+                      type="button"
+                      className="px-3.5 py-1.5 bg-teal-500 hover:bg-teal-450 text-neutral-950 font-extrabold text-[10px] rounded-lg shadow-md uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-1 mx-auto border border-teal-400"
+                    >
+                      <span>📸 Iniciar Cámara Real</span>
+                    </button>
                   </div>
                 </div>
               )}
@@ -411,6 +553,14 @@ export default function ReceptionView({
                   </button>
                 </div>
               </form>
+
+              <button
+                type="button"
+                onClick={() => startRealCamera()}
+                className="w-full py-2 bg-neutral-800 hover:bg-neutral-700 hover:text-white text-neutral-300 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 border border-neutral-750"
+              >
+                📸 Escanear QR con Cámara
+              </button>
 
               <div className="space-y-1.5 pt-2">
                 <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block">Reservas en Espera (QR Demostración)</span>

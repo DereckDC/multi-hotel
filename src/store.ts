@@ -556,24 +556,22 @@ export function useHotelStore() {
   };
 
   const registerUser = async (user: User) => {
-    // Check if user already exists to prevent duplicate local state items
+    // 1. Sync to Supabase cloud database first to ensure it succeeds
+    const result = await syncUserToSupabase(user);
+    if (!result.success) {
+      console.error("Supabase manual user registration sync failed:", result.error);
+      throw new Error(`Error de registro en la Base de Datos: ${result.error || 'No se pudo sincronizar la cuenta con Supabase'}`);
+    }
+    
+    console.log("Successfully synced registered user to Supabase:", user.email);
+
+    // 2. Only if DB write succeeds, update local state
     setUsers(prev => {
       if (prev.some(u => u.id === user.id || u.email.toLowerCase() === user.email.toLowerCase())) {
         return prev.map(u => u.email.toLowerCase() === user.email.toLowerCase() ? { ...u, ...user } : u);
       }
       return [...prev, user];
     });
-
-    try {
-      const result = await syncUserToSupabase(user);
-      if (!result.success) {
-        console.error("Supabase manual user registration sync failed:", result.error);
-      } else {
-        console.log("Successfully synced registered user to Supabase:", user.email);
-      }
-    } catch (err) {
-      console.warn("Supabase registerUser sync exception:", err);
-    }
 
     // Dispatch beautiful welcome email using real SMTP API endpoint
     const emailSubject = user.debeCambiarPassword 
