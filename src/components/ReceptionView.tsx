@@ -347,11 +347,16 @@ export default function ReceptionView({
     setIsScanning(false);
     const targetRes = reservations.find(r => r.id === resId || r.qrCode === resId);
     if (targetRes) {
+      if (activeUser.rol === 'recepcionista' && targetRes.hotelId !== activeUser.hotelId) {
+        setScanError('no se encuentra la reservacion');
+        setScannedResult(null);
+        return;
+      }
       setScannedResult(targetRes);
       // Log event
       onAddLog('Lectura QR', `Lectura QR de reserva "${targetRes.id}" exitoso. Información extraída.`);
     } else {
-      setScanError('Código QR no coincide con ninguna reservación activa en la base de datos.');
+      setScanError('no se encuentra la reservacion');
     }
   };
 
@@ -389,10 +394,15 @@ export default function ReceptionView({
     // Look up by reservation id or QR content
     const res = reservations.find(r => r.id.toUpperCase() === cleanQuery || r.qrCode.toUpperCase() === cleanQuery);
     if (res) {
+      if (activeUser.rol === 'recepcionista' && res.hotelId !== activeUser.hotelId) {
+        setScanError('no se encuentra la reservacion');
+        setScannedResult(null);
+        return;
+      }
       setScannedResult(res);
       setScanError(null);
     } else {
-      setScanError(`No se encontró ninguna reserva para el código "${cleanQuery}"`);
+      setScanError('no se encuentra la reservacion');
       setScannedResult(null);
     }
   };

@@ -279,51 +279,51 @@ export default function InvoicePDF({
   };
 
   return (
-    <div id="invoice-modal" className="fixed inset-0 bg-neutral-950/60 flex items-center justify-center p-4 z-[100] backdrop-blur-sm animate-fade-in print:bg-white print:p-0">
-      <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-neutral-200 flex flex-col print:shadow-none print:border-none print:max-h-full print:rounded-none">
+    <div id="invoice-modal" className="fixed inset-0 bg-neutral-950/60 flex items-center justify-center p-2 sm:p-4 z-[100] backdrop-blur-sm animate-fade-in print:bg-white print:p-0">
+      <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[96vh] sm:max-h-[90vh] overflow-y-auto border border-neutral-200 flex flex-col print:shadow-none print:border-none print:max-h-full print:rounded-none">
         
         {/* Header toolbar - hidden in printing */}
-        <div className="px-6 py-4 border-b border-neutral-100 flex items-center justify-between bg-neutral-50 rounded-t-2xl print:hidden">
-          <div className="flex items-center gap-2">
-            <FileText className="w-5 h-5 text-teal-600" />
-            <h3 className="font-semibold text-neutral-800">Pre-Factura Automatizada</h3>
+        <div className="px-3 py-2.5 sm:px-6 sm:py-4 border-b border-neutral-100 flex items-center justify-between bg-neutral-50 rounded-t-2xl print:hidden">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-teal-600" />
+            <h3 className="font-semibold text-neutral-800 text-xs sm:text-sm md:text-base">Pre-Factura</h3>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
             <button
               onClick={handlePrint}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-neutral-700 text-sm hover:bg-neutral-100 border border-neutral-200 rounded-lg transition-colors cursor-pointer"
+              className="flex items-center gap-1 px-2.5 py-1.5 bg-white text-neutral-700 text-xs hover:bg-neutral-100 border border-neutral-200 rounded-lg transition-colors cursor-pointer"
             >
-              <Printer className="w-4 h-4" />
-              <span>Imprimir</span>
+              <Printer className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Imprimir</span>
             </button>
             <button
               onClick={handleDownload}
               disabled={downloading}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-sm rounded-lg transition-colors cursor-pointer disabled:bg-teal-400"
+              className="flex items-center gap-1 px-2.5 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs rounded-lg transition-colors cursor-pointer disabled:bg-teal-400"
             >
-              <Download className="w-4 h-4" />
+              <Download className="w-3.5 h-3.5" />
               <span>{downloading ? 'Generando...' : 'Descargar PDF'}</span>
             </button>
             <button
               onClick={onClose}
-              className="p-1.5 hover:bg-neutral-200 text-neutral-400 hover:text-neutral-600 rounded-full transition-colors cursor-pointer ml-2"
+              className="p-1 sm:p-1.5 hover:bg-neutral-200 text-neutral-400 hover:text-neutral-600 rounded-full transition-colors cursor-pointer ml-1 sm:ml-2"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4 sm:w-5 h-5" />
             </button>
           </div>
         </div>
 
         {/* Android WebView / APK compatibility notice */}
-        <div className="mx-6 mt-4 p-3.5 bg-teal-50 border border-teal-150 rounded-2xl flex items-start gap-3 text-[11px] text-teal-800 leading-normal font-sans print:hidden">
+        <div className="mx-3 sm:mx-6 mt-3 p-3 bg-teal-50 border border-teal-150 rounded-xl sm:rounded-2xl flex items-start gap-2.5 text-[10px] sm:text-[11px] text-teal-800 leading-normal font-sans print:hidden">
           <span className="text-sm shrink-0">💡</span>
           <div>
-            <p className="font-bold uppercase tracking-wider text-[10px] text-teal-900">Compatibilidad con App Móvil / APK activa:</p>
+            <p className="font-bold uppercase tracking-wider text-[9px] sm:text-[10px] text-teal-900">Compatibilidad con App Móvil / APK activa:</p>
             <p className="mt-0.5">Si estás utilizando nuestra app APK y no puedes descargar directamente el archivo PDF debido a restricciones del sistema, presiona <strong className="text-teal-950">Imprimir</strong> en el menú superior y elige <strong className="text-teal-950">"Guardar como PDF / Save as PDF"</strong> para almacenarlo de manera integrada sin limitaciones en tu dispositivo.</p>
           </div>
         </div>
 
         {/* Invoice Printable Viewport */}
-        <div className="p-8 md:p-10 flex-1 overflow-y-auto" id="printable-area">
+        <div className="p-4 sm:p-8 md:p-10 flex-1 overflow-y-auto" id="printable-area">
           {/* Top Brand Block */}
           <div className="flex flex-col md:flex-row justify-between items-start gap-6 border-b border-neutral-200 pb-8">
             <div>
@@ -387,8 +387,8 @@ export default function InvoicePDF({
           </div>
 
           {/* Cost breakdown table */}
-          <div className="py-6">
-            <table className="w-full text-left text-sm text-neutral-600">
+          <div className="py-4 overflow-x-auto w-full">
+            <table className="w-full min-w-[500px] text-left text-sm text-neutral-600">
               <thead>
                 <tr className="border-b border-neutral-200 text-neutral-400 text-xs font-semibold uppercase">
                   <th className="py-2">Descripción del Servicio / Detalle</th>
@@ -463,31 +463,6 @@ export default function InvoicePDF({
               <li>Toda anomalía o daño físico en la estructura será cargado directamente al expediente de facturación finalizado.</li>
             </ul>
           </div>
-        </div>
-
-        {/* Mail send notification - hidden in print */}
-        <div className="px-6 py-4 bg-neutral-50 border-t border-neutral-100 flex items-center justify-between rounded-b-2xl print:hidden">
-          <div className="flex items-center gap-2 text-xs text-neutral-500">
-            <Mail className="w-4 h-4 text-neutral-400" />
-            <span>¿Enviar esta pre-factura a destructordereck@gmail.com?</span>
-          </div>
-          <button
-            onClick={() => {
-              setSentByEmail(true);
-              setTimeout(() => setSentByEmail(false), 3000);
-            }}
-            disabled={sentByEmail}
-            className="flex items-center gap-1 px-3 py-1 bg-white hover:bg-teal-50 hover:text-teal-700 hover:border-teal-200 border border-neutral-200 rounded text-xs transition-colors cursor-pointer font-medium disabled:bg-emerald-50 disabled:text-emerald-700"
-          >
-            {sentByEmail ? (
-              <>
-                <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Enviado al correo</span>
-              </>
-            ) : (
-              <span>Enviar por e-mail</span>
-            )}
-          </button>
         </div>
 
       </div>
