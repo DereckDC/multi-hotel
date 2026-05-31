@@ -86,6 +86,7 @@ CREATE TABLE public.users (
   estado TEXT NOT NULL DEFAULT 'activo',
   password TEXT,
   hotelId TEXT REFERENCES public.hotels(id) ON DELETE SET NULL,
+  debecambiarpassword BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -605,12 +606,30 @@ export async function syncRoomToSupabase(room: Room): Promise<{ success: boolean
  */
 export async function syncUserToSupabase(user: User): Promise<{ success: boolean; error?: string }> {
   try {
+    const payload = mapUserToDb(user);
     const { error } = await supabase
       .from('users')
-      .upsert(mapUserToDb(user));
+      .upsert(payload);
 
     if (error) {
       console.warn('Supabase syncUser error:', error);
+      
+      // If error is code 42703 (undefined_column) or mentions column/debecambiarpassword
+      if (error.code === '42703' || error.message?.includes('debecambiarpassword') || error.message?.includes('column')) {
+        console.log('Retrying user sync without optional column "debecambiarpassword" to prevent Postgres schema errors...');
+        delete payload.debecambiarpassword;
+        
+        const { error: retryErr } = await supabase
+          .from('users')
+          .upsert(payload);
+          
+        if (retryErr) {
+          console.warn('Retry syncUser also failed:', retryErr);
+          return { success: false, error: retryErr.message };
+        }
+        return { success: true };
+      }
+      
       return { success: false, error: error.message };
     }
     return { success: true };

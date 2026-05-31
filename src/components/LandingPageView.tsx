@@ -13,7 +13,11 @@ import {
   TrendingUp, 
   Clock, 
   Workflow, 
-  Users
+  Users,
+  Phone,
+  Mail,
+  MapPin,
+  Check
 } from 'lucide-react';
 
 interface LandingPageViewProps {
@@ -21,6 +25,15 @@ interface LandingPageViewProps {
 }
 
 export default function LandingPageView({ onClose }: LandingPageViewProps) {
+  const [copiedEmail, setCopiedEmail] = React.useState(false);
+  const [numHabitaciones, setNumHabitaciones] = React.useState(35);
+
+  const handleCopyEmail = () => {
+    navigator.clipboard.writeText('roomia.admincontact@gmail.com');
+    setCopiedEmail(true);
+    setTimeout(() => setCopiedEmail(false), 2000);
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans animate-fade-in">
       
@@ -336,55 +349,194 @@ export default function LandingPageView({ onClose }: LandingPageViewProps) {
             </div>
           </div>
 
-          <div className="bg-slate-900 rounded-3xl p-8 text-white space-y-6 border border-slate-800 shadow-xl relative overflow-hidden">
+          <div className="bg-slate-900 rounded-3xl p-6 md:p-8 text-white space-y-6 border border-slate-800 shadow-xl relative overflow-hidden">
             <div className="absolute top-0 right-0 w-24 h-24 bg-teal-500/10 rounded-full blur-lg" />
-            <div className="border-b border-slate-800 pb-3 flex justify-between items-center text-xs text-slate-400 font-mono">
-              <span>DEMO RECIENTE DE INTERFAZ</span>
-              <span className="text-emerald-400 font-bold font-sans">99.8% DISPONIBILIDAD</span>
+            
+            <div className="border-b border-slate-800 pb-3 flex justify-between items-center text-[10px] text-slate-400 font-mono">
+              <span>PLANES DE LICENCIAMIENTO SAAS</span>
+              <span className="text-emerald-400 font-bold font-sans">PRUEBA GRATUITA DISPONIBLE</span>
             </div>
-            <div className="space-y-3 font-sans text-xs">
-              <div className="p-3 bg-white/5 rounded-xl border border-white/10 space-y-1">
-                <span className="text-[10px] text-teal-400 font-mono">CHECK-IN CONFIRMADO ✅</span>
-                <p className="font-bold text-white leading-none">Reserva N° RES-83921</p>
-                <p className="text-[11px] text-slate-400">Cliente Juan Castro ingresando hoy al Cuarto 104 Suite Boutique</p>
+
+            <div className="space-y-4">
+              <div>
+                <div className="flex justify-between items-center mb-1.5">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">
+                    Tamaño de su Operación:
+                  </span>
+                  <span className="text-teal-400 font-sans font-extrabold text-xs bg-teal-400/10 px-2 py-0.5 rounded-md border border-teal-500/15">
+                    {numHabitaciones} Habitaciones
+                  </span>
+                </div>
+                <input 
+                  type="range"
+                  min="10"
+                  max="200"
+                  value={numHabitaciones}
+                  onChange={(e) => setNumHabitaciones(Number(e.target.value))}
+                  className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-teal-450 mt-1"
+                />
+                <div className="flex justify-between text-[9px] text-slate-500 font-mono mt-1 uppercase tracking-tight">
+                  <span>10 Cuartos</span>
+                  <span>100 Cuartos</span>
+                  <span>200+ Ilimitado</span>
+                </div>
               </div>
-              <div className="p-3 bg-white/5 rounded-xl border border-white/10 space-y-1">
-                <span className="text-[10px] text-indigo-400 font-mono">REGISTRO PRESENCIAL (WALK-IN) 📝</span>
-                <p className="font-bold text-white leading-none">Huésped Express Agendado</p>
-                <p className="text-[11px] text-slate-400">Creado por Recepcionista. Sincronizado a Supabase con éxito.</p>
+
+              {/* Plans Selection List inside the Card */}
+              <div className="space-y-3 pt-1">
+                
+                {/* Boutique */}
+                <div className="p-3 bg-slate-950/60 border border-slate-850 hover:border-slate-800 rounded-xl transition-all flex justify-between items-center gap-3">
+                  <div>
+                    <span className="text-[8px] font-extrabold text-slate-400 bg-slate-900 border border-slate-800 px-1.5 py-0.5 rounded uppercase tracking-wider font-mono">Boutique Core</span>
+                    <h4 className="text-xs font-bold text-slate-200 mt-1">Plan Boutique</h4>
+                    <p className="text-[10px] text-slate-400">1 Hotel • Recepción Básica y QR</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <span className="block text-sm font-extrabold text-teal-400">${Math.max(29, Math.round(numHabitaciones * 1.50))}<span className="text-[9px] text-slate-450 font-normal">/mes</span></span>
+                    <span className="text-[8px] text-slate-500 block font-mono">$1.50/cuarto (mín. $29)</span>
+                  </div>
+                </div>
+
+                {/* Premium */}
+                <div className="p-3 bg-teal-500/5 border border-teal-500/25 hover:border-teal-400/40 rounded-xl transition-all flex justify-between items-center gap-3 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 bg-teal-500 text-slate-950 font-black text-[7px] tracking-wider uppercase py-0.5 px-2 rounded-bl-lg font-mono">
+                    Popular
+                  </div>
+                  <div>
+                    <span className="text-[8px] font-extrabold text-[#2DD4BF] bg-teal-500/10 px-1.5 py-0.5 rounded uppercase tracking-wider font-mono">Multi-Hotel Pro</span>
+                    <h4 className="text-xs font-bold text-white mt-1">Plan Premium</h4>
+                    <p className="text-[10px] text-slate-300">Hasta 3 Hoteles • Analíticas Live</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <span className="block text-sm font-extrabold text-teal-300">${Math.max(79, Math.round(numHabitaciones * 2.50))}<span className="text-[9px] text-slate-350 font-normal">/mes</span></span>
+                    <span className="text-[8px] text-teal-400/70 block font-mono">$2.50/cuarto (mín. $79)</span>
+                  </div>
+                </div>
+
+                {/* Elite */}
+                <div className="p-3 bg-slate-950/60 border border-slate-850 hover:border-slate-800 rounded-xl transition-all flex justify-between items-center gap-3">
+                  <div>
+                    <span className="text-[8px] font-extrabold text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded uppercase tracking-wider font-mono">SaaS Elite</span>
+                    <h4 className="text-xs font-bold text-slate-200 mt-1">Plan Elite Premium</h4>
+                    <p className="text-[10px] text-slate-400">Hoteles Ilimitados • Auditorías</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <span className="block text-sm font-extrabold text-indigo-400">${Math.max(149, Math.round(numHabitaciones * 3.50))}<span className="text-[9px] text-slate-450 font-normal">/mes</span></span>
+                    <span className="text-[8px] text-slate-500 block font-mono">$3.50/cuarto (mín. $149)</span>
+                  </div>
+                </div>
+
               </div>
+
+              {/* Call to Action to close and begin */}
+              <button
+                onClick={onClose}
+                className="w-full bg-teal-500 hover:bg-teal-400 text-slate-950 font-extrabold py-2.5 rounded-xl text-xs transition-all shadow-md active:scale-95 cursor-pointer text-center"
+              >
+                Comenzar con la Prueba Gratuita 🚀
+              </button>
             </div>
-            <button
-              onClick={onClose}
-              className="w-full bg-teal-600 hover:bg-teal-500 text-white font-bold py-2.5 rounded-xl text-xs transition-colors shadow-inner"
-            >
-              Comenzar al Acceso Directo 🚀
-            </button>
           </div>
 
         </div>
       </section>
 
-      {/* Compact Elegant Dark Modern Footer */}
-      <footer className="py-16 px-6 bg-slate-950 text-white relative overflow-hidden border-t border-slate-800 text-center space-y-6">
+      {/* Compact Elegant Dark Modern Footer with Direct Contact Information */}
+      <footer className="py-20 px-6 bg-slate-950 text-white relative overflow-hidden border-t border-slate-800 space-y-10">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(13,148,136,0.05),transparent)] pointer-events-none" />
-        <div className="max-w-4xl mx-auto relative z-10 space-y-4">
+        
+        <div className="max-w-4xl mx-auto relative z-10 text-center space-y-4">
           <h2 className="text-xl md:text-3xl font-black text-white">¿Listo para modernizar la gestión de su propiedad?</h2>
           <p className="text-xs md:text-sm text-slate-400 max-w-lg mx-auto leading-relaxed">
-            De de alta su hotel, asigne habitaciones, genere pases QR interactivos y audite en tiempo real en nuestra demo comercial ilimitada.
+            Consiga licenciamiento definitivo o resuelva dudas técnicas conectando de inmediato con nuestra mesa de ingeniería.
           </p>
-          <div className="pt-4 flex justify-center gap-4">
-            <button
-              onClick={onClose}
-              className="px-6 py-3 bg-teal-500 hover:bg-teal-400 text-slate-950 font-extrabold text-xs rounded-xl shadow-lg shadow-teal-500/10 cursor-pointer active:scale-95 transition-all inline-flex items-center gap-2"
+        </div>
+
+        {/* Contact info cards grid */}
+        <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6 relative z-10 text-left">
+          
+          {/* Card WhatsApp */}
+          <a 
+            href="https://wa.me/593984056660" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="bg-slate-905 hover:bg-slate-900 border border-slate-850 hover:border-teal-500/30 p-5 rounded-2xl transition-all group flex items-start gap-4 shadow-sm"
+          >
+            <div className="w-10 h-10 bg-teal-500/10 text-teal-400 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform duration-300 animate-pulse">
+              <Phone className="w-5 h-5" />
+            </div>
+            <div className="space-y-1 select-none">
+              <span className="text-[10px] font-bold text-slate-500 block uppercase tracking-wider font-mono">WhatsApp Directo</span>
+              <span className="text-white group-hover:text-teal-400 font-extrabold text-xs md:text-sm tracking-wide transition-colors block">
+                +593 98 405 6660
+              </span>
+              <p className="text-[10px] text-slate-400 leading-normal">Atención comercial inmediata.</p>
+            </div>
+          </a>
+
+          {/* Card Email with copy option */}
+          <div className="bg-slate-905 border border-slate-850 p-5 rounded-2xl flex items-start gap-4 shadow-sm relative group">
+            <div className="w-10 h-10 bg-indigo-500/10 text-indigo-400 rounded-xl flex items-center justify-center shrink-0">
+              <Mail className="w-5 h-5" />
+            </div>
+            <div className="space-y-1 min-w-0 flex-1">
+              <span className="text-[10px] font-bold text-slate-500 block uppercase tracking-wider font-mono">Correo Administrativo</span>
+              <a 
+                href="mailto:roomia.admincontact@gmail.com"
+                className="text-white hover:text-indigo-400 font-bold text-[11px] md:text-xs tracking-tight transition-colors block truncate"
+              >
+                roomia.admincontact@gmail.com
+              </a>
+              <button 
+                onClick={handleCopyEmail}
+                className="px-2 py-0.5 bg-white/5 hover:bg-teal-500/10 active:bg-teal-500/20 border border-white/10 text-[9px] text-slate-350 font-semibold rounded transition-colors cursor-pointer mt-1 flex items-center gap-1.5"
+              >
+                {copiedEmail ? (
+                  <>
+                    <Check className="w-2.5 h-2.5 text-emerald-450 animate-bounce" />
+                    <span className="text-emerald-450 font-bold">¡Copiado!</span>
+                  </>
+                ) : (
+                  <span>Copiar Dirección</span>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Card Matrix Location */}
+          <div className="bg-slate-905 border border-slate-850 p-5 rounded-2xl flex items-start gap-4 shadow-sm">
+            <div className="w-10 h-10 bg-emerald-500/10 text-emerald-400 rounded-xl flex items-center justify-center shrink-0">
+              <MapPin className="w-5 h-5" />
+            </div>
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold text-slate-500 block uppercase tracking-wider font-mono">Matriz de Operaciones</span>
+              <span className="text-white font-extrabold text-xs md:text-sm block leading-tight">
+                Santa Elena - Ecuador
+              </span>
+              <p className="text-[10px] text-slate-400 leading-normal">Licenciamiento SaaS cloud global.</p>
+            </div>
+          </div>
+
+        </div>
+
+        <div className="max-w-4xl mx-auto pt-6 border-t border-slate-900/60 flex flex-col md:flex-row justify-between items-center text-slate-500 text-[10px] font-mono gap-4 relative z-10">
+          <p>
+            © 2026 Roomia SaaS. Todos los derechos reservados.{" "}
+            <span className="text-slate-800">|</span>{" "}
+            <a 
+              href="https://homedc-sas.web.app" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="text-teal-400 hover:text-teal-350 hover:underline transition-all font-bold tracking-wide"
             >
-              <span>Acceder al Sistema Comercial 🚀</span>
-            </button>
-            <button
-              onClick={onClose}
-              className="px-6 py-3 bg-slate-900 hover:bg-slate-850 text-slate-300 font-semibold text-xs rounded-xl border border-slate-800 transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
-            >
-              <span>Regresar</span>
+              en convenio con HomeDC°
+            </a>
+          </p>
+          <div className="flex gap-4">
+            <button onClick={onClose} className="hover:text-teal-400 transition-colors cursor-pointer text-[10px] font-extrabold flex items-center gap-1 bg-slate-900/60 hover:bg-slate-900 px-3.5 py-1.5 rounded-lg border border-slate-850">
+              <ArrowLeft className="w-3 h-3 text-teal-400" />
+              <span>Volver al Acceso🔑</span>
             </button>
           </div>
         </div>

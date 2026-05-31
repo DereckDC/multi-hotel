@@ -8,6 +8,7 @@ import { X, Printer, Download, Mail, CheckCircle, FileText } from 'lucide-react'
 import QRView from './QRView';
 import { useState } from 'react';
 import { jsPDF } from 'jspdf';
+import QRCode from 'qrcode';
 
 interface InvoicePDFProps {
   reservation: Reservation;
@@ -37,8 +38,17 @@ export default function InvoicePDF({
 
   const handleDownload = () => {
     setDownloading(true);
-    setTimeout(() => {
+    setTimeout(async () => {
       try {
+        const qrDataUrl = await QRCode.toDataURL(reservation.qrCode || reservation.id, {
+          margin: 1,
+          width: 180,
+          color: {
+            dark: '#111827',
+            light: '#FFFFFF'
+          }
+        });
+
         const doc = new jsPDF({
           orientation: 'portrait',
           unit: 'mm',
@@ -214,21 +224,8 @@ export default function InvoicePDF({
         doc.setTextColor(13, 148, 136);
         doc.text(`$${reservation.total.toFixed(2)} USD`, 195, totalsY + 11, { align: 'right' });
 
-        // QR Code draw info
-        doc.setDrawColor(52, 77, 103);
-        doc.setLineWidth(0.6);
-        doc.rect(15, totalsY, 32, 32, 'D');
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(7.5);
-        doc.setTextColor(52, 77, 103);
-        doc.text('CODIGO QR VALIDO', 31, totalsY + 10, { align: 'center' });
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(6.5);
-        doc.setTextColor(120, 120, 120);
-        doc.text('Muestre en Recepcion', 31, totalsY + 18, { align: 'center' });
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(7);
-        doc.text(reservation.id, 31, totalsY + 25, { align: 'center' });
+        // QR Code draw info - draws the live QR Code image directly in the invoice PDF!
+        doc.addImage(qrDataUrl, 'PNG', 15, totalsY, 32, 32);
 
         // Footer lines
         const footerY = totalsY + 40;
