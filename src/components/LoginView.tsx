@@ -8,6 +8,7 @@ import { User } from '../types';
 import { Mail, Sparkles, Check, Chrome, ShieldAlert, KeyRound, Loader2, ArrowRight, Inbox, RefreshCw, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase, syncUserToSupabase } from '../supabase';
+import { getApiBaseUrl } from '../store';
 
 interface LoginViewProps {
   users: User[];
@@ -155,7 +156,7 @@ export default function LoginView({
       `;
 
       // Send the real email containing the temporary password via local express Nodemailer transporter proxy
-      const mailResponse = await fetch('/api/send-email', {
+      const mailResponse = await fetch(`${getApiBaseUrl()}/api/send-email`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

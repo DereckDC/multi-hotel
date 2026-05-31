@@ -22,6 +22,33 @@ import {
 
 // Safe standard local storage storage key constants
 const STORAGE_PREFIX = 'aura_hotel_pms_';
+
+// Resolve appropriate API Base URL for APK compatibility on WebViews
+export function getApiBaseUrl(): string {
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  
+  // If running in local dev on port 3000
+  if (origin && (origin.includes('localhost:3000') || origin.includes('127.0.0.1:3000'))) {
+    return origin;
+  }
+
+  // If on hosted run.app preview
+  if (origin && origin.includes('run.app')) {
+    try {
+      localStorage.setItem('roomia_api_origin', origin);
+    } catch (e) {}
+    return origin;
+  }
+
+  // Fallback to saved origin if any
+  try {
+    const saved = localStorage.getItem('roomia_api_origin');
+    if (saved) return saved;
+  } catch (e) {}
+
+  // Production Cloud Run deployment address for Roomia instance
+  return 'https://ais-pre-x2bbmoykvbb2j2cvvu5ybf-300435593784.us-east5.run.app';
+}
 const KEYS = {
   HOTELS: `${STORAGE_PREFIX}hotels`,
   ROOMS: `${STORAGE_PREFIX}rooms`,
@@ -602,7 +629,7 @@ Atentamente,
 El Equipo de Hospitalidad de Roomia PMS.`;
 
     try {
-      const emailResponse = await fetch('/api/send-email', {
+      const emailResponse = await fetch(`${getApiBaseUrl()}/api/send-email`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -766,7 +793,7 @@ Atentamente,
 El Equipo de Hospitalidad de Roomia PMS.`;
 
     try {
-      await fetch('/api/send-email', {
+      await fetch(`${getApiBaseUrl()}/api/send-email`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

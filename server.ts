@@ -13,6 +13,17 @@ async function startServer() {
   // Use JSON middleware to parse requests
   app.use(express.json());
 
+  // Enable CORS manually to support APK WebViews safely (capacitor://, file://, etc.)
+  app.use((req, res, next) => {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Methods", "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS");
+    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
+    if (req.method === "OPTIONS") {
+      return res.sendStatus(200);
+    }
+    next();
+  });
+
   // API Route for sending real emails via SMTP
   app.post("/api/send-email", async (req, res) => {
     try {
