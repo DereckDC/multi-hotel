@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, FormEvent } from 'react';
+import { useState, useEffect, FormEvent } from 'react';
 import { useHotelStore } from './store';
 import ClientView from './components/ClientView';
 import ReceptionView from './components/ReceptionView';
@@ -55,6 +55,29 @@ export default function App() {
   });
 
   const [showLandingPage, setShowLandingPage] = useState(false);
+
+  // Real-time Ecuador GMT-5 clock for the general footer
+  const [ecuadorTime, setEcuadorTime] = useState('');
+  useEffect(() => {
+    const updateTime = () => {
+      try {
+        const timeStr = new Date().toLocaleString("es-EC", {
+          timeZone: "America/Guayaquil",
+          dateStyle: 'medium',
+          timeStyle: 'medium'
+        });
+        setEcuadorTime(timeStr);
+      } catch (err) {
+        const local = new Date();
+        const utc = local.getTime() + (local.getTimezoneOffset() * 60000);
+        const gmt5 = new Date(utc - (3600000 * 5));
+        setEcuadorTime(gmt5.toLocaleString() + ' GMT-5');
+      }
+    };
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Profile Edit Modal States
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -292,7 +315,7 @@ export default function App() {
       {/* 4. Tiny visual footer */}
       <footer className="py-6 border-t border-neutral-150 text-center text-[10px] text-neutral-400 font-mono print:hidden">
         <p>©2026 Maqyasoft</p>
-        <p className="mt-1">Active UTC Session: 2026-05-24T04:47:00Z</p>
+        <p className="mt-1">Hora Ecuador (GMT-5): {ecuadorTime || 'Cargando...'}</p>
       </footer>
 
       {/* Global Edit Profile Modal */}

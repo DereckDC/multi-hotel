@@ -108,6 +108,7 @@ export default function AdminView({
 }: AdminViewProps) {
   // Navigation tabs within Admin: 'dashboard' | 'hotels' | 'rooms' | 'users' | 'logs' | 'reservations'
   const [adminTab, setAdminTab] = useState<'dashboard' | 'hotels' | 'rooms' | 'users' | 'logs' | 'reservations'>('dashboard');
+  const [superAdminSelectedHotelId, setSuperAdminSelectedHotelId] = useState<string>('all');
 
   // RBAC Access Control checking
   const isSuper = activeUser.rol === 'super_admin';
@@ -119,7 +120,7 @@ export default function AdminView({
     : hotels.filter(h => h.id === myHotelId);
 
   const allowedRooms = isSuper 
-    ? rooms 
+    ? (superAdminSelectedHotelId === 'all' ? rooms : rooms.filter(r => r.hotelId === superAdminSelectedHotelId))
     : rooms.filter(r => r.hotelId === myHotelId);
 
   const allowedReservations = isSuper 
@@ -875,6 +876,28 @@ export default function AdminView({
               <span>Nueva Habitación</span>
             </button>
           </div>
+
+          {isSuper && (
+            <div className="bg-white p-5 rounded-2xl border border-neutral-200 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm border-l-4 border-l-teal-600">
+              <div className="space-y-0.5" id="super-admin-hotel-select-panel">
+                <span className="text-xs font-bold text-neutral-800 block">Filtro Administrativo de Hotel</span>
+                <p className="text-[10px] text-neutral-400">Seleccione una propiedad para limitar el catálogo operativo de habitaciones.</p>
+              </div>
+              <select
+                id="super-admin-selected-hotel-dropdown"
+                value={superAdminSelectedHotelId}
+                onChange={(e) => setSuperAdminSelectedHotelId(e.target.value)}
+                className="text-xs font-semibold text-neutral-700 bg-neutral-50 hover:bg-neutral-100 border border-neutral-200 rounded-xl p-3 focus:outline-none cursor-pointer w-full md:max-w-md transition-colors"
+              >
+                <option value="all">🏨 Mostrar todos los hoteles ({rooms.length} habitaciones)</option>
+                {hotels.map(h => (
+                  <option key={h.id} value={h.id}>
+                    🏢 {h.nombre} ({rooms.filter(r => r.hotelId === h.id).length} habitaciones registradas)
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="space-y-3">
             {allowedRooms.map(room => {

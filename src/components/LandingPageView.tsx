@@ -393,8 +393,8 @@ export default function LandingPageView({ onClose }: LandingPageViewProps) {
                     <p className="text-[10px] text-slate-400">1 Hotel • Recepción Básica y QR</p>
                   </div>
                   <div className="text-right shrink-0">
-                    <span className="block text-sm font-extrabold text-teal-400">${Math.max(29, Math.round(numHabitaciones * 1.50))}<span className="text-[9px] text-slate-450 font-normal">/mes</span></span>
-                    <span className="text-[8px] text-slate-500 block font-mono">$1.50/cuarto (mín. $29)</span>
+                    <span className="block text-sm font-extrabold text-teal-400">${Math.max(50, Math.round(numHabitaciones * 5.00))}<span className="text-[9px] text-slate-450 font-normal">/mes</span></span>
+                    <span className="text-[8px] text-slate-500 block font-mono">$5.00/cuarto (mín. $50)</span>
                   </div>
                 </div>
 
@@ -409,8 +409,8 @@ export default function LandingPageView({ onClose }: LandingPageViewProps) {
                     <p className="text-[10px] text-slate-300">Hasta 3 Hoteles • Analíticas Live</p>
                   </div>
                   <div className="text-right shrink-0">
-                    <span className="block text-sm font-extrabold text-teal-300">${Math.max(79, Math.round(numHabitaciones * 2.50))}<span className="text-[9px] text-slate-350 font-normal">/mes</span></span>
-                    <span className="text-[8px] text-teal-400/70 block font-mono">$2.50/cuarto (mín. $79)</span>
+                    <span className="block text-sm font-extrabold text-teal-300">${Math.max(80, Math.round(numHabitaciones * 8.00))}<span className="text-[9px] text-slate-350 font-normal">/mes</span></span>
+                    <span className="text-[8px] text-teal-400/70 block font-mono">$8.00/cuarto (mín. $80)</span>
                   </div>
                 </div>
 
@@ -422,8 +422,8 @@ export default function LandingPageView({ onClose }: LandingPageViewProps) {
                     <p className="text-[10px] text-slate-400">Hoteles Ilimitados • Auditorías</p>
                   </div>
                   <div className="text-right shrink-0">
-                    <span className="block text-sm font-extrabold text-indigo-400">${Math.max(149, Math.round(numHabitaciones * 3.50))}<span className="text-[9px] text-slate-450 font-normal">/mes</span></span>
-                    <span className="text-[8px] text-slate-500 block font-mono">$3.50/cuarto (mín. $149)</span>
+                    <span className="block text-sm font-extrabold text-indigo-400">${Math.max(120, Math.round(numHabitaciones * 12.00))}<span className="text-[9px] text-slate-450 font-normal">/mes</span></span>
+                    <span className="text-[8px] text-slate-500 block font-mono">$12.00/cuarto (mín. $120)</span>
                   </div>
                 </div>
 
@@ -520,10 +520,8 @@ export default function LandingPageView({ onClose }: LandingPageViewProps) {
 
         </div>
 
-        <div className="max-w-4xl mx-auto pt-6 border-t border-slate-900/60 flex flex-col md:flex-row justify-between items-center text-slate-500 text-[10px] font-mono gap-4 relative z-10">
+        <div className="max-w-4xl mx-auto pt-6 border-t border-slate-900/60 flex flex-col md:flex-row justify-between items-center text-slate-500 text-[10px] font-mono gap-4 relative z-10 w-full">
           <p>
-            © 2026 Roomia SaaS. Todos los derechos reservados.{" "}
-            <span className="text-slate-800">|</span>{" "}
             <a 
               href="https://homedc-sas.web.app" 
               target="_blank" 
