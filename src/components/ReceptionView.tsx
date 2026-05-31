@@ -69,7 +69,7 @@ export default function ReceptionView({
   };
 
   // Start real camera scanner
-  const startRealCamera = async (cameraId?: string) => {
+  const startRealCamera = async (cameraId?: any) => {
     setScanError(null);
     setScannedResult(null);
     setUseRealCamera(true);
@@ -82,6 +82,23 @@ export default function ReceptionView({
       } catch (err) {}
     }
 
+    // Step 1: Explicitly request camera permissions from the browser/webview OS layer.
+    // This pops up the native Android/iOS system permission request dialog inside the WebView
+    try {
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        // Immediately release the camera stream to avoid locks when html5-qrcode occupies it
+        stream.getTracks().forEach(track => track.stop());
+      }
+    } catch (permErr: any) {
+      console.warn("Explicit permission request caught error or denied:", permErr);
+      if (permErr.name === 'NotAllowedError' || permErr.name === 'PermissionDeniedError' || String(permErr).includes('denied')) {
+        setScanError("Acceso a la cámara denegado. Por favor, concede permisos de cámara en la configuración de la app o de tu dispositivo para poder realizar la lectura QR.");
+        setUseRealCamera(false);
+        return;
+      }
+    }
+
     setTimeout(async () => {
       try {
         const scannerElement = document.getElementById('qr-camera-element');
@@ -92,25 +109,31 @@ export default function ReceptionView({
         const html5QrCode = new Html5Qrcode("qr-camera-element");
         html5QrCodeRef.current = html5QrCode;
 
-        // Fetch cameras if not loaded
-        let currentCamId = cameraId || activeCamId;
-        if (!currentCamId) {
-          const devices = await Html5Qrcode.getCameras();
-          if (devices && devices.length > 0) {
-            setCameras(devices);
-            currentCamId = devices[0].id;
-            setActiveCamId(currentCamId);
-          } else {
-            throw new Error("No se detectaron cámaras en el dispositivo ni permisos de cámara concedidos.");
+        // Fetch cameras using Html5Qrcode
+        let currentCamSelection: any = cameraId || activeCamId;
+        if (!currentCamSelection) {
+          try {
+            const devices = await Html5Qrcode.getCameras();
+            if (devices && devices.length > 0) {
+              setCameras(devices);
+              currentCamSelection = devices[0].id;
+              setActiveCamId(currentCamSelection);
+            } else {
+              // Direct constraint fallback
+              currentCamSelection = { facingMode: "environment" };
+            }
+          } catch (camErr) {
+            console.warn("Listing cameras failed. Using high-compatibility constraints fallback:", camErr);
+            currentCamSelection = { facingMode: "environment" };
           }
         }
 
         await html5QrCode.start(
-          currentCamId,
+          currentCamSelection,
           {
-            fps: 15,
+            fps: 20,
             qrbox: (width, height) => {
-              const exactSize = Math.min(width, height) * 0.7;
+              const exactSize = Math.min(width, height) * 0.75;
               return { width: exactSize, height: exactSize };
             }
           },
@@ -125,7 +148,7 @@ export default function ReceptionView({
         );
       } catch (err: any) {
         console.error("Error starting camera qr scanner:", err);
-        setScanError(`No se pudo arrancar la cámara: ${err.message || String(err)}. Si estás en un iframe-sandbox central, por favor abre la aplicación en una pestaña nueva del navegador usando el botón Salir de Iframe de la esquina superior derecha para conceder permisos a la cámara correctamente.`);
+        setScanError(`No se pudo arrancar la cámara: ${err.message || String(err)}. Por favor concede permisos de cámara permanentes en la configuración de la aplicación de tu teléfono.`);
         setUseRealCamera(false);
       }
     }, 150);

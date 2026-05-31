@@ -236,8 +236,25 @@ export default function InvoicePDF({
         doc.setTextColor(150, 150, 150);
         doc.text('Este documento es una pre-factura valida de reserva simulada generada por ROOMIA S.A. No posee validez legal externa.', 15, footerY + 4);
 
-        // Save PDF
-        doc.save(`PreFactura_Roomia_${reservation.id}.pdf`);
+        // Save PDF or Share natively via Android/iOS Web Share API inside APK WebViews
+        const pdfBlob = doc.output('blob');
+        const pdfFileName = `PreFactura_Roomia_${reservation.id}.pdf`;
+        const pdfFile = new File([pdfBlob], pdfFileName, { type: 'application/pdf' });
+
+        if (navigator.share && navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+          try {
+            await navigator.share({
+              files: [pdfFile],
+              title: `Pre-Factura Roomia #${reservation.id}`,
+              text: `Aquí tienes la pre-factura del hotel ${hotel?.nombre || 'Hotel Roomia'} correspondiente a tu reserva.`
+            });
+          } catch (shareErr) {
+            console.warn("Share was canceled or failed, attempting standard download fallback:", shareErr);
+            doc.save(pdfFileName);
+          }
+        } else {
+          doc.save(pdfFileName);
+        }
       } catch (err) {
         console.error("PDF Generate Error", err);
         alert("Ocurrio un error generando el PDF: " + (err as any).message);
@@ -293,6 +310,15 @@ export default function InvoicePDF({
             >
               <X className="w-5 h-5" />
             </button>
+          </div>
+        </div>
+
+        {/* Android WebView / APK compatibility notice */}
+        <div className="mx-6 mt-4 p-3.5 bg-teal-50 border border-teal-150 rounded-2xl flex items-start gap-3 text-[11px] text-teal-800 leading-normal font-sans print:hidden">
+          <span className="text-sm shrink-0">💡</span>
+          <div>
+            <p className="font-bold uppercase tracking-wider text-[10px] text-teal-900">Compatibilidad con App Móvil / APK activa:</p>
+            <p className="mt-0.5">Si estás utilizando nuestra app APK y no puedes descargar directamente el archivo PDF debido a restricciones del sistema, presiona <strong className="text-teal-950">Imprimir</strong> en el menú superior y elige <strong className="text-teal-950">"Guardar como PDF / Save as PDF"</strong> para almacenarlo de manera integrada sin limitaciones en tu dispositivo.</p>
           </div>
         </div>
 
