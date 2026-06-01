@@ -348,6 +348,16 @@ export default function AdminView({
   const handleHotelSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingHotel) return;
+
+    // Ensure the hotel uses one of the 5 images for its brand logo and cover
+    if (editingHotel.imagenes && editingHotel.imagenes.length > 0) {
+      const isLogoInImgs = editingHotel.imagenes.includes(editingHotel.logo);
+      if (!isLogoInImgs) {
+        editingHotel.logo = editingHotel.imagenes[0];
+        editingHotel.portada = editingHotel.imagenes[0];
+      }
+    }
+
     onSaveHotel(editingHotel);
     setShowHotelModal(false);
     setEditingHotel(null);
@@ -1711,6 +1721,43 @@ export default function AdminView({
                           })}
                         </div>
                       </div>
+
+                      {/* Photo Brand Logo selector option to select one of the 5 images */}
+                      {editingHotel.imagenes && editingHotel.imagenes.length > 0 && (
+                        <div className="pt-2 border-t border-neutral-200/80 font-sans">
+                          <label className="text-[10px] font-bold text-neutral-505 uppercase tracking-wide block mb-1">
+                            Logo de Marca & Portada (Selecciona una de las fotos):
+                          </label>
+                          <div className="flex gap-2 overflow-x-auto py-1">
+                            {editingHotel.imagenes.map((img, idx) => {
+                              const isLogo = editingHotel.logo === img;
+                              return (
+                                <button
+                                  key={idx}
+                                  type="button"
+                                  onClick={() => setEditingHotel({ ...editingHotel, logo: img, portada: img })}
+                                  className={`relative shrink-0 w-16 aspect-video rounded-lg border-2 overflow-hidden transition-all duration-200 cursor-pointer ${
+                                    isLogo 
+                                      ? 'border-teal-600 ring-2 ring-teal-600/10' 
+                                      : 'border-neutral-300 opacity-65 hover:opacity-100 hover:border-neutral-450'
+                                  }`}
+                                  title="Establecer como Logo de Marca y Portada"
+                                >
+                                  <img src={img} alt={`Opción ${idx + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                  {isLogo && (
+                                    <div className="absolute inset-0 bg-teal-600/15 flex items-center justify-center">
+                                      <span className="text-[8px] bg-teal-600 text-white font-bold p-0.5 px-1 rounded-md shadow-sm">LOGO</span>
+                                    </div>
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          <p className="text-[9.5px] text-neutral-400 mt-1 leading-normal">
+                            La foto seleccionada se utilizará como logo comercial y portada principal para los clientes.
+                          </p>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
