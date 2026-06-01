@@ -148,7 +148,7 @@ export default function ClientView({
   const filteredHotels = hotels.filter(h => h.estado === 'activo');
   const roomsInActiveHotel = rooms.filter(r => {
     if (r.hotelId !== selectedHotelId) return false;
-    if (showOnlyAvailableRooms && r.estado !== 'disponible') return false;
+    if (showOnlyAvailableRooms && r.estado === 'mantenimiento') return false;
     if (r.precio > roomMaxPrice) return false;
     if (roomCapacity !== '') {
       if (roomCapacity === '1-2') {
@@ -205,6 +205,22 @@ export default function ClientView({
 
     if (checkOutDate <= checkInDate) {
       setBookingError("La fecha de check-out debe ser posterior a la fecha de entrada.");
+      return;
+    }
+
+    // CHECK DATE OVERLAP:
+    const activeReservations = reservations.filter(res => 
+      res.roomId === bookingRoom.id &&
+      res.estado !== 'cancelada' &&
+      res.estado !== 'finalizada'
+    );
+
+    const hasOverlap = activeReservations.some(res => 
+      checkInDate < res.fechaSalida && checkOutDate > res.fechaEntrada
+    );
+
+    if (hasOverlap) {
+      setBookingError("La habitación ya está reservada u ocupada en las fechas seleccionadas. Por favor elija un rango de fechas diferente.");
       return;
     }
 
@@ -838,11 +854,12 @@ export default function ClientView({
                   ) : (
                     roomsInActiveHotel.map(room => {
                     const isAvailable = room.estado === 'disponible';
+                    const isBookable = room.estado !== 'mantenimiento';
                     return (
                       <div
                         key={room.id}
                         className={`bg-white rounded-2xl p-4 border transition-all flex flex-col md:flex-row gap-6 ${
-                          isAvailable
+                          isBookable
                             ? 'border-neutral-200 hover:shadow-md'
                             : 'border-neutral-100 opacity-65'
                         }`}
@@ -860,8 +877,10 @@ export default function ClientView({
                               <span className="px-2.5 py-0.5 rounded-full text-[10px] bg-teal-50 text-teal-700 font-semibold uppercase tracking-wider border border-teal-100">
                                 {room.tipo}
                               </span>
-                              {!isAvailable && (
-                                <span className="px-2.5 py-0.5 rounded-full text-[10px] bg-amber-50 text-amber-700 font-semibold uppercase tracking-wider border border-amber-200">
+                              {room.estado !== 'disponible' && (
+                                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider border ${
+                                  room.estado === 'mantenimiento' ? 'bg-red-50 text-red-700 border-red-200 font-bold' : 'bg-amber-50 text-amber-700 border-amber-200 font-medium'
+                                }`}>
                                   {room.estado}
                                 </span>
                               )}
@@ -888,7 +907,7 @@ export default function ClientView({
                             <span className="text-[10px] text-neutral-500 block">Capacidad: {room.capacidad} personas ({room.camas} {room.camas > 1 ? 'camas' : 'cama'})</span>
                           </div>
 
-                          {isAvailable ? (
+                          {isBookable ? (
                             <button
                               onClick={() => setBookingRoom(room)}
                               className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-medium text-xs rounded-xl transition-all cursor-pointer shadow-sm hover:shadow active:scale-95"
@@ -898,9 +917,9 @@ export default function ClientView({
                           ) : (
                             <button
                               disabled
-                              className="px-4 py-2 bg-neutral-100 border border-neutral-200 text-neutral-400 font-medium text-xs rounded-xl transition-all cursor-not-allowed"
+                              className="px-4 py-2 bg-neutral-100 border border-neutral-200 text-neutral-450 font-medium text-xs rounded-xl transition-all cursor-not-allowed uppercase text-[9px] tracking-wider"
                             >
-                              No Disponible
+                              Mantenimiento
                             </button>
                           )}
                         </div>
