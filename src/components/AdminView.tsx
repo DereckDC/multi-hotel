@@ -868,13 +868,15 @@ export default function AdminView({
               <h4 className="font-semibold text-neutral-800">Catálogo Operativo de Habitaciones Centralizado ({allowedRooms.length})</h4>
               <p className="text-xs text-neutral-400">Ajuste estructuralmente capacidades, asignaciones de cama, nombres y precios de suites.</p>
             </div>
-            <button
-              onClick={startCreateRoom}
-              className="flex items-center gap-1.5 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold shadow transition-transform cursor-pointer active:scale-95"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Nueva Habitación</span>
-            </button>
+            {isSuper && (
+              <button
+                onClick={startCreateRoom}
+                className="flex items-center gap-1.5 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold shadow transition-transform cursor-pointer active:scale-95"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Nueva Habitación</span>
+              </button>
+            )}
           </div>
 
           {isSuper && (
@@ -943,31 +945,33 @@ export default function AdminView({
                       >
                         Editar
                       </button>
-                      {confirmDeleteRoomId === room.id ? (
-                        <div className="flex items-center gap-1 bg-red-50 p-1 rounded border border-red-100">
+                      {isSuper && (
+                        confirmDeleteRoomId === room.id ? (
+                          <div className="flex items-center gap-1 bg-red-50 p-1 rounded border border-red-100">
+                            <button
+                              onClick={() => setConfirmDeleteRoomId(null)}
+                              className="px-1.5 py-0.5 text-[10px] text-neutral-600 hover:bg-neutral-100 rounded cursor-pointer"
+                            >
+                              Volver
+                            </button>
+                            <button
+                              onClick={() => {
+                                onDeleteRoom(room.id);
+                                setConfirmDeleteRoomId(null);
+                              }}
+                              className="px-1.5 py-0.5 bg-red-600 text-white text-[10px] font-bold rounded cursor-pointer"
+                            >
+                              Sí, Borrar
+                            </button>
+                          </div>
+                        ) : (
                           <button
-                            onClick={() => setConfirmDeleteRoomId(null)}
-                            className="px-1.5 py-0.5 text-[10px] text-neutral-600 hover:bg-neutral-100 rounded cursor-pointer"
+                            onClick={() => setConfirmDeleteRoomId(room.id)}
+                            className="p-1 px-1.5 hover:bg-red-50 text-red-600 rounded cursor-pointer"
                           >
-                            Volver
+                            Borrar
                           </button>
-                          <button
-                            onClick={() => {
-                              onDeleteRoom(room.id);
-                              setConfirmDeleteRoomId(null);
-                            }}
-                            className="px-1.5 py-0.5 bg-red-600 text-white text-[10px] font-bold rounded cursor-pointer"
-                          >
-                            Sí, Borrar
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => setConfirmDeleteRoomId(room.id)}
-                          className="p-1 px-1.5 hover:bg-red-50 text-red-600 rounded cursor-pointer"
-                        >
-                          Borrar
-                        </button>
+                        )
                       )}
                     </div>
                   </div>
@@ -1749,9 +1753,10 @@ export default function AdminView({
                 <div className="col-span-2">
                   <label className="text-[11px] font-semibold text-neutral-500 block mb-1">Hotel Destinatario:</label>
                   <select
+                    disabled={!isSuper}
                     value={editingRoom.hotelId}
                     onChange={(e) => setEditingRoom({ ...editingRoom, hotelId: e.target.value })}
-                    className="w-full text-xs border border-neutral-250 p-2 rounded-lg bg-white focus:outline-none cursor-pointer"
+                    className="w-full text-xs border border-neutral-250 p-2 rounded-lg bg-white disabled:bg-neutral-50 disabled:text-neutral-500 focus:outline-none cursor-pointer"
                   >
                     {!allowedHotels.some(h => h.id === editingRoom.hotelId) && (
                       <option value={editingRoom.hotelId}>Establecimiento desconocido ({editingRoom.hotelId})</option>

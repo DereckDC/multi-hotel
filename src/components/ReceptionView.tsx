@@ -227,6 +227,27 @@ export default function ReceptionView({
       return;
     }
 
+    if (bookCheckOut <= bookCheckIn) {
+      alert('La fecha de salida debe ser posterior a la de entrada.');
+      return;
+    }
+
+    // CHECK DATE OVERLAP:
+    const activeReservations = reservations.filter(res => 
+      res.roomId === bookRoomId &&
+      res.estado !== 'cancelada' &&
+      res.estado !== 'finalizada'
+    );
+
+    const hasOverlap = activeReservations.some(res => 
+      bookCheckIn < res.fechaSalida && bookCheckOut > res.fechaEntrada
+    );
+
+    if (hasOverlap) {
+      alert('❌ Error: La habitación ya está reservada u ocupada en las fechas seleccionadas.');
+      return;
+    }
+
     let targetGuestId = '';
 
     if (resType === 'new') {
@@ -959,9 +980,14 @@ export default function ReceptionView({
                       </option>
                     ))}
                 </select>
-                {selectedRoom && selectedRoom.estado !== 'disponible' && (
-                  <p className="text-[10px] font-semibold text-amber-600 mt-1">
-                    ⚠️ Advertencia: El aposento no figura como Disponible.
+                {selectedRoom && reservations.filter(res => 
+                  res.roomId === bookRoomId &&
+                  res.estado !== 'cancelada' &&
+                  res.estado !== 'finalizada'
+                ).some(res => bookCheckIn < res.fechaSalida && bookCheckOut > res.fechaEntrada) && (
+                  <p className="text-[10px] font-bold text-red-650 mt-1 flex items-center gap-1 bg-red-50 p-1.5 rounded border border-red-100">
+                    <span>❌ Conflicto de Fechas:</span>
+                    <span>El aposento está ocupado o reservado en este rango.</span>
                   </p>
                 )}
               </div>

@@ -211,6 +211,13 @@ export function RoomReservationCalendar({
     return getReservationsForDate(selectedDateStr);
   }, [selectedDateStr, reservations, selectedHotelId, selectedRoomId]);
 
+  const visibleReservations = useMemo(() => {
+    if (activeUser.rol === 'cliente') {
+      return selectedDayReservations.filter(res => res.guestId === activeUser.id);
+    }
+    return selectedDayReservations;
+  }, [selectedDayReservations, activeUser]);
+
   const monthStats = useMemo(() => {
     const totalDaysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
     let occupiedSlotsCount = 0;
@@ -526,10 +533,15 @@ export function RoomReservationCalendar({
 
             {/* List of bookings/reservations touchable on the selected day */}
             <h5 className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest pl-1">
-              {selectedDayReservations.length === 0 
-                ? 'Sin reservaciones registradas para hoy' 
-                : `Reservas Concurrentes (${selectedDayReservations.length})`
-              }
+              {(() => {
+                if (selectedDayReservations.length === 0) {
+                  return 'Sin reservaciones registradas para hoy';
+                }
+                if (activeUser.rol === 'cliente') {
+                  return visibleReservations.length > 0 ? 'Su Reservación' : 'Estado de Ocupación';
+                }
+                return `Reservas Concurrentes (${selectedDayReservations.length})`;
+              })()}
             </h5>
 
             <div className="space-y-3">
@@ -552,8 +564,23 @@ export function RoomReservationCalendar({
                       }
                     </p>
                   </motion.div>
+                ) : activeUser.rol === 'cliente' && visibleReservations.length === 0 ? (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="p-4 bg-amber-50/50 border border-amber-150 rounded-xl text-center space-y-1.5"
+                  >
+                    <AlertCircle className="w-8 h-8 text-amber-600 mx-auto" />
+                    <p className="text-xs font-bold text-amber-950 font-sans">
+                      Fecha Reservada / Ocupada
+                    </p>
+                    <p className="text-[10px] text-amber-700 font-sans max-w-xs mx-auto leading-normal">
+                      Esta fecha ya se encuentra reservada u ocupada por otro huésped. Por políticas de privacidad de la plataforma, los detalles del hospedaje de terceros están protegidos.
+                    </p>
+                  </motion.div>
                 ) : (
-                  selectedDayReservations.map((res) => {
+                  visibleReservations.map((res) => {
                     const client = users.find(u => u.id === res.guestId);
                     const roomInfo = rooms.find(r => r.id === res.roomId);
                     const durationInDays = Math.ceil(
