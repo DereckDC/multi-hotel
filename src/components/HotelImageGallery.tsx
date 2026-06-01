@@ -13,9 +13,13 @@ export function HotelImageGallery({ imagenes, portada, hotelNombre }: HotelImage
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const [direction, setDirection] = useState(0); // -1 for left, 1 for right
 
-  // Combine cover image and other images to ensure we showcase all beautiful photos
-  const unfilteredList = [portada, ...(imagenes || [])];
-  const allImages = unfilteredList.filter(img => img && img.trim() !== '');
+  // If there are uploaded photos ('imagenes' array is not empty), we display only those photos
+  // to prevent an extra default cover page ('portada') from showing up. Otherwise we fallback to portada.
+  const unfilteredList = (imagenes && imagenes.filter(img => img && img.trim() !== '').length > 0)
+    ? (imagenes || [])
+    : [portada];
+    
+  const allImages = Array.from(new Set(unfilteredList.filter(img => img && img.trim() !== '')));
   
   // Fallback in case of empty list
   if (allImages.length === 0) {
