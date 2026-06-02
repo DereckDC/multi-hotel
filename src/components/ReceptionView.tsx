@@ -199,6 +199,24 @@ export default function ReceptionView({
   const [bookStatus, setBookStatus] = useState<'confirmada' | 'ocupada'>('confirmada');
   const [resSuccessMsg, setResSuccessMsg] = useState('');
 
+  // Walk-in extra services selection
+  const [walkInSelectedServices, setWalkInSelectedServices] = useState<string[]>([]);
+  const [walkInServicePeopleCount, setWalkInServicePeopleCount] = useState<Record<string, number>>({});
+
+  const getWalkInServicesTotal = () => {
+    if (!receptionistHotel) return 0;
+    const detailedServices = receptionistHotel.serviciosDetallados || [];
+    let sum = 0;
+    walkInSelectedServices.forEach(srvId => {
+      const srv = detailedServices.find(s => s.id === srvId);
+      if (srv) {
+        const count = walkInServicePeopleCount[srvId] || 1;
+        sum += srv.precio * count;
+      }
+    });
+    return sum;
+  };
+
   const selectedRoom = rooms.find(r => r.id === bookRoomId);
   const roomPrice = selectedRoom ? selectedRoom.precio : 0;
   
@@ -209,7 +227,7 @@ export default function ReceptionView({
     if (nights <= 0) nights = 1;
   }
 
-  const calculatedSubtotal = roomPrice * nights;
+  const calculatedSubtotal = (roomPrice * nights) + getWalkInServicesTotal();
   const calculatedImpuestos = parseFloat((calculatedSubtotal * 0.12).toFixed(2));
   const calculatedTotal = parseFloat((calculatedSubtotal + calculatedImpuestos).toFixed(2));
 
@@ -294,6 +312,17 @@ export default function ReceptionView({
     // Now construct the reservation
     const generatedResId = 'RES-' + Math.floor(10000 + Math.random() * 90000);
 
+    const detailedList = receptionistHotel.serviciosDetallados || [];
+    const mappedServices = walkInSelectedServices.map(srvId => {
+      const srv = detailedList.find(s => s.id === srvId);
+      if (srv) {
+        const count = walkInServicePeopleCount[srvId] || 1;
+        const total = srv.precio * count;
+        return `${srv.nombre} (${count} pers - $${total})`;
+      }
+      return srvId;
+    });
+
     const newRes = {
       id: generatedResId,
       hotelId: receptionistHotel.id,
@@ -301,7 +330,7 @@ export default function ReceptionView({
       guestId: targetGuestId,
       fechaEntrada: bookCheckIn,
       fechaSalida: bookCheckOut,
-      serviciosAdicionales: [],
+      serviciosAdicionales: mappedServices,
       subtotal: calculatedSubtotal,
       impuestos: calculatedImpuestos,
       total: calculatedTotal,
@@ -332,6 +361,8 @@ export default function ReceptionView({
       setBookRoomId('');
       setBookNotas('');
       setSelectedGuestId('');
+      setWalkInSelectedServices([]);
+      setWalkInServicePeopleCount({});
     } else {
       alert('Error en la integración de la base de datos al guardar la reserva.');
     }
@@ -1013,6 +1044,94 @@ export default function ReceptionView({
                     className="w-full text-xs border border-neutral-250 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 bg-white"
                   />
                 </div>
+              </div>
+
+              {/* WALK-IN SERVICES SELECTOR */}
+              <div className="space-y-1.5 pt-1">
+                <label className="text-[10px] font-bold text-neutral-500 block">Servicios del Hotel Consumidos (Opcional):</label>
+                {(!receptionistHotel || !receptionistHotel.serviciosDetallados || receptionistHotel.serviciosDetallados.filter(s => s.estado === 'activo').length === 0) ? (
+                  <p className="text-[10px] text-neutral-400 italic">No hay servicios específicos creados para este hotel.</p>
+                ) : (
+                  <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                    {receptionistHotel.serviciosDetallados.filter(s => s.estado === 'activo').map(srv => {
+                      const isChecked = walkInSelectedServices.includes(srv.id);
+                      return (
+                        <div
+                          key={srv.id}
+                          onClick={() => {
+                            setWalkInSelectedServices(prev => {
+                              const exists = prev.includes(srv.id);
+                              if (exists) {
+                                return prev.filter(id => id !== srv.id);
+                              } else {
+                                setWalkInServicePeopleCount(prevCounts => ({
+                                  ...prevCounts,
+                                  [srv.id]: 1
+                                }));
+                                return [...prev, srv.id];
+                              }
+                            });
+                          }}
+                          className={`p-2.5 rounded-lg border text-xs cursor-pointer transition-all flex flex-col gap-1.5 ${
+                            isChecked
+                              ? 'bg-teal-50/40 border-teal-300 shadow-sm'
+                              : 'bg-white hover:bg-neutral-50 border-neutral-200'
+                          }`}
+                        >
+                          <div className="flex justify-between items-start gap-4">
+                            <div className="min-w-0 flex-1">
+                              <p className="font-bold text-neutral-800 text-[10.5px]">{srv.nombre}</p>
+                              <p className="text-[9.5px] text-neutral-400 leading-tight">{srv.descripcion}</p>
+                            </div>
+                            <div className="shrink-0 text-right flex items-center gap-1.5">
+                              <span className="font-mono font-extrabold text-teal-805 text-[11px]">+${srv.precio} <span className="text-[8px] text-neutral-400 font-normal text-right block">/ pers</span></span>
+                              <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center transition-colors ${isChecked ? 'bg-[#344D67] border-[#344D67] text-white' : 'border-neutral-300 bg-white'}`}>
+                                {isChecked && <Check className="w-2.5 h-2.5 stroke-[3px]" />}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Multiplier Quantity Picker for Selected Services */}
+                          {isChecked && (
+                            <div
+                              onClick={(e) => e.stopPropagation()}
+                              className="mt-1 pt-1.5 border-t border-teal-200/50 flex items-center justify-between gap-4"
+                            >
+                              <span className="text-[9px] text-teal-700 font-semibold">¿Para cuántas personas?</span>
+                              <div className="flex items-center gap-1 shrink-0 bg-white px-1.5 py-0.5 border border-teal-200 rounded">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const cur = walkInServicePeopleCount[srv.id] || 1;
+                                    if (cur > 1) {
+                                      setWalkInServicePeopleCount({ ...walkInServicePeopleCount, [srv.id]: cur - 1 });
+                                    }
+                                  }}
+                                  className="w-4 h-4 flex items-center justify-center rounded bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-bold text-[10px] select-none cursor-pointer border border-neutral-200"
+                                >
+                                  -
+                                </button>
+                                <span className="text-[10px] font-mono font-bold text-neutral-900 w-5 text-center">
+                                  {walkInServicePeopleCount[srv.id] || 1}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const cur = walkInServicePeopleCount[srv.id] || 1;
+                                    setWalkInServicePeopleCount({ ...walkInServicePeopleCount, [srv.id]: cur + 1 });
+                                  }}
+                                  className="w-4 h-4 flex items-center justify-center rounded bg-teal-600 hover:bg-teal-700 text-white font-bold text-[10px] select-none cursor-pointer border border-teal-750"
+                                >
+                                  +
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-2.5">

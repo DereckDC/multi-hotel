@@ -85,8 +85,38 @@ export function saveToLocalStorage<T>(key: string, value: T): void {
   }
 }
 
+export const DEFAULT_DETAILED_SERVICES_MAP: Record<string, any[]> = {
+  'hotel-1': [
+    { id: 'srv-1-1', nombre: 'Alimentación Completa (3 comidas/día)', precio: 15, descripcion: 'Incluye desayuno buffet premium, almuerzo a la carta y cena gourmet de 3 tiempos.', estado: 'activo' },
+    { id: 'srv-1-2', nombre: 'Pase de Spa de Lujo & Masaje', precio: 40, descripcion: 'Acceso a baños turcos, tinajas temperadas y un masaje descontracturante de 45 minutos.', estado: 'activo' },
+    { id: 'srv-1-3', nombre: 'Tour Histórico de la Ciudad', precio: 20, descripcion: 'Recorrido privado de medio día a pie guiado por expertos locales.', estado: 'activo' }
+  ],
+  'hotel-2': [
+    { id: 'srv-2-1', nombre: 'Pensión Gourmet de Trabajo (3 comidas)', precio: 12, descripcion: 'Comidas de especialidad preparadas por nutricionistas en el coworking café.', estado: 'activo' },
+    { id: 'srv-2-2', nombre: 'Alquiler Diario de Bicicleta Eléctrica', precio: 10, descripcion: 'Unidades premium con batería de alto rendimiento e indicador de ruta inteligente.', estado: 'activo' },
+    { id: 'srv-2-3', nombre: 'Pase Sunset Yoga & Meditación', precio: 8, descripcion: 'Sesión relajante al atardecer en nuestra terraza tropical con bebida de cortesía.', estado: 'activo' }
+  ],
+  'hotel-3': [
+    { id: 'srv-3-1', nombre: 'Cesta Gastronómica de Campo (3 comidas)', precio: 18, descripcion: 'Deliciosas preparaciones campestres traídas calientes directamente a tu cabaña.', estado: 'activo' },
+    { id: 'srv-3-2', nombre: 'Navegación Guiada en Lago Glaciar', precio: 35, descripcion: 'Paseo exclusivo en velero por la costa norte con tablas de fiambres y vinos.', estado: 'activo' },
+    { id: 'srv-3-3', nombre: 'Reserva de Tinaja Ecológica Privada', precio: 25, descripcion: 'Tina exterior temperada a leña con hierbas aromáticas y velas por 1 hora.', estado: 'activo' }
+  ]
+};
+
+export const sanitizeHotels = (list: Hotel[]): Hotel[] => {
+  return list.map(h => {
+    const defaultServices = DEFAULT_DETAILED_SERVICES_MAP[h.id] || [];
+    return {
+      ...h,
+      serviciosDetallados: h.serviciosDetallados && h.serviciosDetallados.length > 0 
+        ? h.serviciosDetallados 
+        : defaultServices
+    };
+  });
+};
+
 export function useHotelStore() {
-  const [hotels, setHotels] = useState<Hotel[]>(() => loadFromLocalStorage(KEYS.HOTELS, INITIAL_HOTELS));
+  const [hotels, setHotels] = useState<Hotel[]>(() => sanitizeHotels(loadFromLocalStorage(KEYS.HOTELS, INITIAL_HOTELS)));
   const [rooms, setRooms] = useState<Room[]>(() => loadFromLocalStorage(KEYS.ROOMS, INITIAL_ROOMS));
   const [users, setUsers] = useState<User[]>(() => {
     const loaded = loadFromLocalStorage<User[]>(KEYS.USERS, INITIAL_USERS);
@@ -132,7 +162,7 @@ export function useHotelStore() {
         // Fetch hotels from Supabase
         const { data: dbHotels, error: hErr } = await supabase.from('hotels').select('*');
         if (!hErr && dbHotels && dbHotels.length > 0) {
-          setHotels(dbHotels.map(mapHotelFromDb));
+          setHotels(sanitizeHotels(dbHotels.map(mapHotelFromDb)));
         }
 
         // Fetch rooms from Supabase

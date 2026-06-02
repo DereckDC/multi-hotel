@@ -393,6 +393,10 @@ ON CONFLICT (id) DO NOTHING;
  * Uploads/Syncs a single hotel to Supabase
  */
 export function mapHotelToDb(hotel: Hotel): any {
+  const contactoDb = {
+    ...(hotel.contacto || {}),
+    serviciosExtra: hotel.serviciosDetallados || []
+  };
   return {
     id: hotel.id,
     nombre: hotel.nombre,
@@ -406,7 +410,7 @@ export function mapHotelToDb(hotel: Hotel): any {
     servicios: hotel.servicios || [],
     politicas: hotel.politicas || [],
     horarios: hotel.horarios || { checkIn: "15:00", checkOut: "12:00" },
-    contacto: hotel.contacto || {},
+    contacto: contactoDb,
     redessociales: hotel.redesSociales || {},
     estado: hotel.estado || 'activo'
   };
@@ -414,6 +418,8 @@ export function mapHotelToDb(hotel: Hotel): any {
 
 export function mapHotelFromDb(db: any): Hotel {
   if (!db) return db;
+  const contacto = db.contacto || {};
+  const serviciosDetallados = contacto.serviciosExtra || [];
   return {
     id: db.id,
     nombre: db.nombre,
@@ -427,7 +433,8 @@ export function mapHotelFromDb(db: any): Hotel {
     servicios: db.servicios || [],
     politicas: db.politicas || [],
     horarios: db.horarios || { checkIn: '15:00', checkOut: '12:00' },
-    contacto: db.contacto || {},
+    contacto: contacto,
+    serviciosDetallados: serviciosDetallados,
     redesSociales: db.redessociales !== undefined ? db.redessociales : (db.redesSociales || {}),
     estado: db.estado || 'activo'
   };
