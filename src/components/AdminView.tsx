@@ -166,6 +166,13 @@ export default function AdminView({
   // CRUD Hotel State
   const [editingHotel, setEditingHotel] = useState<Hotel | null>(null);
   const [showHotelModal, setShowHotelModal] = useState(false);
+  const [newServiceForm, setNewServiceForm] = useState<{
+    id: string;
+    nombre: string;
+    precio: number;
+    descripcion: string;
+    estado: 'activo' | 'inactivo';
+  }>({ id: '', nombre: '', precio: 0, descripcion: '', estado: 'activo' });
 
   // CRUD Room State
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
@@ -1760,6 +1767,164 @@ export default function AdminView({
                       )}
                     </div>
                   )}
+                </div>
+              </div>
+
+              {/* DETAILED SERVICES SECTION */}
+              <div className="col-span-2 space-y-3 bg-neutral-50 p-4 rounded-xl border border-neutral-200 mt-2">
+                <div className="flex justify-between items-center pb-2 border-b border-neutral-200">
+                  <span className="text-[11px] font-bold text-neutral-700 uppercase tracking-wide flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-teal-600" /> Servicios Exclusivos del Hotel
+                  </span>
+                  <span className="text-[9px] text-neutral-400 font-medium">Precios por persona, editables al reservar</span>
+                </div>
+
+                {/* Existing services list */}
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                  {(!editingHotel.serviciosDetallados || editingHotel.serviciosDetallados.length === 0) ? (
+                    <p className="text-[10px] text-neutral-400 text-center py-2 italic font-sans dark:text-neutral-500">No hay servicios específicos creados aún para este hotel.</p>
+                  ) : (
+                    editingHotel.serviciosDetallados.map((service, sIndex) => (
+                      <div key={service.id || sIndex} className="p-2.5 rounded-lg bg-white border border-neutral-200 flex justify-between items-start gap-4">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-[11px] font-bold text-neutral-800">{service.nombre}</span>
+                            <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded uppercase ${
+                              service.estado === 'activo' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/50' : 'bg-neutral-150 text-neutral-500'
+                            }`}>
+                              {service.estado}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-neutral-500 mt-0.5 leading-snug line-clamp-2">{service.descripcion}</p>
+                        </div>
+                        <div className="text-right shrink-0 flex flex-col items-end gap-1.5">
+                          <span className="text-xs font-extrabold text-neutral-850 font-mono">${service.precio} <span className="text-[9px] text-neutral-400 font-normal">/ pers</span></span>
+                          <div className="flex gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setNewServiceForm({
+                                  id: service.id,
+                                  nombre: service.nombre,
+                                  precio: service.precio,
+                                  descripcion: service.descripcion,
+                                  estado: service.estado
+                                });
+                              }}
+                              className="text-[9px] font-bold text-teal-600 hover:text-teal-700 cursor-pointer"
+                            >
+                              Editar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const remains = (editingHotel.serviciosDetallados || []).filter((_, i) => i !== sIndex);
+                                setEditingHotel({ ...editingHotel, serviciosDetallados: remains });
+                              }}
+                              className="text-[9px] font-bold text-red-550 hover:text-red-700 cursor-pointer"
+                            >
+                              Quitar
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* Add / Edit service sub-form */}
+                <div className="p-3 bg-white border border-neutral-200 rounded-xl space-y-2.5">
+                  <p className="text-[10.5px] font-bold text-neutral-700 flex items-center gap-1.5 align-middle">
+                    {newServiceForm.id ? "✏️ Editar Servicio" : "➕ Agregar Nuevo Servicio"}
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="col-span-2">
+                      <input
+                        type="text"
+                        placeholder="Nombre. Ej: 3 comidas del día"
+                        value={newServiceForm.nombre}
+                        onChange={(e) => setNewServiceForm({ ...newServiceForm, nombre: e.target.value })}
+                        className="w-full text-xs border border-neutral-250 p-1.5 rounded-lg focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <input
+                        type="number"
+                        min="1"
+                        placeholder="Precio unitario ($)"
+                        value={newServiceForm.precio || ''}
+                        onChange={(e) => setNewServiceForm({ ...newServiceForm, precio: parseFloat(e.target.value) || 0 })}
+                        className="w-full text-xs border border-neutral-250 p-1.5 rounded-lg focus:outline-none font-mono"
+                      />
+                    </div>
+                    <div>
+                      <select
+                        value={newServiceForm.estado}
+                        onChange={(e) => setNewServiceForm({ ...newServiceForm, estado: e.target.value as 'activo' | 'inactivo' })}
+                        className="w-full text-xs border border-neutral-250 p-1.5 rounded-lg focus:outline-none bg-white cursor-pointer"
+                      >
+                        <option value="activo">Activo</option>
+                        <option value="inactivo">Inactivo</option>
+                      </select>
+                    </div>
+                    <div className="col-span-2">
+                      <textarea
+                        placeholder="Descripción del servicio y cobertura..."
+                        value={newServiceForm.descripcion}
+                        onChange={(e) => setNewServiceForm({ ...newServiceForm, descripcion: e.target.value })}
+                        className="w-full h-11 text-xs border border-neutral-250 p-1.5 rounded-lg focus:outline-none leading-tight"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-2 justify-end pt-1">
+                    {newServiceForm.id && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNewServiceForm({ id: '', nombre: '', precio: 0, descripcion: '', estado: 'activo' });
+                        }}
+                        className="px-2.5 py-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-600 rounded-lg text-[10px] font-bold cursor-pointer"
+                      >
+                        Limpiar
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!newServiceForm.nombre.trim()) {
+                          alert("Por favor ingrese el nombre del servicio.");
+                          return;
+                        }
+                        if (newServiceForm.precio <= 0) {
+                          alert("Por favor ingrese un precio mayor a $0.");
+                          return;
+                        }
+
+                        const currentList = editingHotel.serviciosDetallados || [];
+                        let nextList;
+                        if (newServiceForm.id) {
+                          // Edit mode
+                          nextList = currentList.map(s => s.id === newServiceForm.id ? { ...newServiceForm } : s);
+                        } else {
+                          // Add mode
+                          const newServiceObj = {
+                            id: `srv-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+                            nombre: newServiceForm.nombre.trim(),
+                            precio: newServiceForm.precio,
+                            descripcion: newServiceForm.descripcion.trim(),
+                            estado: newServiceForm.estado as 'activo' | 'inactivo'
+                          };
+                          nextList = [...currentList, newServiceObj];
+                        }
+
+                        setEditingHotel({ ...editingHotel, serviciosDetallados: nextList });
+                        setNewServiceForm({ id: '', nombre: '', precio: 0, descripcion: '', estado: 'activo' });
+                      }}
+                      className="px-3 py-1 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-[10px] font-bold cursor-pointer shadow-sm"
+                    >
+                      {newServiceForm.id ? "Actualizar" : "Agregar"}
+                    </button>
+                  </div>
                 </div>
               </div>
 

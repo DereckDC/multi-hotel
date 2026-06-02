@@ -55,6 +55,23 @@ export interface Hotel {
     twitter?: string;
   };
   estado: 'activo' | 'inactivo';
+  serviciosDetallados?: HotelService[];
+}
+
+export interface HotelService {
+  id: string;
+  nombre: string;
+  precio: number;
+  descripcion: string;
+  estado: 'activo' | 'inactivo';
+}
+
+export interface ReservationServiceSelection {
+  id: string;
+  nombre: string;
+  precio: number;
+  personas: number;
+  total: number;
 }
 
 export interface Room {
