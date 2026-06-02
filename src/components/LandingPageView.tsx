@@ -26,7 +26,7 @@ interface LandingPageViewProps {
 
 export default function LandingPageView({ onClose }: LandingPageViewProps) {
   const [copiedEmail, setCopiedEmail] = React.useState(false);
-  const [numHabitaciones, setNumHabitaciones] = React.useState(35);
+  const [numHabitaciones, setNumHabitaciones] = React.useState(30);
 
   const handleCopyEmail = () => {
     navigator.clipboard.writeText('roomia.admincontact@gmail.com');
@@ -359,83 +359,126 @@ export default function LandingPageView({ onClose }: LandingPageViewProps) {
 
             <div className="space-y-4">
               <div>
-                <div className="flex justify-between items-center mb-1.5">
+                <div className="flex justify-between items-center mb-1.5 font-sans">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">
-                    Tamaño de su Operación:
+                    Habitaciones por Hotel:
                   </span>
-                  <span className="text-teal-400 font-sans font-extrabold text-xs bg-teal-400/10 px-2 py-0.5 rounded-md border border-teal-500/15">
-                    {numHabitaciones} Habitaciones
+                  <span className="text-teal-400 font-sans font-extrabold text-xs bg-teal-400/10 px-2.5 py-0.5 rounded-md border border-teal-500/15">
+                    {numHabitaciones} hab. por hotel
                   </span>
                 </div>
                 <input 
                   type="range"
                   min="10"
-                  max="200"
+                  max="120"
                   value={numHabitaciones}
                   onChange={(e) => setNumHabitaciones(Number(e.target.value))}
-                  className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-teal-450 mt-1"
+                  className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-teal-400 mt-1"
                 />
-                <div className="flex justify-between text-[9px] text-slate-500 font-mono mt-1 uppercase tracking-tight">
-                  <span>10 Cuartos</span>
-                  <span>100 Cuartos</span>
-                  <span>200+ Ilimitado</span>
+                <div className="flex justify-between text-[9px] text-slate-500 font-mono mt-1 uppercase tracking-tight font-semibold">
+                  <span>10 Habitaciones</span>
+                  <span>40 Habitaciones</span>
+                  <span>80 Habitaciones</span>
+                  <span>120+ Personalizado</span>
                 </div>
               </div>
 
               {/* Plans Selection List inside the Card */}
-              <div className="space-y-3 pt-1">
+              <div className="space-y-3 pt-1 font-sans">
                 
                 {/* Boutique */}
-                <div className="p-3 bg-slate-950/60 border border-slate-850 hover:border-slate-800 rounded-xl transition-all flex justify-between items-center gap-3">
-                  <div>
+                <div className={`p-3 rounded-xl transition-all flex justify-between items-center gap-3 border ${
+                  numHabitaciones <= 15 
+                    ? 'bg-teal-500/10 border-teal-500/35 ring-1 ring-teal-500/10' 
+                    : 'bg-slate-950/60 border-slate-850 hover:border-slate-800 opacity-60'
+                }`}>
+                  <div className="min-w-0 flex-1">
                     <span className="text-[8px] font-extrabold text-slate-400 bg-slate-900 border border-slate-800 px-1.5 py-0.5 rounded uppercase tracking-wider font-mono">Boutique Core</span>
-                    <h4 className="text-xs font-bold text-slate-200 mt-1">Plan Boutique</h4>
-                    <p className="text-[10px] text-slate-400">1 Hotel • Recepción Básica y QR</p>
+                    <h4 className="text-xs font-bold text-slate-200 mt-1">Plan Boutique (1 Hotel)</h4>
+                    <p className="text-[10px] text-slate-400 truncate">1 Hotel • {numHabitaciones} habitaciones • QR & Recepción</p>
                   </div>
                   <div className="text-right shrink-0">
-                    <span className="block text-sm font-extrabold text-teal-400">${Math.max(50, Math.round(numHabitaciones * 5.00))}<span className="text-[9px] text-slate-450 font-normal">/mes</span></span>
-                    <span className="text-[8px] text-slate-500 block font-mono">$5.00/cuarto (mín. $50)</span>
+                    <span className="block text-sm font-extrabold text-teal-450">${(numHabitaciones * 1 * 6) - 1}<span className="text-[9px] text-slate-450 font-normal">/mes</span></span>
+                    <span className="text-[8px] text-slate-500 block font-mono">$6 / hab (-$1)</span>
                   </div>
                 </div>
 
                 {/* Premium */}
-                <div className="p-3 bg-teal-500/5 border border-teal-500/25 hover:border-teal-400/40 rounded-xl transition-all flex justify-between items-center gap-3 relative overflow-hidden">
-                  <div className="absolute top-0 right-0 bg-teal-500 text-slate-950 font-black text-[7px] tracking-wider uppercase py-0.5 px-2 rounded-bl-lg font-mono">
-                    Popular
-                  </div>
-                  <div>
+                <div className={`p-3 rounded-xl transition-all flex justify-between items-center gap-3 relative overflow-hidden border ${
+                  numHabitaciones > 15 && numHabitaciones <= 50 
+                    ? 'bg-teal-500/10 border-teal-500/40 ring-1 ring-teal-500/15' 
+                    : 'bg-slate-950/60 border-slate-850 hover:border-slate-800 opacity-60'
+                }`}>
+                  {numHabitaciones > 15 && numHabitaciones <= 50 && (
+                    <div className="absolute top-0 right-0 bg-teal-400 text-slate-950 font-black text-[7px] tracking-wider uppercase py-0.5 px-2 rounded-bl-lg font-mono">
+                      Recomendado
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
                     <span className="text-[8px] font-extrabold text-[#2DD4BF] bg-teal-500/10 px-1.5 py-0.5 rounded uppercase tracking-wider font-mono">Multi-Hotel Pro</span>
-                    <h4 className="text-xs font-bold text-white mt-1">Plan Premium</h4>
-                    <p className="text-[10px] text-slate-300">Hasta 3 Hoteles • Analíticas Live</p>
+                    <h4 className="text-xs font-bold text-white mt-1">Plan Premium (hasta 3 Hoteles)</h4>
+                    <p className="text-[10px] text-slate-300 truncate font-sans">Hasta 3 Hoteles • {numHabitaciones * 3} habs. totales • Analíticas</p>
                   </div>
                   <div className="text-right shrink-0">
-                    <span className="block text-sm font-extrabold text-teal-300">${Math.max(80, Math.round(numHabitaciones * 8.00))}<span className="text-[9px] text-slate-350 font-normal">/mes</span></span>
-                    <span className="text-[8px] text-teal-400/70 block font-mono">$8.00/cuarto (mín. $80)</span>
+                    <span className="block text-sm font-extrabold text-teal-300">${(numHabitaciones * 3 * 5) - 1}<span className="text-[9px] text-slate-355 font-normal">/mes</span></span>
+                    <span className="text-[8px] text-teal-400/75 block font-mono">$5 / hab (-$1)</span>
                   </div>
                 </div>
 
                 {/* Elite */}
-                <div className="p-3 bg-slate-950/60 border border-slate-850 hover:border-slate-800 rounded-xl transition-all flex justify-between items-center gap-3">
-                  <div>
+                <div className={`p-3 rounded-xl transition-all flex justify-between items-center gap-3 border ${
+                  numHabitaciones > 50 && numHabitaciones <= 100 
+                    ? 'bg-indigo-500/10 border-indigo-500/35 ring-1 ring-indigo-500/10' 
+                    : 'bg-slate-950/60 border-slate-850 hover:border-slate-800 opacity-60'
+                }`}>
+                  <div className="min-w-0 flex-1">
                     <span className="text-[8px] font-extrabold text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded uppercase tracking-wider font-mono">SaaS Elite</span>
-                    <h4 className="text-xs font-bold text-slate-200 mt-1">Plan Elite Premium</h4>
-                    <p className="text-[10px] text-slate-400">Hoteles Ilimitados • Auditorías</p>
+                    <h4 className="text-xs font-bold text-slate-200 mt-1">Plan Elite Premium (hasta 10 Hoteles)</h4>
+                    <p className="text-[10px] text-slate-400 truncate">Hasta 10 Hoteles • {numHabitaciones * 10} habs. totales • Auditorías</p>
                   </div>
                   <div className="text-right shrink-0">
-                    <span className="block text-sm font-extrabold text-indigo-400">${Math.max(120, Math.round(numHabitaciones * 12.00))}<span className="text-[9px] text-slate-450 font-normal">/mes</span></span>
-                    <span className="text-[8px] text-slate-500 block font-mono">$12.00/cuarto (mín. $120)</span>
+                    <span className="block text-sm font-extrabold text-indigo-450">${(numHabitaciones * 10 * 4) - 1}<span className="text-[9px] text-slate-450 font-normal">/mes</span></span>
+                    <span className="text-[8px] text-slate-500 block font-mono">$4 / hab (-$1)</span>
+                  </div>
+                </div>
+
+                {/* Custom Tier */}
+                <div className={`p-3 rounded-xl transition-all flex justify-between items-center gap-3 border ${
+                  numHabitaciones > 100 
+                    ? 'bg-amber-500/10 border-amber-500/35 ring-1 ring-amber-500/10 animate-pulse' 
+                    : 'bg-slate-950/60 border-slate-850 hover:border-slate-800 opacity-60'
+                }`}>
+                  <div className="min-w-0 flex-1">
+                    <span className="text-[8px] font-extrabold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded uppercase tracking-wider font-mono">Custom Deluxe</span>
+                    <h4 className="text-xs font-bold text-slate-200 mt-1">Contacto Premium</h4>
+                    <p className="text-[10px] text-slate-400 truncate">Más de 10 Hoteles • Escala Empresarial</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <span className="block text-xs font-bold text-amber-400">Personalizado</span>
+                    <span className="text-[8px] text-slate-500 block font-mono">Precio A Medida</span>
                   </div>
                 </div>
 
               </div>
 
-              {/* Call to Action to close and begin */}
-              <button
-                onClick={onClose}
-                className="w-full bg-teal-500 hover:bg-teal-400 text-slate-950 font-extrabold py-2.5 rounded-xl text-xs transition-all shadow-md active:scale-95 cursor-pointer text-center"
-              >
-                Comenzar con la Prueba Gratuita 🚀
-              </button>
+              {/* Call to Action dynamically configured */}
+              {numHabitaciones > 100 ? (
+                <a
+                  href={`https://wa.me/593984056660?text=Hola,%20necesito%20información%20para%20un%20plan%20de%20financiamiento%20personalizado%20para%20${numHabitaciones}%20habitaciones%20por%20hotel%20en%20Roomia%20SaaS.`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold py-2.5 rounded-xl text-xs transition-all shadow-md active:scale-95 cursor-pointer text-center block decoration-none"
+                >
+                  Contactar Desarrollador para Oferta Premium 💬
+                </a>
+              ) : (
+                <button
+                  onClick={onClose}
+                  className="w-full bg-teal-500 hover:bg-teal-400 text-slate-950 font-extrabold py-2.5 rounded-xl text-xs transition-all shadow-md active:scale-95 cursor-pointer text-center"
+                >
+                  Comenzar con la Prueba Gratuita 🚀
+                </button>
+              )}
             </div>
           </div>
 

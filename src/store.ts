@@ -826,14 +826,48 @@ El Equipo de Hospitalidad de Roomia PMS.`;
       changes.fechaCambio = new Date().toISOString();
     }
 
-    setReservations(prev => prev.map(r => r.id === resId ? { ...r, ...changes } : r));
-
     const targetRes = reservations.find(r => r.id === resId);
     if (targetRes) {
+      const todayStr = new Date().toISOString().split('T')[0];
+      if (status === 'finalizada' && targetRes.fechaSalida > todayStr) {
+        changes.fechaSalida = todayStr;
+        changes.checkedOutAt = new Date().toISOString();
+      } else if (status === 'finalizada') {
+        changes.checkedOutAt = new Date().toISOString();
+      }
+
+      // Sync reservation changes locally
+      setReservations(prev => prev.map(r => r.id === resId ? { ...r, ...changes } : r));
+
       try {
         await syncReservationToSupabase({ ...targetRes, ...changes });
       } catch (err) {
         console.warn("Supabase updateReservationStatus error:", err);
+      }
+
+      // Determine new room status based on the updated reservation status
+      let newRoomStatus: RoomStatus | undefined;
+      if (status === 'finalizada' || status === 'cancelada') {
+        newRoomStatus = 'disponible';
+      } else if (status === 'ocupada') {
+        newRoomStatus = 'ocupado';
+      } else if (status === 'confirmada' || status === 'pendiente') {
+        newRoomStatus = 'reservado';
+      }
+
+      if (newRoomStatus) {
+        // Update local room status
+        setRooms(prev => prev.map(r => r.id === targetRes.roomId ? { ...r, estado: newRoomStatus! } : r));
+
+        // Sync room status to supabase
+        const targetRoom = rooms.find(r => r.id === targetRes.roomId);
+        if (targetRoom) {
+          try {
+            await syncRoomToSupabase({ ...targetRoom, estado: newRoomStatus });
+          } catch (rErr) {
+            console.warn("Supabase updateRoomStatus via reservation error:", rErr);
+          }
+        }
       }
     }
 
@@ -947,28 +981,36 @@ El Equipo de Hospitalidad de Roomia PMS.`;
 
     const rx = users.find(u => u.id === receptionistId);
     const nowIso = new Date().toISOString();
+    const todayStr = nowIso.split('T')[0];
+
+    const updatedResChanges: Partial<Reservation> = {
+      estado: 'finalizada' as ReservationStatus,
+      checkedOutAt: nowIso
+    };
+
+    if (res.fechaSalida > todayStr) {
+      updatedResChanges.fechaSalida = todayStr;
+    }
 
     // Update reservation
     setReservations(prev => prev.map(r => r.id === resId ? {
       ...r,
-      estado: 'finalizada',
-      checkedOutAt: nowIso
+      ...updatedResChanges
     } : r));
 
-    // Update Room: ocupado -> mantenimiento
-    setRooms(prev => prev.map(r => r.id === res.roomId ? { ...r, estado: 'mantenimiento' } : r));
+    // Update Room: ocupado -> disponible
+    setRooms(prev => prev.map(r => r.id === res.roomId ? { ...r, estado: 'disponible' } : r));
 
     const updatedRes = {
       ...res,
-      estado: 'finalizada' as ReservationStatus,
-      checkedOutAt: nowIso
+      ...updatedResChanges
     };
 
     try {
       syncReservationToSupabase(updatedRes);
       const mRoom = rooms.find(r => r.id === res.roomId);
       if (mRoom) {
-        syncRoomToSupabase({ ...mRoom, estado: 'mantenimiento' });
+        syncRoomToSupabase({ ...mRoom, estado: 'disponible' });
       }
     } catch (e) {
       console.warn("Supabase performCheckOut error:", e);
@@ -978,10 +1020,10 @@ El Equipo de Hospitalidad de Roomia PMS.`;
       rx ? `${rx.nombre} ${rx.apellido}` : 'Recepción',
       'recepcionista',
       'Check-Out Confirmado',
-      `Check-Out procesado para la reserva ${resId}. Habitación enviada a MANTENIMIENTO.`
+      `Check-Out procesado para la reserva ${resId}. Habitación cambiada a DISPONIBLE.`
     );
 
-    return { success: true, msg: 'Check-Out procesado exitosamente. La habitación requiere mantenimiento higiénico.' };
+    return { success: true, msg: 'Check-Out procesado exitosamente. La habitación ahora se encuentra disponible.' };
   };
 
   // --- CALCULATE REALTIME STATISTICS ---
