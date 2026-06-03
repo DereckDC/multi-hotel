@@ -238,8 +238,8 @@ export default function App() {
               >
                 <LoginView
                   users={users}
-                  onLoginSuccess={(uid) => {
-                    switchSessionUser(uid);
+                  onLoginSuccess={(uid, fetchedUser) => {
+                    switchSessionUser(uid, fetchedUser);
                     setIsLoggedOut(false);
                   }}
                   onRegisterUser={registerUser}
