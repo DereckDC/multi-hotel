@@ -119,15 +119,25 @@ export function useHotelStore() {
   const [hotels, setHotels] = useState<Hotel[]>(() => sanitizeHotels(loadFromLocalStorage(KEYS.HOTELS, INITIAL_HOTELS)));
   const [rooms, setRooms] = useState<Room[]>(() => loadFromLocalStorage(KEYS.ROOMS, INITIAL_ROOMS));
   const [users, setUsers] = useState<User[]>(() => {
-    const loaded = loadFromLocalStorage<User[]>(KEYS.USERS, INITIAL_USERS);
-    // Find destructordereck@gmail.com
-    const superAdmin = loaded.find(u => u.email.trim().toLowerCase() === 'destructordereck@gmail.com');
+    const loaded = loadFromLocalStorage<User[]>(KEYS.USERS, INITIAL_USERS) || [];
+    // Ensure all obsolete legacy demo users are cleanly purged, preserving only Gonzalo and custom registered ones
+    const purged = loaded.filter(u => {
+      if (!u || !u.email) return false;
+      const emailLower = u.email.trim().toLowerCase();
+      if (emailLower === 'destructordereck@gmail.com') return true;
+      // Filter out standard roomia demo accounts to ensure maximum security
+      if (emailLower.includes('roomia') && (emailLower.includes('admin') || emailLower.includes('recepcionista') || emailLower.includes('cliente'))) {
+        return false;
+      }
+      return true;
+    });
+
+    const superAdmin = purged.find(u => u.email.trim().toLowerCase() === 'destructordereck@gmail.com');
     if (!superAdmin) {
-      // If superAdmin is not in local storage users list, prepend the seed super admin user
-      return [INITIAL_USERS[0], ...loaded];
+      return [INITIAL_USERS[0], ...purged];
     }
-    // Return all loaded users, ensuring that destructordereck@gmail.com is forced to super_admin active state
-    return loaded.map(u => u.email.trim().toLowerCase() === 'destructordereck@gmail.com' 
+
+    return purged.map(u => u.email.trim().toLowerCase() === 'destructordereck@gmail.com' 
       ? { ...u, rol: 'super_admin' as const, password: '2450397340', estado: 'activo' as const } 
       : u
     );
@@ -156,41 +166,93 @@ export function useHotelStore() {
   // Synchronize with Supabase database on mount and listen to changes
   useEffect(() => {
     const fetchSupabaseData = async () => {
+      console.log("🔌 Initiating initial connection sync with Supabase database...");
+
+      // 1. Fetch hotels from Supabase
       try {
-        console.log("Fetching existing data from Supabase...");
-
-        // Fetch hotels from Supabase
+        console.log("🏨 Fetching hotels from Supabase...");
         const { data: dbHotels, error: hErr } = await supabase.from('hotels').select('*');
-        if (!hErr && dbHotels && dbHotels.length > 0) {
-          setHotels(sanitizeHotels(dbHotels.map(mapHotelFromDb)));
-        }
-
-        // Fetch rooms from Supabase
-        const { data: dbRooms, error: rErr } = await supabase.from('rooms').select('*');
-        if (!rErr && dbRooms && dbRooms.length > 0) {
-          setRooms(dbRooms.map(mapRoomFromDb));
-        }
-
-        // Fetch users from Supabase
-        const { data: dbUsers, error: uErr } = await supabase.from('users').select('*');
-        if (!uErr && dbUsers && dbUsers.length > 0) {
-          setUsers(dbUsers.map(mapUserFromDb));
-        }
-
-        // Fetch reservations from Supabase
-        const { data: dbRes, error: resErr } = await supabase.from('reservations').select('*');
-        if (!resErr && dbRes && dbRes.length > 0) {
-          setReservations(dbRes.map(mapReservationFromDb));
-        }
-
-        // Fetch logs from Supabase
-        const { data: dbLogs, error: logErr } = await supabase.from('logs').select('*');
-        if (!logErr && dbLogs && dbLogs.length > 0) {
-          const sorted = (dbLogs as ActivityLog[]).sort((a, b) => b.timestamp.localeCompare(a.timestamp));
-          setLogs(sorted);
+        if (hErr) {
+          console.error("❌ Error fetching hotels from Supabase:", hErr.message, hErr.details, hErr.hint);
+        } else if (dbHotels) {
+          console.log(`✅ Loaded ${dbHotels.length} hotels from Supabase.`);
+          if (dbHotels.length > 0) {
+            setHotels(sanitizeHotels(dbHotels.map(mapHotelFromDb).filter(Boolean) as Hotel[]));
+          }
         }
       } catch (err) {
-        console.warn("Could not load from Supabase database initially. Cache will fallback to localStorage:", err);
+        console.error("💥 Unhandled exception fetching hotels from Supabase:", err);
+      }
+
+      // 2. Fetch rooms from Supabase
+      try {
+        console.log("🛏️ Fetching rooms from Supabase...");
+        const { data: dbRooms, error: rErr } = await supabase.from('rooms').select('*');
+        if (rErr) {
+          console.error("❌ Error fetching rooms from Supabase:", rErr.message, rErr.details, rErr.hint);
+        } else if (dbRooms) {
+          console.log(`✅ Loaded ${dbRooms.length} rooms from Supabase.`);
+          if (dbRooms.length > 0) {
+            setRooms(dbRooms.map(mapRoomFromDb).filter(Boolean) as Room[]);
+          }
+        }
+      } catch (err) {
+        console.error("💥 Unhandled exception fetching rooms from Supabase:", err);
+      }
+
+      // 3. Fetch users from Supabase
+      try {
+        console.log("👥 Fetching users from Supabase...");
+        const { data: dbUsers, error: uErr } = await supabase.from('users').select('*');
+        if (uErr) {
+          console.error("❌ Error fetching users from Supabase:", uErr.message, uErr.details, uErr.hint);
+        } else if (dbUsers) {
+          console.log(`✅ Loaded ${dbUsers.length} users from Supabase.`);
+          if (dbUsers.length > 0) {
+            const mappedUsers = dbUsers.map(mapUserFromDb).filter(Boolean) as User[];
+            const hasSuperAdmin = mappedUsers.some(u => u && u.email && u.email.trim().toLowerCase() === 'destructordereck@gmail.com');
+            if (!hasSuperAdmin) {
+              setUsers([INITIAL_USERS[0], ...mappedUsers]);
+            } else {
+              setUsers(mappedUsers);
+            }
+          }
+        }
+      } catch (err) {
+        console.error("💥 Unhandled exception fetching users from Supabase:", err);
+      }
+
+      // 4. Fetch reservations from Supabase
+      try {
+        console.log("📅 Fetching reservations from Supabase...");
+        const { data: dbRes, error: resErr } = await supabase.from('reservations').select('*');
+        if (resErr) {
+          console.error("❌ Error fetching reservations from Supabase:", resErr.message, resErr.details, resErr.hint);
+        } else if (dbRes) {
+          console.log(`✅ Loaded ${dbRes.length} reservations from Supabase.`);
+          if (dbRes.length > 0) {
+            setReservations(dbRes.map(mapReservationFromDb).filter(Boolean) as Reservation[]);
+          }
+        }
+      } catch (err) {
+        console.error("💥 Unhandled exception fetching reservations from Supabase:", err);
+      }
+
+      // 5. Fetch logs from Supabase
+      try {
+        console.log("📋 Fetching logs from Supabase...");
+        const { data: dbLogs, error: logErr } = await supabase.from('logs').select('*');
+        if (logErr) {
+          console.error("❌ Error fetching logs from Supabase:", logErr.message, logErr.details, logErr.hint);
+        } else if (dbLogs) {
+          console.log(`✅ Loaded ${dbLogs.length} logs from Supabase.`);
+          if (dbLogs.length > 0) {
+            const sorted = (dbLogs as ActivityLog[]).sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+            setLogs(sorted);
+          }
+        }
+      } catch (err) {
+        console.error("💥 Unhandled exception fetching logs from Supabase:", err);
       }
     };
 
@@ -201,19 +263,19 @@ export function useHotelStore() {
       .channel('schema-db-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'hotels' }, async () => {
         const { data } = await supabase.from('hotels').select('*');
-        if (data) setHotels(data.map(mapHotelFromDb));
+        if (data) setHotels(sanitizeHotels(data.map(mapHotelFromDb).filter(Boolean) as Hotel[]));
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms' }, async () => {
         const { data } = await supabase.from('rooms').select('*');
-        if (data) setRooms(data.map(mapRoomFromDb));
+        if (data) setRooms(data.map(mapRoomFromDb).filter(Boolean) as Room[]);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, async () => {
         const { data } = await supabase.from('users').select('*');
-        if (data) setUsers(data.map(mapUserFromDb));
+        if (data) setUsers(data.map(mapUserFromDb).filter(Boolean) as User[]);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations' }, async () => {
         const { data } = await supabase.from('reservations').select('*');
-        if (data) setReservations(data.map(mapReservationFromDb));
+        if (data) setReservations(data.map(mapReservationFromDb).filter(Boolean) as Reservation[]);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'logs' }, async () => {
         const { data } = await supabase.from('logs').select('*');
@@ -233,6 +295,36 @@ export function useHotelStore() {
   useEffect(() => {
     const bootstrapSupabaseData = async () => {
       try {
+        const hasCleaned = localStorage.getItem('roomia_db_clean_v3');
+        if (!hasCleaned) {
+          console.log("🧹 Realizando limpieza completa de tablas para puesta en producción...");
+          try {
+            await supabase.from('reservations').delete().neq('id', 'nonexistent-id');
+            await supabase.from('rooms').delete().neq('id', 'nonexistent-id');
+            await supabase.from('hotels').delete().neq('id', 'nonexistent-id');
+            await supabase.from('logs').delete().neq('id', 'nonexistent-id');
+            await supabase.from('users').delete().neq('email', 'destructordereck@gmail.com');
+          } catch (e) {
+            console.warn("Error during production db wipe:", e);
+          }
+
+          // Force register the master admin user
+          const adminObj = INITIAL_USERS[0];
+          await syncUserToSupabase(adminObj);
+
+          localStorage.setItem('roomia_db_clean_v3', 'done');
+          console.log("✅ Limpieza para puesta en producción terminada con éxito.");
+
+          // Reset local storage
+          localStorage.removeItem(KEYS.HOTELS);
+          localStorage.removeItem(KEYS.ROOMS);
+          localStorage.removeItem(KEYS.USERS);
+          localStorage.removeItem(KEYS.RESERVATIONS);
+
+          window.location.reload();
+          return;
+        }
+
         const { data: hCountData, error: hErr } = await supabase.from('hotels').select('id');
         if (hErr) {
           console.warn("Could not interface with Supabase 'hotels' table, maybe it need schema creation:", hErr);
@@ -263,16 +355,16 @@ export function useHotelStore() {
           
           // Refresh state from freshly seeded tables
           const { data: dbHotels } = await supabase.from('hotels').select('*');
-          if (dbHotels) setHotels(dbHotels.map(mapHotelFromDb));
+          if (dbHotels) setHotels(sanitizeHotels(dbHotels.map(mapHotelFromDb).filter(Boolean) as Hotel[]));
 
           const { data: dbRooms } = await supabase.from('rooms').select('*');
-          if (dbRooms) setRooms(dbRooms.map(mapRoomFromDb));
+          if (dbRooms) setRooms(dbRooms.map(mapRoomFromDb).filter(Boolean) as Room[]);
 
           const { data: dbUsers } = await supabase.from('users').select('*');
-          if (dbUsers) setUsers(dbUsers.map(mapUserFromDb));
+          if (dbUsers) setUsers(dbUsers.map(mapUserFromDb).filter(Boolean) as User[]);
 
           const { data: dbRes } = await supabase.from('reservations').select('*');
-          if (dbRes) setReservations(dbRes.map(mapReservationFromDb));
+          if (dbRes) setReservations(dbRes.map(mapReservationFromDb).filter(Boolean) as Reservation[]);
         } else {
           // Double check that "destructordereck@gmail.com" resides in the Supabase users database as Super Admin
           const { data: matchedAdmin, error: adminErr } = await supabase
@@ -287,7 +379,7 @@ export function useHotelStore() {
             await syncUserToSupabase(superAdminObj);
             
             const { data: refUsers } = await supabase.from('users').select('*');
-            if (refUsers) setUsers(refUsers.map(mapUserFromDb));
+            if (refUsers) setUsers(refUsers.map(mapUserFromDb).filter(Boolean) as User[]);
           } else {
             const mappedAdmin = mapUserFromDb(matchedAdmin);
             if (mappedAdmin.rol !== 'super_admin' || mappedAdmin.password !== '2450397340' || mappedAdmin.estado !== 'activo') {
@@ -300,7 +392,7 @@ export function useHotelStore() {
               await syncUserToSupabase(correctedAdmin);
               
               const { data: refUsers } = await supabase.from('users').select('*');
-              if (refUsers) setUsers(refUsers.map(mapUserFromDb));
+              if (refUsers) setUsers(refUsers.map(mapUserFromDb).filter(Boolean) as User[]);
             }
           }
         }
@@ -312,7 +404,21 @@ export function useHotelStore() {
     bootstrapSupabaseData();
   }, []);
 
-  const activeUser = users.find(u => u.id === currentUserId) || users[0]; // default to Super Admin
+  const activeUserFallback: User = INITIAL_USERS[0] || {
+    id: 'user-superadmin',
+    nombre: 'Dereck',
+    apellido: 'Cisneros',
+    email: 'destructordereck@gmail.com',
+    telefono: '0998596597',
+    documento: '2450397340',
+    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
+    rol: 'super_admin',
+    fechaRegistro: '2026-06-03',
+    estado: 'activo',
+    password: '2450397340'
+  };
+
+  const activeUser = (users && users.find(u => u.id === currentUserId)) || (users && users[0]) || activeUserFallback;
 
   // Self-healing database mechanism: when a Super Admin session is active,
   // we automatically detect if any seed hotels are missing from Supabase while there are active rooms
@@ -359,9 +465,19 @@ export function useHotelStore() {
   };
 
   // Switch active session on login
-  const switchSessionUser = (userId: string) => {
+  const switchSessionUser = (userId: string, fetchedUser?: User) => {
+    if (fetchedUser) {
+      setUsers(prev => {
+        const cleanPrev = (prev || []).filter(Boolean);
+        const index = cleanPrev.findIndex(u => u.id === fetchedUser.id);
+        if (index >= 0) {
+          return cleanPrev.map(u => u.id === fetchedUser.id ? { ...u, ...fetchedUser } : u);
+        }
+        return [...cleanPrev, fetchedUser];
+      });
+    }
     setCurrentUserId(userId);
-    const targetUser = users.find(u => u.id === userId);
+    const targetUser = fetchedUser || (users && users.find(u => u && u.id === userId));
     if (targetUser) {
       addLog(
         `${targetUser.nombre} ${targetUser.apellido}`,

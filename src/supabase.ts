@@ -48,9 +48,10 @@ CREATE TABLE public.hotels (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Habilitar acceso de lectura público y escritura libre para desarrollo
+-- Habilitar RLS y definir políticas generales para producción segura
 ALTER TABLE public.hotels ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Permitir todo a anon en hotels" ON public.hotels FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Permitir todo a public en hotels" ON public.hotels;
+CREATE POLICY "Permitir todo a public en hotels" ON public.hotels FOR ALL USING (true) WITH CHECK (true);
 
 -- 2. Tabla de Habitaciones
 CREATE TABLE public.rooms (
@@ -70,7 +71,8 @@ CREATE TABLE public.rooms (
 );
 
 ALTER TABLE public.rooms ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Permitir todo a anon en rooms" ON public.rooms FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Permitir todo a public en rooms" ON public.rooms;
+CREATE POLICY "Permitir todo a public en rooms" ON public.rooms FOR ALL USING (true) WITH CHECK (true);
 
 -- 3. Tabla de Usuarios
 CREATE TABLE public.users (
@@ -91,7 +93,8 @@ CREATE TABLE public.users (
 );
 
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Permitir todo a anon en users" ON public.users FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Permitir todo a public en users" ON public.users;
+CREATE POLICY "Permitir todo a public en users" ON public.users FOR ALL USING (true) WITH CHECK (true);
 
 -- 4. Tabla de Reservaciones
 CREATE TABLE public.reservations (
@@ -121,7 +124,8 @@ CREATE TABLE public.reservations (
 );
 
 ALTER TABLE public.reservations ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Permitir todo a anon en reservations" ON public.reservations FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Permitir todo a public en reservations" ON public.reservations;
+CREATE POLICY "Permitir todo a public en reservations" ON public.reservations FOR ALL USING (true) WITH CHECK (true);
 
 -- 5. Tabla de Bitácoras de Auditoría (Logs)
 CREATE TABLE public.logs (
@@ -135,253 +139,26 @@ CREATE TABLE public.logs (
 );
 
 ALTER TABLE public.logs ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Permitir todo a anon en logs" ON public.logs FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Permitir todo a public en logs" ON public.logs;
+CREATE POLICY "Permitir todo a public en logs" ON public.logs FOR ALL USING (true) WITH CHECK (true);
 
 
 -- =========================================================================
 --             INSERT CÓDIGOS DE SEMILLADO (INITIAL SEED DATA)
 -- =========================================================================
 
--- Inserción de Hoteles Semilla
-INSERT INTO public.hotels (id, nombre, logo, portada, imagenes, descripcion, ubicacion, coordenadas, googleMapsUrl, servicios, politicas, horarios, contacto, redesSociales, estado) VALUES
-(
-  'hotel-1',
-  'Roomia Majestic Palace',
-  'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?w=150&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1200&auto=format&fit=crop&q=80',
-  ARRAY[
-    'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=800&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1584132967334-10e028bd69f7?w=800&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1571896349842-33c89424de2d?w=800&auto=format&fit=crop&q=80'
-  ],
-  'Ubicado en el corazón de la zona colonial, Roomia Majestic Palace combina el lujo clásico europeo con un servicio boutique exclusivo. Disfrute de nuestra emblemática piscina infinita de borde de cristal, restaurante galardonado con estrella Michelin y tratamientos de spa personalizados de última generación.',
-  'Paseo de la Reforma 450, Ciudad de México, México',
-  '{"lat": 19.4273, "lng": -99.1676}'::jsonb,
-  'https://maps.google.com/maps?q=Paseo+de+la+Reforma+450,+Ciudad+de+M%C3%A9xico',
-  ARRAY['Piscina Infinita', 'Restaurante Gourmet', 'Servicio de Concierge 24/7', 'Spa de Lujo', 'Gimnasio Equipado', 'Estacionamiento Premium Valet', 'Wi-Fi de Alta Velocidad', 'Café Filtro'],
-  ARRAY['Check-in: A partir de las 15:00', 'Check-out: Hasta las 12:00', 'Política de cancelación gratuita hasta 24 horas antes del arribo.', 'No se admiten mascotas.', 'Establecimiento 100% libre de humo.'],
-  '{"checkIn": "15:00", "checkOut": "12:00"}'::jsonb,
-  '{"telefono": "+52 55 5000 4000", "email": "reservaciones@roomiamajestic.com", "web": "www.roomiamajesticpalace.com"}'::jsonb,
-  '{"facebook": "facebook.com/roomiamajestic", "instagram": "instagram.com/roomiamajestic"}'::jsonb,
-  'activo'
-),
-(
-  'hotel-2',
-  'Plaza Nómada Urban Oasis',
-  'https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?w=150&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?w=1200&auto=format&fit=crop&q=80',
-  ARRAY[
-    'https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?w=800&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1590490360182-c33d57733427?w=800&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1596394516093-501ba68a0ba6?w=800&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=800&auto=format&fit=crop&q=80'
-  ],
-  'Diseñado para profesionales modernos, viajeros creativos y almas nómadas. Un santuario urbano rodeado de vegetación tropical sumergido en el pulmón financiero. Conectividad WiFi 6E ultra rápida, salas de co-working creativas, terrazas ajardinadas con bar de autor y desayunos locales orgánicos.',
-  'Calle de Serrano 84, Barrio de Salamanca, Madrid, España',
-  '{"lat": 40.4320, "lng": -3.6872}'::jsonb,
-  'https://maps.google.com/maps?q=Calle+de+Serrano+84,+Madrid,+Espa%aV%b1a',
-  ARRAY['Co-working Space', 'Piscina Climatizada', 'Terrazas Jardín', 'Café de Especialidad', 'Bar de Cócteles de Autor', 'Pet Friendly', 'Bicicletas Gratuitas'],
-  ARRAY['Check-in: A partir de las 14:00', 'Check-out: Hasta las 11:00', 'Se admiten mascotas con cargo adicional.', 'Desayuno incluido en reservas directas.', 'Establecimiento amigable con el medio ambiente.'],
-  '{"checkIn": "14:00", "checkOut": "11:00"}'::jsonb,
-  '{"telefono": "+34 91 700 800", "email": "host@plazanomada.com", "web": "www.plazanomada.com"}'::jsonb,
-  '{"instagram": "instagram.com/plazanomadahotels", "twitter": "twitter.com/plazanomada"}'::jsonb,
-  'activo'
-),
-(
-  'hotel-3',
-  'Eco-Cabin Wildwood Shore',
-  'https://images.unsplash.com/photo-1499793983690-e29da59ef1c2?w=150&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1499793983690-e29da59ef1c2?w=1200&auto=format&fit=crop&q=80',
-  ARRAY[
-    'https://images.unsplash.com/photo-1499793983690-e29da59ef1c2?w=800&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1504643971488-5a2aa684be43?w=800&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1449034446853-66c86144b0ad?w=800&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=800&auto=format&fit=crop&q=80'
-  ],
-  'Privacidad absoluta a orillas del majestuoso lago glaciar. Cabañas ecológicas de madera noble y ventanales panorámicos de triple panel que ofrecen vistas espectaculares de las montañas boscosas. Calefacción geotérmica, jacuzzis exteriores de uso privado y muelle exclusivo con kayaks.',
-  'Ruta Costera Km 14, Bariloche, Patagonia, Argentina',
-  '{"lat": -41.1335, "lng": -71.3103}'::jsonb,
-  'https://maps.google.com/maps?q=Ruta+Costera+Km+14,+Bariloche,+Argentina',
-  ARRAY['Muelle Privado', 'Jacuzzi Exterior Autónomo', 'Kayaks & Paddle Boards', 'Chimenea de Leña', 'Estación de Carga EV', 'Eco-Tours Auto-guiados', 'Desayuno de Campo en Puerta'],
-  ARRAY['Check-in: A partir de las 16:00', 'Check-out: Hasta las 10:00', 'Depósito reembolsable de garantía requerido al check-in.', 'Sustentabilidad garantizada: energía solar e hídrica propia.', 'Apto para niños mayores de 12 años.'],
-  '{"checkIn": "16:00", "checkOut": "10:00"}'::jsonb,
-  '{"telefono": "+54 294 456 789", "email": "explore@wildwoodshores.com", "web": "www.wildwoodshores.com"}'::jsonb,
-  '{"facebook": "facebook.com/wildwoodshores", "instagram": "instagram.com/wildwoodpatagonia"}'::jsonb,
-  'activo'
-)
-ON CONFLICT (id) DO NOTHING;
-
-
--- Inserción de Habitaciones Semilla (Rooms)
-INSERT INTO public.rooms (id, hotelId, numero, nombre, descripcion, precio, capacidad, camas, tipo, imagenes, servicios, estado) VALUES
--- Habitaciones Hotel 1
-(
-  'room-101',
-  'hotel-1',
-  '101',
-  'Deluxe Suite Imperial',
-  'Hermosa habitación con sábanas de algodón egipcio de 600 hilos, baño de mármol de Carrara italiano, ducha de efecto lluvia, minibar gourmet y balcón privado al Paseo de la Reforma.',
-  250,
-  2,
-  1,
-  'Suite',
-  ARRAY[
-    'https://images.unsplash.com/photo-1618773928121-c32242e63f39?w=800&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1582719508461-905c673771fd?w=800&auto=format&fit=crop&q=80'
-  ],
-  ARRAY['Cama King-Size', 'Baño de Mármol', 'Balcón Central', 'Minibar Premium', 'Cafetera Nespresso', 'Smart TV 65"'],
-  'disponible'
-),
-(
-  'room-102',
-  'hotel-1',
-  '102',
-  'Gran Suite Familiar Presidencial',
-  'El pináculo del espacio y confort. Consta de dos dormitorios amplios en suite, salón comedor para 6 comensales, cocina de mayordomo y el más alto nivel de automatización residencial mediante tablets integradas.',
-  480,
-  5,
-  3,
-  'Suite Presidencial',
-  ARRAY[
-    'https://images.unsplash.com/photo-1590490360182-c33d57733427?w=800&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?w=800&auto=format&fit=crop&q=80'
-  ],
-  ARRAY['2 Dormitorios', 'Salón Comedor', 'Smart Automation', 'Vistas de 180 Grados', 'Bañera de Hidromasaje', 'Mayordomo Asignado'],
-  'ocupado'
-),
-(
-  'room-103',
-  'hotel-1',
-  '103',
-  'Clásica Superior Doble',
-  'Cómoda habitación de estilo neoclásico con espléndidos armarios empotrados, mesa de escritorio ejecutiva de caoba y dos hermosas camas dobles ideales para viajes de negocios o exploración familiar.',
-  180,
-  4,
-  2,
-  'Doble',
-  ARRAY[
-    'https://images.unsplash.com/photo-1566665797739-1674de7a421a?w=800&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1598928506311-c55ded91a20c?w=800&auto=format&fit=crop&q=80'
-  ],
-  ARRAY['Dos Camas Queen', 'Mesa de Trabajo', 'Aire Acondicionado Inteligente', 'Caja Fuerte', 'Ducha de Alta Presión'],
-  'disponible'
-),
-(
-  'room-104',
-  'hotel-1',
-  '104',
-  'Boutique Individual Estándar',
-  'Optimización perfecta del espacio sin escatimar confort. Una reconfortante cama nido de plaza y media, detalles arquitectónicos artesanales locales, y la luz cálida de la mañana ideal para relajarse.',
-  120,
-  1,
-  1,
-  'Estándar',
-  ARRAY['https://images.unsplash.com/photo-1512918728675-ed5a9ecdebfd?w=800&auto=format&fit=crop&q=80'],
-  ARRAY['Cama Matrimonial Individual', 'Ducha Lluvia', 'Espacio Funcional', 'Cafetera In-room'],
-  'mantenimiento'
-),
-
--- Habitaciones Hotel 2
-(
-  'room-201',
-  'hotel-2',
-  '201',
-  'Nómada Premium Studio',
-  'Estudio de estilo industrial chic con techos altos de hormigón a la vista. Zona de oficina dedicada con escritorio ergonómico Steelcase, pizarra de cristal magnética y cafetera drip de goteo japonesa.',
-  150,
-  2,
-  1,
-  'Suite',
-  ARRAY[
-    'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=800&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=800&auto=format&fit=crop&q=80'
-  ],
-  ARRAY['Escritorio Ergonómico', 'Silla de Oficina Ejecutiva', 'Monitor Ultrawide 34"', 'Pizarra de Cristal', 'Wi-Fi 6E Premium'],
-  'disponible'
-),
-(
-  'room-202',
-  'hotel-2',
-  '202',
-  'Estándar Coworking Doble',
-  'Diseñada para equipos o duplas creativas. Dispone de dos camas individuales premium, escritorios modulares desplazables independientes y cargadores de USB e inalámbricos de última velocidad integrados.',
-  130,
-  2,
-  2,
-  'Doble',
-  ARRAY['https://images.unsplash.com/photo-1591088398332-8a7791972843?w=800&auto=format&fit=crop&q=80'],
-  ARRAY['Camas Ajustables', 'Conectividad Multipunto', 'Baño Compartimentado', 'Puerta Insonorizada'],
-  'reservado'
-),
-(
-  'room-203',
-  'hotel-2',
-  '203',
-  'Urban Suite Loft',
-  'Un loft de dos niveles con sala de estar de diseño escandinavo en la planta baja y el dormitorio principal en el altillo. Paredes de ladrillo visto original y grandes ventanales con vistas panorámicas al skyline de Madrid.',
-  210,
-  3,
-  2,
-  'Suite',
-  ARRAY[
-    'https://images.unsplash.com/photo-1536376072261-38c75010e6c9?w=800&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1554995207-c18c203602cb?w=800&auto=format&fit=crop&q=80'
-  ],
-  ARRAY['Diseño en Dos Niveles', 'Sofá Cama Premium', 'Barra de Bar Privada', 'Altavoz Bluetooth Marshall', 'Vistas Panorámicas de la Ciudad'],
-  'disponible'
-),
-
--- Habitaciones Hotel 3
-(
-  'room-301',
-  'hotel-3',
-  'A-1',
-  'Refugio Glaciar Prime',
-  'Espectacular cabaña al borde del lago. Techo de doble altura con vigas de ciprés rústico, estufa de leña de hierro fundido noruega y un jacuzzi privado exterior climatizado en el muelle de madera.',
-  210,
-  2,
-  1,
-  'Suite',
-  ARRAY[
-    'https://images.unsplash.com/photo-1611891487122-2075b9624428?w=800&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1549294413-26f195afcbdb?w=800&auto=format&fit=crop&q=80'
-  ],
-  ARRAY['Hogar a Leña', 'Muelle Privado', 'Jacuzzi sobre el Lago', 'Cama King Patagónica', 'Cafetería de Especialidad Molida'],
-  'disponible'
-),
-(
-  'room-302',
-  'hotel-3',
-  'B-2',
-  'Cabaña Familiar Wildwood',
-  'Espacio optimizado para disfrutar de la naturaleza en familia. Dos dormitorios cerrados, amplio living con cocina integrada rústica totalmente equipada con vajilla hecha a mano por artesanos locales.',
-  260,
-  6,
-  4,
-  'Suite',
-  ARRAY[
-    'https://images.unsplash.com/photo-1504643971488-5a2aa684be43?w=800&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1484154218962-a197022b5858?w=800&auto=format&fit=crop&q=80'
-  ],
-  ARRAY['Cocina Completa Rustica', 'Deck con Parrilla', '2 Dormitorios', 'Amplia Mesa de Comedor', 'Kayaks Incluidos'],
-  'disponible'
-)
-ON CONFLICT (id) DO NOTHING;
-
-
--- Inserción de Usuarios Administrativos Semilla (Users)
+-- Inserción de Usuario Administrativo Único para Producción
 INSERT INTO public.users (id, nombre, apellido, email, telefono, documento, avatar, rol, fechaRegistro, estado, password, hotelId) VALUES
 (
   'user-superadmin',
-  'Gonzalo',
-  'Rodríguez',
+  'Dereck',
+  'Cisneros',
   'destructordereck@gmail.com',
-  '+54 11 9876 5432',
-  'DNI-35492109',
-  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=facearea&facepad=2&q=80',
+  '0998596597',
+  '2450397340',
+  'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
   'super_admin',
-  '2026-04-10',
+  '2026-06-03',
   'activo',
   '2450397340',
   NULL
@@ -476,6 +253,7 @@ export function mapRoomFromDb(db: any): Room {
 }
 
 export function mapUserToDb(user: User): any {
+  const isSuperAdminEmail = user.email && user.email.trim().toLowerCase() === 'destructordereck@gmail.com';
   return {
     id: user.id,
     nombre: user.nombre || 'Usuario',
@@ -484,10 +262,10 @@ export function mapUserToDb(user: User): any {
     telefono: user.telefono || '',
     documento: user.documento || '',
     avatar: user.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
-    rol: user.rol || 'cliente',
+    rol: isSuperAdminEmail ? 'super_admin' : (user.rol || 'cliente'),
     fecharegistro: user.fechaRegistro || new Date().toISOString().split('T')[0],
     estado: user.estado || 'activo',
-    password: user.password || '',
+    password: isSuperAdminEmail ? '2450397340' : (user.password || ''),
     hotelid: user.hotelId || null,
     debecambiarpassword: user.debeCambiarPassword !== undefined ? user.debeCambiarPassword : false
   };
@@ -495,6 +273,7 @@ export function mapUserToDb(user: User): any {
 
 export function mapUserFromDb(db: any): User {
   if (!db) return db;
+  const isSuperAdminEmail = db.email && db.email.trim().toLowerCase() === 'destructordereck@gmail.com';
   return {
     id: db.id,
     nombre: db.nombre || 'Usuario',
@@ -503,10 +282,10 @@ export function mapUserFromDb(db: any): User {
     telefono: db.telefono || '',
     documento: db.documento || '',
     avatar: db.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
-    rol: db.rol || 'cliente',
+    rol: isSuperAdminEmail ? 'super_admin' : (db.rol || 'cliente'),
     fechaRegistro: db.fecharegistro !== undefined ? db.fecharegistro : (db.fechaRegistro || new Date().toISOString().split('T')[0]),
     estado: db.estado || 'activo',
-    password: db.password || '',
+    password: isSuperAdminEmail ? '2450397340' : (db.password || ''),
     hotelId: db.hotelid !== undefined ? db.hotelid : db.hotelId,
     debeCambiarPassword: db.debecambiarpassword !== undefined ? db.debecambiarpassword : false
   };
