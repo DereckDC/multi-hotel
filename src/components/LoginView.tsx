@@ -54,8 +54,15 @@ export default function LoginView({
     setRecoverySuccess(false);
     setRecoveredPassword('');
 
-    if (!recoveryEmail.trim()) {
+    const trimmedEmail = recoveryEmail.trim();
+    if (!trimmedEmail) {
       setErrorMsg('Por favor introduce tu correo electrónico.');
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      setErrorMsg('Por favor introduce una dirección de correo electrónico válida (ejemplo: nombre@dominio.com).');
       return;
     }
 
@@ -188,8 +195,15 @@ export default function LoginView({
     e.preventDefault();
     setErrorMsg('');
     
-    if (!emailInput.trim()) {
+    const trimmedEmail = emailInput.trim();
+    if (!trimmedEmail) {
       setErrorMsg('Por favor introduce tu correo electrónico.');
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      setErrorMsg('Por favor introduce una dirección de correo de formato válido (ejemplo: nombre@dominio.com).');
       return;
     }
 
@@ -286,12 +300,19 @@ export default function LoginView({
     e.preventDefault();
     setErrorMsg('');
 
-    if (!emailInput.trim()) {
+    const trimmedEmail = emailInput.trim();
+    if (!trimmedEmail) {
       setErrorMsg('Por favor defina una dirección de correo válida.');
       return;
     }
 
-    const emailLower = emailInput.trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      setErrorMsg('Por favor introduce un correo electrónico de formato real válido (ejemplo: nombre@dominio.com).');
+      return;
+    }
+
+    const emailLower = trimmedEmail.toLowerCase();
     const emailExists = users.some(u => u.email.toLowerCase() === emailLower);
     if (emailExists) {
       setErrorMsg('Este correo electrónico ya está registrado en el sistema Roomia SaaS. Por favor, inicie sesión o recupere su contraseña.');
@@ -375,6 +396,14 @@ export default function LoginView({
         password: newPassword
       };
 
+      // Check if email confirmation is required (session is null and user is generated)
+      if (sbUser && !data.session) {
+        setPendingDraftUser(newUser);
+        setVerificationPending(true);
+        setSuccessMsg('Para completar el registro, se ha despachado un enlace oficial para confirmar el correo. Revise su bandeja.');
+        return;
+      }
+
       await onRegisterUser(newUser);
       onLoginSuccess(newUser.id);
       setErrorMsg('');
@@ -390,23 +419,39 @@ export default function LoginView({
     setLoadingType('verification');
 
     try {
-      const { data: { user }, error } = await supabase.auth.getUser();
-      if (error) throw error;
+      const emailToCheck = pendingDraftUser?.email || emailInput.trim();
+      const passwordToCheck = pendingDraftUser?.password || newPassword;
 
-      if (user) {
-        if (user.email_confirmed_at) {
-          if (pendingDraftUser) {
-            await onRegisterUser(pendingDraftUser);
-          }
-          onLoginSuccess(user.id);
-        } else {
-          setErrorMsg('Su correo electrónico real aún indica que está pendiente de verificar. Revise su bandeja y haga clic en el botón e intentelo nuevamente.');
+      if (!emailToCheck) {
+        throw new Error('No se encontró un registro temporal de correo de comprobación.');
+      }
+
+      // Try actual sign-in now that they claim to have verified, which fetches the session directly inside the WebView
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: emailToCheck,
+        password: passwordToCheck,
+      });
+
+      if (error) {
+        if (error.message.toLowerCase().includes('confirm') || error.message.toLowerCase().includes('verified')) {
+          throw new Error('Su correo electrónico de confirmación real aún no ha sido verificado. Revise su bandeja de entrada e inténtelo nuevamente.');
         }
+        throw error;
+      }
+
+      if (data.user) {
+        if (pendingDraftUser) {
+          // If we have a pending draft user record, register it into the users db model now that they're authenticated
+          await onRegisterUser(pendingDraftUser);
+        }
+        onLoginSuccess(data.user.id);
+        setErrorMsg('');
+        setSuccessMsg('¡Se confirmó y verificó con éxito su inicio de sesión!');
       } else {
-        setErrorMsg('La sesión actual finalizó. Regrese para identificarse nuevamente.');
+        throw new Error('No se pudo establecer la sesión de usuario de manera segura despues de verificar.');
       }
     } catch (err: any) {
-      setErrorMsg(err.message || 'Error al comprobar estado del enlace.');
+      setErrorMsg(err.message || 'Error al comprobar verificación. Por favor verifique el correo y vuelva a intentarlo.');
     } finally {
       setLoadingType(null);
     }
@@ -743,7 +788,7 @@ export default function LoginView({
                       </div>
                       <h3 className="text-xl font-bold text-neutral-800">Verifique su Correo Real</h3>
                       <p className="text-xs text-neutral-500 leading-relaxed font-sans">
-                        Hemos enviado un enlace de confirmación oficial de Firebase a su correo: <span className="font-semibold text-[#344D67] block font-mono mt-1 text-center bg-neutral-50 p-2 rounded-xl">{emailInput}</span>
+                        Hemos enviado un enlace de confirmación oficial de Supabase a su correo: <span className="font-semibold text-[#344D67] block font-mono mt-1 text-center bg-neutral-50 p-2 rounded-xl">{emailInput}</span>
                       </p>
                       <p className="text-[11px] text-neutral-450 mt-1 leading-relaxed">
                         Abra su bandeja de entrada real, haga clic en el botón de confirmación adjunto, y luego vuelva aquí para culminar su registro.
@@ -774,7 +819,7 @@ export default function LoginView({
                         {loadingType === 'verification' ? (
                           <>
                             <Loader2 className="w-4 h-4 animate-spin" />
-                            <span>Comprobando con Firebase...</span>
+                            <span>Comprobando con Supabase...</span>
                           </>
                         ) : (
                           <>
