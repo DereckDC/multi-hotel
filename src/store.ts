@@ -295,36 +295,6 @@ export function useHotelStore() {
   useEffect(() => {
     const bootstrapSupabaseData = async () => {
       try {
-        const hasCleaned = localStorage.getItem('roomia_db_clean_v3');
-        if (!hasCleaned) {
-          console.log("🧹 Realizando limpieza completa de tablas para puesta en producción...");
-          try {
-            await supabase.from('reservations').delete().neq('id', 'nonexistent-id');
-            await supabase.from('rooms').delete().neq('id', 'nonexistent-id');
-            await supabase.from('hotels').delete().neq('id', 'nonexistent-id');
-            await supabase.from('logs').delete().neq('id', 'nonexistent-id');
-            await supabase.from('users').delete().neq('email', 'destructordereck@gmail.com');
-          } catch (e) {
-            console.warn("Error during production db wipe:", e);
-          }
-
-          // Force register the master admin user
-          const adminObj = INITIAL_USERS[0];
-          await syncUserToSupabase(adminObj);
-
-          localStorage.setItem('roomia_db_clean_v3', 'done');
-          console.log("✅ Limpieza para puesta en producción terminada con éxito.");
-
-          // Reset local storage
-          localStorage.removeItem(KEYS.HOTELS);
-          localStorage.removeItem(KEYS.ROOMS);
-          localStorage.removeItem(KEYS.USERS);
-          localStorage.removeItem(KEYS.RESERVATIONS);
-
-          window.location.reload();
-          return;
-        }
-
         const { data: hCountData, error: hErr } = await supabase.from('hotels').select('id');
         if (hErr) {
           console.warn("Could not interface with Supabase 'hotels' table, maybe it need schema creation:", hErr);
