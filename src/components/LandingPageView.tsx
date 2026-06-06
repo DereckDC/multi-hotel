@@ -26,7 +26,6 @@ interface LandingPageViewProps {
 
 export default function LandingPageView({ onClose }: LandingPageViewProps) {
   const [copiedEmail, setCopiedEmail] = React.useState(false);
-  const [numHabitaciones, setNumHabitaciones] = React.useState(30);
 
   const handleCopyEmail = () => {
     navigator.clipboard.writeText('roomia.admincontact@gmail.com');
@@ -67,20 +66,19 @@ export default function LandingPageView({ onClose }: LandingPageViewProps) {
 
         <div className="max-w-7xl mx-auto relative z-10">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-center">
-            
-            {/* Left Column Text copy & CTA */}
+                      {/* Left Column Text copy & CTA */}
             <div className="lg:col-span-7 space-y-8 text-left">
               <div className="inline-flex items-center gap-2 px-3 py-1 bg-teal-500/10 text-teal-300 rounded-full text-xs font-bold ring-1 ring-teal-500/20">
                 <Sparkles className="w-3.5 h-3.5 text-teal-400" />
-                <span>La Evolución Definitiva de la Hotelería Inteligente</span>
+                <span>La Evolución Definitiva en Gestión de Propiedades y Alojamiento</span>
               </div>
 
               <h1 className="text-4xl md:text-6xl font-black tracking-tight text-white leading-tight">
-                Gestione sus Hoteles y Reservas con <span className="text-transparent bg-clip-text bg-gradient-to-r from-teal-400 via-emerald-300 to-indigo-400">Poder Absoluto</span>
+                Gestione sus Propiedades y Reservas con <span className="text-transparent bg-clip-text bg-gradient-to-r from-teal-400 via-emerald-300 to-indigo-400">Poder Absoluto</span>
               </h1>
 
               <p className="text-sm md:text-base text-slate-300 max-w-xl leading-relaxed">
-                Roomia PMS es la suite premium en la nube diseñada para maximizar ingresos, automatizar la facturación de huéspedes, habilitar Check-Ins rápidos con códigos QR y blindar sus operaciones con auditorías de seguridad en tiempo real.
+                Roomia PMS es la suite premium en la nube diseñada para maximizar ingresos en cualquier tipo de propiedad (hoteles, hostales, departamentos, cabañas, glampings y más). Automatice la facturación de huéspedes, habilite Check-Ins rápidos con códigos QR y blinde sus operaciones en tiempo real con auditorías avanzadas.
               </p>
 
               <div className="flex flex-wrap gap-4 pt-2">
@@ -141,12 +139,12 @@ export default function LandingPageView({ onClose }: LandingPageViewProps) {
                   {/* Mock Hotel Select Indicator */}
                   <div className="p-3 bg-slate-950 border border-slate-850 rounded-xl space-y-1">
                     <div className="flex justify-between items-center">
-                      <span className="text-[10px] text-teal-400 font-mono uppercase tracking-widest">Sede Seleccionada</span>
+                      <span className="text-[10px] text-teal-400 font-mono uppercase tracking-widest">Propiedad Seleccionada</span>
                       <span className="text-[10px] text-slate-500 font-mono uppercase">24 Activas</span>
                     </div>
                     <p className="text-xs font-bold text-white flex items-center gap-2">
                       <Building2 className="w-3.5 h-3.5 text-teal-500" />
-                      <span>Hotel Grand Plaza Imperial Resort & Spa</span>
+                      <span>Suite Imperial & Grand Plaza Resort</span>
                     </p>
                   </div>
 
@@ -225,15 +223,15 @@ export default function LandingPageView({ onClose }: LandingPageViewProps) {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           
-          {/* Card 1: Multi-Hotel */}
+          {/* Card 1: Multi-Propiedad */}
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between hover:shadow-md hover:border-slate-300 transition-all">
             <div className="space-y-4">
               <div className="w-12 h-12 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center">
                 <Building2 className="w-6 h-6" />
               </div>
-              <h3 className="font-bold text-slate-900 text-sm md:text-base">Control Multihotel Centralizado</h3>
+              <h3 className="font-bold text-slate-900 text-sm md:text-base">Control Multi-Propiedad Centralizado</h3>
               <p className="text-xs text-slate-500 leading-normal">
-                Enlace múltiples hoteles y propiedades en una única consola unificada. El Super Administrador puede supervisar métricas cruzadas, delegar sedes y auditar personal en segundos.
+                Enlace múltiples propiedades, hoteles, hostales o departamentos en una única consola unificada. Supervise métricas cruzadas, delegue la administración de sedes y audite el personal en segundos.
               </p>
             </div>
             <span className="text-[10px] text-teal-600 font-bold mt-4 block uppercase tracking-wider">★ CONTROL ABSOLUTO</span>
@@ -275,7 +273,7 @@ export default function LandingPageView({ onClose }: LandingPageViewProps) {
               </div>
               <h3 className="font-bold text-slate-900 text-sm md:text-base">Métricas Financieras en Tiempo Real</h3>
               <p className="text-xs text-slate-500 leading-normal">
-                Visualice cuadros gráficos de ingresos consolidados, tasas de ocupación promedio, noches arrendadas, y distribución de reservas por hotel o sucursal desde tableros interactivos.
+                Visualice cuadros gráficos de ingresos consolidados, tasas de ocupación promedio, noches arrendadas, y distribución de reservas por propiedad, hotel o sucursal desde tableros interactivos.
               </p>
             </div>
             <span className="text-[10px] text-amber-600 font-bold mt-4 block uppercase tracking-wider">★ INTELIGENCIA ADRENAL</span>
@@ -318,167 +316,80 @@ export default function LandingPageView({ onClose }: LandingPageViewProps) {
           <div className="space-y-5">
             <span className="text-xs font-bold text-teal-600 uppercase tracking-widest font-mono">PANEL DE OPERACIONES</span>
             <h3 className="text-2xl md:text-3xl font-extrabold text-slate-900 leading-tight">
-              ¿Por qué los hoteles eligen Roomia PMS SaaS?
+              ¿Por qué los propietarios y administradores eligen Roomia PMS?
             </h3>
             
             <div className="space-y-3.5 pt-2">
               <div className="flex gap-2.5 items-start">
                 <CheckCircle className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
                 <p className="text-xs text-slate-600 leading-relaxed font-medium">
-                  <strong>Facilidad de Uso Extrema:</strong> Menos clics para habilitar habitaciones, registrar cobros boutique o liquidar saldos de salida.
+                  <strong>Facilidad de Uso Extrema:</strong> Menos clics para habilitar habitaciones, registrar cobros boutique o liquidar saldos de salida de cualquier propiedad.
                 </p>
               </div>
               <div className="flex gap-2.5 items-start">
                 <CheckCircle className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
                 <p className="text-xs text-slate-600 leading-relaxed font-medium">
-                  <strong>Comunicación Automatizada por Correo:</strong> Envío inmediato de confirmaciones y recuperación de contraseñas de manera automatizada.
+                  <strong>Comunicación Automatizada por Correo:</strong> Envío inmediato de confirmaciones y de recuperación de accesos de manera de optimizar el contacto.
                 </p>
               </div>
               <div className="flex gap-2.5 items-start">
                 <CheckCircle className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
                 <p className="text-xs text-slate-600 leading-relaxed font-medium">
-                  <strong>Control de Incidencias Operativas:</strong> Los recepcionistas publican reportes de daños gatillando el estado de mantenimiento del cuarto al instante.
+                  <strong>Control de Incidencias Operativas:</strong> Los recepcionistas publican reportes de daños o necesidades particulares gatillando el estado de mantenimiento correspondiente al instante.
                 </p>
               </div>
               <div className="flex gap-2.5 items-start">
                 <CheckCircle className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
                 <p className="text-xs text-slate-600 leading-relaxed font-medium">
-                  <strong>Poderoso Calendario de Reservas:</strong> Vista interactiva del mapa mensual de ocupación y arribos.
+                  <strong>Poderoso Calendario de Reservas:</strong> Vista interactiva del mapa mensual de ocupación e ingresos unificados por propiedad.
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="bg-slate-900 rounded-3xl p-6 md:p-8 text-white space-y-6 border border-slate-800 shadow-xl relative overflow-hidden">
+          <div className="bg-slate-900 rounded-3xl p-6 md:p-8 text-white space-y-6 border border-slate-800 shadow-xl relative overflow-hidden flex flex-col justify-between min-h-[450px]">
             <div className="absolute top-0 right-0 w-24 h-24 bg-teal-500/10 rounded-full blur-lg" />
             
             <div className="border-b border-slate-800 pb-3 flex justify-between items-center text-[10px] text-slate-400 font-mono">
-              <span>PLANES DE LICENCIAMIENTO SAAS</span>
-              <span className="text-emerald-400 font-bold font-sans">PRUEBA GRATUITA DISPONIBLE</span>
+              <span>SOPORTE MULTI-PROPIEDAD</span>
+              <span className="text-teal-400 font-bold font-sans">DEMO PERSONALIZADA</span>
             </div>
 
             <div className="space-y-4">
-              <div>
-                <div className="flex justify-between items-center mb-1.5 font-sans">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">
-                    Habitaciones por Hotel:
-                  </span>
-                  <span className="text-teal-400 font-sans font-extrabold text-xs bg-teal-400/10 px-2.5 py-0.5 rounded-md border border-teal-500/15">
-                    {numHabitaciones} hab. por hotel
-                  </span>
+              <h4 className="text-lg font-bold text-white">Una Suite para Todo Tipo de Hospedaje</h4>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Nuestra plataforma se adapta a las dimensiones de su negocio. Ya sea que administre un hotel tradicional, un complejo de cabañas, departamentos vacacionales, glampings o hostales, Roomia PMS centraliza todas sus operaciones.
+              </p>
+
+              <div className="space-y-2.5 pt-2 font-medium">
+                <div className="flex items-center gap-2.5 text-xs text-slate-300">
+                  <span className="w-1.5 h-1.5 rounded-full bg-teal-400" />
+                  <span>Hoteles, Moteles y Resorts de cualquier escala</span>
                 </div>
-                <input 
-                  type="range"
-                  min="10"
-                  max="120"
-                  value={numHabitaciones}
-                  onChange={(e) => setNumHabitaciones(Number(e.target.value))}
-                  className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-teal-400 mt-1"
-                />
-                <div className="flex justify-between text-[9px] text-slate-500 font-mono mt-1 uppercase tracking-tight font-semibold">
-                  <span>10 Habitaciones</span>
-                  <span>40 Habitaciones</span>
-                  <span>80 Habitaciones</span>
-                  <span>120+ Personalizado</span>
+                <div className="flex items-center gap-2.5 text-xs text-slate-300">
+                  <span className="w-1.5 h-1.5 rounded-full bg-teal-400" />
+                  <span>Departamentos, Villas y Alquileres Temporales</span>
+                </div>
+                <div className="flex items-center gap-2.5 text-xs text-slate-300">
+                  <span className="w-1.5 h-1.5 rounded-full bg-teal-400" />
+                  <span>Hostales, Albergues y Casas de Huéspedes</span>
+                </div>
+                <div className="flex items-center gap-2.5 text-xs text-slate-300">
+                  <span className="w-1.5 h-1.5 rounded-full bg-teal-400" />
+                  <span>Glampings, Cabañas, Sitios Ecológicos y más</span>
                 </div>
               </div>
+            </div>
 
-              {/* Plans Selection List inside the Card */}
-              <div className="space-y-3 pt-1 font-sans">
-                
-                {/* Boutique */}
-                <div className={`p-3 rounded-xl transition-all flex justify-between items-center gap-3 border ${
-                  numHabitaciones <= 15 
-                    ? 'bg-teal-500/10 border-teal-500/35 ring-1 ring-teal-500/10' 
-                    : 'bg-slate-950/60 border-slate-850 hover:border-slate-800 opacity-60'
-                }`}>
-                  <div className="min-w-0 flex-1">
-                    <span className="text-[8px] font-extrabold text-slate-400 bg-slate-900 border border-slate-800 px-1.5 py-0.5 rounded uppercase tracking-wider font-mono">Boutique Core</span>
-                    <h4 className="text-xs font-bold text-slate-200 mt-1">Plan Boutique (1 Hotel)</h4>
-                    <p className="text-[10px] text-slate-400 truncate">1 Hotel • {numHabitaciones} habitaciones • QR & Recepción</p>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <span className="block text-sm font-extrabold text-teal-450">${(numHabitaciones * 1 * 6) - 1}<span className="text-[9px] text-slate-450 font-normal">/mes</span></span>
-                    <span className="text-[8px] text-slate-500 block font-mono">$6 / hab (-$1)</span>
-                  </div>
-                </div>
-
-                {/* Premium */}
-                <div className={`p-3 rounded-xl transition-all flex justify-between items-center gap-3 relative overflow-hidden border ${
-                  numHabitaciones > 15 && numHabitaciones <= 50 
-                    ? 'bg-teal-500/10 border-teal-500/40 ring-1 ring-teal-500/15' 
-                    : 'bg-slate-950/60 border-slate-850 hover:border-slate-800 opacity-60'
-                }`}>
-                  {numHabitaciones > 15 && numHabitaciones <= 50 && (
-                    <div className="absolute top-0 right-0 bg-teal-400 text-slate-950 font-black text-[7px] tracking-wider uppercase py-0.5 px-2 rounded-bl-lg font-mono">
-                      Recomendado
-                    </div>
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <span className="text-[8px] font-extrabold text-[#2DD4BF] bg-teal-500/10 px-1.5 py-0.5 rounded uppercase tracking-wider font-mono">Multi-Hotel Pro</span>
-                    <h4 className="text-xs font-bold text-white mt-1">Plan Premium (hasta 3 Hoteles)</h4>
-                    <p className="text-[10px] text-slate-300 truncate font-sans">Hasta 3 Hoteles • {numHabitaciones * 3} habs. totales • Analíticas</p>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <span className="block text-sm font-extrabold text-teal-300">${(numHabitaciones * 3 * 5) - 1}<span className="text-[9px] text-slate-355 font-normal">/mes</span></span>
-                    <span className="text-[8px] text-teal-400/75 block font-mono">$5 / hab (-$1)</span>
-                  </div>
-                </div>
-
-                {/* Elite */}
-                <div className={`p-3 rounded-xl transition-all flex justify-between items-center gap-3 border ${
-                  numHabitaciones > 50 && numHabitaciones <= 100 
-                    ? 'bg-indigo-500/10 border-indigo-500/35 ring-1 ring-indigo-500/10' 
-                    : 'bg-slate-950/60 border-slate-850 hover:border-slate-800 opacity-60'
-                }`}>
-                  <div className="min-w-0 flex-1">
-                    <span className="text-[8px] font-extrabold text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded uppercase tracking-wider font-mono">SaaS Elite</span>
-                    <h4 className="text-xs font-bold text-slate-200 mt-1">Plan Elite Premium (hasta 10 Hoteles)</h4>
-                    <p className="text-[10px] text-slate-400 truncate">Hasta 10 Hoteles • {numHabitaciones * 10} habs. totales • Auditorías</p>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <span className="block text-sm font-extrabold text-indigo-450">${(numHabitaciones * 10 * 4) - 1}<span className="text-[9px] text-slate-450 font-normal">/mes</span></span>
-                    <span className="text-[8px] text-slate-500 block font-mono">$4 / hab (-$1)</span>
-                  </div>
-                </div>
-
-                {/* Custom Tier */}
-                <div className={`p-3 rounded-xl transition-all flex justify-between items-center gap-3 border ${
-                  numHabitaciones > 100 
-                    ? 'bg-amber-500/10 border-amber-500/35 ring-1 ring-amber-500/10 animate-pulse' 
-                    : 'bg-slate-950/60 border-slate-850 hover:border-slate-800 opacity-60'
-                }`}>
-                  <div className="min-w-0 flex-1">
-                    <span className="text-[8px] font-extrabold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded uppercase tracking-wider font-mono">Custom Deluxe</span>
-                    <h4 className="text-xs font-bold text-slate-200 mt-1">Contacto Premium</h4>
-                    <p className="text-[10px] text-slate-400 truncate">Más de 10 Hoteles • Escala Empresarial</p>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <span className="block text-xs font-bold text-amber-400">Personalizado</span>
-                    <span className="text-[8px] text-slate-500 block font-mono">Precio A Medida</span>
-                  </div>
-                </div>
-
-              </div>
-
-              {/* Call to Action dynamically configured */}
-              {numHabitaciones > 100 ? (
-                <a
-                  href={`https://wa.me/593984056660?text=Hola,%20necesito%20información%20para%20un%20plan%20de%20financiamiento%20personalizado%20para%20${numHabitaciones}%20habitaciones%20por%20hotel%20en%20Roomia%20SaaS.`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold py-2.5 rounded-xl text-xs transition-all shadow-md active:scale-95 cursor-pointer text-center block decoration-none"
-                >
-                  Contactar Desarrollador para Oferta Premium 💬
-                </a>
-              ) : (
-                <button
-                  onClick={onClose}
-                  className="w-full bg-teal-500 hover:bg-teal-400 text-slate-950 font-extrabold py-2.5 rounded-xl text-xs transition-all shadow-md active:scale-95 cursor-pointer text-center"
-                >
-                  Comenzar con la Prueba Gratuita 🚀
-                </button>
-              )}
+            <div className="pt-4">
+              <a
+                href="https://wa.me/593984056660?text=Hola,%20quisiera%20solicitar%20una%20demostración%20e%20información%20personalizada%20de%20Roomia%20PMS%20para%20mis%20propiedades."
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full bg-teal-500 hover:bg-teal-400 text-slate-950 font-extrabold py-3 rounded-xl text-xs transition-all shadow-md active:scale-95 cursor-pointer text-center block decoration-none"
+              >
+                Solicitar Demo y Asesoría Directa 💬
+              </a>
             </div>
           </div>
 
