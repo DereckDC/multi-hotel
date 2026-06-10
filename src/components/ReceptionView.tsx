@@ -207,13 +207,15 @@ export default function ReceptionView({
 
   // Booking details
   const [bookRoomId, setBookRoomId] = useState('');
-  const [bookCheckIn, setBookCheckIn] = useState(() => new Date().toISOString().split('T')[0]);
-  const [bookCheckOut, setBookCheckOut] = useState(() => {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    return tomorrow.toISOString().split('T')[0];
-  });
+  const [bookCheckIn, setBookCheckIn] = useState('');
+  const [bookCheckOut, setBookCheckOut] = useState('');
   const [bookNotas, setBookNotas] = useState('');
+
+  // Limpiar fechas de check-in / check-out cuando cambie de habitación o de hotel
+  React.useEffect(() => {
+    setBookCheckIn('');
+    setBookCheckOut('');
+  }, [bookRoomId, targetHotelId]);
   const [bookStatus, setBookStatus] = useState<'confirmada' | 'ocupada'>('confirmada');
   const [resSuccessMsg, setResSuccessMsg] = useState('');
 
@@ -322,6 +324,11 @@ export default function ReceptionView({
 
     if (!receptionistHotel) {
       alert('Error: Debe estar enlazado a un hotel válido.');
+      return;
+    }
+
+    if (!bookCheckIn || !bookCheckOut) {
+      alert('Por favor selecciona las fechas de check-in y check-out.');
       return;
     }
 
