@@ -46,7 +46,7 @@ export default function LandingPageView({ onClose, onOpenLegal }: LandingPageVie
               R
             </div>
             <span className="font-bold text-white text-base tracking-tight">
-              Roomia <span className="text-teal-400 font-medium">SaaS</span>
+              Roomia <span className="text-teal-400 font-medium">PMS</span>
             </span>
           </div>
           <button

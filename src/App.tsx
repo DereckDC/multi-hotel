@@ -215,7 +215,7 @@ export default function App() {
               </div>
               <div>
                 <span className="font-display font-bold text-neutral-800 text-lg tracking-tight flex items-center gap-1">
-                  Roomia <span className="text-teal-600">SaaS</span>
+                  Roomia <span className="text-teal-600">PMS</span>
                 </span>
                 <p className="text-[9px] text-neutral-400 font-mono leading-none tracking-wider font-semibold uppercase">Multi-Hotel PMS Platform</p>
               </div>

@@ -574,7 +574,7 @@ export default function LoginView({
           <div className="relative">
             <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 backdrop-blur-sm rounded-full text-xs font-semibold text-[#6ECCAF] mb-6">
               <Sparkles className="w-3.5 h-3.5" />
-              <span>ROOMIA PMS Hospitality SaaS</span>
+              <span>ROOMIA PMS HOSPITALITY</span>
             </div>
             <h1 className="text-3xl md:text-4xl font-display font-extrabold tracking-tight leading-tight">
               Roomia Portal: Tu Destino Ideal de Hospedaje 🏨✨

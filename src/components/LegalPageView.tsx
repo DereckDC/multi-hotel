@@ -56,7 +56,7 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
               R
             </div>
             <span className="font-bold text-white text-base tracking-tight">
-              Roomia <span className="text-teal-400 font-medium">SaaS / Legal</span>
+              Roomia <span className="text-teal-400 font-medium">PMS / Legal</span>
             </span>
           </div>
 
@@ -585,9 +585,9 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
             <div className="mt-10 pt-6 border-t border-neutral-150 flex flex-col sm:flex-row items-center justify-between text-[11px] text-neutral-400 font-sans gap-4" id="legal-compliance-footer">
               <div className="flex items-center gap-2">
                 <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                <span>Garantía de Cumplimiento SaaS Homologado</span>
+                <span>Garantía de Cumplimiento PMS Homologado</span>
               </div>
-              <span className="font-mono text-[10px]">Identificador Legal Único: SaaS-R-PMS-EC-2026</span>
+              <span className="font-mono text-[10px]">Identificador Legal Único: R-PMS-EC-2026</span>
             </div>
 
           </div>

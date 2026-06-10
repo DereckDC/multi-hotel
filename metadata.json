@@ -1,6 +1,6 @@
 {
-  "name": "Roomia SaaS",
-  "description": "A professional SaaS PMS to manage multiple hotels, bookings, room states, check-ins with QR validation, and advanced reporting dashboards.",
+  "name": "Roomia PMS",
+  "description": "A professional Hotel PMS to manage multiple hotels, bookings, room states, check-ins with QR validation, and advanced reporting dashboards.",
   "requestFramePermissions": [
     "camera"
   ],
