@@ -23,9 +23,10 @@ import {
 
 interface LandingPageViewProps {
   onClose: () => void;
+  onOpenLegal?: (type: 'terminos' | 'privacidad' | 'cancelaciones') => void;
 }
 
-export default function LandingPageView({ onClose }: LandingPageViewProps) {
+export default function LandingPageView({ onClose, onOpenLegal }: LandingPageViewProps) {
   const [copiedEmail, setCopiedEmail] = React.useState(false);
 
   const handleCopyEmail = () => {
@@ -475,24 +476,6 @@ export default function LandingPageView({ onClose }: LandingPageViewProps) {
 
         </div>
 
-        <div className="max-w-4xl mx-auto pt-6 border-t border-slate-900/60 flex flex-col md:flex-row justify-between items-center text-slate-500 text-[10px] font-mono gap-4 relative z-10 w-full">
-          <p>
-            <a 
-              href="https://homedc-sas.web.app" 
-              target="_blank" 
-              rel="noopener noreferrer" 
-              className="text-teal-400 hover:text-teal-350 hover:underline transition-all font-bold tracking-wide"
-            >
-              en convenio con HomeDC°
-            </a>
-          </p>
-          <div className="flex gap-4">
-            <button onClick={onClose} className="hover:text-teal-400 transition-colors cursor-pointer text-[10px] font-extrabold flex items-center gap-1 bg-slate-900/60 hover:bg-slate-900 px-3.5 py-1.5 rounded-lg border border-slate-850">
-              <LogIn className="w-3 h-3 text-teal-400" />
-              <span>Iniciar Sesion 🔑</span>
-            </button>
-          </div>
-        </div>
       </footer>
 
     </div>
