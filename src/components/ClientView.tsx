@@ -226,10 +226,18 @@ export default function ClientView({
   };
 
   const getRoomPriceForDate = (room: Room, dateStr: string) => {
-    // Check if there is an exact date match in variations
-    const exactMatch = roomPriceVariations.find(v => v.roomId === room.id && v.fecha === dateStr);
+    // Check if there is an exact date match in variations or an annual re-occurring one ("Always" - matching MM-DD)
+    const exactMatch = roomPriceVariations.find(v => {
+      if (v.roomId !== room.id) return false;
+      if (v.isWeekend) return false;
+      if (!v.fecha) return false;
+      if (v.fecha === dateStr) return true;
+      if (v.isAlways && v.fecha.substring(5) === dateStr.substring(5)) return true;
+      return false;
+    });
+
     if (exactMatch) {
-      return { precio: exactMatch.precio, motivo: exactMatch.motivo || 'Fecha Especial' };
+      return { precio: exactMatch.precio, motivo: exactMatch.motivo || 'Fecha Especial', isVariable: true };
     }
     
     // Check if weekend rate applies (Friday and Saturday nights)
@@ -238,17 +246,17 @@ export default function ClientView({
     if (day === 5 || day === 6) {
       const wkMatch = roomPriceVariations.find(v => v.roomId === room.id && v.isWeekend);
       if (wkMatch) {
-        return { precio: wkMatch.precio, motivo: wkMatch.motivo || 'Tarifa de Fin de Semana' };
+        return { precio: wkMatch.precio, motivo: wkMatch.motivo || 'Tarifa de Fin de Semana', isVariable: true };
       }
     }
     
-    return { precio: room.precio, motivo: 'Tarifa Estándar' };
+    return { precio: room.precio, motivo: 'Tarifa Estándar', isVariable: false };
   };
 
   const getBookingNightsBreakdown = (room: Room, checkIn: string, checkOut: string) => {
     if (!room || !checkIn || !checkOut) return [];
     
-    const nights: { date: string; precio: number; motivo: string }[] = [];
+    const nights: { date: string; precio: number; motivo: string; isVariable?: boolean }[] = [];
     const start = new Date(checkIn + 'T12:00:00');
     const end = new Date(checkOut + 'T12:00:00');
     
@@ -259,17 +267,73 @@ export default function ClientView({
       const dd = String(current.getDate()).padStart(2, '0');
       const dateStr = `${yyyy}-${mm}-${dd}`;
       
-      const { precio, motivo } = getRoomPriceForDate(room, dateStr);
-      nights.push({ date: dateStr, precio, motivo });
+      const { precio, motivo, isVariable } = getRoomPriceForDate(room, dateStr);
+      nights.push({ date: dateStr, precio, motivo, isVariable });
       
       current.setDate(current.getDate() + 1);
     }
     
     if (nights.length === 0) {
-      nights.push({ date: checkIn, precio: room.precio, motivo: 'Tarifa Estándar' });
+      nights.push({ date: checkIn, precio: room.precio, motivo: 'Tarifa Estándar', isVariable: false });
     }
     
     return nights;
+  };
+
+  const getGroupedVariableNights = (room: Room, checkIn: string, checkOut: string) => {
+    const rawNights = getBookingNightsBreakdown(room, checkIn, checkOut);
+    // Only display days that have variable prices (isVariable is true or custom price !== base price)
+    const variableNights = rawNights.filter(n => n.isVariable || n.precio !== room.precio);
+    if (variableNights.length === 0) return [];
+
+    const groups: {
+      dates: string[];
+      precio: number;
+      motivo: string;
+    }[] = [];
+
+    variableNights.forEach(n => {
+      if (groups.length === 0) {
+        groups.push({ dates: [n.date], precio: n.precio, motivo: n.motivo });
+      } else {
+        const lastGroup = groups[groups.length - 1];
+        const lastDateStr = lastGroup.dates[lastGroup.dates.length - 1];
+        const lastDate = new Date(lastDateStr + 'T12:00:00');
+        const currDate = new Date(n.date + 'T12:00:00');
+        const diffDays = Math.round((currDate.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
+        
+        if (lastGroup.precio === n.precio && lastGroup.motivo === n.motivo && diffDays === 1) {
+          lastGroup.dates.push(n.date);
+        } else {
+          groups.push({ dates: [n.date], precio: n.precio, motivo: n.motivo });
+        }
+      }
+    });
+
+    return groups.map(g => {
+      if (g.dates.length === 1) {
+        const [y, m, d] = g.dates[0].split('-');
+        return {
+          formattedDate: `${d}/${m}/${y}`,
+          precio: g.precio,
+          motivo: g.motivo
+        };
+      } else {
+        const first = g.dates[0].split('-');
+        const last = g.dates[g.dates.length - 1].split('-');
+        let label = '';
+        if (first[0] === last[0] && first[1] === last[1]) {
+          label = `${first[2]} - ${last[2]}/${first[1]}/${first[0]}`;
+        } else {
+          label = `${first[2]}/${first[1]}/${first[0]} - ${last[2]}/${last[1]}/${last[0]}`;
+        }
+        return {
+          formattedDate: label,
+          precio: g.precio,
+          motivo: g.motivo
+        };
+      }
+    });
   };
 
   const getBookingSubtotal = (roomPrice: number) => {
@@ -304,7 +368,8 @@ export default function ClientView({
 
   const getBookingTotal = (roomPrice: number) => {
     const sub = getBookingSubtotal(roomPrice) + getServicesTotal();
-    const tax = sub * 0.16; // 16% VAT
+    const isIvaAdded = bookingRoom ? (bookingRoom.adicionarIva !== false) : true;
+    const tax = isIvaAdded ? (sub * 0.16) : 0; // 16% VAT if added, otherwise 0 (included in the room rate)
     return {
       subtotal: sub,
       tax: tax,
@@ -684,6 +749,7 @@ export default function ClientView({
                       activeUser={activeUser}
                       forceHotelId={bookingRoom.hotelId}
                       forceRoomId={bookingRoom.id}
+                      roomPriceVariations={roomPriceVariations}
                     />
                   </div>
                 </div>
@@ -895,17 +961,27 @@ export default function ClientView({
                             <span>Hospedaje ({bookingRoom.nombre}):</span>
                             <span className="font-mono">${getBookingSubtotal(bookingRoom.precio)} USD</span>
                           </div>
-                          {bookingRoom && (
-                            <div className="mt-1 pl-3 border-l-2 border-teal-200/50 space-y-1 text-[10px] text-neutral-500 bg-teal-50/20 p-2 rounded-xl">
-                              <p className="font-bold text-teal-800 text-[9px] uppercase tracking-wider">Desglose Tarifario por Noche:</p>
-                              {getBookingNightsBreakdown(bookingRoom, checkInDate, checkOutDate).map((night, idx) => (
-                                <div key={idx} className="flex justify-between font-mono">
-                                  <span>• {night.date} <span className="bg-white/80 px-1 py-0.5 rounded border border-neutral-100 text-[8px] font-sans font-medium text-teal-700">{night.motivo}</span></span>
-                                  <span>${night.precio} USD</span>
+                          {bookingRoom && (() => {
+                            const groupedVariations = getGroupedVariableNights(bookingRoom, checkInDate, checkOutDate);
+                            if (groupedVariations.length > 0) {
+                              return (
+                                <div className="mt-1 pl-3 border-l-2 border-teal-205 space-y-1 text-[10px] text-neutral-500 bg-teal-50/50 p-2 rounded-xl">
+                                  <p className="font-bold text-teal-800 text-[9px] uppercase tracking-wider">Variación Tarifaria por Fecha/Días:</p>
+                                  {groupedVariations.map((group, idx) => (
+                                    <div key={idx} className="flex justify-between font-mono">
+                                      <span>• ({group.formattedDate}) <span className="bg-white px-1 py-0.5 rounded border border-neutral-100 text-[8px] font-sans font-medium text-teal-700">{group.motivo}</span></span>
+                                      <span className="font-semibold text-teal-850">${group.precio} USD</span>
+                                    </div>
+                                  ))}
                                 </div>
-                              ))}
-                            </div>
-                          )}
+                              );
+                            }
+                            return (
+                              <div className="mt-1 pl-3 border-l-2 border-neutral-300/60 bg-neutral-100/40 p-2 rounded-xl text-[10px] text-neutral-400 italic">
+                                Tarifa estándar uniforme sin variaciones en este período.
+                              </div>
+                            );
+                          })()}
                           {getServicesTotal() > 0 && (
                             <div className="flex justify-between">
                               <span>Servicios Adicionales:</span>
@@ -914,7 +990,13 @@ export default function ClientView({
                           )}
                           <div className="flex justify-between text-[11px]">
                             <span>Impuestos (IVA 16%):</span>
-                            <span className="font-mono">${getBookingTotal(bookingRoom.precio).tax.toFixed(2)} USD</span>
+                            {bookingRoom.adicionarIva === false ? (
+                              <span className="font-sans font-semibold text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-100 text-[9px]">
+                                IVA Incluido
+                              </span>
+                            ) : (
+                              <span className="font-mono">${getBookingTotal(bookingRoom.precio).tax.toFixed(2)} USD</span>
+                            )}
                           </div>
                           <div className="h-[1px] bg-teal-100/50 my-1.5" />
                           <div className="flex justify-between font-bold text-neutral-900 text-sm">

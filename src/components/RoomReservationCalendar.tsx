@@ -21,7 +21,7 @@ import {
   TrendingUp, 
   Sparkle
 } from 'lucide-react';
-import { Hotel, Room, Reservation, User as StoreUser, RoomStatus } from '../types';
+import { Hotel, Room, Reservation, User as StoreUser, RoomStatus, RoomPriceVariation } from '../types';
 
 interface RoomReservationCalendarProps {
   hotels: Hotel[];
@@ -32,6 +32,7 @@ interface RoomReservationCalendarProps {
   onUpdateRoomStatus?: (roomId: string, status: RoomStatus) => void;
   forceHotelId?: string;
   forceRoomId?: string;
+  roomPriceVariations?: RoomPriceVariation[];
 }
 
 export function RoomReservationCalendar({
@@ -42,7 +43,8 @@ export function RoomReservationCalendar({
   activeUser,
   onUpdateRoomStatus,
   forceHotelId,
-  forceRoomId
+  forceRoomId,
+  roomPriceVariations = []
 }: RoomReservationCalendarProps) {
   // 1. STATE VARIABLES
   const [currentYear, setCurrentYear] = useState(() => new Date().getFullYear());
@@ -239,6 +241,33 @@ export function RoomReservationCalendar({
     };
   }, [currentYear, currentMonth, reservations, selectedHotelId, selectedRoomId]);
 
+  const getRoomPriceForDate = (room: Room, dateStr: string) => {
+    // Check if there is an exact date match in variations or an annual re-occurring one ("Always" - matching MM-DD)
+    const exactMatch = roomPriceVariations.find(v => {
+      if (v.roomId !== room.id) return false;
+      if (v.isWeekend) return false;
+      if (!v.fecha) return false;
+      if (v.fecha === dateStr) return true;
+      if (v.isAlways && v.fecha.substring(5) === dateStr.substring(5)) return true;
+      return false;
+    });
+
+    if (exactMatch) {
+      return { precio: exactMatch.precio, motivo: exactMatch.motivo || 'Fecha Especial', isVariable: true };
+    }
+    
+    const d = new Date(dateStr + 'T12:00:00');
+    const day = d.getDay(); // 5: Friday, 6: Saturday
+    if (day === 5 || day === 6) {
+      const wkMatch = roomPriceVariations.find(v => v.roomId === room.id && v.isWeekend);
+      if (wkMatch) {
+        return { precio: wkMatch.precio, motivo: wkMatch.motivo || 'Tarifa de Fin de Semana', isVariable: true };
+      }
+    }
+    
+    return { precio: room.precio, motivo: 'Tarifa Estándar', isVariable: false };
+  };
+
   return (
     <div className="bg-white rounded-2xl border border-neutral-200/90 shadow-sm overflow-hidden font-sans">
       
@@ -350,6 +379,9 @@ export function RoomReservationCalendar({
               const isSelected = selectedDateStr === cell.dateStr;
               const hasActiveReservations = dayRes.length > 0;
               
+              const selectedRoomObj = selectedRoomId !== 'all' ? rooms.find(r => r.id === selectedRoomId) : null;
+              const priceInfo = selectedRoomObj ? getRoomPriceForDate(selectedRoomObj, cell.dateStr) : null;
+              
               // Dynamic coloration classes
               let bgClass = 'bg-white text-neutral-800 hover:bg-neutral-50 border-neutral-200';
               let borderClass = 'border';
@@ -391,9 +423,18 @@ export function RoomReservationCalendar({
                   key={index}
                   onClick={() => setSelectedDateStr(cell.dateStr)}
                   type="button"
-                  className={`relative p-2.5 rounded-xl flex flex-col justify-between items-center aspect-square text-xs transition-all duration-200 shadow-sm cursor-pointer ${bgClass} ${borderClass}`}
+                  className={`relative p-2 rounded-xl flex flex-col justify-between items-center aspect-square text-xs transition-all duration-200 shadow-sm cursor-pointer ${bgClass} ${borderClass}`}
                 >
-                  <span className="font-mono font-bold text-xs">{cell.day}</span>
+                  <div className="flex flex-col items-center">
+                    <span className="font-mono font-bold text-xs">{cell.day}</span>
+                    {priceInfo && (
+                      <span className={`text-[10px] font-bold mt-0.5 font-mono px-1 rounded ${
+                        priceInfo.isVariable ? 'text-teal-700 bg-teal-50 border border-teal-100' : 'text-neutral-500 font-normal'
+                      }`}>
+                        ${priceInfo.precio}
+                      </span>
+                    )}
+                  </div>
 
                   {/* Little custom notification pills/indicators overlay inside the calendar box */}
                   <div className="flex gap-1 justify-center items-center w-full mt-1 shrink-0 h-2.5">

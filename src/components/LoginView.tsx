@@ -722,17 +722,7 @@ export default function LoginView({
                         Inicia sesión para gestionar tus reservas vigentes, contratar servicios o explorar increíbles suites boutique disponibles para ti.
                       </p>
                     </div>
-                    {onShowLanding && (
-                      <button
-                        type="button"
-                        onClick={onShowLanding}
-                        className="bg-teal-50 hover:bg-teal-100 text-teal-800 font-bold border border-teal-200/50 px-2 py-1.5 rounded-xl text-[10px] flex items-center gap-1 cursor-pointer shadow-sm active:scale-95 transition-all shrink-0"
-                        title="Ver beneficios, funciones e información de contratación"
-                      >
-                        <Sparkles className="w-3.5 h-3.5 text-teal-650" />
-                        <span>Ver Beneficios 🌟</span>
-                      </button>
-                    )}
+
                   </div>
                 </div>
 

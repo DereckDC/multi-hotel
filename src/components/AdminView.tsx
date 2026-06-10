@@ -198,8 +198,10 @@ export default function AdminView({
   const [showVariationsModal, setShowVariationsModal] = useState(false);
   const [newVarPrice, setNewVarPrice] = useState<number>(100);
   const [newVarDate, setNewVarDate] = useState<string>('');
+  const [newVarDates, setNewVarDates] = useState<string[]>([]);
   const [newVarMotivo, setNewVarMotivo] = useState<string>('');
   const [newVarIsWeekend, setNewVarIsWeekend] = useState<boolean>(false);
+  const [newVarIsAlways, setNewVarIsAlways] = useState<boolean>(false);
 
   // Sandbox-safe Confirmation States
   const [confirmDeleteHotelId, setConfirmDeleteHotelId] = useState<string | null>(null);
@@ -829,22 +831,30 @@ export default function AdminView({
 
               <div className="h-48 flex items-center justify-center">
                 <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={currentStats.statusPie}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={80}
-                      paddingAngle={5}
-                      dataKey="value"
-                    >
-                      {currentStats.statusPie.map((entry: any, index: number) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(value) => [value, 'Cuentas']} />
-                  </PieChart>
+                  {(() => {
+                    const isEmpty = currentStats.statusPie.reduce((acc: number, curr: any) => acc + (curr.value || 0), 0) === 0;
+                    const chartData = isEmpty
+                      ? [{ name: 'Sin datos', value: 1, color: '#e5e7eb' }]
+                      : currentStats.statusPie;
+                    return (
+                      <PieChart>
+                        <Pie
+                          data={chartData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={60}
+                          outerRadius={80}
+                          paddingAngle={isEmpty ? 0 : 5}
+                          dataKey="value"
+                        >
+                          {chartData.map((entry: any, index: number) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        {!isEmpty && <Tooltip formatter={(value) => [value, 'Cuentas']} />}
+                      </PieChart>
+                    );
+                  })()}
                 </ResponsiveContainer>
               </div>
 
@@ -1610,6 +1620,7 @@ export default function AdminView({
               users={users}
               activeUser={activeUser}
               onUpdateRoomStatus={onUpdateRoomStatus}
+              roomPriceVariations={roomPriceVariations}
             />
           </div>
 
@@ -3207,6 +3218,22 @@ export default function AdminView({
                   </select>
                 </div>
 
+                <div className="flex flex-col justify-end pb-1.5 pl-0.5">
+                  <label className="text-[10px] font-bold text-neutral-450 block uppercase tracking-wider mb-2">IVA de la Habitación:</label>
+                  <label className="relative inline-flex items-center cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={editingRoom.adicionarIva !== false}
+                      onChange={(e) => setEditingRoom({ ...editingRoom, adicionarIva: e.target.checked })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-8 h-4.5 bg-neutral-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2.5px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-teal-600"></div>
+                    <span className="ml-2 text-xs font-semibold text-neutral-700">
+                      {editingRoom.adicionarIva !== false ? 'Sumar IVA al precio' : 'Precio ya incluye IVA'}
+                    </span>
+                  </label>
+                </div>
+
                 <div className="col-span-2 space-y-3 bg-neutral-50 p-4 rounded-xl border border-neutral-200">
                   <div className="flex justify-between items-center pb-2 border-b border-neutral-200 font-sans">
                     <span className="text-[11px] font-bold text-neutral-700 uppercase tracking-wide">Imágenes y Videos de la Habitación ({(editingRoom.imagenes || []).length}/15)</span>
@@ -3533,8 +3560,11 @@ export default function AdminView({
                                   Fines de Semana (Sáb/Dom/Vie)
                                 </span>
                               ) : (
-                                <span className="bg-blue-50 text-blue-750 border border-blue-150 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase font-mono">
-                                  {variation.fecha}
+                                <span className="bg-blue-50 text-blue-750 border border-blue-150 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase font-mono flex items-center gap-1">
+                                  <span>{variation.fecha}</span>
+                                  {variation.isAlways && (
+                                    <span className="bg-teal-100 text-teal-800 px-1 py-0.2 rounded-full text-[7.5px] font-extrabold uppercase">🔁 Anual</span>
+                                  )}
                                 </span>
                               )}
                               <span className="text-xs font-mono font-bold text-neutral-850">${variation.precio} USD</span>
@@ -3606,25 +3636,80 @@ export default function AdminView({
                   </div>
 
                   {!newVarIsWeekend ? (
-                    <div>
-                      <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider block mb-1">Fecha de Aplicación:</label>
-                      <input
-                        type="date"
-                        required={!newVarIsWeekend}
-                        value={newVarDate}
-                        onChange={(e) => setNewVarDate(e.target.value)}
-                        className="w-full border border-neutral-250 bg-white p-1.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-500 text-xs font-mono text-neutral-800 cursor-pointer"
-                      />
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider block mb-1">Añadir Fecha de la Regla:</label>
+                        <input
+                          type="date"
+                          value={newVarDate}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setNewVarDate(val);
+                            if (val && !newVarDates.includes(val)) {
+                              setNewVarDates(prev => [...prev, val].sort());
+                              setNewVarDate(''); // Clear so they can select another date seamlessly
+                            }
+                          }}
+                          className="w-full border border-neutral-250 bg-white p-1.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-500 text-xs font-mono text-neutral-800 cursor-pointer"
+                        />
+                      </div>
                     </div>
                   ) : (
                     <div>
-                      <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider block mb-1 text-neutral-400">Fecha:</label>
+                      <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider block mb-1 text-neutral-400">Fecha de Aplicación:</label>
                       <input
                         type="text"
                         disabled
-                        value="Días (Viernes, Sábado y Domingo)"
+                        value="Fin de Semana (Vie, Sáb, Dom)"
                         className="w-full border border-neutral-100 bg-neutral-100/50 p-2 rounded-lg text-xs text-neutral-450 italic cursor-not-allowed font-medium"
                       />
+                    </div>
+                  )}
+
+                  {!newVarIsWeekend && (
+                    <div className="col-span-2 flex items-center justify-between bg-teal-50/40 p-2.5 rounded-lg border border-teal-100">
+                      <div className="space-y-0.5">
+                        <span className="text-[10px] font-bold text-teal-900 block font-sans">Repetir Anualmente ("Siempre")</span>
+                        <span className="text-[9px] text-neutral-450 block font-medium">Si se marca, aplica todos los años para el mismo día y mes (ej. Navidad, Carnavales).</span>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={newVarIsAlways}
+                          onChange={(e) => setNewVarIsAlways(e.target.checked)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-8 h-4.5 bg-neutral-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-teal-600"></div>
+                        <span className="ml-2 text-[10px] font-bold text-neutral-700">
+                          {newVarIsAlways ? 'Siempre' : 'Solo una vez'}
+                        </span>
+                      </label>
+                    </div>
+                  )}
+
+                  {!newVarIsWeekend && (
+                    <div className="col-span-2 space-y-1 bg-neutral-100/45 p-2 rounded-lg border border-neutral-200/60">
+                      <label className="text-[9px] font-extrabold text-neutral-500 uppercase tracking-wider block">
+                        Días Seleccionados ({newVarDates.length}):
+                      </label>
+                      <div className="flex flex-wrap gap-1">
+                        {newVarDates.length === 0 ? (
+                          <span className="text-[10px] text-neutral-400 italic">Por favor, seleccione uno o varios días arriba.</span>
+                        ) : (
+                          newVarDates.map(date => (
+                            <span key={date} className="bg-teal-50 text-teal-700 font-bold px-2 py-0.5 rounded border border-teal-200 text-[10px] flex items-center gap-1">
+                              {date}
+                              <button
+                                type="button"
+                                onClick={() => setNewVarDates(prev => prev.filter(d => d !== date))}
+                                className="text-teal-500 hover:text-teal-800 font-bold ml-1 cursor-pointer text-xs focus:outline-none"
+                              >
+                                ×
+                              </button>
+                            </span>
+                          ))
+                        )}
+                      </div>
                     </div>
                   )}
 
@@ -3648,8 +3733,8 @@ export default function AdminView({
                       alert("Por favor especifique un precio especial válido.");
                       return;
                     }
-                    if (!newVarIsWeekend && !newVarDate) {
-                      alert("Por favor seleccione la fecha de aplicación.");
+                    if (!newVarIsWeekend && newVarDates.length === 0) {
+                      alert("Por favor seleccione al menos un día en el selector de fecha de aplicación.");
                       return;
                     }
                     if (!newVarMotivo.trim()) {
@@ -3657,23 +3742,39 @@ export default function AdminView({
                       return;
                     }
 
-                    if (onSaveRoomPriceVariation) {
-                      const newVar: RoomPriceVariation = {
-                        id: newVarIsWeekend 
-                          ? `VAR-WKEN-${selectedRoomForVariations.id}`
-                          : `VAR-DATE-${selectedRoomForVariations.id}-${newVarDate}`,
-                        roomId: selectedRoomForVariations.id,
-                        hotelId: selectedRoomForVariations.hotelId,
-                        fecha: newVarIsWeekend ? undefined : newVarDate,
-                        isWeekend: newVarIsWeekend,
-                        precio: newVarPrice,
-                        motivo: newVarMotivo
-                      };
-                      onSaveRoomPriceVariation(newVar);
+                    if (onSaveRoomPriceVariation && selectedRoomForVariations) {
+                      if (newVarIsWeekend) {
+                        const newVar: RoomPriceVariation = {
+                          id: `VAR-WKEN-${selectedRoomForVariations.id}`,
+                          roomId: selectedRoomForVariations.id,
+                          hotelId: selectedRoomForVariations.hotelId,
+                          fecha: undefined,
+                          isWeekend: true,
+                          precio: newVarPrice,
+                          motivo: newVarMotivo
+                        };
+                        onSaveRoomPriceVariation(newVar);
+                      } else {
+                        newVarDates.forEach(date => {
+                          const newVar: RoomPriceVariation = {
+                            id: `VAR-DATE-${selectedRoomForVariations.id}-${date}`,
+                            roomId: selectedRoomForVariations.id,
+                            hotelId: selectedRoomForVariations.hotelId,
+                            fecha: date,
+                            isWeekend: false,
+                            precio: newVarPrice,
+                            motivo: newVarMotivo,
+                            isAlways: newVarIsAlways
+                          };
+                          onSaveRoomPriceVariation(newVar);
+                        });
+                      }
                       
                       // Refresh inputs safely
                       setNewVarDate('');
+                      setNewVarDates([]);
                       setNewVarMotivo('');
+                      setNewVarIsAlways(false);
                     }
                   }}
                   className="w-full py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg text-[11px] block transition-colors cursor-pointer text-center md:font-extrabold uppercase tracking-wide"

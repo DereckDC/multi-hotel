@@ -103,6 +103,7 @@ export interface Room {
   imagenes: string[];
   servicios: string[];
   estado: RoomStatus;
+  adicionarIva?: boolean; // If false, the price already includes IVA and no extra tax is added
 }
 
 export interface Reservation {
@@ -193,6 +194,7 @@ export interface RoomPriceVariation {
   isWeekend: boolean;    // true if applies to weekends (Fri & Sat nights)
   precio: number;
   motivo?: string;       // e.g. "Fin de semana", "Navidad", "Temporada Alta"
+  isAlways?: boolean;    // recurrent every year (ignoring the year of the date)
 }
 
 
