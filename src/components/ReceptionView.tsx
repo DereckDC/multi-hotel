@@ -4,8 +4,8 @@
  */
 
 import React, { useState, useRef } from 'react';
-import { Hotel, Room, Reservation, User, RoomStatus } from '../types';
-import { QrCode, Search, Check, ShieldAlert, Sparkles, AlertTriangle, Calendar, UserCheck, ShieldCheck, Hammer, HelpCircle, Loader, Coffee } from 'lucide-react';
+import { Hotel, Room, Reservation, User, RoomStatus, ReservationStatus } from '../types';
+import { QrCode, Search, Check, ShieldAlert, Sparkles, AlertTriangle, Calendar, UserCheck, ShieldCheck, Hammer, HelpCircle, Loader, Coffee, CreditCard } from 'lucide-react';
 import { RoomReservationCalendar } from './RoomReservationCalendar';
 import { Html5Qrcode } from 'html5-qrcode';
 
@@ -21,6 +21,13 @@ interface ReceptionViewProps {
   onAddLog: (action: string, details: string) => void;
   onCreateReservation?: (newRes: Reservation) => void;
   onRegisterUser?: (newUser: User) => Promise<any> | void;
+  onUpdateReservationStatus?: (
+    resId: string,
+    status: ReservationStatus,
+    staffName?: string,
+    staffRole?: string,
+    mensajeCambio?: string
+  ) => void;
 }
 
 export default function ReceptionView({
@@ -34,11 +41,15 @@ export default function ReceptionView({
   users,
   onAddLog,
   onCreateReservation,
-  onRegisterUser
+  onRegisterUser,
+  onUpdateReservationStatus
 }: ReceptionViewProps) {
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedHotelFilter, setSelectedHotelFilter] = useState('');
+  const [selectedHotelFilter, setSelectedHotelFilter] = useState(() => {
+    // Pre-select assigned hotel, otherwise let super admin choose
+    return activeUser.hotelId || (hotels[0]?.id || '');
+  });
 
   // Scanning simulation state
   const [isScanning, setIsScanning] = useState(false);
@@ -173,8 +184,13 @@ export default function ReceptionView({
   // Warning state for manual occupied chamber modification
   const [checkoutWarningRoom, setCheckoutWarningRoom] = useState<Room | null>(null);
 
-  // Auto-assign first hotel state if receptionist has one
-  const receptionistHotel = hotels.find(h => h.id === activeUser.hotelId) || hotels[0];
+  // Resolve target hotel ID based on role permissions
+  const targetHotelId = activeUser.rol === 'super_admin' 
+    ? (selectedHotelFilter || (activeUser.hotelId || (hotels[0]?.id || '')))
+    : (activeUser.hotelId || (hotels[0]?.id || ''));
+
+  // Auto-assign active hotel state based on resolved target ID
+  const receptionistHotel = hotels.find(h => h.id === targetHotelId) || hotels[0];
 
   // Presencial reservation states
   const [resType, setResType] = useState<'new' | 'existing'>('new');
@@ -369,11 +385,13 @@ export default function ReceptionView({
   };
 
   // Helper lists
-  const pendingCheckIns = reservations.filter(r => r.estado === 'confirmada' || r.estado === 'pendiente');
-  const activeOcupations = reservations.filter(r => r.estado === 'ocupada');
-  const hotelRooms = selectedHotelFilter 
-    ? rooms.filter(r => r.hotelId === selectedHotelFilter) 
-    : rooms.filter(r => r.hotelId === receptionistHotel?.id);
+  const pendingCheckIns = reservations
+    .filter(r => r.hotelId === targetHotelId)
+    .filter(r => r.estado === 'confirmada' || r.estado === 'pendiente');
+  const activeOcupations = reservations
+    .filter(r => r.hotelId === targetHotelId)
+    .filter(r => r.estado === 'ocupada');
+  const hotelRooms = rooms.filter(r => r.hotelId === targetHotelId);
 
   // Simulate scanning QR Code
   const handleSimulateScan = (resId: string) => {
@@ -492,7 +510,22 @@ export default function ReceptionView({
             </div>
             <div>
               <span className="text-[10px] uppercase font-bold text-teal-600 tracking-wider">MÓDULO DE RECEPCIÓN</span>
-              <h3 className="text-xl font-bold text-neutral-800">Mostrador - {receptionistHotel?.nombre}</h3>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-1.5">
+                <h3 className="text-xl font-bold text-neutral-800">Mostrador - {receptionistHotel?.nombre}</h3>
+                {activeUser.rol === 'super_admin' && (
+                  <select
+                    value={selectedHotelFilter}
+                    onChange={(e) => setSelectedHotelFilter(e.target.value)}
+                    className="sm:ml-2 border border-neutral-250 text-[11px] font-bold py-1 px-2 rounded-lg focus:outline-none bg-neutral-50 shadow-sm cursor-pointer text-teal-700 hover:border-teal-500 transition-colors"
+                  >
+                    {hotels.map(h => (
+                      <option key={h.id} value={h.id}>
+                        {h.nombre} ({h.tipoEstablecimiento === 'casa' || h.tipoEstablecimiento === 'departamento' ? 'Propiedad' : 'Hotel'})
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
               <p className="text-xs text-neutral-400">Atendido por {activeUser.nombre} {activeUser.apellido}</p>
             </div>
           </div>
@@ -695,8 +728,34 @@ export default function ReceptionView({
                 </div>
               </div>
 
-              <div className="flex gap-2">
-                {(scannedResult.estado === 'confirmada' || scannedResult.estado === 'pendiente') && (
+              <div className="flex gap-2 flex-wrap pb-1">
+                {scannedResult.estado === 'pendiente' && (
+                  <button
+                    onClick={async () => {
+                      if (onUpdateReservationStatus) {
+                        onUpdateReservationStatus(
+                          scannedResult.id,
+                          'confirmada',
+                          `${activeUser.nombre} ${activeUser.apellido}`,
+                          activeUser.rol,
+                          'Pago recibido presencialmente en recepción.'
+                        );
+                        setScannedResult({ ...scannedResult, estado: 'confirmada' });
+                        onAddLog(
+                          'Pago Registrado',
+                          `Se registró pago de $${scannedResult.total.toFixed(2)} USD para la reserva ${scannedResult.id} vía Recepcion.`
+                        );
+                      } else {
+                        alert("Error de enlace: la operación onUpdateReservationStatus no está disponible.");
+                      }
+                    }}
+                    className="flex-1 bg-amber-500 hover:bg-amber-400 text-neutral-950 font-extrabold py-2 px-4 rounded-xl text-xs transition-colors cursor-pointer flex items-center justify-center gap-1 shadow"
+                  >
+                    <CreditCard className="w-4 h-4" />
+                    <span>Cobrar y Confirmar Reserva</span>
+                  </button>
+                )}
+                {scannedResult.estado === 'confirmada' && (
                   <button
                     onClick={() => handleCheckIn(scannedResult.id)}
                     className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold py-2 px-4 rounded-xl text-xs transition-colors cursor-pointer flex items-center justify-center gap-1 shadow-md"
@@ -708,7 +767,7 @@ export default function ReceptionView({
                 {scannedResult.estado === 'ocupada' && (
                   <button
                     onClick={() => handleCheckOut(scannedResult.id)}
-                    className="flex-1 bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold py-2 px-4 rounded-xl text-xs transition-colors cursor-pointer flex items-center justify-center gap-1 shadow-md"
+                    className="flex-1 bg-[#3b82f6] hover:bg-[#60a5fa] text-white font-bold py-2 px-4 rounded-xl text-xs transition-colors cursor-pointer flex items-center justify-center gap-1 shadow-md"
                   >
                     <UserCheck className="w-4 h-4" />
                     <span>Confirmar Check-Out</span>
@@ -753,12 +812,17 @@ export default function ReceptionView({
 
                     <div className="flex items-center gap-3">
                       <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${
-                        res.estado === 'confirmada' ? 'bg-emerald-50 text-emerald-700' :
+                        res.estado === 'confirmada' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
+                        res.estado === 'pendiente' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
                         res.estado === 'ocupada' ? 'bg-blue-50 text-blue-700' :
                         res.estado === 'finalizada' ? 'bg-neutral-200 text-neutral-600' :
                         'bg-red-50 text-red-700'
                       }`}>
-                        {res.estado}
+                        {res.estado === 'pendiente' ? 'Pendiente Pago' :
+                         res.estado === 'confirmada' ? 'Reservada' :
+                         res.estado === 'ocupada' ? 'Ocupada' :
+                         res.estado === 'finalizada' ? 'Finalizada' :
+                         res.estado === 'cancelada' ? 'Cancelada' : res.estado}
                       </span>
                       
                       <button
@@ -777,9 +841,9 @@ export default function ReceptionView({
         {/* INTERACTIVE CALENDAR: arrivals & availability tracking */}
         <div className="animate-fade-in duration-300">
           <RoomReservationCalendar
-            hotels={hotels}
-            rooms={rooms}
-            reservations={reservations}
+            hotels={hotels.filter(h => h.id === targetHotelId)}
+            rooms={rooms.filter(r => r.hotelId === targetHotelId)}
+            reservations={reservations.filter(r => r.hotelId === targetHotelId)}
             users={users}
             activeUser={activeUser}
             onUpdateRoomStatus={onUpdateRoomStatus}
@@ -795,16 +859,18 @@ export default function ReceptionView({
         <div className="bg-white rounded-3xl p-6 border border-neutral-200 shadow-sm space-y-4">
           <div className="border-b border-neutral-100 pb-3 flex justify-between items-center">
             <h4 className="font-semibold text-neutral-900 text-base">Operario de Habitaciones</h4>
-            <select
-              value={selectedHotelFilter}
-              onChange={(e) => setSelectedHotelFilter(e.target.value)}
-              className="border border-neutral-200 text-[11px] font-semibold p-1 rounded-md focus:outline-none"
-            >
-              <option value="">Mi Hotel</option>
-              {hotels.map(h => (
-                <option key={h.id} value={h.id}>{h.nombre.replace('Aura ', '').replace('Roomia ', '')}</option>
-              ))}
-            </select>
+            {activeUser.rol === 'super_admin' && (
+              <select
+                value={selectedHotelFilter}
+                onChange={(e) => setSelectedHotelFilter(e.target.value)}
+                className="border border-neutral-250 text-[11px] font-bold p-1 rounded-md focus:outline-none text-teal-700 bg-white"
+              >
+                <option value="">Seleccionar Propiedad...</option>
+                {hotels.map(h => (
+                  <option key={h.id} value={h.id}>{h.nombre.replace('Aura ', '').replace('Roomia ', '')}</option>
+                ))}
+              </select>
+            )}
           </div>
 
           <div className="space-y-3.5">

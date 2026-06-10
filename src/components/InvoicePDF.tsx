@@ -448,8 +448,22 @@ export default function InvoicePDF({
               </div>
 
               {/* Status footer inside invoice */}
-              <div className="mt-4 p-3 bg-neutral-50 rounded-lg text-center border border-neutral-100 text-xs text-neutral-500">
-                Tipo Pago: <span className="font-semibold">Simulado Integral</span>
+              <div className={`mt-4 p-3 rounded-xl text-center border text-xs ${
+                reservation.estado === 'confirmada'
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                  : 'bg-amber-50 border-amber-200 text-amber-800'
+              }`}>
+                {reservation.estado === 'confirmada' ? (
+                  <div>
+                    <span className="font-bold">✓ PAGADO VIA ADYEN SECURE 🛡️</span>
+                    <p className="text-[10px] text-emerald-600 font-mono mt-0.5">Ref: ADY-REF-{reservation.id}</p>
+                  </div>
+                ) : (
+                  <div>
+                    <span className="font-bold">⚠️ PENDIENTE DE PAGO</span>
+                    <p className="text-[10px] text-amber-600 mt-0.5">Por favor pague mediante canales seguros de Adyen.</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronLeft, ChevronRight, Maximize2, X, Image as ImageIcon } from 'lucide-react';
+import { isVideoUrl, getMediaEmbed } from './RoomImageGallery';
 
 interface HotelImageGalleryProps {
   imagenes: string[];
@@ -81,18 +82,17 @@ export function HotelImageGallery({ imagenes, portada, hotelNombre }: HotelImage
         {/* Animated image container */}
         <div className="absolute inset-0 w-full h-full overflow-hidden">
           <AnimatePresence custom={direction} mode="wait">
-            <motion.img
+            <motion.div
               key={activeIndex}
               custom={direction}
               variants={slideVariants}
               initial="enter"
               animate="center"
               exit="exit"
-              src={allImages[activeIndex]}
-              alt={`${hotelNombre} - Vista ${activeIndex + 1}`}
-              className="w-full h-full object-cover select-none"
-              referrerPolicy="no-referrer"
-            />
+              className="w-full h-full"
+            >
+              {getMediaEmbed(allImages[activeIndex], "w-full h-full object-cover select-none")}
+            </motion.div>
           </AnimatePresence>
         </div>
 
@@ -151,21 +151,33 @@ export function HotelImageGallery({ imagenes, portada, hotelNombre }: HotelImage
 
       {/* Styled Grid of Thumbnails with micro-interaction triggers */}
       <div className="grid grid-cols-5 gap-2.5">
-        {allImages.map((img, idx) => (
-          <button
-            key={idx}
-            onClick={(e) => selectIndex(idx, e)}
-            type="button"
-            className={`relative rounded-xl overflow-hidden aspect-[4/3] w-full border-2 transition-all duration-300 group cursor-pointer ${
-              idx === activeIndex
-                ? 'border-teal-500 scale-[1.03] shadow-md shadow-teal-500/10'
-                : 'border-neutral-200/80 filter hover:brightness-105 hover:border-neutral-350 opacity-80 hover:opacity-100'
-            }`}
-          >
-            <img src={img} alt={`Perspectiva ${idx + 1}`} className="w-full h-full object-cover select-none" referrerPolicy="no-referrer" />
-            <div className={`absolute inset-0 bg-teal-900/10 transition-opacity duration-3000 ${idx === activeIndex ? 'opacity-100' : 'opacity-0'}`} />
-          </button>
-        ))}
+        {allImages.map((img, idx) => {
+          const isItemVideo = isVideoUrl(img);
+          return (
+            <button
+              key={idx}
+              onClick={(e) => selectIndex(idx, e)}
+              type="button"
+              className={`relative rounded-xl overflow-hidden aspect-[4/3] w-full border-2 transition-all duration-300 group cursor-pointer ${
+                idx === activeIndex
+                  ? 'border-teal-500 scale-[1.03] shadow-md shadow-teal-500/10'
+                  : 'border-neutral-200/80 filter hover:brightness-105 hover:border-neutral-350 opacity-80 hover:opacity-100'
+              }`}
+            >
+              {isItemVideo ? (
+                <div className="w-full h-full bg-neutral-950 flex flex-col items-center justify-center text-white relative">
+                  <div className="absolute top-1 right-1 bg-red-650 rounded px-1.5 py-0.5 z-10 scale-75">
+                    <span className="text-[7px] uppercase font-bold tracking-wider text-white">Video</span>
+                  </div>
+                  <span className="text-sm">🎥</span>
+                </div>
+              ) : (
+                <img src={img} alt={`Perspectiva ${idx + 1}`} className="w-full h-full object-cover select-none" referrerPolicy="no-referrer" />
+              )}
+              <div className={`absolute inset-0 bg-teal-900/10 transition-opacity duration-3000 ${idx === activeIndex ? 'opacity-100' : 'opacity-0'}`} />
+            </button>
+          );
+        })}
       </div>
 
       {/* IMMERSIVE COMPREHENSIVE LIGHTBOX CAROUSEL MODAL */}
@@ -194,21 +206,20 @@ export function HotelImageGallery({ imagenes, portada, hotelNombre }: HotelImage
 
             {/* Stage element */}
             <div 
-              className="relative flex-1 flex items-center justify-center max-h-[75vh] my-4"
+              className="relative flex-1 flex items-center justify-center max-h-[75vh] my-4 w-full"
               onClick={(e) => e.stopPropagation()}
             >
-              <AnimatePresence custom={direction} mode="wait">
-                <motion.img
+              <AnimatePresence mode="wait">
+                <motion.div
                   key={activeIndex}
-                  src={allImages[activeIndex]}
-                  alt={`${hotelNombre} Immersive`}
-                  className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl border border-white/5 bg-neutral-950"
+                  className="max-w-full max-h-full aspect-video md:aspect-[16/9] w-full max-w-4xl flex items-center justify-center p-1 rounded-2xl overflow-hidden bg-black shadow-2xl border border-white/5"
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
                   transition={{ duration: 0.25 }}
-                  referrerPolicy="no-referrer"
-                />
+                >
+                  {getMediaEmbed(allImages[activeIndex], "max-w-full max-h-full object-contain rounded-xl")}
+                </motion.div>
               </AnimatePresence>
 
               {/* Huge navigators */}
@@ -237,19 +248,31 @@ export function HotelImageGallery({ imagenes, portada, hotelNombre }: HotelImage
               className="w-full max-w-2xl mx-auto flex items-center justify-center gap-2.5 bg-neutral-900/60 p-4 rounded-3xl border border-white/10 backdrop-blur-md"
               onClick={(e) => e.stopPropagation()}
             >
-              {allImages.map((img, idx) => (
-                <button
-                  key={idx}
-                  onClick={(e) => selectIndex(idx, e)}
-                  className={`relative w-16 md:w-20 h-11 md:h-14 rounded-xl overflow-hidden border transition-all duration-300 cursor-pointer ${
-                    activeIndex === idx 
-                      ? 'border-teal-500 scale-105 ring-4 ring-teal-500/20 shadow-lg' 
-                      : 'border-white/10 opacity-40 hover:opacity-100 hover:border-white/40'
-                  }`}
-                >
-                  <img src={img} alt={`Thumb ${idx + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                </button>
-              ))}
+              {allImages.map((img, idx) => {
+                const isItemVideo = isVideoUrl(img);
+                return (
+                  <button
+                    key={idx}
+                    onClick={(e) => selectIndex(idx, e)}
+                    className={`relative w-16 md:w-20 h-11 md:h-14 rounded-xl overflow-hidden border transition-all duration-300 cursor-pointer ${
+                      activeIndex === idx 
+                        ? 'border-teal-500 scale-105 ring-4 ring-teal-500/20 shadow-lg' 
+                        : 'border-white/10 opacity-40 hover:opacity-100 hover:border-white/40'
+                    }`}
+                  >
+                    {isItemVideo ? (
+                      <div className="w-full h-full bg-neutral-950 flex flex-col items-center justify-center text-white relative">
+                        <div className="absolute top-0.5 right-0.5 bg-red-650 rounded px-1 py-0.2 scale-75 z-10">
+                          <span className="text-[6px] uppercase font-bold tracking-wider text-white">Video</span>
+                        </div>
+                        <span className="text-sm">🎥</span>
+                      </div>
+                    ) : (
+                      <img src={img} alt={`Thumb ${idx + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}

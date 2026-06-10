@@ -56,6 +56,22 @@ export interface Hotel {
   };
   estado: 'activo' | 'inactivo';
   serviciosDetallados?: HotelService[];
+  tipoEstablecimiento?: 'hotel' | 'casa' | 'departamento';
+  finalidad?: 'alquiler' | 'venta';
+  propietario?: {
+    nombre: string;
+    telefono: string;
+    email: string;
+    documento?: string;
+  };
+  detallesInmueble?: {
+    habitaciones: number;
+    banos: number;
+    metrosCuadrados?: number;
+    amueblado?: boolean;
+    tieneEstacionamiento?: boolean;
+    precio?: number; // Precio mensual de alquiler o valor de venta
+  };
 }
 
 export interface HotelService {
@@ -92,7 +108,7 @@ export interface Room {
 export interface Reservation {
   id: string;
   hotelId: string;
-  roomId: string;
+  roomId?: string | null;
   guestId: string;
   fechaEntrada: string; // YYYY-MM-DD
   fechaSalida: string; // YYYY-MM-DD
@@ -103,6 +119,7 @@ export interface Reservation {
   qrCode: string; // QR content identifier or simulated hash
   estado: ReservationStatus;
   fechaRegistro: string;
+  fechaRegistroTimestamp?: string;
   checkedInAt?: string;
   checkedOutAt?: string;
   recepcionistaId?: string;
@@ -112,6 +129,7 @@ export interface Reservation {
   fechaCambio?: string;   // Fecha de modificación
   cambiadoPorId?: string; // ID del staff
   eliminadaPorCliente?: boolean; // Si el cliente eliminó la reserva de su historial
+  reservationType?: 'hospedaje' | 'alquiler_mensual' | 'venta';
 }
 
 export interface MaintenanceLog {
@@ -133,4 +151,49 @@ export interface SystemStats {
     };
   };
 }
+
+export interface ChatMessage {
+  id: string;
+  senderId: string;
+  senderName: string;
+  senderRole: UserRole;
+  hotelId: string;
+  text: string;
+  timestamp: string;
+  read: boolean;
+}
+
+export interface PaymentTransaction {
+  id: string;
+  reservationId: string;
+  amount: number;
+  currency: string;
+  paymentMethod: string;
+  status: 'completado' | 'fallido' | 'pendiente';
+  reference: string;
+  fecha: string;
+}
+
+export interface Review {
+  id: string;
+  reservationId: string;
+  hotelId: string;
+  guestId: string;
+  rating: number; // 1-5
+  comentario: string;
+  fecha: string; // YYYY-MM-DD
+  userName?: string;
+}
+
+export interface RoomPriceVariation {
+  id: string;
+  roomId: string;
+  hotelId?: string;
+  fecha?: string | null; // YYYY-MM-DD if date-specific, otherwise null
+  isWeekend: boolean;    // true if applies to weekends (Fri & Sat nights)
+  precio: number;
+  motivo?: string;       // e.g. "Fin de semana", "Navidad", "Temporada Alta"
+}
+
+
 

@@ -2,6 +2,108 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronLeft, ChevronRight, Maximize2, X } from 'lucide-react';
 
+export function isVideoUrl(url: string | undefined): boolean {
+  if (!url) return false;
+  const cleanUrl = url.toLowerCase().split('?')[0].split('#')[0];
+  return (
+    cleanUrl.endsWith('.mp4') ||
+    cleanUrl.endsWith('.webm') ||
+    cleanUrl.endsWith('.ogg') ||
+    cleanUrl.endsWith('.mov') ||
+    url.includes('youtube.com/embed/') ||
+    url.includes('youtube.com/watch') ||
+    url.includes('youtu.be/') ||
+    url.includes('vimeo.com/') ||
+    url.includes('video_') ||
+    url.startsWith('data:video/')
+  );
+}
+
+export function getMediaEmbed(url: string, className = "w-full h-full object-cover") {
+  if (!url) return null;
+  const lower = url.toLowerCase();
+  
+  if (lower.includes('youtube.com/watch') || lower.includes('youtu.be/')) {
+    let videoId = '';
+    if (lower.includes('youtube.com/watch')) {
+      const match = url.match(/[?&]v=([^&#]+)/);
+      videoId = match ? match[1] : '';
+    } else {
+      const parts = url.split('/');
+      videoId = parts[parts.length - 1];
+    }
+    if (videoId) {
+      return (
+        <iframe
+          src={`https://www.youtube.com/embed/${videoId}`}
+          title="YouTube Video"
+          className={className}
+          frameBorder="0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+        />
+      );
+    }
+  }
+  
+  if (lower.includes('youtube.com/embed/')) {
+    return (
+      <iframe
+        src={url}
+        title="YouTube Video"
+        className={className}
+        frameBorder="0"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        allowFullScreen
+      />
+    );
+  }
+
+  if (lower.includes('vimeo.com/')) {
+    const parts = url.split('/');
+    const videoId = parts[parts.length - 1];
+    if (videoId && !isNaN(Number(videoId))) {
+      return (
+        <iframe
+          src={`https://player.vimeo.com/video/${videoId}`}
+          title="Vimeo Video"
+          className={className}
+          frameBorder="0"
+          allow="autoplay; fullscreen; picture-in-picture"
+          allowFullScreen
+        />
+      );
+    }
+  }
+
+  if (
+    lower.endsWith('.mp4') || 
+    lower.endsWith('.webm') || 
+    lower.endsWith('.ogg') || 
+    lower.endsWith('.mov') || 
+    lower.startsWith('data:video/') || 
+    lower.includes('/video/')
+  ) {
+    return (
+      <video
+        src={url}
+        controls
+        className={className}
+        preload="metadata"
+      />
+    );
+  }
+
+  return (
+    <img 
+      src={url} 
+      alt="Media element" 
+      className={className} 
+      referrerPolicy="no-referrer" 
+    />
+  );
+}
+
 interface RoomImageGalleryProps {
   imagenes: string[];
   roomNombre: string;
@@ -45,17 +147,16 @@ export function RoomImageGallery({ imagenes, roomNombre }: RoomImageGalleryProps
         {/* Animated Slide Content */}
         <div className="absolute inset-0 w-full h-full">
           <AnimatePresence mode="wait">
-            <motion.img
+            <motion.div
               key={activeIndex}
-              src={displayImages[activeIndex]}
-              alt={`${roomNombre} - Imagen ${activeIndex + 1}`}
-              className="w-full h-full object-cover select-none"
+              className="w-full h-full"
               initial={{ opacity: 0, scale: 1.05 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.3, ease: 'easeInOut' }}
-              referrerPolicy="no-referrer"
-            />
+            >
+              {getMediaEmbed(displayImages[activeIndex], "w-full h-full object-cover select-none")}
+            </motion.div>
           </AnimatePresence>
         </div>
 
@@ -141,21 +242,20 @@ export function RoomImageGallery({ imagenes, roomNombre }: RoomImageGalleryProps
 
             {/* Main Stage Image */}
             <div 
-              className="relative flex-1 flex items-center justify-center max-h-[70vh] my-4"
+              className="relative flex-1 flex items-center justify-center max-h-[70vh] my-4 w-full"
               onClick={(e) => e.stopPropagation()}
             >
               <AnimatePresence mode="wait">
-                <motion.img
+                <motion.div
                   key={activeIndex}
-                  src={displayImages[activeIndex]}
-                  alt={`${roomNombre} Grande`}
-                  className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl border border-white/5"
+                  className="max-w-full max-h-full aspect-video md:aspect-[16/9] w-full max-w-4xl flex items-center justify-center p-1 rounded-2xl overflow-hidden bg-black shadow-2xl border border-white/5"
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
                   transition={{ duration: 0.25 }}
-                  referrerPolicy="no-referrer"
-                />
+                >
+                  {getMediaEmbed(displayImages[activeIndex], "max-w-full max-h-full object-contain rounded-xl")}
+                </motion.div>
               </AnimatePresence>
 
               {/* Huge Navigation Arrows on stage */}
@@ -184,19 +284,31 @@ export function RoomImageGallery({ imagenes, roomNombre }: RoomImageGalleryProps
               className="w-full max-w-xl mx-auto flex items-center justify-center gap-2.5 bg-neutral-900/60 p-3 rounded-2xl border border-white/10"
               onClick={(e) => e.stopPropagation()}
             >
-              {displayImages.map((img, idx) => (
-                <button
-                  key={idx}
-                  onClick={(e) => selectIndex(idx, e)}
-                  className={`relative w-14 md:w-16 h-10 md:h-12 rounded-lg overflow-hidden border transition-all duration-200 cursor-pointer ${
-                    activeIndex === idx 
-                      ? 'border-teal-500 scale-105 ring-2 ring-teal-500/20' 
-                      : 'border-white/20 opacity-50 hover:opacity-100 hover:border-white/50'
-                  }`}
-                >
-                  <img src={img} alt={`Thumb ${idx + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                </button>
-              ))}
+              {displayImages.map((img, idx) => {
+                const isItemVideo = isVideoUrl(img);
+                return (
+                  <button
+                    key={idx}
+                    onClick={(e) => selectIndex(idx, e)}
+                    className={`relative w-14 md:w-16 h-10 md:h-12 rounded-lg overflow-hidden border transition-all duration-200 cursor-pointer ${
+                      activeIndex === idx 
+                        ? 'border-teal-500 scale-105 ring-2 ring-teal-500/20' 
+                        : 'border-white/20 opacity-50 hover:opacity-100 hover:border-white/50'
+                    }`}
+                  >
+                    {isItemVideo ? (
+                      <div className="w-full h-full bg-neutral-950 flex flex-col items-center justify-center text-white relative">
+                        <div className="absolute top-0.5 right-0.5 bg-red-650 rounded px-1 py-0.2 scale-75 z-10">
+                          <span className="text-[6px] uppercase font-bold tracking-wider text-white">Video</span>
+                        </div>
+                        <span className="text-sm">🎥</span>
+                      </div>
+                    ) : (
+                      <img src={img} alt={`Thumb ${idx + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}

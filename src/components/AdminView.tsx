@@ -4,12 +4,12 @@
  */
 
 import React, { useState } from 'react';
-import { Hotel, Room, User, Reservation, RoomStatus, UserRole } from '../types';
+import { Hotel, Room, User, Reservation, RoomStatus, UserRole, Review, RoomPriceVariation } from '../types';
 import { RoomReservationCalendar } from './RoomReservationCalendar';
-import { SUPABASE_SQL_SCHEMA } from '../supabase';
+import { SUPABASE_SQL_SCHEMA, fetchPropertyDetails } from '../supabase';
 
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, AreaChart, Area } from 'recharts';
-import { Plus, Edit3, Trash2, Shield, Users, HotelIcon, List, LayoutDashboard, Calendar, DollarSign, Percent, TrendingUp, AlertCircle, MapPin, EyeOff, ClipboardList, ToggleLeft, ToggleRight, Check, X, Upload, Database, Sparkles, Copy, Key } from 'lucide-react';
+import { Plus, Edit3, Trash2, Shield, Users, HotelIcon, List, LayoutDashboard, Calendar, DollarSign, Percent, TrendingUp, AlertCircle, MapPin, EyeOff, ClipboardList, ToggleLeft, ToggleRight, Check, X, Upload, Database, Sparkles, Copy, Key, Building, Home, Star } from 'lucide-react';
 
 export function getMapEmbedUrl(ubicacion: string, googleMapsUrl?: string): string {
   if (!ubicacion && !googleMapsUrl) return '';
@@ -84,6 +84,10 @@ interface AdminViewProps {
     };
   }>;
   onChangeUserPassword?: (userId: string, newPass: string, changedByAdmin?: boolean) => Promise<{ success: boolean; error?: string }>;
+  reviews?: Review[];
+  roomPriceVariations?: RoomPriceVariation[];
+  onSaveRoomPriceVariation?: (v: RoomPriceVariation) => void;
+  onDeleteRoomPriceVariation?: (id: string) => void;
 }
 
 export default function AdminView({
@@ -104,10 +108,14 @@ export default function AdminView({
   onUpdateRoomStatus,
   onUpdateReservationStatus,
   onSyncAllToSupabase,
-  onChangeUserPassword
+  onChangeUserPassword,
+  reviews = [],
+  roomPriceVariations = [],
+  onSaveRoomPriceVariation,
+  onDeleteRoomPriceVariation
 }: AdminViewProps) {
   // Navigation tabs within Admin: 'dashboard' | 'hotels' | 'rooms' | 'users' | 'logs' | 'reservations'
-  const [adminTab, setAdminTab] = useState<'dashboard' | 'hotels' | 'rooms' | 'users' | 'logs' | 'reservations'>('dashboard');
+  const [adminTab, setAdminTab] = useState<'dashboard' | 'hotels' | 'properties' | 'rooms' | 'users' | 'logs' | 'reservations'>('dashboard');
   const [superAdminSelectedHotelId, setSuperAdminSelectedHotelId] = useState<string>('all');
 
   // RBAC Access Control checking
@@ -118,6 +126,9 @@ export default function AdminView({
   const allowedHotels = isSuper 
     ? hotels 
     : hotels.filter(h => h.id === myHotelId);
+
+  const allowedOnlyHotels = allowedHotels.filter(h => h.tipoEstablecimiento === 'hotel' || !h.tipoEstablecimiento);
+  const allowedOnlyProperties = allowedHotels.filter(h => h.tipoEstablecimiento === 'casa' || h.tipoEstablecimiento === 'departamento');
 
   const allowedRooms = isSuper 
     ? (superAdminSelectedHotelId === 'all' ? rooms : rooms.filter(r => r.hotelId === superAdminSelectedHotelId))
@@ -166,6 +177,10 @@ export default function AdminView({
   // CRUD Hotel State
   const [editingHotel, setEditingHotel] = useState<Hotel | null>(null);
   const [showHotelModal, setShowHotelModal] = useState(false);
+
+  // CRUD Property State
+  const [editingProperty, setEditingProperty] = useState<Hotel | null>(null);
+  const [showPropertyModal, setShowPropertyModal] = useState(false);
   const [newServiceForm, setNewServiceForm] = useState<{
     id: string;
     nombre: string;
@@ -177,6 +192,14 @@ export default function AdminView({
   // CRUD Room State
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
   const [showRoomModal, setShowRoomModal] = useState(false);
+
+  // Variable pricing states
+  const [selectedRoomForVariations, setSelectedRoomForVariations] = useState<Room | null>(null);
+  const [showVariationsModal, setShowVariationsModal] = useState(false);
+  const [newVarPrice, setNewVarPrice] = useState<number>(100);
+  const [newVarDate, setNewVarDate] = useState<string>('');
+  const [newVarMotivo, setNewVarMotivo] = useState<string>('');
+  const [newVarIsWeekend, setNewVarIsWeekend] = useState<boolean>(false);
 
   // Sandbox-safe Confirmation States
   const [confirmDeleteHotelId, setConfirmDeleteHotelId] = useState<string | null>(null);
@@ -210,6 +233,8 @@ export default function AdminView({
   const [supabaseSyncResult, setSupabaseSyncResult] = useState<any | null>(null);
   const [sqlCopied, setSqlCopied] = useState(false);
   const [supabaseTabError, setSupabaseTabError] = useState("");
+
+
 
   // Calculate reservations for the "Reservas" tab
   const getFilteredReservations = () => {
@@ -371,12 +396,12 @@ export default function AdminView({
   };
 
   // Handle local image file upload and converting to base64
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, isHotel: boolean) => {
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, target: 'hotel' | 'room' | 'property') => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 2 * 1024 * 1024) {
-      alert("Para un rendimiento óptimo de carga, por favor elija una imagen menor a 2MB.");
+    if (file.size > 15 * 1024 * 1024) {
+      alert("Para un rendimiento óptimo de carga, por favor elija un archivo menor a 15MB.");
       return;
     }
 
@@ -384,28 +409,40 @@ export default function AdminView({
     reader.onload = (event) => {
       const dataUrl = event.target?.result as string;
       if (dataUrl) {
-        if (isHotel) {
+        if (target === 'hotel') {
           if (editingHotel) {
             const currentImgs = editingHotel.imagenes || [];
-            if (currentImgs.length >= 5) {
-              alert("Ya has alcanzado el límite de 5 imágenes.");
+            if (currentImgs.length >= 15) {
+              alert("Ya has alcanzado el límite de 15 fotos o videos.");
               return;
             }
             setEditingHotel({
               ...editingHotel,
-              imagenes: [...currentImgs, dataUrl].slice(0, 5)
+              imagenes: [...currentImgs, dataUrl].slice(0, 15)
+            });
+          }
+        } else if (target === 'property') {
+          if (editingProperty) {
+            const currentImgs = editingProperty.imagenes || [];
+            if (currentImgs.length >= 15) {
+              alert("Ya has alcanzado el límite de 15 fotos o videos.");
+              return;
+            }
+            setEditingProperty({
+              ...editingProperty,
+              imagenes: [...currentImgs, dataUrl].slice(0, 15)
             });
           }
         } else {
           if (editingRoom) {
             const currentImgs = editingRoom.imagenes || [];
-            if (currentImgs.length >= 5) {
-              alert("Ya has alcanzado el límite de 5 imágenes.");
+            if (currentImgs.length >= 15) {
+              alert("Ya has alcanzado el límite de 15 de fotos u videos.");
               return;
             }
             setEditingRoom({
               ...editingRoom,
-              imagenes: [...currentImgs, dataUrl].slice(0, 5)
+              imagenes: [...currentImgs, dataUrl].slice(0, 15)
             });
           }
         }
@@ -450,9 +487,87 @@ export default function AdminView({
       horarios: { checkIn: '15:00', checkOut: '11:00' },
       contacto: { telefono: '', email: '' },
       redesSociales: {},
-      estado: 'activo'
+      estado: 'activo',
+      tipoEstablecimiento: 'hotel',
+      propietario: { nombre: '', telefono: '', email: '', documento: '' },
+      detallesInmueble: { habitaciones: 1, banos: 1, metrosCuadrados: 40, amueblado: true, tieneEstacionamiento: false }
     });
     setShowHotelModal(true);
+  };
+
+  const startCreateProperty = () => {
+    setEditingProperty({
+      id: `hotel-${Date.now()}`,
+      nombre: '',
+      logo: 'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=150',
+      portada: 'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=500',
+      imagenes: [
+        'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=500',
+        'https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=500'
+      ],
+      descripcion: '',
+      ubicacion: '',
+      coordenadas: { lat: -1.8312, lng: -78.1834 },
+      googleMapsUrl: '',
+      servicios: ['Agua Caliente', 'Wifi Fibra Óptica', 'Estacionamiento Autónomo'],
+      politicas: ['Cuidado e higiene obligatoria del espacio', 'No se permiten ruidos molestos'],
+      horarios: { checkIn: '12:00', checkOut: '14:00' },
+      contacto: { telefono: '', email: '' },
+      redesSociales: {},
+      estado: 'activo',
+      tipoEstablecimiento: 'casa',
+      finalidad: 'alquiler',
+      propietario: { nombre: '', telefono: '', email: '', documento: '' },
+      detallesInmueble: { habitaciones: 0, banos: 0, metrosCuadrados: undefined, amueblado: false, tieneEstacionamiento: false }
+    });
+    setShowPropertyModal(true);
+  };
+
+  const handlePropertySubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingProperty) return;
+
+    if (editingProperty.detallesInmueble) {
+      if (editingProperty.detallesInmueble.habitaciones === undefined || editingProperty.detallesInmueble.habitaciones === null || isNaN(editingProperty.detallesInmueble.habitaciones)) {
+        alert("Por favor ingrese el número de habitaciones.");
+        return;
+      }
+      if (editingProperty.detallesInmueble.banos === undefined || editingProperty.detallesInmueble.banos === null || isNaN(editingProperty.detallesInmueble.banos)) {
+        alert("Por favor ingrese el número de baños.");
+        return;
+      }
+      if (!editingProperty.detallesInmueble.metrosCuadrados || isNaN(editingProperty.detallesInmueble.metrosCuadrados)) {
+        alert("Por favor ingrese la superficie en m².");
+        return;
+      }
+    }
+
+    if (!editingProperty.propietario?.nombre || !editingProperty.propietario?.telefono || !editingProperty.propietario?.email) {
+      alert("Por favor complete los datos de contacto del propietario (Nombre, Teléfono y Email).");
+      return;
+    }
+
+    if (!editingProperty.nombre) {
+      alert("Por favor ingrese el nombre del inmueble o propiedad comercial.");
+      return;
+    }
+
+    if (!editingProperty.ubicacion) {
+      alert("Por favor ingrese la ubicación exacta de la propiedad.");
+      return;
+    }
+
+    if (editingProperty.imagenes && editingProperty.imagenes.length > 0) {
+      const isLogoInImgs = editingProperty.imagenes.includes(editingProperty.logo);
+      if (!isLogoInImgs) {
+        editingProperty.logo = editingProperty.imagenes[0];
+        editingProperty.portada = editingProperty.imagenes[0];
+      }
+    }
+
+    onSaveHotel(editingProperty);
+    setShowPropertyModal(false);
+    setEditingProperty(null);
   };
 
   // Quick initiate creation of new room
@@ -513,6 +628,15 @@ export default function AdminView({
           >
             <HotelIcon className="w-4 h-4" />
             <span>Hoteles</span>
+          </button>
+          <button
+            onClick={() => setAdminTab('properties')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
+              adminTab === 'properties' ? 'bg-neutral-900 text-white shadow' : 'text-neutral-500 hover:bg-neutral-100'
+            }`}
+          >
+            <Building className="w-4 h-4" />
+            <span>Propiedades</span>
           </button>
           <button
             onClick={() => setAdminTab('rooms')}
@@ -781,36 +905,47 @@ export default function AdminView({
         <div className="space-y-6 animate-fade-in">
           <div className="flex justify-between items-center bg-neutral-50 p-4 rounded-2xl border border-neutral-100 font-sans">
             <div>
-              <h4 className="font-semibold text-neutral-800">Directorio de Hoteles Disponibles ({allowedHotels.length})</h4>
+              <h4 className="font-semibold text-neutral-800 font-sans">Directorio de Hoteles Boutique ({allowedOnlyHotels.length})</h4>
               <p className="text-xs text-neutral-400">
                 {isSuper 
-                  ? 'Agregue, deshabilite o modifique las credenciales públicas de cada establecimiento.'
-                  : 'Modifique las credenciales o información de contacto de su hotel enlazado.'
+                  ? 'Agregue, deshabilite o modifique las fichas de los hoteles afiliados en esta sección.'
+                  : 'Modifique las especificaciones, servicios o información pública de su hotel.'
                 }
               </p>
             </div>
             {isSuper && (
               <button
                 onClick={startCreateHotel}
-                className="flex items-center gap-1.5 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold shadow transition-transform cursor-pointer active:scale-95"
+                className="flex items-center gap-1.5 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold shadow transition-transform cursor-pointer active:scale-95 animate-fade-in"
               >
                 <Plus className="w-4 h-4" />
-                <span>Nuevo Hotel</span>
+                <span>Agregar Hotel</span>
               </button>
             )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {allowedHotels.map(h => (
-              <div key={h.id} className="bg-white rounded-2xl border border-neutral-200 p-5 shadow-sm space-y-4">
+            {allowedOnlyHotels.map(h => (
+              <div key={h.id} className="bg-white rounded-2xl border border-neutral-200 p-5 shadow-sm space-y-4 hover:shadow-md transition-all">
                 <div className="flex justify-between items-start gap-4">
                   <div className="flex gap-3">
                     <img src={h.logo} alt="brand logo" className="w-12 h-12 object-cover rounded-xl border border-neutral-200 shrink-0" />
                     <div>
                       <h5 className="font-semibold text-neutral-800 text-base">{h.nombre}</h5>
-                      <span className={`inline-block text-[9px] uppercase font-bold px-2 py-0.5 rounded-full ${h.estado === 'activo' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
-                        {h.estado}
-                      </span>
+                      <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                        <span className={`inline-block text-[9px] uppercase font-bold px-1.5 py-0.5 rounded-md ${h.estado === 'activo' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                          {h.estado}
+                        </span>
+                        <span className={`inline-block text-[9px] uppercase font-bold px-1.5 py-0.5 rounded-md border ${
+                          h.tipoEstablecimiento === 'casa' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
+                          h.tipoEstablecimiento === 'departamento' ? 'bg-purple-50 text-purple-700 border-purple-200' :
+                          'bg-blue-50 text-blue-700 border-blue-200'
+                        }`}>
+                          {h.tipoEstablecimiento === 'casa' ? '🏡 Casa de Alquiler' :
+                           h.tipoEstablecimiento === 'departamento' ? '🏢 Departamento' :
+                           '🏨 Hotel'}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
@@ -822,7 +957,7 @@ export default function AdminView({
                         setShowHotelModal(true);
                       }}
                       className="p-1.5 text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 rounded-lg transition-colors cursor-pointer"
-                      title="Editar Ficha del Hotel"
+                      title="Editar Ficha del Establecimiento"
                     >
                       <Edit3 className="w-4 h-4" />
                     </button>
@@ -849,7 +984,7 @@ export default function AdminView({
                         <button
                           onClick={() => setConfirmDeleteHotelId(h.id)}
                           className="p-1.5 text-neutral-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                          title="Eliminar Hotel"
+                          title="Eliminar Propiedad"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -860,20 +995,250 @@ export default function AdminView({
 
                 <p className="text-xs text-neutral-500 leading-normal line-clamp-3">{h.descripcion}</p>
 
+                {/* Specifics of Houses and Apartments */}
+                {(h.tipoEstablecimiento === 'casa' || h.tipoEstablecimiento === 'departamento') && h.detallesInmueble && (
+                  <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-3 text-[11px] font-medium text-neutral-600 grid grid-cols-2 gap-2">
+                    <div className="flex items-center gap-1">
+                      <span>🛏️ Habitaciones:</span> <strong className="text-neutral-800">{h.detallesInmueble.habitaciones}</strong>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span>🚿 Baños:</span> <strong className="text-neutral-800">{h.detallesInmueble.banos}</strong>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span>📐 Superficie:</span> <strong className="text-neutral-800">{h.detallesInmueble.metrosCuadrados || 'N/D'} m²</strong>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span>🛋️ Amueblado:</span> <strong className="text-neutral-800">{h.detallesInmueble.amueblado !== false ? 'Sí' : 'No'}</strong>
+                    </div>
+                    <div className="col-span-2 flex items-center gap-1 text-[10px] text-neutral-400 mt-1 pt-1 border-t border-dashed border-neutral-200">
+                      <span>🚘 Estacionamiento:</span> <strong className="text-neutral-600 font-semibold">{h.detallesInmueble.tieneEstacionamiento ? 'Sí, privado' : 'No cuenta'}</strong>
+                    </div>
+                  </div>
+                )}
+
+                {/* Owner Information Card */}
+                {(h.tipoEstablecimiento === 'casa' || h.tipoEstablecimiento === 'departamento') && h.propietario && (
+                  <div className="bg-teal-50/50 p-3 rounded-xl border border-teal-150 text-[10.5px] space-y-1.5">
+                    <p className="font-bold text-teal-800 uppercase tracking-widest text-[9.5px]">👤 Información del Propietario</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-neutral-600 font-medium">
+                      <div>
+                        <span className="text-neutral-400 block text-[9px] uppercase">Propietario:</span>
+                        <span className="text-neutral-800 font-semibold">{h.propietario.nombre}</span>
+                      </div>
+                      <div>
+                        <span className="text-neutral-400 block text-[9px] uppercase">Teléfono Contacto:</span>
+                        <a href={`tel:${h.propietario.telefono}`} className="text-teal-700 font-bold hover:underline font-mono">{h.propietario.telefono}</a>
+                      </div>
+                      <div className="sm:col-span-2">
+                        <span className="text-neutral-400 block text-[9px] uppercase">Correo de Contacto:</span>
+                        <code className="text-neutral-700 bg-white px-1.5 py-0.5 rounded border border-neutral-200 text-[10px] block truncate">{h.propietario.email}</code>
+                      </div>
+                      {h.propietario.documento && (
+                        <div className="sm:col-span-2">
+                          <span className="text-neutral-400 block text-[9px] uppercase">Documento Identidad:</span>
+                          <span className="text-neutral-850 font-mono text-[10px]">{h.propietario.documento}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 gap-2 text-[10px] text-neutral-500 pt-3 border-t border-neutral-100">
                   <div>
-                    <span className="text-neutral-400 font-medium">Ubicación:</span>
-                    <p className="truncate block font-semibold">{h.ubicacion}</p>
+                    <span className="text-neutral-400 font-medium">Ubicación Física:</span>
+                    <p className="truncate block font-semibold text-neutral-700">{h.ubicacion}</p>
                   </div>
                   <div>
-                    <span className="text-neutral-400 font-medium">Habitaciones:</span>
-                    <p className="font-semibold text-neutral-800">{rooms.filter(r => r.hotelId === h.id).length} suites configuradas</p>
+                    <span className="text-neutral-400 font-medium">Configuración de Suites:</span>
+                    <p className="font-semibold text-neutral-800">
+                      {h.tipoEstablecimiento === 'casa' || h.tipoEstablecimiento === 'departamento' 
+                        ? '1 Alquiler Completo'
+                        : `${rooms.filter(r => r.hotelId === h.id).length} suites registradas`
+                      }
+                    </p>
                   </div>
                 </div>
               </div>
             ))}
           </div>
 
+        </div>
+      )}
+
+      {/* CRUD PROPERTIES (RENTAL & SALE) SYSTEM */}
+      {adminTab === 'properties' && (
+        <div className="space-y-6 animate-fade-in font-sans">
+          <div className="flex justify-between items-center bg-neutral-50 p-4 rounded-2xl border border-neutral-100">
+            <div>
+              <h4 className="font-semibold text-neutral-800">Directorio de Propiedades (Casas & Departamentos) ({allowedOnlyProperties.length})</h4>
+              <p className="text-xs text-neutral-400">
+                Gestione las propiedades registradas especificando si están destinadas para Alquiler o Ventas, con información de contacto del propietario.
+              </p>
+            </div>
+            {isSuper && (
+              <button
+                onClick={startCreateProperty}
+                className="flex items-center gap-1.5 px-4 py-2 bg-neutral-900 hover:bg-neutral-850 text-white rounded-xl text-xs font-bold shadow transition-transform cursor-pointer active:scale-95 animate-fade-in"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Agregar Propiedad</span>
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {allowedOnlyProperties.length === 0 ? (
+              <div className="col-span-2 text-center py-12 bg-white rounded-3xl border border-dashed border-neutral-200">
+                <Building className="w-12 h-12 text-neutral-300 mx-auto mb-3" />
+                <h5 className="font-bold text-neutral-700">No hay propiedades registradas</h5>
+                <p className="text-xs text-neutral-450 mt-1">Cree una nueva propiedad para publicarla en alquiler o venta.</p>
+                {isSuper && (
+                  <button
+                    onClick={startCreateProperty}
+                    className="mt-4 px-4 py-2 bg-teal-600 text-white text-xs font-bold rounded-xl shadow cursor-pointer hover:bg-teal-700"
+                  >
+                    Crear Nueva Propiedad
+                  </button>
+                )}
+              </div>
+            ) : (
+              allowedOnlyProperties.map(h => (
+                <div key={h.id} className="bg-white rounded-2xl border border-neutral-200 p-5 shadow-sm space-y-4 hover:shadow-md transition-all font-sans">
+                  <div className="flex justify-between items-start gap-4">
+                    <div className="flex gap-3">
+                      <img src={h.logo} alt="brand logo" className="w-12 h-12 object-cover rounded-xl border border-neutral-200 shrink-0" />
+                      <div>
+                        <h5 className="font-semibold text-neutral-800 text-base flex items-center gap-2">
+                          {h.nombre}
+                        </h5>
+                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                          <span className={`inline-block text-[9px] uppercase font-bold px-1.5 py-0.5 rounded-md ${h.estado === 'activo' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                            {h.estado}
+                          </span>
+                          <span className={`inline-block text-[9px] uppercase font-bold px-1.5 py-0.5 rounded-md border ${
+                            h.tipoEstablecimiento === 'casa' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-purple-50 text-purple-700 border-purple-200'
+                          }`}>
+                            {h.tipoEstablecimiento === 'casa' ? '🏡 Casa de Alquiler' : '🏢 Departamento'}
+                          </span>
+                          <span className={`inline-block text-[9px] uppercase font-bold px-1.5 py-0.5 rounded-md border ${
+                            h.finalidad === 'venta' ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-pink-100 text-pink-800 border-pink-300'
+                          }`}>
+                            {h.finalidad === 'venta' ? '🏷️ En Venta' : '🔑 En Alquiler'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Actions buttons */}
+                    <div className="flex gap-1.5">
+                      <button
+                        onClick={() => {
+                          setEditingProperty({ ...h });
+                          setShowPropertyModal(true);
+                        }}
+                        className="p-1.5 text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 rounded-lg transition-colors cursor-pointer"
+                        title="Editar Ficha de la Propiedad"
+                      >
+                        <Edit3 className="w-4 h-4" />
+                      </button>
+                      {isSuper && (
+                        confirmDeleteHotelId === h.id ? (
+                          <div className="flex items-center gap-1 bg-red-50 p-1 rounded-lg border border-red-200">
+                            <button
+                              onClick={() => setConfirmDeleteHotelId(null)}
+                              className="px-1.5 py-0.5 text-[9px] font-semibold text-neutral-600 hover:bg-neutral-100 rounded cursor-pointer"
+                            >
+                              Volver
+                            </button>
+                            <button
+                              onClick={() => {
+                                onDeleteHotel(h.id);
+                                setConfirmDeleteHotelId(null);
+                              }}
+                              className="px-1.5 py-0.5 bg-red-650 text-white text-[9px] font-bold rounded cursor-pointer"
+                            >
+                              Sí, Borrar
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setConfirmDeleteHotelId(h.id)}
+                            className="p-1.5 text-neutral-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                            title="Eliminar Propiedad"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )
+                      )}
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-neutral-500 leading-normal line-clamp-3 font-sans">{h.descripcion}</p>
+
+                  {/* Specifics of Houses and Apartments */}
+                  {h.detallesInmueble && (
+                    <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-3 text-[11px] font-medium text-neutral-600 grid grid-cols-2 gap-2 font-mono">
+                      <div className="flex items-center gap-1">
+                        <span>🛏️ Habitaciones:</span> <strong className="text-neutral-800 font-bold">{h.detallesInmueble.habitaciones}</strong>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span>🚿 Baños:</span> <strong className="text-neutral-800 font-bold">{h.detallesInmueble.banos}</strong>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span>📐 Superficie:</span> <strong className="text-neutral-800 font-bold">{h.detallesInmueble.metrosCuadrados || 'N/D'} m²</strong>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span>🛋️ Amueblado:</span> <strong className="text-neutral-800 font-bold">{h.detallesInmueble.amueblado !== false ? 'Sí' : 'No'}</strong>
+                      </div>
+                      <div className="col-span-2 flex items-center gap-1 text-[10px] text-neutral-400 mt-1 pt-1 border-t border-dashed border-neutral-200 font-sans">
+                        <span>🚘 Estacionamiento:</span> <strong className="text-neutral-605 font-semibold">{h.detallesInmueble.tieneEstacionamiento ? 'Sí, privado' : 'No cuenta'}</strong>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Owner Information Card */}
+                  {h.propietario && (
+                    <div className="bg-teal-50/50 p-3 rounded-xl border border-teal-150 text-[10.5px] space-y-1.5 font-sans">
+                      <p className="font-bold text-teal-800 uppercase tracking-widest text-[9.5px]">👤 Información de Contacto / Propietario</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-neutral-600 font-medium">
+                        <div>
+                          <span className="text-neutral-400 block text-[9px] uppercase">Propietario:</span>
+                          <span className="text-neutral-800 font-semibold">{h.propietario.nombre}</span>
+                        </div>
+                        <div>
+                          <span className="text-neutral-400 block text-[9px] uppercase">Teléfono Contacto:</span>
+                          <a href={`tel:${h.propietario.telefono}`} className="text-teal-700 font-bold hover:underline font-mono">{h.propietario.telefono}</a>
+                        </div>
+                        <div className="sm:col-span-2 font-mono">
+                          <span className="text-neutral-400 block text-[9px] uppercase font-sans">Correo de Contacto:</span>
+                          <code className="text-neutral-700 bg-white px-1.5 py-0.5 rounded border border-neutral-200 text-[10px] block truncate">{h.propietario.email}</code>
+                        </div>
+                        {h.propietario.documento && (
+                          <div className="sm:col-span-2">
+                            <span className="text-neutral-400 block text-[9px] uppercase">Identificación (DNI/CI):</span>
+                            <span className="text-neutral-850 font-mono text-[10px]">{h.propietario.documento}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-2 text-[10px] text-neutral-500 pt-3 border-t border-neutral-100 font-sans">
+                    <div>
+                      <span className="text-neutral-400 font-medium">Ubicación Física:</span>
+                      <p className="truncate block font-semibold text-neutral-700">{h.ubicacion}</p>
+                    </div>
+                    <div>
+                      <span className="text-neutral-400 font-medium font-sans">Finalidad Comercial:</span>
+                      <p className="font-semibold text-teal-700 uppercase tracking-wide">
+                        {h.finalidad === 'venta' ? 'Propiedad en Venta' : 'Alquiler Temporario'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       )}
 
@@ -953,12 +1318,27 @@ export default function AdminView({
 
                       <button
                         onClick={() => {
+                          setSelectedRoomForVariations(room);
+                          setNewVarPrice(room.precio);
+                          setNewVarDate('');
+                          setNewVarMotivo('');
+                          setNewVarIsWeekend(false);
+                          setShowVariationsModal(true);
+                        }}
+                        className="flex items-center gap-1 p-1 px-2.5 bg-neutral-100 hover:bg-teal-50 hover:text-teal-700 text-neutral-600 rounded text-[10px] font-semibold transition-colors cursor-pointer"
+                      >
+                        <TrendingUp className="w-3 h-3 text-teal-600" />
+                        <span>Precios Variables</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
                           setEditingRoom({ ...room });
                           setOriginalRoomStatus(room.estado);
                           setRoomStatusChangeReason("");
                           setShowRoomModal(true);
                         }}
-                        className="p-1 px-1.5 hover:bg-neutral-100 rounded text-neutral-500 cursor-pointer"
+                        className="p-1 px-1.5 hover:bg-neutral-100 rounded text-neutral-500 cursor-pointer text-xs"
                       >
                         Editar
                       </button>
@@ -1124,6 +1504,66 @@ export default function AdminView({
       {/* SYSTEM SECURITY & ACTIVITY TIMELINE LOGS */}
       {adminTab === 'logs' && (
         <div className="space-y-6 animate-fade-in">
+          
+          {/* ⭐ PANEL DE OPINIONES Y VALORACIONES DE ESTANCIAS */}
+          <div className="space-y-4">
+            <div>
+              <h4 className="font-semibold text-neutral-800 flex items-center gap-2 font-display">
+                <Star className="w-5 h-5 text-yellow-500 fill-current" />
+                Valoraciones y Opiniones de Estancias
+              </h4>
+              <p className="text-xs text-neutral-400">Reseñas y puntuaciones enviadas por huéspedes de forma automática al finalizar sus estadías.</p>
+            </div>
+
+            {reviews.length === 0 ? (
+              <div className="bg-white border border-neutral-200 rounded-3xl p-8 text-center text-neutral-500 text-xs">
+                <Star className="w-8 h-8 text-neutral-300 mx-auto mb-2" />
+                <p className="font-semibold text-neutral-400">Ninguna valoración enviada por huéspedes aún.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {reviews
+                  .filter((r: any) => activeUser.rol === 'super_admin' || r.hotelId === activeUser.hotelId)
+                  .map((rev: any) => {
+                    const hotel = hotels.find((h: any) => h.id === rev.hotelId);
+                    return (
+                      <div key={rev.id} className="bg-white rounded-2xl p-4 border border-neutral-200 shadow-sm flex flex-col justify-between">
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-start gap-2">
+                            <div>
+                              <span className="text-[9px] font-bold text-teal-850 bg-teal-50 border border-teal-150 px-1.5 py-0.5 rounded uppercase tracking-wider font-mono">
+                                {hotel?.nombre || 'Hotel'}
+                              </span>
+                              <h5 className="font-semibold text-neutral-800 text-xs mt-1.5 leading-none">{rev.userName || 'Cliente'}</h5>
+                              <span className="text-[9px] text-neutral-400 font-mono italic">{rev.fecha}</span>
+                            </div>
+
+                            <div className="flex gap-0.5 shrink-0">
+                              {Array.from({ length: 5 }).map((_, i) => (
+                                <Star 
+                                  key={i} 
+                                  className={`w-3 h-3 ${
+                                    i < rev.rating ? 'text-yellow-500 fill-current' : 'text-neutral-200'
+                                  }`} 
+                                />
+                              ))}
+                            </div>
+                          </div>
+
+                          <p className="text-xs text-neutral-600 leading-relaxed italic bg-neutral-50/50 p-2.5 rounded-xl border border-neutral-100/70">
+                            "{rev.comentario || 'Sin comentario escrito.'}"
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+          </div>
+
+          <div className="h-[1.5px] bg-neutral-150 my-8" />
+
+          {/* HISTORIAL CRONOLÓGICO */}
           <div>
             <h4 className="font-semibold text-neutral-800">Canal de Auditoría en Vivo (Activity Logs)</h4>
             <p className="text-xs text-neutral-400">Supervisión en tiempo real de transacciones de bases de datos, inicio de sesión y validación de Check-Ins.</p>
@@ -1454,7 +1894,7 @@ export default function AdminView({
           <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto border border-neutral-100 flex flex-col">
             
             <div className="px-6 py-4 border-b border-neutral-100 flex justify-between items-center bg-neutral-50 rounded-t-2xl">
-              <h4 className="font-semibold text-neutral-850">Administrar Ficha del Hotel</h4>
+              <h4 className="font-semibold text-neutral-850">Administrar Establecimiento / Propiedad</h4>
               <button onClick={() => setShowHotelModal(false)} className="p-1 hover:bg-neutral-200 rounded-full cursor-pointer text-neutral-400">
                 <X className="w-5 h-5" />
               </button>
@@ -1463,12 +1903,202 @@ export default function AdminView({
             <form onSubmit={handleHotelSubmit} className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div className="col-span-2">
-                  <label className="text-[11px] font-semibold text-neutral-500 block mb-1">Nombre Comercial del Hotel:</label>
+                  <label className="text-[11px] font-semibold text-neutral-500 block mb-1">Tipo de Establecimiento / Propiedad:</label>
+                  <select
+                    value={editingHotel.tipoEstablecimiento || 'hotel'}
+                    onChange={(e) => setEditingHotel({
+                      ...editingHotel,
+                      tipoEstablecimiento: e.target.value as 'hotel' | 'casa' | 'departamento',
+                      propietario: editingHotel.propietario || { nombre: '', telefono: '', email: '', documento: '' },
+                      detallesInmueble: editingHotel.detallesInmueble || { habitaciones: 1, banos: 1, metrosCuadrados: 40, amueblado: true, tieneEstacionamiento: false }
+                    })}
+                    className="w-full text-xs border border-neutral-250 p-2 rounded-lg focus:outline-none bg-white font-semibold cursor-pointer text-teal-700"
+                  >
+                    <option value="hotel">🏨 Hotel / Hostal (Múltiples habitaciones independientes)</option>
+                    <option value="casa">🏡 Casa Completa (Alquiler de unidad completa y terreno)</option>
+                    <option value="departamento">🏢 Departamento / Flat Completo (Alquiler vacacional o residencial)</option>
+                  </select>
+                </div>
+
+                {/* INMUEBLE & PROPIETARIO FIELDS (if Casa/Departamento) */}
+                {(editingHotel.tipoEstablecimiento === 'casa' || editingHotel.tipoEstablecimiento === 'departamento') && (
+                  <div className="col-span-2 space-y-3 bg-teal-50/50 p-4 border border-teal-100/80 rounded-xl flex flex-col">
+                    <h5 className="text-[11px] font-bold text-teal-800 uppercase tracking-widest flex items-center gap-1.5 border-b border-teal-100 pb-1.5">
+                      <span>🏡 Especificaciones del Inmueble</span>
+                    </h5>
+                    
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[10px] font-semibold text-neutral-500 block mb-1">Habitaciones:</label>
+                        <input
+                          type="number"
+                          min={1}
+                          required
+                          value={editingHotel.detallesInmueble?.habitaciones || 1}
+                          onChange={(e) => setEditingHotel({
+                            ...editingHotel,
+                            detallesInmueble: {
+                              ...(editingHotel.detallesInmueble || { habitaciones: 1, banos: 1, metrosCuadrados: 40, amueblado: true, tieneEstacionamiento: false }),
+                              habitaciones: parseInt(e.target.value) || 1
+                            }
+                          })}
+                          className="w-full text-xs bg-white border border-neutral-250 p-1.5 rounded-lg focus:outline-none focus:border-teal-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-semibold text-neutral-500 block mb-1">Baños:</label>
+                        <input
+                          type="number"
+                          min={1}
+                          required
+                          value={editingHotel.detallesInmueble?.banos || 1}
+                          onChange={(e) => setEditingHotel({
+                            ...editingHotel,
+                            detallesInmueble: {
+                              ...(editingHotel.detallesInmueble || { habitaciones: 1, banos: 1, metrosCuadrados: 40, amueblado: true, tieneEstacionamiento: false }),
+                              banos: parseInt(e.target.value) || 1
+                            }
+                          })}
+                          className="w-full text-xs bg-white border border-neutral-250 p-1.5 rounded-lg focus:outline-none focus:border-teal-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-semibold text-neutral-500 block mb-1">Área (m²):</label>
+                        <input
+                          type="number"
+                          min={1}
+                          placeholder="Ej: 65"
+                          value={editingHotel.detallesInmueble?.metrosCuadrados || ''}
+                          onChange={(e) => setEditingHotel({
+                            ...editingHotel,
+                            detallesInmueble: {
+                              ...(editingHotel.detallesInmueble || { habitaciones: 1, banos: 1, metrosCuadrados: 40, amueblado: true, tieneEstacionamiento: false }),
+                              metrosCuadrados: parseInt(e.target.value) || undefined
+                            }
+                          })}
+                          className="w-full text-xs bg-white border border-neutral-250 p-1.5 rounded-lg focus:outline-none focus:border-teal-500"
+                        />
+                      </div>
+                      <div className="flex flex-col justify-center space-y-1 mt-2">
+                        <label className="flex items-center gap-1.5 cursor-pointer text-[10.5px] font-medium text-neutral-600">
+                          <input
+                            type="checkbox"
+                            checked={editingHotel.detallesInmueble?.amueblado !== false}
+                            onChange={(e) => setEditingHotel({
+                              ...editingHotel,
+                              detallesInmueble: {
+                                ...(editingHotel.detallesInmueble || { habitaciones: 1, banos: 1, metrosCuadrados: 40, amueblado: true, tieneEstacionamiento: false }),
+                                amueblado: e.target.checked
+                              }
+                            })}
+                            className="rounded text-teal-600 focus:ring-teal-500 w-3.5 h-3.5"
+                          />
+                          <span>¿Está Amoblado?</span>
+                        </label>
+                        <label className="flex items-center gap-1.5 cursor-pointer text-[10.5px] font-medium text-neutral-600">
+                          <input
+                            type="checkbox"
+                            checked={!!editingHotel.detallesInmueble?.tieneEstacionamiento}
+                            onChange={(e) => setEditingHotel({
+                              ...editingHotel,
+                              detallesInmueble: {
+                                ...(editingHotel.detallesInmueble || { habitaciones: 1, banos: 1, metrosCuadrados: 40, amueblado: true, tieneEstacionamiento: false }),
+                                tieneEstacionamiento: e.target.checked
+                              }
+                            })}
+                            className="rounded text-teal-600 focus:ring-teal-500 w-3.5 h-3.5"
+                          />
+                          <span>¿Tiene Estacionamiento?</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    <h5 className="text-[11px] font-bold text-teal-800 uppercase tracking-widest flex items-center gap-1.5 border-b border-teal-100 pb-1.5 pt-2 mt-1">
+                      <span>👤 Datos de Contacto de Propietario</span>
+                    </h5>
+                    
+                    <div className="space-y-2">
+                      <div>
+                        <label className="text-[10px] font-semibold text-neutral-500 block mb-1">Nombre Completo del Propietario:</label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="Ej: Lic. Carlos Mendoza"
+                          value={editingHotel.propietario?.nombre || ''}
+                          onChange={(e) => setEditingHotel({
+                            ...editingHotel,
+                            propietario: {
+                              ...(editingHotel.propietario || { nombre: '', telefono: '', email: '', documento: '' }),
+                              nombre: e.target.value
+                            }
+                          })}
+                          className="w-full text-xs bg-white border border-neutral-250 p-1.5 rounded-lg focus:outline-none focus:border-teal-500"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2.5">
+                        <div>
+                          <label className="text-[10px] font-semibold text-neutral-500 block mb-1">Teléfono Propietario:</label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="Ej: +34 600 112 233"
+                            value={editingHotel.propietario?.telefono || ''}
+                            onChange={(e) => setEditingHotel({
+                              ...editingHotel,
+                              propietario: {
+                                ...(editingHotel.propietario || { nombre: '', telefono: '', email: '', documento: '' }),
+                                telefono: e.target.value
+                              }
+                            })}
+                            className="w-full text-xs bg-white border border-neutral-250 p-1.5 rounded-lg focus:outline-none focus:border-teal-500 font-mono"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-semibold text-neutral-500 block mb-1">Correo Electrónico:</label>
+                          <input
+                            type="email"
+                            required
+                            placeholder="propietario@host.com"
+                            value={editingHotel.propietario?.email || ''}
+                            onChange={(e) => setEditingHotel({
+                              ...editingHotel,
+                              propietario: {
+                                ...(editingHotel.propietario || { nombre: '', telefono: '', email: '', documento: '' }),
+                                email: e.target.value
+                              }
+                            })}
+                            className="w-full text-xs bg-white border border-neutral-250 p-1.5 rounded-lg focus:outline-none focus:border-teal-500"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-semibold text-neutral-500 block mb-1">Documento de Identidad (Cédula de Identidad, DNI o Pasaporte):</label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="Ej: CI-093849120"
+                          value={editingHotel.propietario?.documento || ''}
+                          onChange={(e) => setEditingHotel({
+                            ...editingHotel,
+                            propietario: {
+                              ...(editingHotel.propietario || { nombre: '', telefono: '', email: '', documento: '' }),
+                              documento: e.target.value
+                            }
+                          })}
+                          className="w-full text-xs bg-white border border-neutral-250 p-1.5 rounded-lg focus:outline-none focus:border-teal-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="col-span-2">
+                  <label className="text-[11px] font-semibold text-neutral-500 block mb-1">Nombre Comercial de la Propiedad:</label>
                   <input
                     type="text" required
                     value={editingHotel.nombre}
                     onChange={(e) => setEditingHotel({ ...editingHotel, nombre: e.target.value })}
-                    placeholder="Ej: Roomia Sunset Coast Resort"
+                    placeholder="Ej: Roomia Sunset Coast Resort / Casa de Campo"
                     className="w-full text-xs border border-neutral-250 p-2 rounded-lg focus:outline-none focus:border-teal-500"
                   />
                 </div>
@@ -1593,27 +2223,44 @@ export default function AdminView({
                     onChange={(e) => setEditingHotel({ ...editingHotel, estado: e.target.value as 'activo' | 'inactivo' })}
                     className="w-full text-xs border border-neutral-250 p-2 rounded-lg focus:outline-none bg-white cursor-pointer"
                   >
-                    <option value="activo">Activo (Visible en Landing Page)</option>
-                    <option value="inactivo">Inactivo / Cerrado Temporalmente</option>
+                    <option value="activo">🟢 Activo / Disponible para Reserva</option>
+                    <option value="inactivo">🛑 Inactivo (Ocultar temporalmente)</option>
                   </select>
                 </div>
 
-                {/* 5 COMPREHENSIVE HOTEL IMAGES SELECTOR SECTION */}
-                <div className="col-span-2 space-y-3 bg-neutral-50 p-4 rounded-xl border border-neutral-200">
+                {/* 15 COMPREHENSIVE HOTEL IMAGES SELECTOR SECTION */}
+                <div className="col-span-2 space-y-3 bg-neutral-50 p-4 rounded-xl border border-neutral-200 font-sans">
                   <div className="flex justify-between items-center pb-2 border-b border-neutral-200">
-                    <span className="text-[11px] font-bold text-neutral-700 uppercase tracking-wide">Imágenes Secundarias del Hotel ({(editingHotel.imagenes || []).length}/5)</span>
-                    <span className="text-[10px] text-neutral-400 font-medium">Hasta 5 fotos adicionales para el carrusel del cliente</span>
+                    <span className="text-[11px] font-bold text-neutral-700 uppercase tracking-wide">Imágenes y Videos del Hotel ({(editingHotel.imagenes || []).length}/15)</span>
+                    <span className="text-[10px] text-neutral-400 font-medium">Hasta 15 fotos o videos (mediante enlace o archivo local)</span>
                   </div>
                   
-                  {/* Grid of 5 image slot containers */}
-                  <div className="grid grid-cols-5 gap-2">
-                    {Array.from({ length: 5 }).map((_, idx) => {
+                  {/* Grid of 15 slot containers */}
+                  <div className="grid grid-cols-5 sm:grid-cols-6 lg:grid-cols-8 gap-2">
+                    {Array.from({ length: 15 }).map((_, idx) => {
                       const imgUrl = (editingHotel.imagenes || [])[idx];
+                      const isVid = imgUrl ? (
+                        imgUrl.toLowerCase().endsWith('.mp4') ||
+                        imgUrl.toLowerCase().endsWith('.webm') ||
+                        imgUrl.toLowerCase().endsWith('.mov') ||
+                        imgUrl.includes('youtube.com') ||
+                        imgUrl.includes('youtu.be') ||
+                        imgUrl.includes('vimeo.com') ||
+                        imgUrl.startsWith('data:video/')
+                      ) : false;
+
                       return (
-                        <div key={idx} className="relative aspect-video rounded-lg overflow-hidden border border-neutral-250 bg-neutral-200 flex items-center justify-center group overflow-hidden">
+                        <div key={idx} className="relative aspect-video rounded-lg overflow-hidden border border-neutral-250 bg-neutral-200 flex items-center justify-center group overflow-hidden shadow-sm">
                           {imgUrl ? (
                             <>
-                              <img src={imgUrl} alt={`Hotel Foto ${idx + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                              {isVid ? (
+                                <div className="w-full h-full bg-neutral-900 flex flex-col items-center justify-center text-white relative">
+                                  <span className="text-lg">🎥</span>
+                                  <span className="text-[7px] uppercase font-bold tracking-tight text-white/80">Video {idx + 1}</span>
+                                </div>
+                              ) : (
+                                <img src={imgUrl} alt={`Hotel Foto ${idx + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                              )}
                               <div className="absolute top-1 left-1 bg-neutral-900/85 text-white font-mono text-[8px] px-1 rounded">
                                 {idx + 1}
                               </div>
@@ -1640,14 +2287,14 @@ export default function AdminView({
                     })}
                   </div>
 
-                  {/* Input link field if we have fewer than 5 images */}
-                  {(!editingHotel.imagenes || editingHotel.imagenes.length < 5) && (
+                  {/* Input link field if we have fewer than 15 images */}
+                  {(!editingHotel.imagenes || editingHotel.imagenes.length < 15) && (
                     <div className="space-y-2 pt-1 font-sans">
                       <div className="flex gap-2">
                         <input
                           type="text"
                           id="new-hotel-image-input"
-                          placeholder="Pega enlace de la foto del hotel..."
+                          placeholder="Pega enlace de foto o video del hotel (YouTube, Vimeo, mp4)..."
                           className="flex-1 text-[11px] border border-neutral-255 p-2 rounded-lg bg-white focus:outline-none"
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') {
@@ -1656,7 +2303,7 @@ export default function AdminView({
                               const val = input.value.trim();
                               if (val) {
                                 const currentImgs = editingHotel.imagenes || [];
-                                setEditingHotel({ ...editingHotel, imagenes: [...currentImgs, val].slice(0, 5) });
+                                setEditingHotel({ ...editingHotel, imagenes: [...currentImgs, val].slice(0, 15) });
                                 input.value = '';
                               }
                             }
@@ -1669,42 +2316,41 @@ export default function AdminView({
                             const val = input?.value?.trim();
                             if (val) {
                               const currentImgs = editingHotel.imagenes || [];
-                              setEditingHotel({ ...editingHotel, imagenes: [...currentImgs, val].slice(0, 5) });
+                              setEditingHotel({ ...editingHotel, imagenes: [...currentImgs, val].slice(0, 15) });
                               if (input) input.value = '';
                             }
                           }}
                           className="px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-lg text-xs cursor-pointer shadow-sm animate-fade-in"
                         >
-                          Enlace
+                          Agregar Link
                         </button>
                       </div>
 
                       {/* Direct file upload from internal storage */}
                       <div className="flex items-center justify-between gap-2 p-2 bg-white rounded-lg border border-dashed border-neutral-300">
-                        <span className="text-[10px] font-bold text-neutral-500">¿Subir desde almacenamiento interno?</span>
+                        <span className="text-[10px] font-bold text-neutral-500">¿Subir foto o video local? (Máx 15MB)</span>
                         <label className="flex items-center gap-1 py-1 px-2.5 bg-neutral-900 text-white hover:bg-teal-600 rounded-md text-[10px] font-bold cursor-pointer transition-all shadow-sm">
                           <Upload className="w-3 h-3" />
                           <span>Elegir Archivo</span>
                           <input
                             type="file"
-                            accept="image/*"
+                            accept="image/*,video/*"
                             className="hidden"
-                            onChange={(e) => handleImageUpload(e, true)}
+                            onChange={(e) => handleImageUpload(e, 'hotel')}
                           />
                         </label>
                       </div>
 
                       {/* Suggestions list of pre-curated gorgeous unsplash hotel facades/pools */}
-                      <div className="space-y-1.5">
+                      <div className="space-y-1.5 animate-fade-in">
                         <p className="text-[10px] text-neutral-400 font-bold block">Sugerencias estéticas de fachadas e instalaciones:</p>
                         <div className="flex flex-wrap gap-1">
                           {[
                             { label: 'Fachada Moderna', url: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800' },
                             { label: 'Alberca Elegante', url: 'https://images.unsplash.com/photo-1571896349842-33c89424de2d?w=800' },
                             { label: 'Lobby de Lujo', url: 'https://images.unsplash.com/photo-1566665797739-1674de7a421a?w=800' },
-                            { label: 'Spa & Wellness', url: 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=800' },
-                            { label: 'Restaurante / Bar', url: 'https://images.unsplash.com/photo-1543007630-9710e4a00a20?w=800' },
-                            { label: 'Terraza Atardecer', url: 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?w=800' }
+                            { label: 'Spa de Ensueño', url: 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=800' },
+                            { label: 'Video de Piscina', url: 'https://assets.mixkit.co/videos/preview/mixkit-swimming-pool-in-a-resort-40439-large.mp4' }
                           ].map((suggest, sIdx) => {
                             const alreadyHas = (editingHotel.imagenes || []).includes(suggest.url);
                             return (
@@ -1714,7 +2360,7 @@ export default function AdminView({
                                 disabled={alreadyHas}
                                 onClick={() => {
                                   const currentImgs = editingHotel.imagenes || [];
-                                  setEditingHotel({ ...editingHotel, imagenes: [...currentImgs, suggest.url].slice(0, 5) });
+                                  setEditingHotel({ ...editingHotel, imagenes: [...currentImgs, suggest.url].slice(0, 15) });
                                 }}
                                 className={`px-2 py-1 rounded text-[9px] font-semibold border transition-all cursor-pointer ${
                                   alreadyHas
@@ -1729,15 +2375,18 @@ export default function AdminView({
                         </div>
                       </div>
 
-                      {/* Photo Brand Logo selector option to select one of the 5 images */}
+                      {/* Photo Brand Logo selector option to select one of the 15 images */}
                       {editingHotel.imagenes && editingHotel.imagenes.length > 0 && (
                         <div className="pt-2 border-t border-neutral-200/80 font-sans">
                           <label className="text-[10px] font-bold text-neutral-505 uppercase tracking-wide block mb-1">
-                            Logo de Marca & Portada (Selecciona una de las fotos):
+                            Foto Logo de Marca & Portada (Selecciona una de las fotos):
                           </label>
                           <div className="flex gap-2 overflow-x-auto py-1">
                             {editingHotel.imagenes.map((img, idx) => {
                               const isLogo = editingHotel.logo === img;
+                              const isThisVid = img.toLowerCase().endsWith('.mp4') || img.toLowerCase().endsWith('.webm') || img.includes('youtube.com') || img.includes('youtu.be') || img.includes('vimeo.com');
+                              if (isThisVid) return null; // Can't be a logo/cover static brand image
+
                               return (
                                 <button
                                   key={idx}
@@ -1947,6 +2596,494 @@ export default function AdminView({
         </div>
       )}
 
+      {/* CRUD MODAL: ADD / EDIT PROPERTY */}
+      {showPropertyModal && editingProperty && (
+        <div className="fixed inset-0 bg-neutral-950/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm animate-fade-in font-sans">
+          <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto border border-neutral-100 flex flex-col">
+            
+            <div className="px-6 py-4 border-b border-neutral-100 flex justify-between items-center bg-neutral-50 rounded-t-2xl">
+              <h4 className="font-semibold text-neutral-850">Administrar Propiedad (Casa / Departamento)</h4>
+              <button 
+                type="button"
+                onClick={() => setShowPropertyModal(false)} 
+                className="p-1 hover:bg-neutral-200 rounded-full cursor-pointer text-neutral-400"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handlePropertySubmit} className="p-6 space-y-4">
+              
+              {/* FINALIDAD Y TIPO */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-semibold text-neutral-500 block mb-1">Tipo de Propiedad:</label>
+                  <select
+                    value={editingProperty.tipoEstablecimiento || 'casa'}
+                    onChange={(e) => setEditingProperty({
+                      ...editingProperty,
+                      tipoEstablecimiento: e.target.value as 'casa' | 'departamento'
+                    })}
+                    className="w-full text-xs border border-neutral-250 p-2 rounded-lg focus:outline-none bg-white font-semibold cursor-pointer text-teal-700"
+                  >
+                    <option value="casa">🏡 Casa de Alquiler</option>
+                    <option value="departamento">🏢 Departamento / Flat</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-semibold text-neutral-500 block mb-1">Finalidad Comercial:</label>
+                  <select
+                    value={editingProperty.finalidad || 'alquiler'}
+                    onChange={(e) => setEditingProperty({
+                      ...editingProperty,
+                      finalidad: e.target.value as 'alquiler' | 'venta'
+                    })}
+                    className="w-full text-xs border border-neutral-250 p-2 rounded-lg focus:outline-none bg-white font-semibold cursor-pointer text-amber-700"
+                  >
+                    <option value="alquiler">🔑 En Alquiler</option>
+                    <option value="venta">🏷️ En Venta</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* DATOS BASICOS */}
+              <div className="space-y-3">
+                <div>
+                  <label className="text-[11px] font-semibold text-neutral-500 block mb-1">Nombre Comercial de la Propiedad:</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ej: Penthouse sobre la Av. Amazonas / Villa del Valle"
+                    value={editingProperty.nombre}
+                    onChange={(e) => setEditingProperty({ ...editingProperty, nombre: e.target.value })}
+                    className="w-full text-xs border border-neutral-250 p-2 rounded-lg focus:outline-none font-semibold text-neutral-800"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-semibold text-neutral-500 block mb-1">Descripción Detallada:</label>
+                  <textarea
+                    required
+                    placeholder="Describa la propiedad, distribución, comodidades y cercanía..."
+                    value={editingProperty.descripcion}
+                    onChange={(e) => setEditingProperty({ ...editingProperty, descripcion: e.target.value })}
+                    className="w-full h-20 text-xs border border-neutral-250 p-2 rounded-lg focus:outline-none leading-relaxed"
+                  />
+                </div>
+              </div>
+
+              {/* DETALLES DE INMUEBLE (REQUERIDOS EN 0 AL EMPEZAR) */}
+              <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-4 space-y-3">
+                <h5 className="text-[10.5px] font-bold text-neutral-700 uppercase tracking-wider border-b border-neutral-200 pb-1.5 flex items-center gap-1">
+                  <span>🏡 Especificaciones Técnicas (Requeridos)</span>
+                </h5>
+
+                <div className="grid grid-cols-3 gap-2.5 font-mono">
+                  <div>
+                    <label className="text-[9.5px] font-bold text-neutral-500 block mb-1 font-sans">Habitaciones:</label>
+                    <input
+                      type="number"
+                      required
+                      min="0"
+                      value={editingProperty.detallesInmueble?.habitaciones ?? 0}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value);
+                        setEditingProperty({
+                          ...editingProperty,
+                          detallesInmueble: {
+                            ...(editingProperty.detallesInmueble || { habitaciones: 0, banos: 0 }),
+                            habitaciones: isNaN(val) ? 0 : val
+                          }
+                        });
+                      }}
+                      className="w-full text-xs font-semibold text-center border border-neutral-250 p-1.5 rounded-lg focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[9.5px] font-bold text-neutral-500 block mb-1 font-sans">Baños Completos:</label>
+                    <input
+                      type="number"
+                      required
+                      min="0"
+                      value={editingProperty.detallesInmueble?.banos ?? 0}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value);
+                        setEditingProperty({
+                          ...editingProperty,
+                          detallesInmueble: {
+                            ...(editingProperty.detallesInmueble || { habitaciones: 0, banos: 0 }),
+                            banos: isNaN(val) ? 0 : val
+                          }
+                        });
+                      }}
+                      className="w-full text-xs font-semibold text-center border border-neutral-250 p-1.5 rounded-lg focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[9.5px] font-bold text-neutral-500 block mb-1 font-sans">Superficie m²:</label>
+                    <input
+                      type="number"
+                      required
+                      min="1"
+                      placeholder="m²"
+                      value={editingProperty.detallesInmueble?.metrosCuadrados || ''}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value);
+                        setEditingProperty({
+                          ...editingProperty,
+                          detallesInmueble: {
+                            ...(editingProperty.detallesInmueble || { habitaciones: 0, banos: 0 }),
+                            metrosCuadrados: isNaN(val) ? undefined : val
+                          }
+                        });
+                      }}
+                      className="w-full text-xs font-semibold text-center border border-neutral-250 p-1.5 rounded-lg focus:outline-none text-teal-700"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-2 pt-1">
+                  <div>
+                    <label className="text-[9.5px] font-bold text-neutral-500 block mb-1 font-sans">Precio Comercial de Propiedad (USD):</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1 text-neutral-450 font-bold text-xs">$</span>
+                      <input
+                        type="number"
+                        required
+                        min="1"
+                        placeholder="Ej: 450 (alquiler) / 85000 (venta)"
+                        value={editingProperty.detallesInmueble?.precio || ''}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value);
+                          setEditingProperty({
+                            ...editingProperty,
+                            detallesInmueble: {
+                              ...(editingProperty.detallesInmueble || { habitaciones: 0, banos: 0 }),
+                              precio: isNaN(val) ? 0 : val
+                            }
+                          });
+                        }}
+                        className="w-full text-xs font-semibold pl-6 pr-3 py-1.5 border border-neutral-250 rounded-lg focus:outline-none text-neutral-800 font-mono"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 pt-1.5">
+                  <label className="flex items-center gap-2 text-xs font-medium text-neutral-650 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={editingProperty.detallesInmueble?.amueblado || false}
+                      onChange={(e) => setEditingProperty({
+                        ...editingProperty,
+                        detallesInmueble: {
+                          ...(editingProperty.detallesInmueble || { habitaciones: 0, banos: 0 }),
+                          amueblado: e.target.checked
+                        }
+                      })}
+                      className="w-4 h-4 text-teal-650 accent-teal-600 rounded cursor-pointer"
+                    />
+                    <span>¿Viene Amueblado?</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 text-xs font-medium text-neutral-650 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={editingProperty.detallesInmueble?.tieneEstacionamiento || false}
+                      onChange={(e) => setEditingProperty({
+                        ...editingProperty,
+                        detallesInmueble: {
+                          ...(editingProperty.detallesInmueble || { habitaciones: 0, banos: 0 }),
+                          tieneEstacionamiento: e.target.checked
+                        }
+                      })}
+                      className="w-4 h-4 text-teal-650 accent-teal-600 rounded cursor-pointer"
+                    />
+                    <span>Tiene Cochera / Estac.</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* HISTORIAL Y DETALLES DEL PROPIETARIO */}
+              <div className="bg-teal-50 border border-teal-150 rounded-xl p-4 space-y-3">
+                <h5 className="text-[10.5px] font-bold text-teal-800 uppercase tracking-wider border-b border-teal-200 pb-1.5 flex items-center gap-1">
+                  <span>👤 Datos de Contacto del Propietario</span>
+                </h5>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="col-span-2">
+                    <label className="text-[9.5px] font-bold text-teal-800 block mb-0.5">Nombre Completo del Propietario:</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ej: Lic. Carlos Mendoza"
+                      value={editingProperty.propietario?.nombre || ''}
+                      onChange={(e) => setEditingProperty({
+                        ...editingProperty,
+                        propietario: {
+                          ...(editingProperty.propietario || { nombre: '', telefono: '', email: '' }),
+                          nombre: e.target.value
+                        }
+                      })}
+                      className="w-full text-xs border border-teal-200/80 p-2 rounded-lg bg-white focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[9.5px] font-bold text-teal-800 block mb-0.5">WhatsApp / Celular:</label>
+                    <input
+                      type="tel"
+                      required
+                      placeholder="Ej: 099123456"
+                      value={editingProperty.propietario?.telefono || ''}
+                      onChange={(e) => setEditingProperty({
+                        ...editingProperty,
+                        propietario: {
+                          ...(editingProperty.propietario || { nombre: '', telefono: '', email: '' }),
+                          telefono: e.target.value
+                        }
+                      })}
+                      className="w-full text-xs border border-teal-200/80 p-2 rounded-lg bg-white focus:outline-none font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[9.5px] font-bold text-teal-800 block mb-0.5">Identificación / C.I.:</label>
+                    <input
+                      type="text"
+                      placeholder="Ej: 1712345678"
+                      value={editingProperty.propietario?.documento || ''}
+                      onChange={(e) => setEditingProperty({
+                        ...editingProperty,
+                        propietario: {
+                          ...(editingProperty.propietario || { nombre: '', telefono: '', email: '' }),
+                          documento: e.target.value
+                        }
+                      })}
+                      className="w-full text-xs border border-teal-200/80 p-2 rounded-lg bg-white focus:outline-none font-mono"
+                    />
+                  </div>
+
+                  <div className="col-span-2 font-mono">
+                    <label className="text-[9.5px] font-bold text-teal-800 block mb-0.5 font-sans">Correo electrónico:</label>
+                    <input
+                      type="email"
+                      required
+                      placeholder="Ej: propietario@roomiasaas.com"
+                      value={editingProperty.propietario?.email || ''}
+                      onChange={(e) => setEditingProperty({
+                        ...editingProperty,
+                        propietario: {
+                          ...(editingProperty.propietario || { nombre: '', telefono: '', email: '' }),
+                          email: e.target.value
+                        }
+                      })}
+                      className="w-full text-xs border border-teal-200/80 p-2 rounded-lg bg-white focus:outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* GEOLOCALIZACION */}
+              <div className="space-y-3">
+                <div>
+                  <label className="text-[11px] font-semibold text-neutral-500 block mb-1">Dirección Exacta (Ubicación):</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ej: Calle 15 de Noviembre y Av. de los Granados, Quito"
+                    value={editingProperty.ubicacion}
+                    onChange={(e) => setEditingProperty({ ...editingProperty, ubicacion: e.target.value })}
+                    className="w-full text-xs border border-neutral-250 p-2 rounded-lg focus:outline-none font-semibold text-neutral-850"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-semibold text-neutral-500 block mb-1">Enlace de Google Maps (URL / Pin):</label>
+                  <input
+                    type="text"
+                    placeholder="Ej: https://maps.google.com/..."
+                    value={editingProperty.googleMapsUrl || ''}
+                    onChange={(e) => setEditingProperty({ ...editingProperty, googleMapsUrl: e.target.value })}
+                    className="w-full text-xs border border-neutral-250 p-2 rounded-lg focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* 15 COMPREHENSIVE PROPERTY IMAGES SELECTOR SECTION */}
+              <div className="p-4 bg-neutral-50 border border-neutral-200 rounded-xl space-y-3 font-sans">
+                <div className="flex justify-between items-center pb-2 border-b border-neutral-200">
+                  <span className="text-[11px] font-bold text-neutral-700 uppercase tracking-wide">Imágenes y Videos del Inmueble ({(editingProperty.imagenes || []).length}/15)</span>
+                  <span className="text-[10px] text-neutral-400 font-medium font-semibold">Hasta 15 fotos o videos (mediante enlace o archivo local)</span>
+                </div>
+
+                {/* Grid of 15 slots */}
+                <div className="grid grid-cols-5 sm:grid-cols-6 lg:grid-cols-8 gap-2">
+                  {Array.from({ length: 15 }).map((_, idx) => {
+                    const imgUrl = (editingProperty.imagenes || [])[idx];
+                    const isVid = imgUrl ? (
+                      imgUrl.toLowerCase().endsWith('.mp4') ||
+                      imgUrl.toLowerCase().endsWith('.webm') ||
+                      imgUrl.toLowerCase().endsWith('.mov') ||
+                      imgUrl.includes('youtube.com') ||
+                      imgUrl.includes('youtu.be') ||
+                      imgUrl.includes('vimeo.com') ||
+                      imgUrl.startsWith('data:video/')
+                    ) : false;
+
+                    return (
+                      <div key={idx} className="relative aspect-video rounded-lg overflow-hidden border border-neutral-250 bg-neutral-200 flex items-center justify-center group overflow-hidden shadow-sm">
+                        {imgUrl ? (
+                          <>
+                            {isVid ? (
+                              <div className="w-full h-full bg-neutral-900 flex flex-col items-center justify-center text-white relative">
+                                <span className="text-sm">🎥</span>
+                                <span className="text-[7px] uppercase font-bold tracking-tight text-white/80">Video {idx + 1}</span>
+                              </div>
+                            ) : (
+                              <img src={imgUrl} alt={`Inmueble Foto ${idx + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                            )}
+                            <div className="absolute top-1 left-1 bg-neutral-900/85 text-white font-mono text-[8px] px-1 rounded">
+                              {idx + 1}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const nextImgs = [...(editingProperty.imagenes || [])];
+                                nextImgs.splice(idx, 1);
+                                setEditingProperty({ ...editingProperty, imagenes: nextImgs });
+                              }}
+                              className="absolute inset-0 bg-red-650/90 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer text-[9px] font-bold"
+                            >
+                              Quitar
+                            </button>
+                          </>
+                        ) : (
+                          <div className="text-neutral-450 text-[8px] font-medium p-1 text-center leading-tight">
+                            Vacío<br/>
+                            <span className="text-neutral-400 text-[9px] font-mono">#{idx + 1}</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Adding New URL link if space permits */}
+                {(!editingProperty.imagenes || editingProperty.imagenes.length < 15) && (
+                  <div className="space-y-2 pt-1 font-sans">
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        id="new-property-image-input"
+                        placeholder="Pega enlace de foto o video del inmueble (YouTube, Vimeo, mp4)..."
+                        className="flex-1 text-[11px] border border-neutral-255 p-2 rounded-lg bg-white focus:outline-none"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            const input = e.currentTarget;
+                            const val = input.value.trim();
+                            if (val) {
+                              const currentImgs = editingProperty.imagenes || [];
+                              setEditingProperty({ ...editingProperty, imagenes: [...currentImgs, val].slice(0, 15) });
+                              input.value = '';
+                            }
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const input = document.getElementById('new-property-image-input') as HTMLInputElement;
+                          const val = input?.value?.trim();
+                          if (val) {
+                            const currentImgs = editingProperty.imagenes || [];
+                            setEditingProperty({ ...editingProperty, imagenes: [...currentImgs, val].slice(0, 15) });
+                            if (input) input.value = '';
+                          }
+                        }}
+                        className="px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-lg text-xs cursor-pointer shadow-sm"
+                      >
+                        Agregar Link
+                      </button>
+                    </div>
+
+                    {/* Local File upload element */}
+                    <div className="flex items-center justify-between gap-2 p-2 bg-white rounded-lg border border-dashed border-neutral-300">
+                      <span className="text-[10px] font-bold text-neutral-500">¿Subir foto o video local? (Máx 15MB)</span>
+                      <label className="flex items-center gap-1 py-1 px-2.5 bg-neutral-900 text-white hover:bg-teal-600 rounded-md text-[10px] font-bold cursor-pointer transition-all shadow-sm">
+                        <Upload className="w-3 h-3" />
+                        <span>Elegir Archivo</span>
+                        <input
+                          type="file"
+                          accept="image/*,video/*"
+                          className="hidden"
+                          onChange={(e) => handleImageUpload(e, 'property')}
+                        />
+                      </label>
+                    </div>
+
+                    {/* Pre-curated Suggestions list */}
+                    <div className="space-y-1.5 animate-fade-in">
+                      <p className="text-[10px] text-neutral-450 font-bold block">Sugerencias estéticas de Inmuebles:</p>
+                      <div className="flex flex-wrap gap-1">
+                        {[
+                          { label: 'Casa de Lujo', url: 'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=800' },
+                          { label: 'Depto Loft', url: 'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=800' },
+                          { label: 'Living Room', url: 'https://images.unsplash.com/photo-1484154218962-a197022b5858?w=800' },
+                          { label: 'Video Demo', url: 'https://assets.mixkit.co/videos/preview/mixkit-swimming-pool-in-a-resort-40439-large.mp4' }
+                        ].map((suggest, sIdx) => {
+                          const alreadyHas = (editingProperty.imagenes || []).includes(suggest.url);
+                          return (
+                            <button
+                              key={sIdx}
+                              type="button"
+                              disabled={alreadyHas}
+                              onClick={() => {
+                                const currentImgs = editingProperty.imagenes || [];
+                                setEditingProperty({ ...editingProperty, imagenes: [...currentImgs, suggest.url].slice(0, 15) });
+                              }}
+                              className={`px-2 py-1 rounded text-[9px] font-semibold border transition-all cursor-pointer ${
+                                alreadyHas
+                                  ? 'bg-neutral-100 text-neutral-350 border-neutral-200 cursor-not-allowed'
+                                  : 'bg-white text-neutral-600 border-neutral-200 hover:bg-teal-50 hover:text-teal-700 hover:border-teal-200'
+                              }`}
+                            >
+                              + {suggest.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* ACCIONES */}
+              <div className="pt-2 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowPropertyModal(false)}
+                  className="w-1/2 px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-semibold rounded-xl text-xs cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="w-1/2 px-4 py-2 bg-neutral-900 hover:bg-neutral-800 text-white font-bold rounded-xl text-xs cursor-pointer shadow-md animate-pulse"
+                >
+                  Publicar Propiedad
+                </button>
+              </div>
+
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* CRUD MODAL: ADD / EDIT ROOM */}
       {showRoomModal && editingRoom && (
         <div className="fixed inset-0 bg-neutral-950/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm animate-fade-in">
@@ -2070,22 +3207,38 @@ export default function AdminView({
                   </select>
                 </div>
 
-                {/* 5 COMPREHENSIVE SUITE IMAGES SELECTOR SECTION */}
                 <div className="col-span-2 space-y-3 bg-neutral-50 p-4 rounded-xl border border-neutral-200">
-                  <div className="flex justify-between items-center pb-2 border-b border-neutral-200">
-                    <span className="text-[11px] font-bold text-neutral-700 uppercase tracking-wide">Imágenes de la Habitación ({(editingRoom.imagenes || []).length}/5)</span>
-                    <span className="text-[10px] text-neutral-400 font-medium">Permite hasta 5 fotos para el carrusel del cliente</span>
+                  <div className="flex justify-between items-center pb-2 border-b border-neutral-200 font-sans">
+                    <span className="text-[11px] font-bold text-neutral-700 uppercase tracking-wide">Imágenes y Videos de la Habitación ({(editingRoom.imagenes || []).length}/15)</span>
+                    <span className="text-[10px] text-neutral-400 font-medium">Hasta 15 fotos o videos (mediante enlace o archivo local)</span>
                   </div>
                   
-                  {/* Grid of 5 image slot containers */}
-                  <div className="grid grid-cols-5 gap-2">
-                    {Array.from({ length: 5 }).map((_, idx) => {
+                  {/* Grid of 15 slots containers */}
+                  <div className="grid grid-cols-5 sm:grid-cols-6 lg:grid-cols-8 gap-2">
+                    {Array.from({ length: 15 }).map((_, idx) => {
                       const imgUrl = (editingRoom.imagenes || [])[idx];
+                      const isVid = imgUrl ? (
+                        imgUrl.toLowerCase().endsWith('.mp4') ||
+                        imgUrl.toLowerCase().endsWith('.webm') ||
+                        imgUrl.toLowerCase().endsWith('.mov') ||
+                        imgUrl.includes('youtube.com') ||
+                        imgUrl.includes('youtu.be') ||
+                        imgUrl.includes('vimeo.com') ||
+                        imgUrl.startsWith('data:video/')
+                      ) : false;
+
                       return (
-                        <div key={idx} className="relative aspect-video rounded-lg overflow-hidden border border-neutral-250 bg-neutral-200 flex items-center justify-center group overflow-hidden">
+                        <div key={idx} className="relative aspect-video rounded-lg overflow-hidden border border-neutral-250 bg-neutral-200 flex items-center justify-center group overflow-hidden shadow-sm">
                           {imgUrl ? (
                             <>
-                              <img src={imgUrl} alt={`Foto ${idx + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                              {isVid ? (
+                                <div className="w-full h-full bg-neutral-900 flex flex-col items-center justify-center text-white relative">
+                                  <span className="text-sm">🎥</span>
+                                  <span className="text-[7px] uppercase font-bold tracking-tight text-white/80">Video {idx + 1}</span>
+                                </div>
+                              ) : (
+                                <img src={imgUrl} alt={`Foto ${idx + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                              )}
                               <div className="absolute top-1 left-1 bg-neutral-900/85 text-white font-mono text-[8px] px-1 rounded">
                                 {idx + 1}
                               </div>
@@ -2112,14 +3265,14 @@ export default function AdminView({
                     })}
                   </div>
 
-                  {/* Input link field if we have fewer than 5 images */}
-                  {(!editingRoom.imagenes || editingRoom.imagenes.length < 5) && (
+                  {/* Input link field if we have fewer than 15 images */}
+                  {(!editingRoom.imagenes || editingRoom.imagenes.length < 15) && (
                     <div className="space-y-2 pt-1 font-sans">
                       <div className="flex gap-2">
                         <input
                           type="text"
                           id="new-room-image-input"
-                          placeholder="Pega enlace URL..."
+                          placeholder="Pega enlace de foto o video de la habitación (YouTube, Vimeo, mp4)..."
                           className="flex-1 text-[11px] border border-neutral-255 p-2 rounded-lg bg-white focus:outline-none"
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') {
@@ -2128,7 +3281,7 @@ export default function AdminView({
                               const val = input.value.trim();
                               if (val) {
                                 const currentImgs = editingRoom.imagenes || [];
-                                setEditingRoom({ ...editingRoom, imagenes: [...currentImgs, val].slice(0, 5) });
+                                setEditingRoom({ ...editingRoom, imagenes: [...currentImgs, val].slice(0, 15) });
                                 input.value = '';
                               }
                             }
@@ -2141,33 +3294,33 @@ export default function AdminView({
                             const val = input?.value?.trim();
                             if (val) {
                               const currentImgs = editingRoom.imagenes || [];
-                              setEditingRoom({ ...editingRoom, imagenes: [...currentImgs, val].slice(0, 5) });
+                              setEditingRoom({ ...editingRoom, imagenes: [...currentImgs, val].slice(0, 15) });
                               if (input) input.value = '';
                             }
                           }}
                           className="px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-lg text-xs cursor-pointer shadow-sm animate-fade-in"
                         >
-                          Enlace
+                          Agregar Link
                         </button>
                       </div>
 
                       {/* Direct file upload from internal storage */}
                       <div className="flex items-center justify-between gap-2 p-2 bg-white rounded-lg border border-dashed border-neutral-300">
-                        <span className="text-[10px] font-bold text-neutral-500">¿Subir desde almacenamiento interno?</span>
+                        <span className="text-[10px] font-bold text-neutral-500">¿Subir foto o video local? (Máx 15MB)</span>
                         <label className="flex items-center gap-1 py-1 px-2.5 bg-neutral-900 text-white hover:bg-teal-600 rounded-md text-[10px] font-bold cursor-pointer transition-all shadow-sm">
                           <Upload className="w-3 h-3" />
                           <span>Elegir Archivo</span>
                           <input
                             type="file"
-                            accept="image/*"
+                            accept="image/*,video/*"
                             className="hidden"
-                            onChange={(e) => handleImageUpload(e, false)}
+                            onChange={(e) => handleImageUpload(e, 'room')}
                           />
                         </label>
                       </div>
 
                       {/* Suggestions list of pre-curated gorgeous unsplash bed/suite photos */}
-                      <div className="space-y-1.5">
+                      <div className="space-y-1.5 animate-fade-in">
                         <p className="text-[10px] text-neutral-450 font-bold block">Sugerencias estéticas de Roomia (Click para añadir):</p>
                         <div className="flex flex-wrap gap-1">
                           {[
@@ -2175,9 +3328,7 @@ export default function AdminView({
                             { label: 'Suite Imperial', url: 'https://images.unsplash.com/photo-1582719508461-905c673771fd?w=800' },
                             { label: 'Suite Vista Ciudad', url: 'https://images.unsplash.com/photo-1590490360182-c33d57733427?w=800' },
                             { label: 'Estudio Loft', url: 'https://images.unsplash.com/photo-1596394516093-501ba68a0ba6?w=800' },
-                            { label: 'Salón de Suite', url: 'https://images.unsplash.com/photo-1598928506311-c55ded91a20c?w=800' },
-                            { label: 'Bañera Jacuzzi', url: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=800' },
-                            { label: 'Cama Doble', url: 'https://images.unsplash.com/photo-1566665797739-1674de7a421a?w=800' }
+                            { label: 'Salón de Suite', url: 'https://images.unsplash.com/photo-1598928506311-c55ded91a20c?w=800' }
                           ].map((suggest, sIdx) => {
                             const alreadyHas = (editingRoom.imagenes || []).includes(suggest.url);
                             return (
@@ -2187,7 +3338,7 @@ export default function AdminView({
                                 disabled={alreadyHas}
                                 onClick={() => {
                                   const currentImgs = editingRoom.imagenes || [];
-                                  setEditingRoom({ ...editingRoom, imagenes: [...currentImgs, suggest.url].slice(0, 5) });
+                                  setEditingRoom({ ...editingRoom, imagenes: [...currentImgs, suggest.url].slice(0, 15) });
                                 }}
                                 className={`px-2 py-1 rounded text-[9px] font-semibold border transition-all cursor-pointer ${
                                   alreadyHas
@@ -2320,6 +3471,232 @@ export default function AdminView({
                 Guardar Cambio
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 📈 GESTIÓN DE TARIFAS Y VARIACIONES DE PRECIOS MODAL */}
+      {showVariationsModal && selectedRoomForVariations && (
+        <div className="fixed inset-0 bg-neutral-950/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm animate-fade-in text-xs">
+          <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto border border-neutral-150 flex flex-col">
+            
+            <div className="px-6 py-4 border-b border-neutral-100 flex justify-between items-center bg-neutral-50 rounded-t-2xl">
+              <div>
+                <h4 className="font-bold text-neutral-850 text-sm flex items-center gap-1.5 pt-1.5">
+                  <TrendingUp className="w-4 h-4 text-teal-600" />
+                  Precios Variables por Fechas y Fines de Semana
+                </h4>
+                <p className="text-[11px] text-neutral-400">Habitación #{selectedRoomForVariations.numero} - {selectedRoomForVariations.nombre}</p>
+              </div>
+              <button 
+                onClick={() => {
+                  setShowVariationsModal(false);
+                  setSelectedRoomForVariations(null);
+                }} 
+                className="p-1 hover:bg-neutral-200 rounded-full cursor-pointer text-neutral-400"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* RESUMEN PRECIO BASE */}
+              <div className="bg-neutral-50 p-4 rounded-xl border border-neutral-200 flex justify-between items-center">
+                <div>
+                  <span className="text-[10px] text-neutral-400 block font-bold uppercase tracking-wider font-sans">TARIFA ESTÁNDAR BASE</span>
+                  <span className="text-xs text-neutral-600 italic">Precio base establecido por la administración de la suite</span>
+                </div>
+                <div className="text-right">
+                  <span className="font-mono text-lg font-bold text-teal-850">${selectedRoomForVariations.precio} USD</span>
+                  <span className="text-[9px] text-neutral-400 block font-mono">por noche</span>
+                </div>
+              </div>
+
+              {/* LIST OF CURRENT VARIATIONS */}
+              <div className="space-y-2.5">
+                <span className="text-xs font-bold text-neutral-700 block">Reglas de Variación de Tarifas Activas:</span>
+                
+                {roomPriceVariations.filter(v => v.roomId === selectedRoomForVariations.id).length === 0 ? (
+                  <div className="bg-yellow-50/50 rounded-xl p-4 text-center border border-dashed border-yellow-250 text-neutral-500 text-[11px] italic">
+                    Sin tarifas variables configuradas. La habitación cobrará siempre la tarifa base estándar (${selectedRoomForVariations.precio} USD).
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    {roomPriceVariations
+                      .filter(v => v.roomId === selectedRoomForVariations.id)
+                      .map(variation => (
+                        <div key={variation.id} className="bg-white p-3 rounded-xl border border-neutral-200 flex justify-between items-center gap-3 hover:bg-neutral-50 shrink-0">
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {variation.isWeekend ? (
+                                <span className="bg-purple-50 text-purple-750 border border-purple-150 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase font-mono">
+                                  Fines de Semana (Sáb/Dom/Vie)
+                                </span>
+                              ) : (
+                                <span className="bg-blue-50 text-blue-750 border border-blue-150 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase font-mono">
+                                  {variation.fecha}
+                                </span>
+                              )}
+                              <span className="text-xs font-mono font-bold text-neutral-850">${variation.precio} USD</span>
+                            </div>
+                            <p className="text-[10px] text-neutral-400 mt-0.5 italic">"Motivo: {variation.motivo || 'Variación por fecha especial'}"</p>
+                          </div>
+
+                          <button
+                            onClick={() => {
+                              if (onDeleteRoomPriceVariation) {
+                                onDeleteRoomPriceVariation(variation.id);
+                              }
+                            }}
+                            className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors cursor-pointer"
+                            title="Eliminar regla"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+
+              {/* FORM TO ADD NEW VARIATION RATE */}
+              <div className="bg-neutral-50/70 p-4 rounded-xl border border-dashed border-neutral-250 space-y-3.5">
+                <span className="text-xs font-bold text-neutral-850 flex items-center gap-1">
+                  <Plus className="w-4 h-4 text-teal-600" />
+                  Agregar Nueva Tarifa de Variación
+                </span>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="col-span-2">
+                    <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider block mb-1">Tipo de Regla:</label>
+                    <div className="flex gap-4">
+                      <label className="flex items-center gap-1.5 cursor-pointer text-xs font-semibold text-neutral-700">
+                        <input
+                          type="radio"
+                          name="ruleType"
+                          checked={!newVarIsWeekend}
+                          onChange={() => setNewVarIsWeekend(false)}
+                          className="accent-teal-600"
+                        />
+                        <span>Fecha Específica (Holidays/Festivos)</span>
+                      </label>
+                      <label className="flex items-center gap-1.5 cursor-pointer text-xs font-semibold text-neutral-700">
+                        <input
+                          type="radio"
+                          name="ruleType"
+                          checked={newVarIsWeekend}
+                          onChange={() => setNewVarIsWeekend(true)}
+                          className="accent-teal-600"
+                        />
+                        <span>Fin de Semana</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider block mb-1">Precio Por Noche (USD):</label>
+                    <input
+                      type="number"
+                      min={1}
+                      required
+                      value={newVarPrice}
+                      onChange={(e) => setNewVarPrice(Math.max(1, parseInt(e.target.value) || 0))}
+                      className="w-full border border-neutral-250 bg-white p-2 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-500 text-xs text-neutral-800 font-mono font-extrabold"
+                    />
+                  </div>
+
+                  {!newVarIsWeekend ? (
+                    <div>
+                      <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider block mb-1">Fecha de Aplicación:</label>
+                      <input
+                        type="date"
+                        required={!newVarIsWeekend}
+                        value={newVarDate}
+                        onChange={(e) => setNewVarDate(e.target.value)}
+                        className="w-full border border-neutral-250 bg-white p-1.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-500 text-xs font-mono text-neutral-800 cursor-pointer"
+                      />
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider block mb-1 text-neutral-400">Fecha:</label>
+                      <input
+                        type="text"
+                        disabled
+                        value="Días (Viernes, Sábado y Domingo)"
+                        className="w-full border border-neutral-100 bg-neutral-100/50 p-2 rounded-lg text-xs text-neutral-450 italic cursor-not-allowed font-medium"
+                      />
+                    </div>
+                  )}
+
+                  <div className="col-span-2">
+                    <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider block mb-1">Motivo / Temporada Especial:</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder={newVarIsWeekend ? "Ej: Recargo por fin de semana" : "Ej: Temporada alta Navidad"}
+                      value={newVarMotivo}
+                      onChange={(e) => setNewVarMotivo(e.target.value)}
+                      className="w-full border border-neutral-250 bg-white p-2 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-500 text-xs text-neutral-800"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!newVarPrice) {
+                      alert("Por favor especifique un precio especial válido.");
+                      return;
+                    }
+                    if (!newVarIsWeekend && !newVarDate) {
+                      alert("Por favor seleccione la fecha de aplicación.");
+                      return;
+                    }
+                    if (!newVarMotivo.trim()) {
+                      alert("Por favor especifique un motivo descriptivo.");
+                      return;
+                    }
+
+                    if (onSaveRoomPriceVariation) {
+                      const newVar: RoomPriceVariation = {
+                        id: newVarIsWeekend 
+                          ? `VAR-WKEN-${selectedRoomForVariations.id}`
+                          : `VAR-DATE-${selectedRoomForVariations.id}-${newVarDate}`,
+                        roomId: selectedRoomForVariations.id,
+                        hotelId: selectedRoomForVariations.hotelId,
+                        fecha: newVarIsWeekend ? undefined : newVarDate,
+                        isWeekend: newVarIsWeekend,
+                        precio: newVarPrice,
+                        motivo: newVarMotivo
+                      };
+                      onSaveRoomPriceVariation(newVar);
+                      
+                      // Refresh inputs safely
+                      setNewVarDate('');
+                      setNewVarMotivo('');
+                    }
+                  }}
+                  className="w-full py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg text-[11px] block transition-colors cursor-pointer text-center md:font-extrabold uppercase tracking-wide"
+                >
+                  Establecer Precio Variable
+                </button>
+              </div>
+
+            </div>
+
+            <div className="px-6 py-4 border-t border-neutral-100 flex bg-neutral-50 rounded-b-2xl">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowVariationsModal(false);
+                  setSelectedRoomForVariations(null);
+                }}
+                className="w-full py-2.5 bg-neutral-900 hover:bg-neutral-850 text-white font-bold rounded-xl text-xs cursor-pointer text-center transition-colors shadow"
+              >
+                Cerrar Panel de Tarifas
+              </button>
+            </div>
+
           </div>
         </div>
       )}

@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Hotel, Room, User, Reservation, RoomStatus, ReservationStatus, UserRole } from './types';
+import { Hotel, Room, User, Reservation, RoomStatus, ReservationStatus, UserRole, ChatMessage, PaymentTransaction, Review, RoomPriceVariation } from './types';
 import { INITIAL_HOTELS, INITIAL_ROOMS, INITIAL_USERS, INITIAL_RESERVATIONS } from './seedData';
 import {
   supabase,
@@ -17,7 +17,17 @@ import {
   mapHotelFromDb,
   mapRoomFromDb,
   mapUserFromDb,
-  mapReservationFromDb
+  mapReservationFromDb,
+  syncChatMessageToSupabase,
+  syncPaymentTransactionToSupabase,
+  mapChatMessageFromDb,
+  mapPaymentTransactionFromDb,
+  syncPropertyDetailsToSupabase,
+  mapReviewFromDb,
+  syncReviewToSupabase,
+  mapRoomPriceVariationFromDb,
+  syncRoomPriceVariationToSupabase,
+  deleteRoomPriceVariationFromSupabase
 } from './supabase';
 
 // Safe standard local storage storage key constants
@@ -154,6 +164,10 @@ export function useHotelStore() {
       detalles: 'Base de datos del Sistema Multi-Hotel cargada con datos de demostración.'
     }
   ]));
+  const [messages, setMessages] = useState<ChatMessage[]>(() => loadFromLocalStorage('messages', []));
+  const [transactions, setTransactions] = useState<PaymentTransaction[]>(() => loadFromLocalStorage('transactions', []));
+  const [reviews, setReviews] = useState<Review[]>(() => loadFromLocalStorage('reviews', []));
+  const [roomPriceVariations, setRoomPriceVariations] = useState<RoomPriceVariation[]>(() => loadFromLocalStorage('roomPriceVariations', []));
 
   // Sync to local storage
   useEffect(() => { saveToLocalStorage(KEYS.HOTELS, hotels); }, [hotels]);
@@ -162,6 +176,85 @@ export function useHotelStore() {
   useEffect(() => { saveToLocalStorage(KEYS.RESERVATIONS, reservations); }, [reservations]);
   useEffect(() => { saveToLocalStorage(KEYS.CURRENT_USER_ID, currentUserId); }, [currentUserId]);
   useEffect(() => { saveToLocalStorage(KEYS.LOGS, logs); }, [logs]);
+  useEffect(() => { saveToLocalStorage('messages', messages); }, [messages]);
+  useEffect(() => { saveToLocalStorage('transactions', transactions); }, [transactions]);
+  useEffect(() => { saveToLocalStorage('reviews', reviews); }, [reviews]);
+  useEffect(() => { saveToLocalStorage('roomPriceVariations', roomPriceVariations); }, [roomPriceVariations]);
+
+  // Watchdog automático para expirar reservaciones pendientes que excedan 24 horas sin pago
+  useEffect(() => {
+    const sweepExpiredReservations = async () => {
+      if (!reservations || reservations.length === 0) return;
+
+      const now = new Date();
+      let hasChanges = false;
+
+      const updatedReservations = await Promise.all(
+        reservations.map(async (res) => {
+          if (res.estado !== 'pendiente') return res;
+
+          let createdTime: Date;
+          if (res.fechaRegistroTimestamp) {
+            createdTime = new Date(res.fechaRegistroTimestamp);
+          } else {
+            // Fallback: usar fecha sin hora (interpretado a inicio del día)
+            createdTime = new Date(res.fechaRegistro + 'T00:00:00');
+          }
+
+          const diffMs = now.getTime() - createdTime.getTime();
+          const diffHours = diffMs / (1000 * 60 * 60);
+
+          if (diffHours >= 24) {
+            hasChanges = true;
+            const cancelledRes: Reservation = {
+              ...res,
+              estado: 'cancelada',
+              mensajeCambio: 'Reservación cancelada de forma automática por el sistema al expirar el límite de 24 horas para reportar el pago.',
+              fechaCambio: new Date().toISOString(),
+              modificadoPor: 'Watchdog de Pago Temp (Roomia Automated Watchdog)'
+            };
+
+            try {
+              await syncReservationToSupabase(cancelledRes);
+              const targetRoom = rooms.find(r => r.id === res.roomId);
+              if (targetRoom) {
+                await syncRoomToSupabase({ ...targetRoom, estado: 'disponible' });
+              }
+            } catch (syncErr) {
+              console.warn("Watchdog sync error:", syncErr);
+            }
+
+            addLog(
+              'Watchdog Automático',
+              'super_admin',
+              'Expiración de Reserva',
+              `La reservación pendiente ${res.id} fue liberada automáticamente y pasó a estado disponible, por expirar el plazo de pago de 24 horas.`
+            );
+
+            // Actualizar localmente el estado de la habitación
+            setRooms(prev => prev.map(r => r.id === res.roomId ? { ...r, estado: 'disponible' } : r));
+
+            return cancelledRes;
+          }
+
+          return res;
+        })
+      );
+
+      if (hasChanges) {
+        setReservations(updatedReservations);
+      }
+    };
+
+    // Ejecutar de forma diferida tras cargar datos, y re-evaluar cada 1 minuto
+    const timeout = setTimeout(sweepExpiredReservations, 5000);
+    const interval = setInterval(sweepExpiredReservations, 60000);
+
+    return () => {
+      clearTimeout(timeout);
+      clearInterval(interval);
+    };
+  }, [reservations, rooms]);
 
   // Synchronize with Supabase database on mount and listen to changes
   useEffect(() => {
@@ -254,6 +347,62 @@ export function useHotelStore() {
       } catch (err) {
         console.error("💥 Unhandled exception fetching logs from Supabase:", err);
       }
+
+      // 6. Fetch messages from Supabase
+      try {
+        console.log("💬 Fetching messages from Supabase...");
+        const { data: dbMsg, error: msgErr } = await supabase.from('messages').select('*');
+        if (msgErr) {
+          console.warn("Could not load messages table yet:", msgErr.message);
+        } else if (dbMsg) {
+          console.log(`✅ Loaded ${dbMsg.length} messages from Supabase.`);
+          setMessages(dbMsg.map(mapChatMessageFromDb).filter(Boolean) as ChatMessage[]);
+        }
+      } catch (err) {
+        console.error("Unhandled messages exception:", err);
+      }
+
+      // 7. Fetch transactions from Supabase
+      try {
+        console.log("💳 Fetching transactions from Supabase...");
+        const { data: dbTx, error: txErr } = await supabase.from('transactions').select('*');
+        if (txErr) {
+          console.warn("Could not load transactions table yet:", txErr.message);
+        } else if (dbTx) {
+          console.log(`✅ Loaded ${dbTx.length} transactions from Supabase.`);
+          setTransactions(dbTx.map(mapPaymentTransactionFromDb).filter(Boolean) as PaymentTransaction[]);
+        }
+      } catch (err) {
+        console.error("Unhandled transactions exception:", err);
+      }
+
+      // 8. Fetch reviews from Supabase
+      try {
+        console.log("⭐ Fetching reviews from Supabase...");
+        const { data: dbReviews, error: revErr } = await supabase.from('reviews').select('*');
+        if (revErr) {
+          console.warn("Could not load reviews table yet:", revErr.message);
+        } else if (dbReviews) {
+          console.log(`✅ Loaded ${dbReviews.length} reviews from Supabase.`);
+          setReviews(dbReviews.map(mapReviewFromDb).filter(Boolean) as Review[]);
+        }
+      } catch (err) {
+        console.error("Unhandled reviews exception:", err);
+      }
+
+      // 9. Fetch room price variations from Supabase
+      try {
+        console.log("📈 Fetching room price variations from Supabase...");
+        const { data: dbVar, error: varErr } = await supabase.from('room_price_variations').select('*');
+        if (varErr) {
+          console.warn("Could not load room_price_variations table yet:", varErr.message);
+        } else if (dbVar) {
+          console.log(`✅ Loaded ${dbVar.length} room price variations from Supabase.`);
+          setRoomPriceVariations(dbVar.map(mapRoomPriceVariationFromDb).filter(Boolean) as RoomPriceVariation[]);
+        }
+      } catch (err) {
+        console.error("Unhandled price variations exception:", err);
+      }
     };
 
     fetchSupabaseData();
@@ -283,6 +432,22 @@ export function useHotelStore() {
           const sorted = (data as ActivityLog[]).sort((a, b) => b.timestamp.localeCompare(a.timestamp));
           setLogs(sorted);
         }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, async () => {
+        const { data } = await supabase.from('messages').select('*');
+        if (data) setMessages(data.map(mapChatMessageFromDb).filter(Boolean) as ChatMessage[]);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, async () => {
+        const { data } = await supabase.from('transactions').select('*');
+        if (data) setTransactions(data.map(mapPaymentTransactionFromDb).filter(Boolean) as PaymentTransaction[]);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reviews' }, async () => {
+        const { data } = await supabase.from('reviews').select('*');
+        if (data) setReviews(data.map(mapReviewFromDb).filter(Boolean) as Review[]);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'room_price_variations' }, async () => {
+        const { data } = await supabase.from('room_price_variations').select('*');
+        if (data) setRoomPriceVariations(data.map(mapRoomPriceVariationFromDb).filter(Boolean) as RoomPriceVariation[]);
       })
       .subscribe();
 
@@ -511,6 +676,9 @@ export function useHotelStore() {
 
     try {
       await syncHotelToSupabase(hotel);
+      if (hotel.tipoEstablecimiento === 'casa' || hotel.tipoEstablecimiento === 'departamento') {
+        await syncPropertyDetailsToSupabase(hotel);
+      }
     } catch (err) {
       console.warn("Supabase saveHotel sync error:", err);
     }
@@ -770,9 +938,146 @@ El Equipo de Hospitalidad de Roomia PMS.`;
     );
   };
 
+  // Helper for actual automated SMTP email dispatches via real SMTP backend service
+  const sendReservationEmailNotification = async (
+    resObj: Reservation,
+    hotelObj: Hotel | undefined,
+    roomObj: Room | undefined,
+    guestObj: User | undefined
+  ) => {
+    const recipientEmail = guestObj?.email || activeUser?.email || 'destructordereck@gmail.com';
+    const recipientName = guestObj ? `${guestObj.nombre} ${guestObj.apellido}` : 'Huésped de Honor';
+    const isConfirmed = resObj.estado === 'confirmada' || resObj.estado === 'ocupada';
+
+    const subject = isConfirmed 
+      ? `🏨 ¡Reserva Confirmada! - ${hotelObj?.nombre || 'Roomia PMS'}` 
+      : `⏳ Reserva Registrada (Pago Pendiente) - ${hotelObj?.nombre || 'Roomia PMS'}`;
+
+    // Build details
+    let servicesHtml = '';
+    if (resObj.serviciosAdicionales && resObj.serviciosAdicionales.length > 0) {
+      servicesHtml = `
+        <div style="margin-top: 15px; padding: 12px; background-color: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+          <h4 style="margin: 0 0 8px 0; color: #334155; font-size: 13px;">Servicios Adicionales Seleccionados:</h4>
+          <ul style="margin: 0; padding-left: 20px; color: #475569; font-size: 12px; line-height: 1.6;">
+            ${resObj.serviciosAdicionales.map(srvId => {
+              const labelMap: Record<string, string> = {
+                'breakfast': 'Desayuno Premium Orgánico ($15 USD)',
+                'spa': 'Pase de Acceso Completo al Spa ($25 USD)',
+                'airport': 'Traslado Terrestre Aeropuerto ($30 USD)',
+                'wifi': 'Pase de Oficina WiFi 6E Ultrawide ($10 USD)'
+              };
+              return `<li>${labelMap[srvId] || srvId}</li>`;
+            }).join('')}
+          </ul>
+        </div>
+      `;
+    }
+
+    const htmlBody = `
+      <div style="font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.05); color: #1e293b;">
+        <div style="background-color: #00112c; padding: 30px; text-align: center; color: #ffffff;">
+          <span style="font-size: 10px; font-weight: bold; letter-spacing: 2px; color: #2dd4bf; text-transform: uppercase;">ROOMIA PREMIUM HOTELS</span>
+          <h1 style="margin: 10px 0 0 0; font-size: 22px; font-weight: 300; letter-spacing: -0.5px;">Confirmación de Reserva</h1>
+        </div>
+        
+        <div style="padding: 24px; line-height: 1.6;">
+          <p style="margin-top: 0; font-size: 14px;">Hola <strong>${recipientName}</strong>,</p>
+          
+          <p style="font-size: 14px; color: #475569;">
+            ${isConfirmed 
+              ? `Tu pago ha sido aprobado de manera segura por la pasarela de pagos Adyen. Nos complace confirmarte que tu estancia en <strong>${hotelObj?.nombre || ' nuestro hotel'}</strong> está correctamente programada.` 
+              : `Hemos registrado tu solicitud de reserva en <strong>${hotelObj?.nombre || ' nuestro hotel'}</strong>. Actualmente se encuentra en estado <strong>Pendiente de Pago</strong>. Por favor completa tu transacción en el portal de Adyen seguro para confirmarla.`
+            }
+          </p>
+
+          <div style="margin: 20px 0; padding: 15px; background-color: ${isConfirmed ? '#f0fdf4' : '#fffbeb'}; border-radius: 12px; border: 1px solid ${isConfirmed ? '#bbf7d0' : '#fef3c7'}; text-align: center;">
+            <span style="font-size: 10px; text-transform: uppercase; font-weight: bold; letter-spacing: 1px; color: ${isConfirmed ? '#166534' : '#92400e'};">Estado actual:</span>
+            <div style="font-size: 16px; font-weight: bold; color: ${isConfirmed ? '#15803d' : '#b45309'}; margin-top: 4px;">
+              ${isConfirmed ? '✓ CONFIRMADA Y PAGADA' : '⏳ PENDIENTE DE PAGO'}
+            </div>
+            <div style="font-size: 10px; color: #64748b; margin-top: 2px; font-family: monospace;">Ref: ${resObj.id}</div>
+          </div>
+
+          <h3 style="color: #00112c; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; font-size: 14px; margin-top: 24px;">Detalles de la Estadía:</h3>
+          <table style="width: 100%; font-size: 13px; color: #475569; border-collapse: collapse; margin-top: 8px;">
+            <tr>
+              <td style="padding: 5px 0; font-weight: 600; width: 130px; color: #0f172a;">Hotel:</td>
+              <td style="padding: 5px 0;">${hotelObj?.nombre || 'Roomia Hotel'}</td>
+            </tr>
+            <tr>
+              <td style="padding: 5px 0; font-weight: 600; color: #0f172a;">Dirección:</td>
+              <td style="padding: 5px 0;">${hotelObj?.ubicacion || 'Ubicación Premium'}</td>
+            </tr>
+            <tr>
+              <td style="padding: 5px 0; font-weight: 600; color: #0f172a;">Habitación:</td>
+              <td style="padding: 5px 0;">Habitación ${roomObj?.numero || 'N/A'} - ${roomObj?.nombre || 'Suite'} (${roomObj?.tipo || 'Suite'})</td>
+            </tr>
+            <tr>
+              <td style="padding: 5px 0; font-weight: 600; color: #0f172a;">Entrada (Check-In):</td>
+              <td style="padding: 5px 0; font-weight: 600; color: #00112c;">${resObj.fechaEntrada} (Llegada desde las ${hotelObj?.horarios?.checkIn || '15:00'})</td>
+            </tr>
+            <tr>
+              <td style="padding: 5px 0; font-weight: 600; color: #0f172a;">Salida (Check-Out):</td>
+              <td style="padding: 5px 0; font-weight: 600; color: #00112c;">${resObj.fechaSalida} (Salida hasta las ${hotelObj?.horarios?.checkOut || '11:00'})</td>
+            </tr>
+          </table>
+
+          ${servicesHtml}
+
+          <h3 style="color: #00112c; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; font-size: 14px; margin-top: 24px;">Resumen de Cuenta:</h3>
+          <table style="width: 100%; font-size: 13px; color: #475569; border-collapse: collapse; margin-top: 8px;">
+            <tr>
+              <td style="padding: 4px 0;">Subtotal de Habitación:</td>
+              <td style="padding: 4px 0; text-align: right; font-family: monospace;">$${resObj.subtotal.toFixed(2)} USD</td>
+            </tr>
+            <tr>
+              <td style="padding: 4px 0;">Impuestos (10%):</td>
+              <td style="padding: 4px 0; text-align: right; font-family: monospace;">$${resObj.impuestos.toFixed(2)} USD</td>
+            </tr>
+            <tr style="border-top: 1px solid #e2e8f0;">
+              <td style="padding: 8px 0 0 0; font-size: 14px; font-weight: bold; color: #00112c;">Total Liquidado:</td>
+              <td style="padding: 8px 0 0 0; text-align: right; font-size: 14px; font-weight: bold; color: #00112c; font-family: monospace;">$${resObj.total.toFixed(2)} USD</td>
+            </tr>
+          </table>
+        </div>
+
+        <div style="background-color: #f8fafc; padding: 15px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 10px; color: #64748b; line-height: 1.4;">
+          <p style="margin: 0 0 6px 0;">Para soporte inmediato, contáctanos al <strong>${hotelObj?.contacto?.telefono || '+1-300-ROOMIA'}</strong> o escribe a <strong>${hotelObj?.contacto?.email || 'soporte@roomia.com'}</strong>.</p>
+          <p style="margin: 0; font-size: 9px; color: #94a3b8;">Mensaje automático enviado con tecnología de Roomia Secure Engine.</p>
+        </div>
+      </div>
+    `;
+
+    try {
+      const apiEndpoint = `${getApiBaseUrl()}/api/send-email`;
+      console.log(`[SMTP EMAIL TRIGGER] Dispatching to endpoint: ${apiEndpoint}`);
+      const r = await fetch(apiEndpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: recipientEmail,
+          subject,
+          html: htmlBody,
+          text: `Roomia Premium Hotels: Reserva ${resObj.id}. Hotel: ${hotelObj?.nombre}. Total: $${resObj.total} USD. Estado: ${resObj.estado}.`
+        })
+      });
+      const data = await r.json();
+      console.log("[SMTP EMAIL DISPATCH RESULT]:", data);
+    } catch (apiErr) {
+      console.error("[SMTP EMAIL EXCEPTION]:", apiErr);
+    }
+  };
+
   // --- FLOW RESERVATIONS ---
   const createReservation = async (newRes: Reservation) => {
-    setReservations(prev => [newRes, ...prev]);
+    setReservations(prev => {
+      const exists = prev.some(r => r.id === newRes.id);
+      if (exists) {
+        return prev.map(r => r.id === newRes.id ? newRes : r);
+      }
+      return [newRes, ...prev];
+    });
     setRooms(prev => prev.map(r => r.id === newRes.roomId ? { ...r, estado: 'reservado' } : r));
 
     try {
@@ -787,12 +1092,21 @@ El Equipo de Hospitalidad de Roomia PMS.`;
 
     const parentHotel = hotels.find(h => h.id === newRes.hotelId);
     const room = rooms.find(r => r.id === newRes.roomId);
+    const guestUser = users.find(u => u.id === newRes.guestId);
+
     addLog(
       `${activeUser.nombre} ${activeUser.apellido}`,
       activeUser.rol,
       'Nueva Reserva',
-      `Reserva ${newRes.id} creada en ${parentHotel?.nombre} (Habitación ${room?.numero}). Fechas: ${newRes.fechaEntrada} a ${newRes.fechaSalida}.`
+      `Reserva ${newRes.id} creada/actualizada en ${parentHotel?.nombre} (Habitación ${room?.numero}). Estado: ${newRes.estado}. Fechas: ${newRes.fechaEntrada} a ${newRes.fechaSalida}.`
     );
+
+    // Enviar correo de confirmación de reserva únicamente cuando su estado pase a ser "confirmada" (pagado)
+    const oldResVal = reservations.find(r => r.id === newRes.id);
+    const wasPendingOrCreatedBrandNew = !oldResVal || oldResVal.estado === 'pendiente';
+    if (newRes.estado === 'confirmada' && wasPendingOrCreatedBrandNew) {
+      sendReservationEmailNotification(newRes, parentHotel, room, guestUser);
+    }
   };
 
   const cancelReservation = async (resId: string) => {
@@ -954,6 +1268,14 @@ El Equipo de Hospitalidad de Roomia PMS.`;
 
       // Sync reservation changes locally
       setReservations(prev => prev.map(r => r.id === resId ? { ...r, ...changes } : r));
+
+      // Si el estado pasa de pendiente de pago a confirmada, enviar el correo de confirmación
+      if (status === 'confirmada' && targetRes.estado === 'pendiente') {
+        const parentHotel = hotels.find(h => h.id === targetRes.hotelId);
+        const roomObj = rooms.find(r => r.id === targetRes.roomId);
+        const guestUser = users.find(u => u.id === targetRes.guestId);
+        sendReservationEmailNotification({ ...targetRes, ...changes }, parentHotel, roomObj, guestUser);
+      }
 
       try {
         await syncReservationToSupabase({ ...targetRes, ...changes });
@@ -1325,12 +1647,121 @@ El Equipo de Hospitalidad de Roomia PMS.`;
     };
   };
 
+  const sendChatMessage = async (msg: ChatMessage) => {
+    setMessages(prev => {
+      if (prev.some(m => m.id === msg.id)) return prev;
+      return [...prev, msg];
+    });
+    try {
+      await syncChatMessageToSupabase(msg);
+    } catch (e) {
+      console.error("ChatMessage Sync error:", e);
+    }
+  };
+
+  const markMessagesAsRead = async (hotelId: string, senderId: string, senderRole: UserRole) => {
+    setMessages(prev => prev.map(m => {
+      if (m.hotelId === hotelId && m.senderId === senderId && m.senderRole === senderRole) {
+        return { ...m, read: true };
+      }
+      return m;
+    }));
+    try {
+      const { data } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('hotelid', hotelId)
+        .eq('senderid', senderId)
+        .eq('senderrole', senderRole);
+      if (data) {
+        for (const item of data) {
+          await supabase
+            .from('messages')
+            .update({ read: true })
+            .eq('id', item.id);
+        }
+      }
+    } catch (e) {
+      console.error("Error setting messages to read in DB:", e);
+    }
+  };
+
+  const addPaymentTransaction = async (tx: PaymentTransaction) => {
+    setTransactions(prev => {
+      if (prev.some(t => t.id === tx.id)) return prev;
+      return [...prev, tx];
+    });
+    try {
+      await syncPaymentTransactionToSupabase(tx);
+    } catch (e) {
+      console.error("PaymentTransaction Sync error:", e);
+    }
+  };
+
+  const submitReview = async (review: Review) => {
+    setReviews(prev => {
+      // Avoid duplicates for same reservation
+      if (prev.some(r => r.id === review.id || r.reservationId === review.reservationId)) {
+        return prev.map(r => r.id === review.id || r.reservationId === review.reservationId ? review : r);
+      }
+      return [...prev, review];
+    });
+
+    try {
+      await syncReviewToSupabase(review);
+    } catch (e) {
+      console.error("Supabase syncReview error:", e);
+    }
+
+    addLog(
+      'Sistema',
+      'cliente',
+      'Nueva Valoración',
+      `Cliente añadió una valoración de ${review.rating} estrellas para la estancia en la reserva ID: ${review.reservationId}`
+    );
+  };
+
+  const saveRoomPriceVariation = async (variation: RoomPriceVariation) => {
+    setRoomPriceVariations(prev => {
+      if (prev.some(v => v.id === variation.id)) {
+        return prev.map(v => v.id === variation.id ? variation : v);
+      }
+      return [...prev, variation];
+    });
+
+    try {
+      await syncRoomPriceVariationToSupabase(variation);
+    } catch (e) {
+      console.error("Supabase syncRoomPriceVariation error:", e);
+    }
+
+    addLog(
+      'Sistema',
+      'super_admin',
+      'Modificación Precio Variable',
+      `Se configuró una variación tarifaria para la habitación ID: ${variation.roomId} con precio especial de $${variation.precio} USD.`
+    );
+  };
+
+  const deleteRoomPriceVariation = async (id: string) => {
+    setRoomPriceVariations(prev => prev.filter(v => v.id !== id));
+    try {
+      await deleteRoomPriceVariationFromSupabase(id);
+    } catch (e) {
+      console.error("Supabase deleteRoomPriceVariation error:", e);
+    }
+  };
+
   return {
     hotels,
     rooms,
     users,
     reservations,
     logs,
+    messages,
+    transactions,
+    reviews,
+    roomPriceVariations,
     activeUser,
     activeUserId: currentUserId,
     switchSessionUser,
@@ -1353,6 +1784,12 @@ El Equipo de Hospitalidad de Roomia PMS.`;
     performCheckIn,
     performCheckOut,
     getStatistics,
-    syncAllToSupabase
+    syncAllToSupabase,
+    sendChatMessage,
+    markMessagesAsRead,
+    addPaymentTransaction,
+    submitReview,
+    saveRoomPriceVariation,
+    deleteRoomPriceVariation
   };
 }

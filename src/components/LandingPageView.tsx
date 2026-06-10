@@ -17,7 +17,8 @@ import {
   Phone,
   Mail,
   MapPin,
-  Check
+  Check,
+  LogIn
 } from 'lucide-react';
 
 interface LandingPageViewProps {
@@ -49,10 +50,10 @@ export default function LandingPageView({ onClose }: LandingPageViewProps) {
           </div>
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-750 border border-slate-700 hover:border-slate-600 text-white text-xs font-semibold rounded-xl transition-all shadow-sm flex items-center gap-2 cursor-pointer active:scale-95"
+            className="px-4 py-2 bg-slate-850 hover:bg-slate-800 border border-slate-700 hover:border-slate-600 text-white text-xs font-semibold rounded-xl transition-all shadow-sm flex items-center gap-2 cursor-pointer active:scale-95"
           >
-            <ArrowLeft className="w-4 h-4 text-teal-400" />
-            <span>Volver al Acceso 🔑</span>
+            <LogIn className="w-4 h-4 text-teal-400" />
+            <span>Iniciar Sesion 🔑</span>
           </button>
         </div>
       </nav>
@@ -487,8 +488,8 @@ export default function LandingPageView({ onClose }: LandingPageViewProps) {
           </p>
           <div className="flex gap-4">
             <button onClick={onClose} className="hover:text-teal-400 transition-colors cursor-pointer text-[10px] font-extrabold flex items-center gap-1 bg-slate-900/60 hover:bg-slate-900 px-3.5 py-1.5 rounded-lg border border-slate-850">
-              <ArrowLeft className="w-3 h-3 text-teal-400" />
-              <span>Volver al Acceso🔑</span>
+              <LogIn className="w-3 h-3 text-teal-400" />
+              <span>Iniciar Sesion 🔑</span>
             </button>
           </div>
         </div>
