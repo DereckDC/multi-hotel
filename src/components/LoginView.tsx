@@ -577,13 +577,10 @@ export default function LoginView({
               <span>ROOMIA PMS Hospitality SaaS</span>
             </div>
             <h1 className="text-3xl md:text-4xl font-display font-extrabold tracking-tight leading-tight">
-              Roomia: Automatización PMS y Gestión Hotelera Elite
+              Roomia Portal: Tu Destino Ideal de Hospedaje 🏨✨
             </h1>
             <p className="text-neutral-200 text-xs md:text-sm mt-4 leading-relaxed font-sans">
-              Descubra el software líder en hospitalidad que redefine la administración hotelera. Roomia unifica la asignación inteligente de habitaciones, pasarelas de reservas, control analítico financiero y auditorías de servicio en un panel centralizado.
-            </p>
-            <p className="text-neutral-300 text-[11px] md:text-xs mt-3 leading-relaxed font-sans">
-              Potenciado con lectura ágil por código QR para Check-Ins instantáneos, autogestión de tarifas segmentadas y monitoreo de inventario de cuartos en tiempo real para optimizar la rentabilidad de su propiedad desde el primer día.
+              Encuentra y reserva tu hospedaje ideal al mejor precio garantizado. Disfruta de un proceso de reserva rápido con confirmación inmediata, check-in digital express vía código QR y atención personalizada de primer nivel.
             </p>
           </div>
         </div>
@@ -719,10 +716,10 @@ export default function LoginView({
                   <div className="flex justify-between items-start gap-3">
                     <div>
                       <h2 className="text-2xl font-bold tracking-tight text-neutral-800">
-                        Bienvenido de vuelta
+                        ¡Bienvenido a tu Experiencia Elite! 👋
                       </h2>
-                      <p className="text-xs text-neutral-400 mt-0.5 leading-relaxed">
-                        Ingrese con su cuenta registrada.
+                      <p className="text-xs text-neutral-400 mt-1.5 leading-relaxed">
+                        Inicia sesión para gestionar tus reservas vigentes, contratar servicios o explorar increíbles suites boutique disponibles para ti.
                       </p>
                     </div>
                     {onShowLanding && (
@@ -938,9 +935,9 @@ export default function LoginView({
                       <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-bold mb-2">
                         NUEVA CUENTA DETECTADA
                       </div>
-                      <h3 className="text-xl font-bold text-neutral-800">Crea tu Perfil de Huésped</h3>
+                      <h3 className="text-xl font-bold text-neutral-800">Crea tu Cuenta de Huésped Elite ✨</h3>
                       <p className="text-xs text-neutral-400 mt-1">
-                        Complete los siguientes detalles para registrar una cuenta boutique de expediente de huésped en Roomia SaaS.
+                        Forma parte de nuestro club exclusivo. Registra tus datos en segundos para comenzar a acumular beneficios, acceder a tarifas premium y gestionar tus reservas con un solo click.
                       </p>
                     </div>
 

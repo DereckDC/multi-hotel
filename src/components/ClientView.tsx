@@ -4,9 +4,10 @@
  */
 
 import React, { useState } from 'react';
-import { Hotel, Room, Reservation, User, RoomStatus } from '../types';
+import { Hotel, Room, Reservation, User, RoomStatus, Review, RoomPriceVariation } from '../types';
+import { motion, AnimatePresence } from 'motion/react';
 
-import { MapPin, Calendar, Compass, List, CreditCard, ChevronRight, Sparkles, Filter, Check, Star, AlertCircle, Eye, Trash2, CalendarCheck, FileText, X } from 'lucide-react';
+import { MapPin, Calendar, Compass, List, CreditCard, ChevronRight, Sparkles, Filter, Check, Star, AlertCircle, Eye, Trash2, CalendarCheck, FileText, X, Building2, ShieldCheck, Lock, Home } from 'lucide-react';
 import QRView from './QRView';
 import InvoicePDF from './InvoicePDF';
 import { RoomImageGallery } from './RoomImageGallery';
@@ -67,6 +68,12 @@ interface ClientViewProps {
   onCreateReservation: (res: Reservation) => void;
   onCancelReservation: (resId: string) => void;
   onDeleteReservation?: (resId: string) => void;
+  transactions?: any[];
+  onAddPaymentTransaction?: (tx: any) => void;
+  onOpenHotelChange?: (hotelId: string | null) => void;
+  reviews?: Review[];
+  onSubmitReview?: (review: Review) => void;
+  roomPriceVariations?: RoomPriceVariation[];
 }
 
 const ADDITIONAL_SERVICES = [
@@ -84,23 +91,54 @@ export default function ClientView({
   activeUser,
   onCreateReservation,
   onCancelReservation,
-  onDeleteReservation
+  onDeleteReservation,
+  transactions = [],
+  onAddPaymentTransaction,
+  onOpenHotelChange,
+  reviews = [],
+  onSubmitReview,
+  roomPriceVariations = []
 }: ClientViewProps) {
   // Navigation Tabs: 'explore' | 'reservations'
   const [activeTab, setActiveTab] = useState<'explore' | 'reservations'>('explore');
 
+  // Adyen payment states
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedResForPayment, setSelectedResForPayment] = useState<Reservation | null>(null);
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [paymentCardName, setPaymentCardName] = useState('');
+  const [paymentCardNo, setPaymentCardNo] = useState('');
+  const [paymentCardExpiry, setPaymentCardExpiry] = useState('');
+  const [paymentCardCVV, setPaymentCardCVV] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<'card' | 'pse' | 'bank_transfer'>('card');
+
   // Selected Hotel details
   const [selectedHotelId, setSelectedHotelId] = useState<string | null>(null);
+
+  // Sync selected hotel with parent app to feed active hotel conversational chat
+  React.useEffect(() => {
+    if (onOpenHotelChange) {
+      onOpenHotelChange(selectedHotelId);
+    }
+  }, [selectedHotelId, onOpenHotelChange]);
   
   // Advanced Filter state
-  const [selectedService, setSelectedService] = useState<string>('');
-  const [maxPrice, setMaxPrice] = useState<number>(500);
+  const [maxPrice, setMaxPrice] = useState<number>(2000);
   const [showOnlyAvailableRooms, setShowOnlyAvailableRooms] = useState<boolean>(false); // By default, show all rooms and browse, as requested by user
+  const [propertyTypeFilter, setPropertyTypeFilter] = useState<string>('todos');
 
   // Detailed room list filters inside a hotel
-  const [roomMaxPrice, setRoomMaxPrice] = useState<number>(1000);
+  const [roomMaxPrice, setRoomMaxPrice] = useState<number>(1500);
   const [roomCapacity, setRoomCapacity] = useState<string>('');
   const [roomTypeFilter, setRoomTypeFilter] = useState<string>('');
+
+  // States for review system
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [selectedResForReview, setSelectedResForReview] = useState<Reservation | null>(null);
+  const [reviewRating, setReviewRating] = useState<number>(5);
+  const [reviewComentario, setReviewComentario] = useState<string>('');
 
   // Date Helpers for today & minimum check-out date calculations
   const getTodayString = (offsetDays = 0) => {
@@ -146,7 +184,19 @@ export default function ClientView({
 
   // Helper getters
   const activeHotel = hotels.find(h => h.id === selectedHotelId);
-  const filteredHotels = hotels.filter(h => h.estado === 'activo');
+  const filteredHotels = hotels.filter(h => {
+    if (h.estado !== 'activo') return false;
+    if (propertyTypeFilter !== 'todos' && h.tipoEstablecimiento !== propertyTypeFilter) return false;
+    
+    // Resolve dynamic minimum starting price of the hotel or property
+    const hotelRooms = rooms.filter(r => r.hotelId === h.id);
+    const minPrice = (h.tipoEstablecimiento === 'casa' || h.tipoEstablecimiento === 'departamento') && h.detallesInmueble?.precio
+      ? h.detallesInmueble.precio
+      : (hotelRooms.length > 0 ? Math.min(...hotelRooms.map(r => r.precio)) : 150);
+      
+    if (minPrice > maxPrice) return false;
+    return true;
+  });
   const roomsInActiveHotel = rooms.filter(r => {
     if (r.hotelId !== selectedHotelId) return false;
     if (showOnlyAvailableRooms && r.estado === 'mantenimiento') return false;
@@ -175,7 +225,58 @@ export default function ClientView({
     return Math.ceil(diff / (1000 * 60 * 60 * 24));
   };
 
+  const getRoomPriceForDate = (room: Room, dateStr: string) => {
+    // Check if there is an exact date match in variations
+    const exactMatch = roomPriceVariations.find(v => v.roomId === room.id && v.fecha === dateStr);
+    if (exactMatch) {
+      return { precio: exactMatch.precio, motivo: exactMatch.motivo || 'Fecha Especial' };
+    }
+    
+    // Check if weekend rate applies (Friday and Saturday nights)
+    const d = new Date(dateStr + 'T12:00:00');
+    const day = d.getDay(); // 5: Friday, 6: Saturday
+    if (day === 5 || day === 6) {
+      const wkMatch = roomPriceVariations.find(v => v.roomId === room.id && v.isWeekend);
+      if (wkMatch) {
+        return { precio: wkMatch.precio, motivo: wkMatch.motivo || 'Tarifa de Fin de Semana' };
+      }
+    }
+    
+    return { precio: room.precio, motivo: 'Tarifa Estándar' };
+  };
+
+  const getBookingNightsBreakdown = (room: Room, checkIn: string, checkOut: string) => {
+    if (!room || !checkIn || !checkOut) return [];
+    
+    const nights: { date: string; precio: number; motivo: string }[] = [];
+    const start = new Date(checkIn + 'T12:00:00');
+    const end = new Date(checkOut + 'T12:00:00');
+    
+    const current = new Date(start);
+    while (current < end) {
+      const yyyy = current.getFullYear();
+      const mm = String(current.getMonth() + 1).padStart(2, '0');
+      const dd = String(current.getDate()).padStart(2, '0');
+      const dateStr = `${yyyy}-${mm}-${dd}`;
+      
+      const { precio, motivo } = getRoomPriceForDate(room, dateStr);
+      nights.push({ date: dateStr, precio, motivo });
+      
+      current.setDate(current.getDate() + 1);
+    }
+    
+    if (nights.length === 0) {
+      nights.push({ date: checkIn, precio: room.precio, motivo: 'Tarifa Estándar' });
+    }
+    
+    return nights;
+  };
+
   const getBookingSubtotal = (roomPrice: number) => {
+    if (bookingRoom) {
+      const breakdown = getBookingNightsBreakdown(bookingRoom, checkInDate, checkOutDate);
+      return breakdown.reduce((sum, n) => sum + n.precio, 0);
+    }
     return roomPrice * getNightsCount();
   };
 
@@ -280,22 +381,93 @@ export default function ClientView({
       impuestos: pricing.tax,
       total: pricing.total,
       qrCode: qrCode,
-      estado: 'confirmada', // Client reservations are auto-confirmed for easy simulation flow!
+      estado: 'pendiente', 
       fechaRegistro: todayStr,
+      fechaRegistroTimestamp: new Date().toISOString(),
       notas: bookingNote
     };
 
+    // Registrar reservación como pendiente de pago
     onCreateReservation(newRes);
-    setBookingSuccess(true);
+
+    // Abrir ventana con instrucciones de pago
+    setSelectedResForPayment(newRes);
+    setShowPaymentModal(true);
+
+    // Reiniciar estados del formulario de checkout
+    setBookingRoom(null);
+    setSelectedServices([]);
+    setServicePeopleCount({});
+    setBookingNote('');
+    setBookingError(null);
+  };
+
+  const handleProcessPayment = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedResForPayment) return;
+
+    if (paymentMethod === 'card') {
+      if (!paymentCardName.trim()) {
+        setPaymentError("Por favor ingrese el nombre del titular de la tarjeta.");
+        return;
+      }
+      const cleanNo = paymentCardNo.replace(/\s+/g, '');
+      if (cleanNo.length < 13 || cleanNo.length > 16) {
+        setPaymentError("El número de tarjeta ingresado no es válido. Debe tener entre 13 y 16 dígitos.");
+        return;
+      }
+      if (!paymentCardExpiry.includes('/')) {
+        setPaymentError("Por favor especifique la fecha de expiración en formato MM/YY.");
+        return;
+      }
+      if (paymentCardCVV.length < 3) {
+        setPaymentError("El código CVV debe tener 3 o 4 dígitos de seguridad.");
+        return;
+      }
+    }
+
+    setPaymentError(null);
+    setPaymentLoading(true);
+
     setTimeout(() => {
-      setBookingSuccess(false);
-      setBookingRoom(null);
-      setSelectedServices([]);
-      setServicePeopleCount({});
-      setBookingNote('');
-      setBookingError(null);
-      setActiveTab('reservations');
-    }, 2000);
+      try {
+        const refId = `ADY-REF-${Math.floor(100000 + Math.random() * 899999)}`;
+        const txObj = {
+          id: `TX-${Math.floor(10000 + Math.random() * 90000)}`,
+          reservationId: selectedResForPayment.id,
+          amount: selectedResForPayment.total,
+          currency: 'USD',
+          paymentMethod: paymentMethod === 'card' ? 'Visa/Mastercard' : paymentMethod === 'pse' ? 'PSE Pagos' : 'Transferencia Bancaria',
+          status: 'completado' as const,
+          reference: refId,
+          fecha: new Date().toISOString()
+        };
+
+        // Update reservation to confirmed on payment success
+        const confirmedRes: Reservation = {
+          ...selectedResForPayment,
+          estado: 'confirmada'
+        };
+
+        onCreateReservation(confirmedRes);
+
+        if (onAddPaymentTransaction) {
+          onAddPaymentTransaction(txObj);
+        }
+
+        setPaymentLoading(false);
+        setPaymentSuccess(true);
+        
+        // Reset card details
+        setPaymentCardName('');
+        setPaymentCardNo('');
+        setPaymentCardExpiry('');
+        setPaymentCardCVV('');
+      } catch (err: any) {
+        setPaymentLoading(false);
+        setPaymentError(err.message || "La pasarela de pago Adyen reportó un rechazo por fondos insuficientes o error de validación.");
+      }
+    }, 2500);
   };
 
   return (
@@ -360,19 +532,18 @@ export default function ClientView({
                 
                 {/* Visual Filters bar */}
                 <div className="flex flex-wrap items-center gap-4 text-xs font-medium">
-                  <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-lg border border-neutral-200">
-                    <Filter className="w-3.5 h-3.5 text-neutral-400" />
-                    <span className="text-neutral-500">Filtrar por Servicio:</span>
+                  <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-lg border border-neutral-200 shadow-sm">
+                    <Home className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                    <span className="text-neutral-500 font-semibold">Tipo Alojamiento:</span>
                     <select
-                      value={selectedService}
-                      onChange={(e) => setSelectedService(e.target.value)}
-                      className="border-none bg-transparent font-semibold focus:ring-0 cursor-pointer"
+                      value={propertyTypeFilter}
+                      onChange={(e) => setPropertyTypeFilter(e.target.value)}
+                      className="border-none bg-transparent font-bold focus:ring-0 cursor-pointer text-teal-700"
                     >
-                      <option value="">Cualquiera</option>
-                      <option value="Piscina Infinita">Piscina</option>
-                      <option value="Spa de Lujo">Spa & Wellness</option>
-                      <option value="Co-working Space">Co-working</option>
-                      <option value="Jacuzzi">Jacuzzi lago</option>
+                      <option value="todos">Todos</option>
+                      <option value="hotel">🏨 Hoteles</option>
+                      <option value="casa">🏡 Casas</option>
+                      <option value="departamento">🏢 Departamentos</option>
                     </select>
                   </div>
 
@@ -380,12 +551,12 @@ export default function ClientView({
                     <span className="text-neutral-500">Precio Máximo:</span>
                     <input
                       type="range"
-                      min="100"
-                      max="500"
+                      min="50"
+                      max="2000"
                       step="50"
                       value={maxPrice}
                       onChange={(e) => setMaxPrice(parseInt(e.target.value))}
-                      className="w-20 accent-teal-600 focus:outline-none cursor-pointer"
+                      className="w-24 accent-teal-600 focus:outline-none cursor-pointer"
                     />
                     <span className="font-mono font-semibold">${maxPrice} USD</span>
                   </div>
@@ -394,7 +565,6 @@ export default function ClientView({
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredHotels
-                  .filter(h => selectedService === '' || h.servicios.includes(selectedService))
                   .map(hotel => {
                     // Quick lowest room price simulation
                     const hotelRooms = rooms.filter(r => r.hotelId === hotel.id);
@@ -403,10 +573,15 @@ export default function ClientView({
                       : 150;
 
                     return (
-                      <div
+                      <motion.div
                         key={hotel.id}
                         onClick={() => setSelectedHotelId(hotel.id)}
-                        className="bg-white rounded-2xl overflow-hidden border border-neutral-100 hover:shadow-lg transition-all group cursor-pointer duration-300"
+                        initial={{ opacity: 0, y: 20 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true }}
+                        whileHover={{ y: -6, scale: 1.015, boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.08)" }}
+                        transition={{ duration: 0.4, ease: "easeOut" }}
+                        className="bg-white rounded-2xl overflow-hidden border border-neutral-100 hover:border-teal-200 transition-colors group cursor-pointer"
                       >
                         <div className="relative h-48 overflow-hidden bg-neutral-100">
                           <img
@@ -415,9 +590,10 @@ export default function ClientView({
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                             referrerPolicy="no-referrer"
                           />
-                          <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-sm px-2.5 py-1 rounded-full text-[10px] font-bold text-neutral-800 uppercase tracking-widest flex items-center gap-1 shadow-sm">
-                            <Star className="w-3 h-3 text-amber-500 fill-amber-500" />
-                            <span>Boutique</span>
+                          <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-sm px-2.5 py-1 rounded-full text-[10px] font-bold text-neutral-800 uppercase tracking-widest flex items-center gap-1 shadow-sm font-sans border border-neutral-100">
+                            {hotel.tipoEstablecimiento === 'casa' ? '🏡 Casa Kompleta' :
+                             hotel.tipoEstablecimiento === 'departamento' ? '🏢 Departamento' :
+                             '🏨 Hotel Boutique'}
                           </div>
                         </div>
 
@@ -436,9 +612,22 @@ export default function ClientView({
                             <span className="truncate">{hotel.ubicacion.split(',')[1] || hotel.ubicacion}</span>
                           </div>
                           
-                          <p className="text-xs text-neutral-500 line-clamp-2 leading-relaxed mb-4">
+                          <p className="text-xs text-neutral-500 line-clamp-2 leading-relaxed mb-3">
                             {hotel.descripcion}
                           </p>
+
+                          {/* Specific specs of Houses and Apartments */}
+                          {(hotel.tipoEstablecimiento === 'casa' || hotel.tipoEstablecimiento === 'departamento') && hotel.detallesInmueble && (
+                            <div className="flex flex-wrap gap-2 text-[10.5px] bg-teal-50/50 border border-teal-100/50 p-2.5 rounded-xl mb-4 font-semibold text-teal-800">
+                              <span className="flex items-center gap-0.5">🛏️ {hotel.detallesInmueble.habitaciones} Hab</span>
+                              <span className="text-teal-200">•</span>
+                              <span className="flex items-center gap-0.5">🚿 {hotel.detallesInmueble.banos} Baños</span>
+                              <span className="text-teal-200">•</span>
+                              <span className="flex items-center gap-0.5 font-mono">{hotel.detallesInmueble.metrosCuadrados || '40'} m²</span>
+                              <span className="text-teal-200">•</span>
+                              <span>🛋️ {hotel.detallesInmueble.amueblado !== false ? 'Amoblado' : 'S/A'}</span>
+                            </div>
+                          )}
 
                           <div className="flex flex-wrap gap-1 mb-4">
                             {hotel.servicios.slice(0, 3).map((serv, i) => (
@@ -458,7 +647,7 @@ export default function ClientView({
                             <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                           </div>
                         </div>
-                      </div>
+                      </motion.div>
                     );
                   })}
               </div>
@@ -703,9 +892,20 @@ export default function ClientView({
                             <span className="font-semibold">{getNightsCount()} {getNightsCount() > 1 ? 'noches' : 'noche'}</span>
                           </div>
                           <div className="flex justify-between">
-                            <span>Hospedaje de Suite:</span>
+                            <span>Hospedaje ({bookingRoom.nombre}):</span>
                             <span className="font-mono">${getBookingSubtotal(bookingRoom.precio)} USD</span>
                           </div>
+                          {bookingRoom && (
+                            <div className="mt-1 pl-3 border-l-2 border-teal-200/50 space-y-1 text-[10px] text-neutral-500 bg-teal-50/20 p-2 rounded-xl">
+                              <p className="font-bold text-teal-800 text-[9px] uppercase tracking-wider">Desglose Tarifario por Noche:</p>
+                              {getBookingNightsBreakdown(bookingRoom, checkInDate, checkOutDate).map((night, idx) => (
+                                <div key={idx} className="flex justify-between font-mono">
+                                  <span>• {night.date} <span className="bg-white/80 px-1 py-0.5 rounded border border-neutral-100 text-[8px] font-sans font-medium text-teal-700">{night.motivo}</span></span>
+                                  <span>${night.precio} USD</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                           {getServicesTotal() > 0 && (
                             <div className="flex justify-between">
                               <span>Servicios Adicionales:</span>
@@ -826,6 +1026,69 @@ export default function ClientView({
                     </div>
                   </div>
 
+                  {/* Property specs & Owner details card inside sidebar */}
+                  {activeHotel && (activeHotel.tipoEstablecimiento === 'casa' || activeHotel.tipoEstablecimiento === 'departamento') && (
+                    <div className="bg-gradient-to-br from-teal-50 to-emerald-50/40 border border-teal-100 rounded-2xl p-5 shadow-sm space-y-4">
+                      <div>
+                        <h4 className="font-bold text-teal-800 text-xs uppercase tracking-widest flex items-center gap-1.5 border-b border-teal-100/60 pb-1.5">
+                          <span>🏡 Detalle del Inmueble</span>
+                        </h4>
+                        <div className="grid grid-cols-2 gap-2 mt-3 text-xs text-neutral-600 font-semibold">
+                          <div className="bg-white/90 p-2 rounded-xl border border-teal-100/50">
+                            <span className="text-neutral-400 block text-[9px] uppercase font-bold">Habitaciones</span>
+                            <strong className="text-neutral-800 text-sm">{activeHotel.detallesInmueble?.habitaciones || 1}</strong>
+                          </div>
+                          <div className="bg-white/90 p-2 rounded-xl border border-teal-100/50">
+                            <span className="text-neutral-400 block text-[9px] uppercase font-bold">Baños</span>
+                            <strong className="text-neutral-800 text-sm">{activeHotel.detallesInmueble?.banos || 1}</strong>
+                          </div>
+                          <div className="bg-white/90 p-2 rounded-xl border border-teal-100/50">
+                            <span className="text-neutral-400 block text-[9px] uppercase font-bold font-sans">Superficie</span>
+                            <strong className="text-neutral-800 text-sm font-mono">{activeHotel.detallesInmueble?.metrosCuadrados || 40} m²</strong>
+                          </div>
+                          <div className="bg-white/90 p-2 rounded-xl border border-teal-100/50">
+                            <span className="text-neutral-400 block text-[9px] uppercase font-bold">Garaje</span>
+                            <strong className="text-neutral-800 text-[10.5px]">{activeHotel.detallesInmueble?.tieneEstacionamiento ? 'Sí, Incluido' : 'No cuenta'}</strong>
+                          </div>
+                          <div className="col-span-2 bg-white/90 p-2.5 rounded-xl border border-teal-100/50 flex justify-between items-center text-[10.5px]">
+                            <span className="text-neutral-400 text-[9px] uppercase font-bold">Condición:</span>
+                            <strong className="text-teal-700">{activeHotel.detallesInmueble?.amueblado !== false ? 'Totalmente Amoblado' : 'Sin amoblar'}</strong>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="border-t border-teal-100/70 pt-4">
+                        <h4 className="font-bold text-teal-800 text-xs uppercase tracking-widest flex items-center gap-1.5 border-b border-teal-100/60 pb-1.5">
+                          <span>👤 Propietario del Inmueble</span>
+                        </h4>
+                        {activeHotel.propietario ? (
+                          <div className="space-y-2 mt-2.5 text-xs font-semibold">
+                            <div>
+                              <span className="text-neutral-400 block text-[9px] uppercase font-bold">Propietario:</span>
+                              <span className="text-neutral-800 font-bold block">{activeHotel.propietario.nombre}</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <span className="text-neutral-400 block text-[9px] uppercase font-bold">Teléfono Móvil:</span>
+                                <a href={`tel:${activeHotel.propietario.telefono}`} className="text-teal-700 font-black hover:underline font-mono">{activeHotel.propietario.telefono}</a>
+                              </div>
+                              <div>
+                                <span className="text-neutral-400 block text-[9px] uppercase font-bold">Doc. Identidad:</span>
+                                <span className="text-neutral-600 font-mono text-[10.5px]">{activeHotel.propietario.documento || 'No proveído'}</span>
+                              </div>
+                            </div>
+                            <div>
+                              <span className="text-neutral-400 block text-[9px] uppercase font-bold">Correo de Contacto:</span>
+                              <span className="text-neutral-800 font-medium block truncate select-all font-mono text-[10px] bg-white border border-teal-50 px-1.5 py-0.5 rounded">{activeHotel.propietario.email}</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-neutral-400 text-xs mt-1 italic">Detalles de propietario no registrados.</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Mini simulated map embedding */}
                   <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-4 shadow-inner space-y-2.5">
                     <div className="flex items-center gap-2 text-xs font-semibold text-neutral-500">
@@ -878,156 +1141,295 @@ export default function ClientView({
               </div>
 
               {/* LIST OF SUITES AVAILABLE IN THIS HOTEL */}
-              <div className="space-y-4 pt-4 border-t border-neutral-200">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              {activeHotel && (activeHotel.tipoEstablecimiento === 'casa' || activeHotel.tipoEstablecimiento === 'departamento') ? (
+                /* COMPILACION DIRECTA PARA CASAS Y DEPARTAMENTOS COMPLETOS */
+                <div className="space-y-5 pt-6 border-t border-neutral-200 animate-fade-in font-sans">
                   <div>
-                    <h4 className="font-semibold text-neutral-850 text-xl font-display">Habitaciones y Suites</h4>
-                    <p className="text-xs text-neutral-400 mt-0.5">Explore alojamientos disponibles y personalice su búsqueda con los filtros avanzados.</p>
-                  </div>
-                </div>
-
-                 {/* ADVANCED MULTIPLE FILTERS SECTION (Capacity, Prices, Room type) */}
-                <div className="bg-neutral-50 p-4 rounded-2xl border border-neutral-200 grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-medium">
-                  {/* Filter 1: Capacity (Cantidad de personas) */}
-                  <div className="space-y-1.5 col-span-1">
-                    <span className="text-neutral-500 block font-semibold uppercase tracking-wider text-[10px]">Cantidad de Personas</span>
-                    <select
-                      value={roomCapacity}
-                      onChange={(e) => setRoomCapacity(e.target.value)}
-                      className="w-full bg-white border border-neutral-200 rounded-xl p-2 focus:ring-1 focus:ring-teal-500 focus:outline-none cursor-pointer h-[38px] shadow-sm font-semibold"
-                    >
-                      <option value="">Cualquier capacidad (Predeterminado)</option>
-                      <option value="1-2">1-2 personas</option>
-                      <option value="3-4">3-4 personas</option>
-                      <option value="5-6">5-6 personas</option>
-                    </select>
+                    <h4 className="font-bold text-neutral-850 text-xl font-display flex items-center gap-2">
+                      <span>🏷️ Operación del Inmueble Completo</span>
+                    </h4>
+                    <p className="text-xs text-neutral-400 mt-0.5">La propiedad completa se ofrece en modalidad exclusiva de {activeHotel.finalidad === 'venta' ? 'venta inmobiliaria' : 'alquiler comercial residencial'}.</p>
                   </div>
 
-                  {/* Filter 2: Room Type */}
-                  <div className="space-y-1.5 col-span-1">
-                    <span className="text-neutral-500 block font-semibold uppercase tracking-wider text-[10px]">Tipo de Suite / Habitación</span>
-                    <select
-                      value={roomTypeFilter}
-                      onChange={(e) => setRoomTypeFilter(e.target.value)}
-                      className="w-full bg-white border border-neutral-200 rounded-xl p-2 focus:ring-1 focus:ring-teal-500 focus:outline-none cursor-pointer h-[38px] shadow-sm font-semibold"
-                    >
-                      <option value="">Todos los tipos (Predeterminado)</option>
-                      {Array.from(new Set(rooms.filter(r => r.hotelId === selectedHotelId).map(r => r.tipo))).map(type => (
-                        <option key={type} value={type}>{type}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Filter 3: Price Slider (Precios) */}
-                  <div className="space-y-1.5 col-span-1">
-                    <div className="flex justify-between items-center">
-                      <span className="text-neutral-500 font-semibold uppercase tracking-wider text-[10px]">Precio Máximo por noche</span>
-                      <span className="text-teal-700 font-mono font-bold text-[11px]">${roomMaxPrice} USD</span>
+                  <div className="bg-gradient-to-br from-teal-50/60 to-emerald-50/20 border border-teal-100 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row justify-between items-center gap-6">
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border ${
+                          activeHotel.finalidad === 'venta' ? 'bg-amber-100 text-amber-805 border-amber-200' : 'bg-teal-100 text-teal-805 border-teal-200'
+                        }`}>
+                          {activeHotel.finalidad === 'venta' ? '🏷️ Solicitud de Compra' : '🔑 Alquiler Temporario / Mensual'}
+                        </span>
+                        <span className="px-3 py-1 bg-white text-neutral-600 rounded-full text-xs font-bold border border-neutral-200 uppercase font-mono shadow-sm">
+                          {activeHotel.tipoEstablecimiento === 'casa' ? '🏡 Casa Completa' : '🏢 Departamento'}
+                        </span>
+                      </div>
+                      <h5 className="font-bold text-neutral-800 text-lg leading-tight">{activeHotel.nombre}</h5>
+                      <p className="text-xs text-neutral-500 leading-relaxed max-w-xl">{activeHotel.descripcion}</p>
                     </div>
-                    <div className="flex items-center gap-3 h-[38px] bg-white border border-neutral-200 rounded-xl px-3 shadow-sm">
-                      <input
-                        type="range"
-                        min="50"
-                        max="1000"
-                        step="25"
-                        value={roomMaxPrice}
-                        onChange={(e) => setRoomMaxPrice(parseInt(e.target.value))}
-                        className="w-full accent-teal-600 focus:outline-none cursor-pointer"
-                      />
-                    </div>
-                  </div>
-                </div>
 
-                <div className="space-y-4">
-                  {roomsInActiveHotel.length === 0 ? (
-                    <div className="bg-neutral-50 rounded-2xl p-8 border border-neutral-200 text-center text-neutral-500 py-12">
-                      <p className="text-sm font-medium">No se encontraron habitaciones para mostrar con el filtro seleccionado.</p>
-                      {showOnlyAvailableRooms && (
-                        <button
-                          onClick={() => setShowOnlyAvailableRooms(false)}
-                          className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 bg-white text-neutral-700 border border-neutral-300 rounded-lg text-xs hover:bg-neutral-50 font-semibold cursor-pointer"
-                        >
-                          Ver todas las habitaciones
-                        </button>
-                      )}
-                    </div>
-                  ) : (
-                    roomsInActiveHotel.map(room => {
-                    const isAvailable = room.estado === 'disponible';
-                    const isBookable = room.estado !== 'mantenimiento';
-                    return (
-                      <div
-                        key={room.id}
-                        className={`bg-white rounded-2xl p-4 border transition-all flex flex-col md:flex-row gap-6 ${
-                          isBookable
-                            ? 'border-neutral-200 hover:shadow-md'
-                            : 'border-neutral-100 opacity-65'
-                        }`}
+                    <div className="w-full md:w-56 bg-white border border-teal-100/75 rounded-2xl p-4 shadow-sm flex flex-col justify-center items-center text-center space-y-3 shrink-0">
+                      <div>
+                        <span className="text-[10px] text-neutral-400 block font-bold uppercase tracking-wider">VALOR DE ESTA UNIDAD</span>
+                        <span className="font-mono font-extrabold text-teal-850 text-2xl">${activeHotel.detallesInmueble?.precio || 150} USD</span>
+                        <span className="text-[10px] text-neutral-500 block">{activeHotel.finalidad === 'venta' ? 'Valor comercial único' : 'Valor mensual estimado'}</span>
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          const syntheticRoom: Room = {
+                            id: `room-full-${activeHotel.id}`,
+                            hotelId: activeHotel.id,
+                            nombre: activeHotel.nombre,
+                            numero: 'Full',
+                            tipo: activeHotel.tipoEstablecimiento === 'casa' ? 'Suite Presidencial' : 'Suite',
+                            precio: activeHotel.detallesInmueble?.precio || 150,
+                            capacidad: (activeHotel.detallesInmueble?.habitaciones || 2) * 2,
+                            camas: activeHotel.detallesInmueble?.habitaciones || 2,
+                            descripcion: activeHotel.descripcion,
+                            imagenes: activeHotel.imagenes,
+                            servicios: activeHotel.servicios,
+                            estado: 'disponible'
+                          };
+                          setBookingRoom(syntheticRoom);
+                        }}
+                        className="w-full py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl transition-all cursor-pointer shadow-md hover:shadow-lg active:scale-95"
                       >
-                        {/* Animated Photo Gallery Thumbnail */}
-                        <RoomImageGallery imagenes={room.imagenes} roomNombre={room.nombre} />
+                        {activeHotel.finalidad === 'venta' ? 'Reservar Compra / Visita' : 'Alquilar Propiedad Completa'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* LIST OF SUITES AVAILABLE IN THIS HOTEL (HOTELES TRADICIONALES EN SU CLASE) */
+                <div className="space-y-4 pt-4 border-t border-neutral-200">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div>
+                      <h4 className="font-semibold text-neutral-850 text-xl font-display">Habitaciones y Suites</h4>
+                      <p className="text-xs text-neutral-400 mt-0.5">Explore alojamientos disponibles y personalice su búsqueda con los filtros avanzados.</p>
+                    </div>
+                  </div>
 
-                        {/* Middle detail content */}
-                        <div className="flex-1 flex flex-col justify-between">
-                          <div>
-                            <div className="flex flex-wrap items-center gap-2 mb-1.5">
-                              <span className="px-2.5 py-0.5 rounded-full text-[10px] bg-neutral-100 text-neutral-600 font-semibold uppercase tracking-wider font-mono border border-neutral-200">
-                                Habitación {room.numero}
-                              </span>
-                              <span className="px-2.5 py-0.5 rounded-full text-[10px] bg-teal-50 text-teal-700 font-semibold uppercase tracking-wider border border-teal-100">
-                                {room.tipo}
-                              </span>
-                              {room.estado !== 'disponible' && (
-                                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider border ${
-                                  room.estado === 'mantenimiento' ? 'bg-red-50 text-red-700 border-red-200 font-bold' : 'bg-amber-50 text-amber-700 border-amber-200 font-medium'
-                                }`}>
-                                  {room.estado}
-                                </span>
-                              )}
+                  {/* ADVANCED MULTIPLE FILTERS SECTION (Capacity, Prices, Room type) */}
+                  <div className="bg-neutral-50 p-4 rounded-2xl border border-neutral-200 grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-medium">
+                    {/* Filter 1: Capacity (Cantidad de personas) */}
+                    <div className="space-y-1.5 col-span-1">
+                      <span className="text-neutral-500 block font-semibold uppercase tracking-wider text-[10px]">Cantidad de Personas</span>
+                      <select
+                        value={roomCapacity}
+                        onChange={(e) => setRoomCapacity(e.target.value)}
+                        className="w-full bg-white border border-neutral-200 rounded-xl p-2 focus:ring-1 focus:ring-teal-500 focus:outline-none cursor-pointer h-[38px] shadow-sm font-semibold"
+                      >
+                        <option value="">Cualquier capacidad (Predeterminado)</option>
+                        <option value="1-2">1-2 personas</option>
+                        <option value="3-4">3-4 personas</option>
+                        <option value="5-6">5-6 personas</option>
+                      </select>
+                    </div>
+
+                    {/* Filter 2: Room Type */}
+                    <div className="space-y-1.5 col-span-1">
+                      <span className="text-neutral-500 block font-semibold uppercase tracking-wider text-[10px]">Tipo de Suite / Habitación</span>
+                      <select
+                        value={roomTypeFilter}
+                        onChange={(e) => setRoomTypeFilter(e.target.value)}
+                        className="w-full bg-white border border-neutral-200 rounded-xl p-2 focus:ring-1 focus:ring-teal-500 focus:outline-none cursor-pointer h-[38px] shadow-sm font-semibold"
+                      >
+                        <option value="">Todos los tipos (Predeterminado)</option>
+                        {Array.from(new Set(rooms.filter(r => r.hotelId === selectedHotelId).map(r => r.tipo))).map(type => (
+                          <option key={type} value={type}>{type}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Filter 3: Price Slider (Precios) */}
+                    <div className="space-y-1.5 col-span-1">
+                      <div className="flex justify-between items-center">
+                        <span className="text-neutral-500 font-semibold uppercase tracking-wider text-[10px]">Precio Máximo por noche</span>
+                        <span className="text-teal-700 font-mono font-bold text-[11px]">${roomMaxPrice} USD</span>
+                      </div>
+                      <div className="flex items-center gap-3 h-[38px] bg-white border border-neutral-200 rounded-xl px-3 shadow-sm">
+                        <input
+                          type="range"
+                          min="50"
+                          max="1000"
+                          step="25"
+                          value={roomMaxPrice}
+                          onChange={(e) => setRoomMaxPrice(parseInt(e.target.value))}
+                          className="w-full accent-teal-600 focus:outline-none cursor-pointer"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    {roomsInActiveHotel.length === 0 ? (
+                      <div className="bg-neutral-50 rounded-2xl p-8 border border-neutral-200 text-center text-neutral-500 py-12">
+                        <p className="text-sm font-medium">No se encontraron habitaciones para mostrar con el filtro seleccionado.</p>
+                        {showOnlyAvailableRooms && (
+                          <button
+                            onClick={() => setShowOnlyAvailableRooms(false)}
+                            className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 bg-white text-neutral-700 border border-neutral-300 rounded-lg text-xs hover:bg-neutral-50 font-semibold cursor-pointer"
+                          >
+                            Ver todas las habitaciones
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      roomsInActiveHotel.map(room => {
+                        const isAvailable = room.estado === 'disponible';
+                        const isBookable = room.estado !== 'mantenimiento';
+                        return (
+                          <motion.div
+                            key={room.id}
+                            initial={{ opacity: 0, y: 15 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: true }}
+                            whileHover={{ y: -3, scale: 1.005 }}
+                            transition={{ duration: 0.3 }}
+                            className={`bg-white rounded-2xl p-4 border transition-all flex flex-col md:flex-row gap-6 ${
+                              isBookable
+                                ? 'border-neutral-200 hover:shadow-md hover:border-teal-300'
+                                : 'border-neutral-100 opacity-65'
+                            }`}
+                          >
+                            {/* Animated Photo Gallery Thumbnail */}
+                            <RoomImageGallery imagenes={room.imagenes} roomNombre={room.nombre} />
+
+                            {/* Middle detail content */}
+                            <div className="flex-1 flex flex-col justify-between">
+                              <div>
+                                <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                                  <span className="px-2.5 py-0.5 rounded-full text-[10px] bg-neutral-100 text-neutral-600 font-semibold uppercase tracking-wider font-mono border border-neutral-200">
+                                    Habitación {room.numero}
+                                  </span>
+                                  <span className="px-2.5 py-0.5 rounded-full text-[10px] bg-teal-50 text-teal-700 font-semibold uppercase tracking-wider border border-teal-100">
+                                    {room.tipo}
+                                  </span>
+                                  {room.estado !== 'disponible' && (
+                                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider border ${
+                                      room.estado === 'mantenimiento' ? 'bg-red-50 text-red-700 border-red-200 font-bold' : 'bg-amber-50 text-amber-700 border-amber-200 font-medium'
+                                    }`}>
+                                      {room.estado}
+                                    </span>
+                                  )}
+                                </div>
+
+                                <h5 className="font-semibold text-neutral-800 text-base mb-1">{room.nombre}</h5>
+                                <p className="text-xs text-neutral-500 leading-normal line-clamp-2 md:max-w-xl">{room.descripcion}</p>
+                              </div>
+
+                              <div className="mt-2.5 flex flex-wrap gap-1.5">
+                                {room.servicios.slice(0, 4).map((srv, idx) => (
+                                  <span key={idx} className="px-2 py-0.5 bg-neutral-50 text-neutral-600 text-[10px] rounded border border-neutral-100">
+                                    {srv}
+                                  </span>
+                                ))}
+                              </div>
                             </div>
 
-                            <h5 className="font-semibold text-neutral-800 text-base mb-1">{room.nombre}</h5>
-                            <p className="text-xs text-neutral-500 leading-normal line-clamp-2 md:max-w-xl">{room.descripcion}</p>
-                          </div>
+                            {/* Pricing and reservation CTA button */}
+                            <div className="w-full md:w-44 pt-4 md:pt-0 md:pl-6 border-t md:border-t-0 md:border-l border-neutral-100 flex md:flex-col justify-between md:justify-center items-center md:items-end gap-3 shrink-0">
+                              <div className="text-left md:text-right">
+                                <span className="text-[10px] text-neutral-400 block font-semibold uppercase tracking-wider">PRECIO POR NOCHE</span>
+                                <span className="font-mono font-bold text-neutral-900 text-lg">${room.precio} USD</span>
+                                <span className="text-[10px] text-neutral-500 block">Capacidad: {room.capacidad} personas ({room.camas} {room.camas > 1 ? 'camas' : 'cama'})</span>
+                              </div>
 
-                          <div className="mt-2.5 flex flex-wrap gap-1.5">
-                            {room.servicios.slice(0, 4).map((srv, idx) => (
-                              <span key={idx} className="px-2 py-0.5 bg-neutral-50 text-neutral-600 text-[10px] rounded border border-neutral-100">
-                                {srv}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
+                              {isBookable ? (
+                                <button
+                                  onClick={() => setBookingRoom(room)}
+                                  className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-medium text-xs rounded-xl transition-all cursor-pointer shadow-sm hover:shadow active:scale-95"
+                                >
+                                  Reservar Ahora
+                                </button>
+                              ) : (
+                                <button
+                                  disabled
+                                  className="px-4 py-2 bg-neutral-100 border border-neutral-200 text-neutral-450 font-medium text-xs rounded-xl transition-all cursor-not-allowed uppercase text-[9px] tracking-wider"
+                                >
+                                  Mantenimiento
+                                </button>
+                              )}
+                            </div>
+                          </motion.div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
 
-                        {/* Pricing and reservation CTA button */}
-                        <div className="w-full md:w-44 pt-4 md:pt-0 md:pl-6 border-t md:border-t-0 md:border-l border-neutral-100 flex md:flex-col justify-between md:justify-center items-center md:items-end gap-3 shrink-0">
-                          <div className="text-left md:text-right">
-                            <span className="text-[10px] text-neutral-400 block font-semibold uppercase tracking-wider">PRECIO POR NOCHE</span>
-                            <span className="font-mono font-bold text-neutral-900 text-lg">${room.precio} USD</span>
-                            <span className="text-[10px] text-neutral-500 block">Capacidad: {room.capacidad} personas ({room.camas} {room.camas > 1 ? 'camas' : 'cama'})</span>
-                          </div>
+              {/* SECCIÓN DE RESEÑAS Y OPINIONES DEL HOTEL */}
+              <div className="mt-12 pt-8 border-t border-neutral-250">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                  <div>
+                    <h4 className="font-semibold text-neutral-850 text-xl font-display flex items-center gap-2">
+                      <Star className="w-5 h-5 text-yellow-500 fill-current" />
+                      Opiniones de Huéspedes
+                    </h4>
+                    <p className="text-xs text-neutral-400 mt-0.5">
+                      Valoraciones auténticas compartidas por clientes reales que completaron su estadía en este establecimiento.
+                    </p>
+                  </div>
+                  
+                  <div className="flex items-center gap-3 bg-neutral-50 px-4 py-2.5 rounded-2xl border border-neutral-200">
+                    <div className="text-right">
+                      <span className="text-[10px] text-neutral-400 block font-semibold uppercase tracking-wider">PROMEDIO</span>
+                      <span className="font-bold text-neutral-800 text-sm">
+                        {reviews.filter(r => r.hotelId === selectedHotelId).length > 0 
+                          ? (reviews.filter(r => r.hotelId === selectedHotelId).reduce((sum, r) => sum + r.rating, 0) / reviews.filter(r => r.hotelId === selectedHotelId).length).toFixed(1)
+                          : '0.0'} / 5.0
+                      </span>
+                    </div>
+                    <div className="h-8 w-[1px] bg-neutral-200" />
+                    <div>
+                      <span className="text-[10px] text-neutral-400 block font-semibold uppercase tracking-wider">TOTAL OPINIONES</span>
+                      <span className="font-mono font-bold text-teal-700 text-sm">{reviews.filter(r => r.hotelId === selectedHotelId).length} reseñas</span>
+                    </div>
+                  </div>
+                </div>
 
-                          {isBookable ? (
-                            <button
-                              onClick={() => setBookingRoom(room)}
-                              className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-medium text-xs rounded-xl transition-all cursor-pointer shadow-sm hover:shadow active:scale-95"
-                            >
-                              Reservar Ahora
-                            </button>
-                          ) : (
-                            <button
-                              disabled
-                              className="px-4 py-2 bg-neutral-100 border border-neutral-200 text-neutral-450 font-medium text-xs rounded-xl transition-all cursor-not-allowed uppercase text-[9px] tracking-wider"
-                            >
-                              Mantenimiento
-                            </button>
-                          )}
+                {reviews.filter(r => r.hotelId === selectedHotelId).length === 0 ? (
+                  <div className="bg-neutral-50 rounded-2xl p-8 border border-neutral-200 text-center text-neutral-500 py-10">
+                    <p className="text-xs font-semibold text-neutral-450 uppercase tracking-widest mb-1">Aún sin calificaciones</p>
+                    <p className="text-xs text-neutral-400 max-w-sm mx-auto">Sé uno de los primeros en dejar tu opinión después de que finalice tu estadía en este hotel.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {reviews.filter(r => r.hotelId === selectedHotelId).map(rev => (
+                      <div key={rev.id} className="bg-white rounded-2xl p-5 border border-neutral-200 shadow-sm flex flex-col justify-between">
+                        <div>
+                          <div className="flex justify-between items-center mb-3">
+                            <div className="flex items-center gap-2">
+                              <div className="w-8 h-8 rounded-full bg-teal-50 text-teal-850 border border-teal-100 flex items-center justify-center font-bold text-xs uppercase shadow-sm">
+                                {rev.userName ? rev.userName.slice(0, 2) : 'HU'}
+                              </div>
+                              <div>
+                                <span className="text-xs font-bold text-neutral-800 block leading-tight">{rev.userName || 'Huésped del Hotel'}</span>
+                                <span className="text-[9px] text-neutral-400 font-mono italic">{rev.fecha}</span>
+                              </div>
+                            </div>
+                            
+                            <div className="flex gap-0.5">
+                              {Array.from({ length: 5 }).map((_, i) => (
+                                <Star 
+                                  key={i} 
+                                  className={`w-3.5 h-3.5 ${
+                                    i < rev.rating ? 'text-yellow-500 fill-current' : 'text-neutral-200'
+                                  }`} 
+                                />
+                              ))}
+                            </div>
+                          </div>
+                          
+                          <p className="text-xs text-neutral-600 leading-relaxed italic bg-neutral-50/50 p-3 rounded-xl border border-neutral-100/70">
+                            "{rev.comentario || 'Sin comentario escrito.'}"
+                          </p>
                         </div>
                       </div>
-                    );
-                  })
+                    ))}
+                  </div>
                 )}
-                </div>
               </div>
             </div>
           )}
@@ -1077,12 +1479,16 @@ export default function ClientView({
                       
                       <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase ${
                         res.estado === 'confirmada' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
-                        res.estado === 'pendiente' ? 'bg-amber-50 text-amber-500 border border-amber-100' :
+                        res.estado === 'pendiente' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
                         res.estado === 'ocupada' ? 'bg-blue-50 text-blue-700 border border-blue-100' :
                         res.estado === 'finalizada' ? 'bg-neutral-100 text-neutral-600 border border-neutral-200' :
                         'bg-red-50 text-red-700 border border-red-100'
                       }`}>
-                        {res.estado}
+                        {res.estado === 'pendiente' ? 'Reservación pendiente de pago' :
+                         res.estado === 'confirmada' ? 'Reservada' :
+                         res.estado === 'ocupada' ? 'Ocupada' :
+                         res.estado === 'finalizada' ? 'Finalizada' :
+                         res.estado === 'cancelada' ? 'Cancelada' : res.estado}
                       </span>
                     </div>
 
@@ -1143,6 +1549,19 @@ export default function ClientView({
                           <span>Pre-Factura / QR</span>
                         </button>
 
+                        {res.estado === 'pendiente' && (
+                          <button
+                            onClick={() => {
+                              setSelectedResForPayment(res);
+                              setShowPaymentModal(true);
+                            }}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg cursor-pointer transition-colors font-medium text-[11px] shadow"
+                          >
+                            <FileText className="w-3.5 h-3.5" />
+                            <span>Ver Instrucciones de Pago</span>
+                          </button>
+                        )}
+
                         {(res.estado === 'confirmada' || res.estado === 'pendiente') && (
                           confirmCancelId === res.id ? (
                             <div className="flex items-center gap-1 bg-red-50 p-1 rounded-xl border border-red-200">
@@ -1202,6 +1621,33 @@ export default function ClientView({
                             </button>
                           )
                         )}
+
+                        {res.estado === 'finalizada' && (() => {
+                          const hasReviewed = reviews?.some(r => r.reservationId === res.id);
+                          if (hasReviewed) {
+                            const rev = reviews?.find(r => r.reservationId === res.id);
+                            return (
+                              <div className="flex items-center gap-1 bg-yellow-50 text-yellow-750 px-2.5 py-1.5 rounded-lg text-[11px] font-bold border border-yellow-250">
+                                <Star className="w-3.5 h-3.5 fill-current text-yellow-500" />
+                                <span>Valorado ({rev?.rating} ★)</span>
+                              </div>
+                            );
+                          }
+                          return (
+                            <button
+                              onClick={() => {
+                                setSelectedResForReview(res);
+                                setReviewRating(5);
+                                setReviewComentario('');
+                                setShowReviewModal(true);
+                              }}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg cursor-pointer transition-colors font-semibold text-[11px] shadow-sm font-sans"
+                            >
+                              <Star className="w-3.5 h-3.5 fill-current text-white" />
+                              <span>Valorar Estancia</span>
+                            </button>
+                          );
+                        })()}
                       </div>
                     </div>
 
@@ -1223,6 +1669,236 @@ export default function ClientView({
           onClose={() => setPreviewingRes(null)}
         />
       )}
+
+      {/* 💳 ADYEN SECURE CHECKOUT MODAL OVERLAY */}
+      <AnimatePresence>
+        {showPaymentModal && selectedResForPayment && (
+          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-55">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white rounded-3xl border border-neutral-200 shadow-2xl max-w-md w-full overflow-hidden text-neutral-800 animate-fade-in text-xs"
+            >
+              {/* Header */}
+              <div className="bg-[#0f172a] text-white p-5 flex items-center justify-between border-b border-neutral-800">
+                <div className="flex items-center gap-2.5">
+                  <div className="bg-amber-500 text-[#0f172a] font-extrabold text-[10px] px-2 py-0.5 rounded tracking-wide uppercase font-mono">
+                    PENDIENTE DE PAGO
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-300">Instrucciones de Pago</h4>
+                    <p className="text-[10px] text-amber-400 font-mono">Reserva Retenida Temporalmente (24h)</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowPaymentModal(false);
+                  }}
+                  className="p-1 hover:bg-neutral-800 rounded-full text-neutral-400 hover:text-white cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4">
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-2 text-xs">
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-400 uppercase tracking-wide text-[9px] block">CÓDIGO DE RESERVA</span>
+                    <span className="font-mono font-bold text-slate-800">{selectedResForPayment.id}</span>
+                  </div>
+                  <div className="h-px bg-slate-200/50" />
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-400 uppercase tracking-wide text-[9px] block font-sans">VALOR TOTAL DE LA ESTADÍA</span>
+                    <span className="font-mono font-bold text-teal-700 text-sm">${selectedResForPayment.total.toFixed(2)} USD</span>
+                  </div>
+                </div>
+
+                <div className="space-y-3.5 text-xs">
+                  <div className="p-3.5 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 flex items-start gap-3">
+                    <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <p className="font-bold">⚠️ Importante: Límite de 24 Horas</p>
+                      <p className="text-[11px] leading-relaxed text-amber-805">
+                        Su reservación ha sido registrada y se encuentra en estado <strong>"Reservación pendiente de pago"</strong>. Dispone de un plazo improrrogable de <strong>24 horas</strong> para tramitar el abono.
+                      </p>
+                      <p className="text-[11px] leading-relaxed text-amber-700 font-semibold mt-1">
+                        Si pasadas las 24 horas no se valida el pago con la administración o recepción del hotel, la reservación se cancelará automáticamente y la unidad volverá a estar disponible libremente.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h5 className="font-bold text-slate-900 text-xs flex items-center gap-1.5 pt-1">
+                      <ShieldCheck className="w-4 h-4 text-teal-600" />
+                      Pasos para tramitar su pago:
+                    </h5>
+                    <ul className="list-decimal pl-4.5 space-y-1.5 text-slate-600 leading-normal text-[11.5px]">
+                      <li>
+                        Póngase en contacto con el administrador o recepcionista correspondiente (mediante nuestro chat en vivo o del hostal).
+                      </li>
+                      <li>
+                        Suministre su id de reserva <strong>{selectedResForPayment.id}</strong> para que ubiquen su transacción.
+                      </li>
+                      <li>
+                        Efectúe el pago por <strong>${selectedResForPayment.total.toFixed(2)} USD</strong> (en efectivo, depósito bancario o transferencia).
+                      </li>
+                      <li>
+                        Al confirmarlo la administración, se actualizará su estado a <strong>"Reservada"</strong> y se le enviará su correo de confirmación respectivo.
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2 pt-3">
+                  <button
+                    onClick={() => {
+                      setShowPaymentModal(false);
+                      setActiveTab('reservations');
+                    }}
+                    className="w-full py-2.5 bg-neutral-900 hover:bg-neutral-800 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer text-center shadow"
+                  >
+                    Entendido, ir a Mis Reservaciones
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowPaymentModal(false);
+                      const triggerSupportBtn = document.getElementById('support-chat-trigger-btn') || document.querySelector('[aria-label="support-chat"]') as HTMLElement;
+                      if (triggerSupportBtn) {
+                        triggerSupportBtn.click();
+                      } else {
+                        alert("Escríbanos por correo electrónico o mediante el panel del cliente para agilizar su pago.");
+                      }
+                    }}
+                    className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs transition-colors cursor-pointer text-center flex items-center justify-center gap-1.5"
+                  >
+                    <span>Contactar Administrador vía Chat</span>
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ⭐ VALORACIÓN Y CALIFICACIÓN DE ESTANCIA COMPLETADA MODAL */}
+      <AnimatePresence>
+        {showReviewModal && selectedResForReview && (
+          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-55">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-neutral-150 overflow-hidden relative"
+            >
+              <button
+                onClick={() => {
+                  setShowReviewModal(false);
+                  setSelectedResForReview(null);
+                }}
+                className="absolute top-4 right-4 text-neutral-400 hover:text-neutral-700 bg-neutral-100/60 p-1.5 rounded-full transition-all cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+
+              <div className="p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-2xl bg-yellow-50 text-yellow-650 flex items-center justify-center border border-yellow-200 shadow-sm">
+                    <Star className="w-5 h-5 fill-current" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-neutral-900 text-base leading-tight">Valorar Estancia Completa</h3>
+                    <p className="text-[11px] text-neutral-400">Reserva {selectedResForReview.id}</p>
+                  </div>
+                </div>
+
+                <div className="bg-neutral-50 p-3.5 rounded-2xl border border-neutral-200/60 text-xs text-neutral-600 mb-5 space-y-1">
+                  <p className="font-extrabold text-neutral-800">Establecimiento:</p>
+                  <p className="font-semibold text-teal-800">
+                    {hotels.find(h => h.id === selectedResForReview.hotelId)?.nombre || 'Hotel Premium'}
+                  </p>
+                  <p className="text-[10px] text-neutral-400">
+                    Estadía del {selectedResForReview.fechaEntrada} al {selectedResForReview.fechaSalida}
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  {/* STAR SELECTION */}
+                  <div className="text-center space-y-1.5 bg-neutral-50/40 p-4 rounded-2xl border border-dashed border-neutral-200">
+                    <label className="text-xs font-bold text-neutral-500 uppercase tracking-widest block">¿Cómo calificaría su experiencia?</label>
+                    <div className="flex justify-center gap-2 pt-1">
+                      {Array.from({ length: 5 }).map((_, i) => {
+                        const starValue = i + 1;
+                        return (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => setReviewRating(starValue)}
+                            className="text-yellow-500 hover:scale-115 transition-transform cursor-pointer select-none"
+                          >
+                            <Star 
+                              className={`w-8 h-8 ${
+                                starValue <= reviewRating ? 'fill-current text-yellow-500' : 'text-neutral-350'
+                              }`} 
+                            />
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <span className="text-[11px] font-bold text-neutral-700 block mt-1">
+                      {reviewRating === 5 ? '¡Excelente servicio! 🤩' :
+                       reviewRating === 4 ? 'Muy buena estadía 😊' :
+                       reviewRating === 3 ? 'Aceptable 😐' :
+                       reviewRating === 2 ? 'Deficiente o mejorable 😕' : 'Inaceptable o mala experiencia 😞'}
+                    </span>
+                  </div>
+
+                  {/* COMENTARIO */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-neutral-500 block">Escriba su reseña u opinión sincera (Obligatorio)</label>
+                    <textarea
+                      required
+                      value={reviewComentario}
+                      onChange={(e) => setReviewComentario(e.target.value)}
+                      placeholder="Mencione la atención, comodidad, limpieza y servicios recibidos..."
+                      className="w-full text-xs border border-neutral-150 rounded-2xl p-3 focus:ring-1 focus:ring-teal-500 focus:outline-none h-24 bg-white"
+                    />
+                  </div>
+
+                  {/* SUBMIT BUTTON */}
+                  <button
+                    onClick={async () => {
+                      if (!reviewComentario.trim()) {
+                        alert("Por favor escriba una breve reseña de su estadía.");
+                        return;
+                      }
+                      if (!onSubmitReview) return;
+                      
+                      const newReview: Review = {
+                        id: `REV-${Math.floor(100000 + Math.random() * 900000)}`,
+                        reservationId: selectedResForReview.id,
+                        hotelId: selectedResForReview.hotelId,
+                        guestId: activeUser.id,
+                        userName: activeUser.nombre || activeUser.email,
+                        rating: reviewRating,
+                        comentario: reviewComentario,
+                        fecha: new Date().toISOString().split('T')[0]
+                      };
+
+                      await onSubmitReview(newReview);
+                      setShowReviewModal(false);
+                      setSelectedResForReview(null);
+                    }}
+                    className="w-full py-3 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-2xl text-xs transition-colors cursor-pointer text-center shadow-lg shadow-teal-600/10 hover:shadow-teal-600/20"
+                  >
+                    Enviar Valoración
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { useState, useEffect, FormEvent } from 'react';
 import { useHotelStore } from './store';
 import ClientView from './components/ClientView';
 import ReceptionView from './components/ReceptionView';
+import SupportChatDrawer from './components/SupportChatDrawer';
 import AdminView from './components/AdminView';
 import LoginView from './components/LoginView';
 import LandingPageView from './components/LandingPageView';
@@ -39,7 +40,17 @@ export default function App() {
     createReservation,
     cancelReservation,
     deleteReservation,
-    updateReservationStatus
+    updateReservationStatus,
+    messages = [],
+    transactions = [],
+    sendChatMessage,
+    markMessagesAsRead,
+    addPaymentTransaction,
+    reviews = [],
+    submitReview,
+    roomPriceVariations = [],
+    saveRoomPriceVariation,
+    deleteRoomPriceVariation
   } = store;
 
   // Track if user explicitly logged out or lacks active session to show login screen
@@ -54,7 +65,9 @@ export default function App() {
     }
   });
 
-  const [showLandingPage, setShowLandingPage] = useState(false);
+  const [showLandingPage, setShowLandingPage] = useState(isLoggedOut);
+  const [openHotelId, setOpenHotelId] = useState<string | null>(null);
+  const [viewOverride, setViewOverride] = useState<'admin' | 'reception' | null>(null);
 
   // Real-time Ecuador GMT-5 clock for the general footer
   const [ecuadorTime, setEcuadorTime] = useState('');
@@ -173,6 +186,25 @@ export default function App() {
             {/* Current Persona signature badge */}
             {!isLoggedOut ? (
               <div className="flex items-center gap-3">
+                {(activeUser.rol === 'hotel_admin' || activeUser.rol === 'super_admin') && (
+                  <button
+                    onClick={() => {
+                      setViewOverride(prev => prev === 'reception' ? 'admin' : 'reception');
+                    }}
+                    className="px-3 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-700 hover:text-teal-850 rounded-xl transition-all border border-teal-200 cursor-pointer text-xs font-bold flex items-center gap-1.5 active:scale-95 shadow-sm font-sans"
+                    title="Alternar entre panel de control administrativo y panel de recepcionista operativo"
+                  >
+                    {viewOverride === 'reception' ? (
+                      <>
+                        <span>💼 Modulo Admin</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>🛎️ Recepción (Check-In)</span>
+                      </>
+                    )}
+                  </button>
+                )}
                 <button
                   onClick={openProfileModal}
                   className="flex items-center gap-3 bg-neutral-50 hover:bg-neutral-100 px-3.5 py-1.5 rounded-2xl border border-neutral-200 shadow-inner group transition-all text-left cursor-pointer relative"
@@ -197,6 +229,7 @@ export default function App() {
                   onClick={() => {
                     localStorage.removeItem('aura_hotel_pms_current_user_id');
                     setIsLoggedOut(true);
+                    setShowLandingPage(true);
                   }}
                   title="Cerrar Sesión"
                   className="px-3.5 py-2 bg-red-50 hover:bg-red-100 text-red-650 hover:text-red-700 rounded-xl transition-all border border-red-200 cursor-pointer text-xs font-semibold flex items-center gap-1.5 active:scale-95 shadow-sm"
@@ -266,10 +299,16 @@ export default function App() {
                   onCreateReservation={createReservation}
                   onCancelReservation={cancelReservation}
                   onDeleteReservation={deleteReservation}
+                  transactions={transactions}
+                  onAddPaymentTransaction={addPaymentTransaction}
+                  onOpenHotelChange={setOpenHotelId}
+                  reviews={reviews}
+                  onSubmitReview={submitReview}
+                  roomPriceVariations={roomPriceVariations}
                 />
               )}
 
-              {activeUser.rol === 'recepcionista' && (
+              {(activeUser.rol === 'recepcionista' || ((activeUser.rol === 'hotel_admin' || activeUser.rol === 'super_admin') && viewOverride === 'reception')) && (
                 <ReceptionView
                   hotels={hotels}
                   rooms={rooms}
@@ -278,6 +317,7 @@ export default function App() {
                   onPerformCheckIn={store.performCheckIn}
                   onPerformCheckOut={store.performCheckOut}
                   onUpdateRoomStatus={updateRoomStatus}
+                  onUpdateReservationStatus={updateReservationStatus}
                   users={users}
                   onAddLog={handleAddLogSimulated}
                   onCreateReservation={createReservation}
@@ -285,7 +325,7 @@ export default function App() {
                 />
               )}
 
-              {(activeUser.rol === 'hotel_admin' || activeUser.rol === 'super_admin') && (
+              {((activeUser.rol === 'hotel_admin' || activeUser.rol === 'super_admin') && viewOverride !== 'reception') && (
                 <AdminView
                   hotels={hotels}
                   rooms={rooms}
@@ -305,6 +345,10 @@ export default function App() {
                   onUpdateRoomStatus={updateRoomStatus}
                   onUpdateReservationStatus={updateReservationStatus}
                   onSyncAllToSupabase={store.syncAllToSupabase}
+                  reviews={reviews}
+                  roomPriceVariations={roomPriceVariations}
+                  onSaveRoomPriceVariation={saveRoomPriceVariation}
+                  onDeleteRoomPriceVariation={deleteRoomPriceVariation}
                 />
               )}
             </motion.div>
@@ -618,6 +662,18 @@ export default function App() {
             </form>
           </div>
         </div>
+      )}
+
+      {/* Real-time Global Support Chat Component Drawer - Only visible once user has logged in */}
+      {activeUser && !isLoggedOut && (
+        <SupportChatDrawer
+          hotels={hotels}
+          activeUser={activeUser}
+          messages={messages}
+          onSendMessage={sendChatMessage}
+          onMarkAsRead={markMessagesAsRead}
+          openHotelId={openHotelId}
+        />
       )}
 
     </div>

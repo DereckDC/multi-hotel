@@ -4,7 +4,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
-import { Hotel, Room, User, Reservation } from './types';
+import { Hotel, Room, User, Reservation, ChatMessage, PaymentTransaction, Review, RoomPriceVariation } from './types';
 import { ActivityLog } from './store';
 
 // Hardcoded fallback credentials as explicitly provided by the user for perfect immediate out-of-the-box operation
@@ -27,6 +27,8 @@ DROP TABLE IF EXISTS public.reservations CASCADE;
 DROP TABLE IF EXISTS public.users CASCADE;
 DROP TABLE IF EXISTS public.rooms CASCADE;
 DROP TABLE IF EXISTS public.hotels CASCADE;
+DROP TABLE IF EXISTS public.messages CASCADE;
+DROP TABLE IF EXISTS public.transactions CASCADE;
 
 -- 1. Tabla de Hoteles
 CREATE TABLE public.hotels (
@@ -99,7 +101,7 @@ CREATE POLICY "Permitir todo a public en users" ON public.users FOR ALL USING (t
 -- 4. Tabla de Reservaciones
 CREATE TABLE public.reservations (
   id TEXT PRIMARY KEY,
-  roomId TEXT REFERENCES public.rooms(id) ON DELETE CASCADE,
+  roomId TEXT REFERENCES public.rooms(id) ON DELETE CASCADE, -- Nullable para alquiler de casas/departamentos enteros
   hotelId TEXT REFERENCES public.hotels(id) ON DELETE CASCADE,
   guestId TEXT REFERENCES public.users(id) ON DELETE CASCADE,
   fechaEntrada TEXT NOT NULL, -- YYYY-MM-DD
@@ -120,6 +122,7 @@ CREATE TABLE public.reservations (
   fechaCambio TEXT,
   cambiadoPorId TEXT,
   eliminadaPorCliente BOOLEAN DEFAULT FALSE,
+  reservation_type TEXT CHECK (reservation_type IN ('hospedaje', 'alquiler_mensual', 'venta')) DEFAULT 'hospedaje',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -143,6 +146,42 @@ DROP POLICY IF EXISTS "Permitir todo a public en logs" ON public.logs;
 CREATE POLICY "Permitir todo a public en logs" ON public.logs FOR ALL USING (true) WITH CHECK (true);
 
 
+-- 6. Tabla de Mensajes de Chat (messages)
+CREATE TABLE public.messages (
+  id TEXT PRIMARY KEY,
+  senderid TEXT NOT NULL,
+  sendername TEXT NOT NULL,
+  senderrole TEXT NOT NULL,
+  hotelid TEXT NOT NULL,
+  text TEXT NOT NULL,
+  timestamp TEXT NOT NULL,
+  read BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Permitir todo a public en messages" ON public.messages;
+CREATE POLICY "Permitir todo a public en messages" ON public.messages FOR ALL USING (true) WITH CHECK (true);
+
+
+-- 7. Tabla de Transacciones de Pago (transactions)
+CREATE TABLE public.transactions (
+  id TEXT PRIMARY KEY,
+  reservationid TEXT NOT NULL,
+  amount NUMERIC NOT NULL,
+  currency TEXT NOT NULL DEFAULT 'USD',
+  paymentmethod TEXT NOT NULL,
+  status TEXT NOT NULL, -- 'completado' | 'fallido' | 'pendiente'
+  reference TEXT NOT NULL,
+  fecha TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Permitir todo a public en transactions" ON public.transactions;
+CREATE POLICY "Permitir todo a public en transactions" ON public.transactions FOR ALL USING (true) WITH CHECK (true);
+
+
 -- =========================================================================
 --             INSERT CÓDIGOS DE SEMILLADO (INITIAL SEED DATA)
 -- =========================================================================
@@ -164,6 +203,65 @@ INSERT INTO public.users (id, nombre, apellido, email, telefono, documento, avat
   NULL
 )
 ON CONFLICT (id) DO NOTHING;
+
+-- 8. Detalles complementarios de Propiedades (Casas & Departamentos)
+-- Esta tabla almacena de forma estructurada y relacional los detalles de un inmueble 1:1 con hotels
+CREATE TABLE IF NOT EXISTS public.property_details (
+  id TEXT PRIMARY KEY,
+  hotel_id TEXT UNIQUE REFERENCES public.hotels(id) ON DELETE CASCADE,
+  property_type TEXT CHECK (property_type IN ('hotel', 'casa', 'departamento')),
+  listing_type TEXT CHECK (listing_type IN ('alquiler', 'venta')),
+  bedrooms INTEGER DEFAULT 0,
+  bathrooms INTEGER DEFAULT 0,
+  square_meters NUMERIC DEFAULT 0,
+  furnished BOOLEAN DEFAULT FALSE,
+  parking BOOLEAN DEFAULT FALSE,
+  owner_name TEXT,
+  owner_phone TEXT,
+  owner_email TEXT,
+  owner_document TEXT,
+  price NUMERIC DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Habilitar RLS y políticas seguras para la tabla complementaria de propiedades
+ALTER TABLE public.property_details ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Permitir todo a public en property_details" ON public.property_details;
+CREATE POLICY "Permitir todo a public en property_details" ON public.property_details FOR ALL USING (true) WITH CHECK (true);
+
+
+-- 9. Tabla de Reseñas y Valoraciones (reviews)
+CREATE TABLE IF NOT EXISTS public.reviews (
+  id TEXT PRIMARY KEY,
+  reservation_id TEXT REFERENCES public.reservations(id) ON DELETE CASCADE,
+  hotel_id TEXT REFERENCES public.hotels(id) ON DELETE CASCADE,
+  guest_id TEXT REFERENCES public.users(id) ON DELETE CASCADE,
+  rating INTEGER CHECK (rating >= 1 AND rating <= 5) NOT NULL,
+  comentario TEXT,
+  fecha TEXT, -- YYYY-MM-DD
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Permitir todo a public en reviews" ON public.reviews;
+CREATE POLICY "Permitir todo a public en reviews" ON public.reviews FOR ALL USING (true) WITH CHECK (true);
+
+
+-- 10. Tabla de Precios Variables por Fecha (room_price_variations)
+CREATE TABLE IF NOT EXISTS public.room_price_variations (
+  id TEXT PRIMARY KEY,
+  room_id TEXT REFERENCES public.rooms(id) ON DELETE CASCADE,
+  hotel_id TEXT REFERENCES public.hotels(id) ON DELETE CASCADE,
+  fecha TEXT, -- YYYY-MM-DD (puede ser nulo si es fin de semana recurrente)
+  is_weekend BOOLEAN DEFAULT FALSE,
+  precio NUMERIC NOT NULL,
+  motivo TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.room_price_variations ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Permitir todo a public en room_price_variations" ON public.room_price_variations;
+CREATE POLICY "Permitir todo a public en room_price_variations" ON public.room_price_variations FOR ALL USING (true) WITH CHECK (true);
 `;
 
 /**
@@ -172,7 +270,11 @@ ON CONFLICT (id) DO NOTHING;
 export function mapHotelToDb(hotel: Hotel): any {
   const contactoDb = {
     ...(hotel.contacto || {}),
-    serviciosExtra: hotel.serviciosDetallados || []
+    serviciosExtra: hotel.serviciosDetallados || [],
+    tipoEstablecimiento: hotel.tipoEstablecimiento || 'hotel',
+    finalidad: hotel.finalidad || null,
+    propietario: hotel.propietario || null,
+    detallesInmueble: hotel.detallesInmueble || null
   };
   return {
     id: hotel.id,
@@ -197,6 +299,10 @@ export function mapHotelFromDb(db: any): Hotel {
   if (!db) return db;
   const contacto = db.contacto || {};
   const serviciosDetallados = contacto.serviciosExtra || [];
+  const tipoEstablecimiento = contacto.tipoEstablecimiento || db.tipoEstablecimiento || 'hotel';
+  const finalidad = contacto.finalidad || db.finalidad || null;
+  const propietario = contacto.propietario || db.propietario || null;
+  const detallesInmueble = contacto.detallesInmueble || db.detallesInmueble || null;
   return {
     id: db.id,
     nombre: db.nombre,
@@ -212,8 +318,12 @@ export function mapHotelFromDb(db: any): Hotel {
     horarios: db.horarios || { checkIn: '15:00', checkOut: '12:00' },
     contacto: contacto,
     serviciosDetallados: serviciosDetallados,
-    redesSociales: db.redessociales !== undefined ? db.redessociales : (db.redesSociales || {}),
-    estado: db.estado || 'activo'
+    redesSociales: db.redessociales !== undefined ? db.redesSociales : (db.redesSociales || {}),
+    estado: db.estado || 'activo',
+    tipoEstablecimiento: tipoEstablecimiento,
+    finalidad: finalidad,
+    propietario: propietario,
+    detallesInmueble: detallesInmueble
   };
 }
 
@@ -299,7 +409,7 @@ export function mapReservationToDb(res: Reservation): any {
 
   return {
     id: res.id,
-    roomid: res.roomId,
+    roomid: res.roomId || null, // Nullable para estadías completas de casas/departamentos
     hotelid: res.hotelId,
     guestid: res.guestId,
     fechaentrada: res.fechaEntrada,
@@ -319,7 +429,8 @@ export function mapReservationToDb(res: Reservation): any {
     subtotal: res.subtotal || 0,
     impuestos: res.impuestos || 0,
     notes: res.notas || '',
-    cambiadoporid: res.cambiadoPorId || null
+    cambiadoporid: res.cambiadoPorId || null,
+    reservation_type: res.reservationType || 'hospedaje'
   };
 }
 
@@ -327,7 +438,7 @@ export function mapReservationFromDb(db: any): Reservation {
   if (!db) return db;
   return {
     id: db.id,
-    roomId: db.roomid !== undefined ? db.roomid : (db.roomId || ''),
+    roomId: db.roomid !== undefined ? db.roomid : (db.roomId || null),
     hotelId: db.hotelid !== undefined ? db.hotelid : (db.hotelId || ''),
     guestId: db.guestid !== undefined ? db.guestid : (db.guestId || ''),
     fechaEntrada: db.fechaentrada !== undefined ? db.fechaentrada : (db.fechaEntrada || ''),
@@ -348,8 +459,51 @@ export function mapReservationFromDb(db: any): Reservation {
     impuestos: Number(db.impuestos || 0),
     notas: db.notes || db.notas || '',
     cambiadoPorId: db.cambiadoporid !== undefined ? db.cambiadoporid : (db.cambiadoPorId || undefined),
-    fechaRegistro: db.fecharegistro !== undefined ? db.fecharegistro : (db.fechaRegistro || new Date().toISOString().split('T')[0])
+    fechaRegistro: db.fecharegistro !== undefined ? db.fecharegistro : (db.fechaRegistro || new Date().toISOString().split('T')[0]),
+    reservationType: db.reservation_type || 'hospedaje'
   } as any;
+}
+
+
+/**
+ * Sincroniza los detalles estructurados complementarios de una propiedad (casa/departamento)
+ * en la tabla property_details de Supabase
+ */
+export async function syncPropertyDetailsToSupabase(hotel: Hotel): Promise<{ success: boolean; error?: string }> {
+  try {
+    if (!hotel.tipoEstablecimiento || hotel.tipoEstablecimiento === 'hotel') {
+      return { success: true }; // No requiere property_details relacionales
+    }
+
+    const payload = {
+      id: `pd_${hotel.id}`,
+      hotel_id: hotel.id,
+      property_type: hotel.tipoEstablecimiento,
+      listing_type: hotel.finalidad || 'alquiler',
+      bedrooms: hotel.detallesInmueble?.habitaciones || 0,
+      bathrooms: hotel.detallesInmueble?.banos || 0,
+      square_meters: hotel.detallesInmueble?.metrosCuadrados || 0,
+      furnished: !!hotel.detallesInmueble?.amueblado,
+      parking: !!hotel.detallesInmueble?.tieneEstacionamiento,
+      owner_name: hotel.propietario?.nombre || null,
+      owner_phone: hotel.propietario?.telefono || null,
+      owner_email: hotel.propietario?.email || null,
+      owner_document: hotel.propietario?.documento || null,
+      price: hotel.detallesInmueble?.precio || 0
+    };
+
+    const { error } = await supabase
+      .from('property_details')
+      .upsert(payload);
+
+    if (error) {
+      console.warn('Supabase syncPropertyDetailsToSupabase error:', error);
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message || String(err) };
+  }
 }
 
 export async function syncHotelToSupabase(hotel: Hotel): Promise<{ success: boolean; error?: string }> {
@@ -472,7 +626,7 @@ export async function syncLogToSupabase(log: ActivityLog): Promise<{ success: bo
 /**
  * Deletes a row in Supabase
  */
-export async function deleteRowFromSupabase(table: 'hotels' | 'rooms' | 'users' | 'reservations' | 'logs', id: string): Promise<{ success: boolean; error?: string }> {
+export async function deleteRowFromSupabase(table: 'hotels' | 'rooms' | 'users' | 'reservations' | 'logs' | 'messages' | 'transactions', id: string): Promise<{ success: boolean; error?: string }> {
   try {
     const { error } = await supabase
       .from(table)
@@ -488,3 +642,226 @@ export async function deleteRowFromSupabase(table: 'hotels' | 'rooms' | 'users' 
     return { success: false, error: err.message || String(err) };
   }
 }
+
+export function mapChatMessageToDb(msg: ChatMessage): any {
+  return {
+    id: msg.id,
+    senderid: msg.senderId,
+    sendername: msg.senderName,
+    senderrole: msg.senderRole,
+    hotelid: msg.hotelId,
+    text: msg.text,
+    timestamp: msg.timestamp,
+    read: msg.read
+  };
+}
+
+export function mapChatMessageFromDb(db: any): ChatMessage {
+  if (!db) return db;
+  return {
+    id: db.id,
+    senderId: db.senderid !== undefined ? db.senderid : (db.senderId || ''),
+    senderName: db.sendername !== undefined ? db.sendername : (db.senderName || ''),
+    senderRole: db.senderrole !== undefined ? db.senderrole : (db.senderRole || 'cliente'),
+    hotelId: db.hotelid !== undefined ? db.hotelid : (db.hotelId || ''),
+    text: db.text || '',
+    timestamp: db.timestamp || '',
+    read: db.read !== undefined ? db.read : false
+  };
+}
+
+export function mapPaymentTransactionToDb(tx: PaymentTransaction): any {
+  return {
+    id: tx.id,
+    reservationid: tx.reservationId,
+    amount: tx.amount,
+    currency: tx.currency,
+    paymentmethod: tx.paymentMethod,
+    status: tx.status,
+    reference: tx.reference,
+    fecha: tx.fecha
+  };
+}
+
+export function mapPaymentTransactionFromDb(db: any): PaymentTransaction {
+  if (!db) return db;
+  return {
+    id: db.id,
+    reservationId: db.reservationid !== undefined ? db.reservationid : (db.reservationId || ''),
+    amount: Number(db.amount || 0),
+    currency: db.currency || 'USD',
+    paymentMethod: db.paymentmethod !== undefined ? db.paymentmethod : (db.paymentMethod || ''),
+    status: db.status || 'completado',
+    reference: db.reference || '',
+    fecha: db.fecha || ''
+  };
+}
+
+export async function syncChatMessageToSupabase(msg: ChatMessage): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await supabase
+      .from('messages')
+      .upsert(mapChatMessageToDb(msg));
+    if (error) {
+      console.warn('Supabase syncChatMessage error:', error);
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message || String(err) };
+  }
+}
+
+export async function syncPaymentTransactionToSupabase(tx: PaymentTransaction): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await supabase
+      .from('transactions')
+      .upsert(mapPaymentTransactionToDb(tx));
+    if (error) {
+      console.warn('Supabase syncPaymentTransaction error:', error);
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message || String(err) };
+  }
+}
+
+/**
+ * Recupera todos los registros de la tabla property_details para auditoría y diagnóstico sin mutar la BD actual
+ */
+export async function fetchPropertyDetails(): Promise<{ success: boolean; data?: any[]; error?: string }> {
+  try {
+    const { data, error } = await supabase
+      .from('property_details')
+      .select('*');
+    if (error) {
+      // Retornar error de forma controlada (p. ej. si la tabla no existe aún)
+      return { success: false, error: error.message };
+    }
+    return { success: true, data: data };
+  } catch (err: any) {
+    return { success: false, error: err.message || String(err) };
+  }
+}
+
+/**
+ * Maps a local Review structure to its Database payload equivalent
+ */
+export function mapReviewToDb(review: Review): any {
+  return {
+    id: review.id,
+    reservation_id: review.reservationId,
+    hotel_id: review.hotelId,
+    guest_id: review.guestId,
+    rating: review.rating,
+    comentario: review.comentario,
+    fecha: review.fecha
+  };
+}
+
+/**
+ * Maps a Database review row to its application Review structure
+ */
+export function mapReviewFromDb(db: any): Review {
+  if (!db) return db;
+  return {
+    id: db.id,
+    reservationId: db.reservation_id !== undefined ? db.reservation_id : (db.reservationId || ''),
+    hotelId: db.hotel_id !== undefined ? db.hotel_id : (db.hotelId || ''),
+    guestId: db.guest_id !== undefined ? db.guest_id : (db.guestId || ''),
+    rating: Number(db.rating || 0),
+    comentario: db.comentario || '',
+    fecha: db.fecha || ''
+  };
+}
+
+/**
+ * Uploads/Syncs a single Review to the Supabase database
+ */
+export async function syncReviewToSupabase(review: Review): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await supabase
+      .from('reviews')
+      .upsert(mapReviewToDb(review));
+
+    if (error) {
+      console.warn('Supabase syncReview error:', error);
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message || String(err) };
+  }
+}
+
+/**
+ * Maps a local RoomPriceVariation structure to its Database payload equivalent
+ */
+export function mapRoomPriceVariationToDb(v: RoomPriceVariation): any {
+  return {
+    id: v.id,
+    room_id: v.roomId,
+    hotel_id: v.hotelId,
+    fecha: v.fecha || null,
+    is_weekend: v.isWeekend,
+    precio: v.precio,
+    motivo: v.motivo || ''
+  };
+}
+
+/**
+ * Maps a Database row to its application RoomPriceVariation structure
+ */
+export function mapRoomPriceVariationFromDb(db: any): RoomPriceVariation {
+  if (!db) return db;
+  return {
+    id: db.id,
+    roomId: db.room_id !== undefined ? db.room_id : (db.roomId || ''),
+    hotelId: db.hotel_id !== undefined ? db.hotel_id : (db.hotelId || ''),
+    fecha: db.fecha || null,
+    isWeekend: db.is_weekend !== undefined ? db.is_weekend : (db.isWeekend || false),
+    precio: Number(db.precio || 0),
+    motivo: db.motivo || ''
+  };
+}
+
+/**
+ * Syncs/Upserts a single RoomPriceVariation to Supabase
+ */
+export async function syncRoomPriceVariationToSupabase(v: RoomPriceVariation): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await supabase
+      .from('room_price_variations')
+      .upsert(mapRoomPriceVariationToDb(v));
+
+    if (error) {
+      console.warn('Supabase syncRoomPriceVariation error:', error);
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message || String(err) };
+  }
+}
+
+/**
+ * Deletes a single RoomPriceVariation from Supabase
+ */
+export async function deleteRoomPriceVariationFromSupabase(id: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await supabase
+      .from('room_price_variations')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.warn('Supabase deleteRoomPriceVariation error:', error);
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message || String(err) };
+  }
+}
+
