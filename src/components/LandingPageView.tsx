@@ -231,12 +231,12 @@ export default function LandingPageView({ onClose, onOpenLegal }: LandingPageVie
               <div className="w-12 h-12 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center">
                 <Building2 className="w-6 h-6" />
               </div>
-              <h3 className="font-bold text-slate-900 text-sm md:text-base">Control Multi-Propiedad Centralizado</h3>
+              <h3 className="font-bold text-slate-900 text-sm md:text-base">Control Multi-Hotel Centralizado</h3>
               <p className="text-xs text-slate-500 leading-normal">
-                Enlace múltiples propiedades, hoteles, hostales o departamentos en una única consola unificada. Supervise métricas cruzadas, delegue la administración de sedes y audite el personal en segundos.
+                Registre e inspeccione múltiples establecimientos desde un único acceso. Cargue habitaciones de forma dinámica, configure tarifas de temporada y guarde fotos representativas al instante.
               </p>
             </div>
-            <span className="text-[10px] text-teal-600 font-bold mt-4 block uppercase tracking-wider">★ CONTROL ABSOLUTO</span>
+            <span className="text-[10px] text-teal-600 font-bold mt-4 block uppercase tracking-wider">★ GESTIÓN MULTI-SEDE</span>
           </div>
 
           {/* Card 2: QR Check-In */}
@@ -247,10 +247,10 @@ export default function LandingPageView({ onClose, onOpenLegal }: LandingPageVie
               </div>
               <h3 className="font-bold text-slate-900 text-sm md:text-base">Check-In Express con Códigos QR</h3>
               <p className="text-xs text-slate-500 leading-normal">
-                Expida códigos QR automatizados para sus huéspedes de forma inmediata al confirmarse sus reservas. El personal de recepción podrá validar accesos escaneando el código al instante.
+                Al confirmar una reserva, se expide un voucher interactivo con un código QR único. Al ingresar, el recepcionista verifica la estadía mediante un rápido escaneo sin contratiempos.
               </p>
             </div>
-            <span className="text-[10px] text-indigo-600 font-bold mt-4 block uppercase tracking-wider">★ CERO FILAS</span>
+            <span className="text-[10px] text-indigo-600 font-bold mt-4 block uppercase tracking-wider">★ AGILIDAD EN RECEPCIÓN</span>
           </div>
 
           {/* Card 3: Presential Logins & Walk-Ins */}
@@ -259,12 +259,12 @@ export default function LandingPageView({ onClose, onOpenLegal }: LandingPageVie
               <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
                 <Users className="w-6 h-6" />
               </div>
-              <h3 className="font-bold text-slate-900 text-sm md:text-base">Mantenimiento de Reservas Presenciales</h3>
+              <h3 className="font-bold text-slate-900 text-sm md:text-base">Módulo Completo de Recepcionistas</h3>
               <p className="text-xs text-slate-500 leading-normal">
-                Perfecto para huéspedes que llegan sin cita previa. La recepción puede registrar datos completos sobre la marcha (Cédula, correo, teléfono) y subir la reservación directo al ecosistema digital.
+                Permita que su personal registre huéspedes sobre la marcha en segundos, rellenando la ficha oficial con datos de contacto, tipo de habitación seleccionada y abonos correspondientes.
               </p>
             </div>
-            <span className="text-[10px] text-emerald-600 font-bold mt-4 block uppercase tracking-wider">★ COMPATIBILIDAD PLENA</span>
+            <span className="text-[10px] text-emerald-600 font-bold mt-4 block uppercase tracking-wider">★ RECEPCIÓN OPERATIVA</span>
           </div>
 
           {/* Card 4: Live Analytics */}
@@ -273,12 +273,12 @@ export default function LandingPageView({ onClose, onOpenLegal }: LandingPageVie
               <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
                 <TrendingUp className="w-6 h-6" />
               </div>
-              <h3 className="font-bold text-slate-900 text-sm md:text-base">Métricas Financieras en Tiempo Real</h3>
+              <h3 className="font-bold text-slate-900 text-sm md:text-base">Reportes y Estadísticas de Ocupación</h3>
               <p className="text-xs text-slate-500 leading-normal">
-                Visualice cuadros gráficos de ingresos consolidados, tasas de ocupación promedio, noches arrendadas, y distribución de reservas por propiedad, hotel o sucursal desde tableros interactivos.
+                Visualice mediante gráficos interactivos cuántas noches han sido arrendadas, la tasa de ocupación promedio actual y los ingresos totales divididos por hotel o consolidados.
               </p>
             </div>
-            <span className="text-[10px] text-amber-600 font-bold mt-4 block uppercase tracking-wider">★ INTELIGENCIA ADRENAL</span>
+            <span className="text-[10px] text-amber-600 font-bold mt-4 block uppercase tracking-wider">★ CONTROL DE INGRESOS</span>
           </div>
 
           {/* Card 5: Real-time logs timeline */}
@@ -287,26 +287,26 @@ export default function LandingPageView({ onClose, onOpenLegal }: LandingPageVie
               <div className="w-12 h-12 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
                 <Clock className="w-6 h-6" />
               </div>
-              <h3 className="font-bold text-slate-900 text-sm md:text-base">Canal de Auditoría Antifraude</h3>
+              <h3 className="font-bold text-slate-900 text-sm md:text-base">Bitácora de Novedades y Mantenimiento</h3>
               <p className="text-xs text-slate-500 leading-normal">
-                Cada evento es monitoreado: inicio de sesión, cambios de precio, registros de entrada de recepcionistas y cancelaciones son reportados al instante previniendo incidencias.
+                Los recepcionistas pueden reportar averías e incidencias al momento. Cambie el estado de la suite a "Sucia" o "Mantenimiento" para bloquear y proteger el inventario de reservas erróneas.
               </p>
             </div>
-            <span className="text-[10px] text-rose-600 font-bold mt-4 block uppercase tracking-wider">★ SEGURIDAD ZERO-TRUST</span>
+            <span className="text-[10px] text-rose-600 font-bold mt-4 block uppercase tracking-wider">★ PREVENCIÓN DE ERRORES</span>
           </div>
 
-          {/* Card 6: Modular Scalability */}
+          {/* Card 6: Interactive Calendars */}
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between hover:shadow-md hover:border-slate-300 transition-all">
             <div className="space-y-4">
-              <div className="w-12 h-12 rounded-xl bg-teal-50 text-teal-650 flex items-center justify-center">
+              <div className="w-12 h-12 rounded-xl bg-teal-50 text-teal-655 flex items-center justify-center">
                 <Workflow className="w-6 h-6" />
               </div>
-              <h3 className="font-bold text-slate-900 text-sm md:text-base">Escalabilidad de Infraestructura</h3>
+              <h3 className="font-bold text-slate-900 text-sm md:text-base">Agenda Visual Interactiva mensual</h3>
               <p className="text-xs text-slate-500 leading-normal">
-                Plataforma full-stack conectada con Supabase y Node para garantizar velocidad de respuesta relámpago y sincronización simultánea en múltiples pantallas a la vez.
+                Consulte las reservas activas en un intuitivo mapa mensual. Planifique de un vistazo las llegadas de huéspedes, limpiezas necesarias y reubicaciones de suites en tiempo real.
               </p>
             </div>
-            <span className="text-[10px] text-teal-650 font-bold mt-4 block uppercase tracking-wider">★ SLA DE OPERACIONES</span>
+            <span className="text-[10px] text-teal-655 font-bold mt-4 block uppercase tracking-wider">★ PLANIFICACIÓN VISUAL</span>
           </div>
 
         </div>

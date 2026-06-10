@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useRef } from 'react';
-import { Hotel, Room, Reservation, User, RoomStatus, ReservationStatus } from '../types';
+import { Hotel, Room, Reservation, User, RoomStatus, ReservationStatus, RoomPriceVariation } from '../types';
 import { QrCode, Search, Check, ShieldAlert, Sparkles, AlertTriangle, Calendar, UserCheck, ShieldCheck, Hammer, HelpCircle, Loader, Coffee, CreditCard } from 'lucide-react';
 import { RoomReservationCalendar } from './RoomReservationCalendar';
 import { Html5Qrcode } from 'html5-qrcode';
@@ -28,6 +28,7 @@ interface ReceptionViewProps {
     staffRole?: string,
     mensajeCambio?: string
   ) => void;
+  roomPriceVariations?: RoomPriceVariation[];
 }
 
 export default function ReceptionView({
@@ -42,7 +43,8 @@ export default function ReceptionView({
   onAddLog,
   onCreateReservation,
   onRegisterUser,
-  onUpdateReservationStatus
+  onUpdateReservationStatus,
+  roomPriceVariations = []
 }: ReceptionViewProps) {
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -234,7 +236,6 @@ export default function ReceptionView({
   };
 
   const selectedRoom = rooms.find(r => r.id === bookRoomId);
-  const roomPrice = selectedRoom ? selectedRoom.precio : 0;
   
   let nights = 1;
   if (bookCheckIn && bookCheckOut) {
@@ -243,8 +244,71 @@ export default function ReceptionView({
     if (nights <= 0) nights = 1;
   }
 
-  const calculatedSubtotal = (roomPrice * nights) + getWalkInServicesTotal();
-  const calculatedImpuestos = parseFloat((calculatedSubtotal * 0.12).toFixed(2));
+  const getRoomPriceForDate = (room: Room, dateStr: string) => {
+    // Check if there is an exact date match in variations or an annual re-occurring one ("Always" - matching MM-DD)
+    const exactMatch = roomPriceVariations.find(v => {
+      if (v.roomId !== room.id) return false;
+      if (v.isWeekend) return false;
+      if (!v.fecha) return false;
+      if (v.fecha === dateStr) return true;
+      if (v.isAlways && v.fecha.substring(5) === dateStr.substring(5)) return true;
+      return false;
+    });
+
+    if (exactMatch) {
+      return { precio: exactMatch.precio, motivo: exactMatch.motivo || 'Fecha Especial', isVariable: true };
+    }
+    
+    const d = new Date(dateStr + 'T12:00:00');
+    const day = d.getDay(); // 5: Friday, 6: Saturday
+    if (day === 5 || day === 6) {
+      const wkMatch = roomPriceVariations.find(v => v.roomId === room.id && v.isWeekend);
+      if (wkMatch) {
+        return { precio: wkMatch.precio, motivo: wkMatch.motivo || 'Tarifa de Fin de Semana', isVariable: true };
+      }
+    }
+    
+    return { precio: room.precio, motivo: 'Tarifa Estándar', isVariable: false };
+  };
+
+  const getBookingNightsBreakdown = (room: Room, checkIn: string, checkOut: string) => {
+    if (!room || !checkIn || !checkOut) return [];
+    
+    const nightsBreakdown: { date: string; precio: number; motivo: string; isVariable?: boolean }[] = [];
+    const start = new Date(checkIn + 'T12:00:00');
+    const end = new Date(checkOut + 'T12:00:00');
+    
+    const current = new Date(start);
+    while (current < end) {
+      const yyyy = current.getFullYear();
+      const mm = String(current.getMonth() + 1).padStart(2, '0');
+      const dd = String(current.getDate()).padStart(2, '0');
+      const dateStr = `${yyyy}-${mm}-${dd}`;
+      
+      const { precio, motivo, isVariable } = getRoomPriceForDate(room, dateStr);
+      nightsBreakdown.push({ date: dateStr, precio, motivo, isVariable });
+      
+      current.setDate(current.getDate() + 1);
+    }
+    
+    if (nightsBreakdown.length === 0) {
+      nightsBreakdown.push({ date: checkIn, precio: room.precio, motivo: 'Tarifa Estándar', isVariable: false });
+    }
+    
+    return nightsBreakdown;
+  };
+
+  const getBookingSubtotal = (room: Room) => {
+    if (room && bookCheckIn && bookCheckOut) {
+      const breakdown = getBookingNightsBreakdown(room, bookCheckIn, bookCheckOut);
+      return breakdown.reduce((sum, n) => sum + n.precio, 0);
+    }
+    return (room ? room.precio : 0) * nights;
+  };
+
+  const isIvaAddedForSelectedRoom = selectedRoom ? (selectedRoom.adicionarIva !== false) : true;
+  const calculatedSubtotal = (selectedRoom ? getBookingSubtotal(selectedRoom) : 0) + getWalkInServicesTotal();
+  const calculatedImpuestos = isIvaAddedForSelectedRoom ? parseFloat((calculatedSubtotal * 0.12).toFixed(2)) : 0;
   const calculatedTotal = parseFloat((calculatedSubtotal + calculatedImpuestos).toFixed(2));
 
   const handleCreatePresencialRes = async (e: React.FormEvent) => {
@@ -847,6 +911,7 @@ export default function ReceptionView({
             users={users}
             activeUser={activeUser}
             onUpdateRoomStatus={onUpdateRoomStatus}
+            roomPriceVariations={roomPriceVariations}
           />
         </div>
 
@@ -1214,7 +1279,12 @@ export default function ReceptionView({
                 </div>
                 <div className="bg-slate-900 rounded-xl p-2.5 text-right text-white space-y-0.5 shadow-inner">
                   <span className="text-[9px] text-slate-400 font-medium block">Total Estimado ({nights} N):</span>
-                  <p className="text-[11px] text-[#6ECCAF] font-bold font-mono">${calculatedTotal} USD <span className="text-[8px] text-slate-400 font-sans block leading-none">(Impuestos inc)</span></p>
+                  <p className="text-[11px] text-[#6ECCAF] font-bold font-mono">
+                    ${calculatedTotal} USD 
+                    <span className="text-[8px] text-slate-400 font-sans block leading-none">
+                      {isIvaAddedForSelectedRoom ? '(Impuestos inc 12%)' : '(IVA Incluido)'}
+                    </span>
+                  </p>
                 </div>
               </div>
 

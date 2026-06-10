@@ -366,6 +366,7 @@ export default function App() {
                   onAddLog={handleAddLogSimulated}
                   onCreateReservation={createReservation}
                   onRegisterUser={registerUser}
+                  roomPriceVariations={roomPriceVariations}
                 />
               )}
 
