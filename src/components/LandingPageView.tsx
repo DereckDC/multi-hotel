@@ -60,58 +60,58 @@ export default function LandingPageView({ onClose, onOpenLegal }: LandingPageVie
       </nav>
 
       {/* Hero Header Marketing Section */}
-      <header className="relative bg-slate-950 overflow-hidden py-24 md:py-32 px-6 border-b border-slate-900">
+      <header className="relative bg-slate-950 overflow-hidden py-10 md:py-20 px-4 md:px-6 border-b border-slate-900">
         {/* Futuristic Grid Overlay & Glow Effects */}
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b_1px,transparent_1px),linear-gradient(to_bottom,#1e293b_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] opacity-35" />
         <div className="absolute top-0 right-1/4 w-[500px] h-[500px] bg-teal-500/10 rounded-full blur-[120px] pointer-events-none" />
         <div className="absolute bottom-1/4 left-10 w-[300px] h-[300px] bg-indigo-500/10 rounded-full blur-[100px] pointer-events-none" />
 
         <div className="max-w-7xl mx-auto relative z-10">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-center">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-16 items-center">
                       {/* Left Column Text copy & CTA */}
-            <div className="lg:col-span-7 space-y-8 text-left">
-              <div className="inline-flex items-center gap-2 px-3 py-1 bg-teal-500/10 text-teal-300 rounded-full text-xs font-bold ring-1 ring-teal-500/20">
+            <div className="lg:col-span-7 space-y-4 md:space-y-6 text-left">
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-teal-500/10 text-teal-300 rounded-full text-[11px] font-bold ring-1 ring-teal-500/20">
                 <Sparkles className="w-3.5 h-3.5 text-teal-400" />
                 <span>La Evolución Definitiva en Gestión de Propiedades y Alojamiento</span>
               </div>
 
-              <h1 className="text-4xl md:text-6xl font-black tracking-tight text-white leading-tight">
+              <h1 className="text-3xl md:text-5xl lg:text-6xl font-black tracking-tight text-white leading-tight">
                 Gestione sus Propiedades y Reservas con <span className="text-transparent bg-clip-text bg-gradient-to-r from-teal-400 via-emerald-300 to-indigo-400">Poder Absoluto</span>
               </h1>
 
-              <p className="text-sm md:text-base text-slate-300 max-w-xl leading-relaxed">
+              <p className="text-xs md:text-sm text-slate-300 max-w-xl leading-relaxed">
                 Roomia PMS es la suite premium en la nube diseñada para maximizar ingresos en cualquier tipo de propiedad (hoteles, hostales, departamentos, cabañas, glampings y más). Automatice la facturación de huéspedes, habilite Check-Ins rápidos con códigos QR y blinde sus operaciones en tiempo real con auditorías avanzadas.
               </p>
 
-              <div className="flex flex-wrap gap-4 pt-2">
+              <div className="flex flex-wrap gap-3 pt-1">
                 <button
                   onClick={onClose}
-                  className="px-8 py-4 bg-teal-500 hover:bg-teal-400 text-slate-950 font-extrabold text-xs md:text-sm rounded-2xl shadow-xl shadow-teal-500/20 hover:shadow-teal-500/30 transition-all hover:scale-[1.03] active:scale-95 cursor-pointer flex items-center gap-2.5"
+                  className="px-6 py-3 bg-teal-500 hover:bg-teal-400 text-slate-950 font-extrabold text-xs md:text-sm rounded-xl shadow-xl shadow-teal-500/20 hover:shadow-teal-500/30 transition-all hover:scale-[1.03] active:scale-95 cursor-pointer flex items-center gap-2"
                 >
                   <span>Iniciar Mi Prueba Gratis</span>
                   <ArrowLeft className="w-4 h-4 rotate-180 text-slate-950" />
                 </button>
                 <button
                   onClick={onClose}
-                  className="px-6 py-4 bg-slate-900 hover:bg-slate-850 text-white font-bold text-xs md:text-sm rounded-2xl border border-slate-800 hover:border-slate-705 transition-all active:scale-95 cursor-pointer"
+                  className="px-5 py-3 bg-slate-900 hover:bg-slate-850 text-white font-bold text-xs md:text-sm rounded-xl border border-slate-800 hover:border-slate-705 transition-all active:scale-95 cursor-pointer"
                 >
                   Ver Demo Operacional 💻
                 </button>
               </div>
 
               {/* Direct Metrics Trust Badge */}
-              <div className="grid grid-cols-3 gap-4 pt-6 border-t border-slate-800/85 max-w-lg text-slate-400 font-sans">
+              <div className="grid grid-cols-3 gap-3 pt-4 border-t border-slate-800/85 max-w-lg text-slate-400 font-sans">
                 <div>
-                  <span className="block text-xl font-extrabold text-white">100%</span>
-                  <span className="text-[10px] uppercase font-mono tracking-wider">Infraestructura Cloud</span>
+                  <span className="block text-lg font-extrabold text-white">100%</span>
+                  <span className="text-[9px] uppercase font-mono tracking-wider">Infraestructura Cloud</span>
                 </div>
                 <div>
-                  <span className="block text-xl font-extrabold text-teal-400">⚡ Supabase</span>
-                  <span className="text-[10px] uppercase font-mono tracking-wider">Resguardo de Datos</span>
+                  <span className="block text-lg font-extrabold text-teal-400">⚡ Supabase</span>
+                  <span className="text-[9px] uppercase font-mono tracking-wider">Resguardo de Datos</span>
                 </div>
                 <div>
-                  <span className="block text-xl font-extrabold text-white">99.9%</span>
-                  <span className="text-[10px] uppercase font-mono tracking-wider">Uptime Garantizado</span>
+                  <span className="block text-lg font-extrabold text-white">99.9%</span>
+                  <span className="text-[9px] uppercase font-mono tracking-wider">Uptime Garantizado</span>
                 </div>
               </div>
             </div>
@@ -213,9 +213,9 @@ export default function LandingPageView({ onClose, onOpenLegal }: LandingPageVie
       </header>
 
       {/* Core Advantages Bento Grid */}
-      <section className="py-16 px-6 max-w-7xl mx-auto w-full space-y-12">
-        <div className="text-center space-y-2">
-          <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-900">
+      <section className="py-8 md:py-14 px-4 md:px-6 max-w-7xl mx-auto w-full space-y-6 md:space-y-10">
+        <div className="text-center space-y-1 md:space-y-2">
+          <h2 className="text-xl md:text-3xl font-bold tracking-tight text-slate-900">
             Beneficios Exclusivos de Roomia PMS
           </h2>
           <p className="text-xs md:text-sm text-slate-500 max-w-xl mx-auto leading-relaxed">
@@ -223,7 +223,7 @@ export default function LandingPageView({ onClose, onOpenLegal }: LandingPageVie
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 md:gap-8">
           
           {/* Card 1: Multi-Propiedad */}
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between hover:shadow-md hover:border-slate-300 transition-all">
@@ -313,8 +313,8 @@ export default function LandingPageView({ onClose, onOpenLegal }: LandingPageVie
       </section>
 
       {/* Featured Core System Capabilities */}
-      <section className="bg-white py-16 px-6 border-y border-slate-100">
-        <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+      <section className="bg-white py-10 md:py-16 px-4 md:px-6 border-y border-slate-100">
+        <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 items-center">
           <div className="space-y-5">
             <span className="text-xs font-bold text-teal-600 uppercase tracking-widest font-mono">PANEL DE OPERACIONES</span>
             <h3 className="text-2xl md:text-3xl font-extrabold text-slate-900 leading-tight">
@@ -399,7 +399,7 @@ export default function LandingPageView({ onClose, onOpenLegal }: LandingPageVie
       </section>
 
       {/* Compact Elegant Dark Modern Footer with Direct Contact Information */}
-      <footer className="py-20 px-6 bg-slate-950 text-white relative overflow-hidden border-t border-slate-800 space-y-10">
+      <footer className="py-10 md:py-16 px-4 md:px-6 bg-slate-950 text-white relative overflow-hidden border-t border-slate-800 space-y-6 md:space-y-10">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(13,148,136,0.05),transparent)] pointer-events-none" />
         
         <div className="max-w-4xl mx-auto relative z-10 text-center space-y-4">

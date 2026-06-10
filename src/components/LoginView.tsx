@@ -391,7 +391,7 @@ export default function LoginView({
     const emailLower = trimmedEmail.toLowerCase();
     const emailExists = users.some(u => u.email.toLowerCase() === emailLower);
     if (emailExists) {
-      setErrorMsg('Este correo electrónico ya está registrado en el sistema Roomia SaaS. Por favor, inicie sesión o recupere su contraseña.');
+      setErrorMsg('Este correo electrónico ya está registrado en nuestro portal. Por favor, inicia sesión o recupera tu contraseña.');
       return;
     }
 
@@ -574,13 +574,13 @@ export default function LoginView({
           <div className="relative">
             <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 backdrop-blur-sm rounded-full text-xs font-semibold text-[#6ECCAF] mb-6">
               <Sparkles className="w-3.5 h-3.5" />
-              <span>ROOMIA PMS HOSPITALITY</span>
+              <span>Tu Próxima Estancia de Ensueño</span>
             </div>
             <h1 className="text-3xl md:text-4xl font-display font-extrabold tracking-tight leading-tight">
-              Roomia Portal: Tu Destino Ideal de Hospedaje 🏨✨
+              Encuentra el Hospedaje Perfecto para ti 🏨✨
             </h1>
             <p className="text-neutral-200 text-xs md:text-sm mt-4 leading-relaxed font-sans">
-              Encuentra y reserva tu hospedaje ideal al mejor precio garantizado. Disfruta de un proceso de reserva rápido con confirmación inmediata, check-in digital express vía código QR y atención personalizada de primer nivel.
+              Reserva con total confianza, disfruta de confirmación al instante, accede a los mejores hoteles de la región y vive una experiencia de viaje inolvidable con atención premium personalizada.
             </p>
           </div>
         </div>
@@ -603,7 +603,7 @@ export default function LoginView({
                     Recuperar Contraseña
                   </h3>
                   <p className="text-xs text-neutral-400 mt-1">
-                    Ingrese su correo electrónico registrado para recuperar sus credenciales de acceso de forma instantánea.
+                    Ingresa tu correo electrónico para enviarte un enlace de acceso seguro. ¡Estaremos encantados de ayudarte!
                   </p>
                 </div>
 
@@ -631,18 +631,18 @@ export default function LoginView({
                   <div className="bg-emerald-50 border border-emerald-300 text-emerald-850 p-5 rounded-2xl space-y-3 animate-fade-in duration-350">
                     <div className="flex items-center gap-2.5">
                       <Check className="w-5 h-5 text-emerald-600 shrink-0" />
-                      <h5 className="font-semibold text-sm">Mensaje enviado con éxito</h5>
+                      <h5 className="font-semibold text-sm">¡Correo enviado con éxito!</h5>
                     </div>
                     <p className="text-xs text-neutral-600 leading-relaxed font-sans">
-                      Se ha despachado un correo de recuperación de Roomia SaaS a <span className="font-semibold">{recoveryEmail.trim()}</span> con las credenciales de acceso privadas.
+                      Hemos enviado las instrucciones de recuperación a <span className="font-semibold">{recoveryEmail.trim()}</span> con tu nueva clave de acceso de uso exclusivo.
                     </p>
                     <div className="bg-white p-4 rounded-xl border border-emerald-200/80 space-y-2.5 font-sans shadow-sm">
-                      <p className="text-[10px] uppercase tracking-wider font-bold text-teal-700">🔐 Protección de Privacidad Activa</p>
+                      <p className="text-[10px] uppercase tracking-wider font-bold text-teal-700">🔐 Acceso Seguro Garantizado</p>
                       <p className="text-neutral-600 text-[11px] leading-relaxed">
-                        Por raciones de ciberseguridad y resguardo de datos, su contraseña de acceso <strong>no se muestra directamente en la pantalla de este navegador</strong>.
+                        Por motivos de privacidad, tu contraseña no se muestra directamente en la pantalla.
                       </p>
                       <p className="text-neutral-600 text-[11px] leading-relaxed">
-                        En su lugar, se ha enviado de forma automatizada por correo real. Por favor, <strong>revise su bandeja de entrada principal o su carpeta de Spam</strong> para obtener las credenciales.
+                        Te la enviamos de forma automática por correo. Por favor, <strong>revisa tu bandeja de entrada principal, carpeta de promociones o correo no deseado (Spam)</strong>.
                       </p>
                     </div>
                     
@@ -851,12 +851,12 @@ export default function LoginView({
                       <div className="w-12 h-12 bg-teal-50 border border-teal-200 rounded-2xl flex items-center justify-center mx-auto text-teal-600 shadow-sm">
                         <Mail className="w-6 h-6 animate-bounce" />
                       </div>
-                      <h3 className="text-xl font-bold text-neutral-800">Verifique su Correo Real</h3>
+                      <h3 className="text-xl font-bold text-neutral-800">Confirma tu Correo</h3>
                       <p className="text-xs text-neutral-500 leading-relaxed font-sans">
-                        Hemos enviado un enlace de confirmación oficial de Supabase a su correo: <span className="font-semibold text-[#344D67] block font-mono mt-1 text-center bg-neutral-50 p-2 rounded-xl">{emailInput}</span>
+                        Hemos enviado un enlace de confirmación seguro a tu correo: <span className="font-semibold text-[#344D67] block font-mono mt-1 text-center bg-neutral-50 p-2 rounded-xl">{emailInput}</span>
                       </p>
                       <p className="text-[11px] text-neutral-450 mt-1 leading-relaxed">
-                        Abra su bandeja de entrada real, haga clic en el botón de confirmación adjunto, y luego vuelva aquí para culminar su registro.
+                        Por favor revisa tu buzón de correo electrónico, haz clic en el enlace de verificación y listo. ¡Te esperamos para tu próximo gran viaje!
                       </p>
                     </div>
 
@@ -884,7 +884,7 @@ export default function LoginView({
                         {loadingType === 'verification' ? (
                           <>
                             <Loader2 className="w-4 h-4 animate-spin" />
-                            <span>Comprobando con Supabase...</span>
+                            <span>Comprobando verificación...</span>
                           </>
                         ) : (
                           <>
@@ -922,12 +922,12 @@ export default function LoginView({
                 ) : (
                   <>
                     <div>
-                      <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-bold mb-2">
-                        NUEVA CUENTA DETECTADA
+                      <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-bold mb-2">
+                        🌟 CLUB DE VIAJEROS DE ENSUEÑO
                       </div>
-                      <h3 className="text-xl font-bold text-neutral-800">Crea tu Cuenta de Huésped Elite ✨</h3>
+                      <h3 className="text-xl font-bold text-neutral-800">Regístrate y Viaja de Forma Única ✨</h3>
                       <p className="text-xs text-neutral-400 mt-1">
-                        Forma parte de nuestro club exclusivo. Registra tus datos en segundos para comenzar a acumular beneficios, acceder a tarifas premium y gestionar tus reservas con un solo click.
+                        Crea tu cuenta en minutos para reservar al instante, acceder a mejores tarifas y gestionar tus próximas estancias con total facilidad desde un solo lugar.
                       </p>
                     </div>
 
