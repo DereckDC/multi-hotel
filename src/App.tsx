@@ -11,6 +11,7 @@ import SupportChatDrawer from './components/SupportChatDrawer';
 import AdminView from './components/AdminView';
 import LoginView from './components/LoginView';
 import LandingPageView from './components/LandingPageView';
+import LegalPageView, { LegalDocType } from './components/LegalPageView';
 import { LayoutDashboard, Users, User as UserIcon, CalendarDays, KeyRound, Star, Sparkles, Building2, ShieldAlert, LogOut, Edit3, Camera, Check, X, Shield, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -68,6 +69,29 @@ export default function App() {
   const [showLandingPage, setShowLandingPage] = useState(isLoggedOut);
   const [openHotelId, setOpenHotelId] = useState<string | null>(null);
   const [viewOverride, setViewOverride] = useState<'admin' | 'reception' | null>(null);
+
+  // Legal documentation active routing state
+  const [activeLegalDoc, setActiveLegalDoc] = useState<LegalDocType | null>(() => {
+    const path = window.location.pathname;
+    if (path === '/terminos-y-condiciones') return 'terminos';
+    if (path === '/politica-de-privacidad') return 'privacidad';
+    if (path === '/politica-de-cancelaciones-y-reembolsos') return 'cancelaciones';
+    return null;
+  });
+
+  // Keep track of back/forward navigation for legal routes
+  useEffect(() => {
+    const handlePopState = () => {
+      const path = window.location.pathname;
+      if (path === '/terminos-y-condiciones') setActiveLegalDoc('terminos');
+      else if (path === '/politica-de-privacidad') setActiveLegalDoc('privacidad');
+      else if (path === '/politica-de-cancelaciones-y-reembolsos') setActiveLegalDoc('cancelaciones');
+      else setActiveLegalDoc(null);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   // Real-time Ecuador GMT-5 clock for the general footer
   const [ecuadorTime, setEcuadorTime] = useState('');
@@ -162,6 +186,20 @@ export default function App() {
       detalles: details
     });
   };
+
+  if (activeLegalDoc !== null) {
+    return (
+      <LegalPageView
+        documentType={activeLegalDoc}
+        onClose={() => {
+          // If we had an active user session, go back to app, else go back to landing
+          window.history.pushState(null, '', '/');
+          setActiveLegalDoc(null);
+        }}
+        onSelectDoc={(type) => setActiveLegalDoc(type)}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#fafafa] flex flex-col font-sans selection:bg-teal-500 selection:text-neutral-900">
@@ -260,7 +298,13 @@ export default function App() {
         <AnimatePresence mode="wait">
           {isLoggedOut ? (
             showLandingPage ? (
-              <LandingPageView onClose={() => setShowLandingPage(false)} />
+              <LandingPageView 
+                onClose={() => setShowLandingPage(false)} 
+                onOpenLegal={(type) => {
+                  window.history.pushState(null, '', type === 'terminos' ? '/terminos-y-condiciones' : type === 'privacidad' ? '/politica-de-privacidad' : '/politica-de-cancelaciones-y-reembolsos');
+                  setActiveLegalDoc(type);
+                }}
+              />
             ) : (
               <motion.div
                 key="login-screen-view"
@@ -357,9 +401,46 @@ export default function App() {
       </main>
 
       {/* 4. Tiny visual footer */}
-      <footer className="py-6 border-t border-neutral-150 text-center text-[10px] text-neutral-400 font-mono print:hidden">
+      <footer className="py-8 border-t border-neutral-150 text-center text-[10px] text-neutral-400 font-mono print:hidden space-y-2">
         <p>©2026 Maqyasoft</p>
-        <p className="mt-1">Hora Ecuador (GMT-5): {ecuadorTime || 'Cargando...'}</p>
+        <p>Hora Ecuador (GMT-5): {ecuadorTime || 'Cargando...'}</p>
+        <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-[11px] font-sans font-medium text-neutral-500 pt-1">
+          <button
+            type="button"
+            onClick={() => {
+              window.history.pushState(null, '', '/terminos-y-condiciones');
+              setActiveLegalDoc('terminos');
+            }}
+            className="hover:text-teal-600 transition-colors cursor-pointer"
+            id="footer-link-terminos"
+          >
+            Términos y Condiciones
+          </button>
+          <span className="text-neutral-300 font-sans">•</span>
+          <button
+            type="button"
+            onClick={() => {
+              window.history.pushState(null, '', '/politica-de-privacidad');
+              setActiveLegalDoc('privacidad');
+            }}
+            className="hover:text-teal-600 transition-colors cursor-pointer"
+            id="footer-link-privacidad"
+          >
+            Política de Privacidad
+          </button>
+          <span className="text-neutral-300 font-sans">•</span>
+          <button
+            type="button"
+            onClick={() => {
+              window.history.pushState(null, '', '/politica-de-cancelaciones-y-reembolsos');
+              setActiveLegalDoc('cancelaciones');
+            }}
+            className="hover:text-teal-600 transition-colors cursor-pointer"
+            id="footer-link-cancelaciones"
+          >
+            Política de Cancelación y Reembolsos
+          </button>
+        </div>
       </footer>
 
       {/* Global Edit Profile Modal */}
