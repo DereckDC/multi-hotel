@@ -167,13 +167,20 @@ export default function ClientView({
 
   // Booking Flow modal state
   const [bookingRoom, setBookingRoom] = useState<Room | null>(null);
-  const [checkInDate, setCheckInDate] = useState<string>(() => getTodayString(0));
-  const [checkOutDate, setCheckOutDate] = useState<string>(() => getTodayString(3));
+  const [checkInDate, setCheckInDate] = useState<string>('');
+  const [checkOutDate, setCheckOutDate] = useState<string>('');
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [servicePeopleCount, setServicePeopleCount] = useState<Record<string, number>>({});
   const [bookingNote, setBookingNote] = useState('');
   const [bookingSuccess, setBookingSuccess] = useState(false);
   const [bookingError, setBookingError] = useState<string | null>(null);
+
+  // Limpiar fechas cuando cambia de hotel o de habitación elegida
+  React.useEffect(() => {
+    setCheckInDate('');
+    setCheckOutDate('');
+    setBookingError(null);
+  }, [bookingRoom, selectedHotelId]);
 
   // Active Invoice preview modal state
   const [previewingRes, setPreviewingRes] = useState<Reservation | null>(null);
@@ -380,6 +387,11 @@ export default function ClientView({
   const handleCreateBooking = (e: React.FormEvent) => {
     e.preventDefault();
     if (!bookingRoom) return;
+
+    if (!checkInDate || !checkOutDate) {
+      setBookingError("Por favor seleccione las fechas de check-in y check-out.");
+      return;
+    }
 
     // Validate that date selected is today or future
     const todayStr = getTodayString(0);
