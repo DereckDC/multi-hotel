@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, FormEvent } from 'react';
-import { useHotelStore } from './store';
+import { useHotelStore, compressImage } from './store';
 import ClientView from './components/ClientView';
 import ReceptionView from './components/ReceptionView';
 import SupportChatDrawer from './components/SupportChatDrawer';
@@ -521,14 +521,15 @@ export default function App() {
                         onChange={(e) => {
                           const file = e.target.files?.[0];
                           if (file) {
-                            if (file.size > 2 * 1024 * 1024) {
-                              alert("La imagen excede el límite recomendado de 2MB. Intente con una imagen más liviana.");
+                            if (file.size > 15 * 1024 * 1024) {
+                              alert("La imagen es demasiado grande. Intente con una imagen más liviana.");
                               return;
                             }
                             const reader = new FileReader();
-                            reader.onload = (event) => {
+                            reader.onload = async (event) => {
                               if (event.target?.result) {
-                                setProfileAvatar(event.target.result as string);
+                                const compressed = await compressImage(event.target.result as string, 500, 500, 0.7);
+                                setProfileAvatar(compressed);
                               }
                             };
                             reader.readAsDataURL(file);

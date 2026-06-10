@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 import { Hotel, Room, User, Reservation, RoomStatus, UserRole, Review, RoomPriceVariation } from '../types';
 import { RoomReservationCalendar } from './RoomReservationCalendar';
 import { SUPABASE_SQL_SCHEMA, fetchPropertyDetails } from '../supabase';
+import { compressImage } from '../store';
 
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, AreaChart, Area } from 'recharts';
 import { Plus, Edit3, Trash2, Shield, Users, HotelIcon, List, LayoutDashboard, Calendar, DollarSign, Percent, TrendingUp, AlertCircle, MapPin, EyeOff, ClipboardList, ToggleLeft, ToggleRight, Check, X, Upload, Database, Sparkles, Copy, Key, Building, Home, Star } from 'lucide-react';
@@ -408,9 +409,11 @@ export default function AdminView({
     }
 
     const reader = new FileReader();
-    reader.onload = (event) => {
-      const dataUrl = event.target?.result as string;
-      if (dataUrl) {
+    reader.onload = async (event) => {
+      const rawDataUrl = event.target?.result as string;
+      if (rawDataUrl) {
+        // Compress the image/video to a compact size
+        const dataUrl = await compressImage(rawDataUrl, 1000, 1000, 0.75);
         if (target === 'hotel') {
           if (editingHotel) {
             const currentImgs = editingHotel.imagenes || [];
