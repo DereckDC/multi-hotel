@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronLeft, ChevronRight, Maximize2, X } from 'lucide-react';
 
@@ -107,9 +108,10 @@ export function getMediaEmbed(url: string, className = "w-full h-full object-cov
 interface RoomImageGalleryProps {
   imagenes: string[];
   roomNombre: string;
+  className?: string;
 }
 
-export function RoomImageGallery({ imagenes, roomNombre }: RoomImageGalleryProps) {
+export function RoomImageGallery({ imagenes, roomNombre, className }: RoomImageGalleryProps) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
@@ -136,10 +138,12 @@ export function RoomImageGallery({ imagenes, roomNombre }: RoomImageGalleryProps
     setActiveIndex(idx);
   };
 
+  const wrapperClass = className || "relative w-full md:w-56 h-36 rounded-xl overflow-hidden bg-neutral-100 shrink-0 border border-neutral-150 shadow-sm group cursor-pointer";
+
   return (
     <>
       <div 
-        className="relative w-full md:w-56 h-36 rounded-xl overflow-hidden bg-neutral-100 shrink-0 border border-neutral-150 shadow-sm group cursor-pointer"
+        className={wrapperClass}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         onClick={() => setIsLightboxOpen(true)}
@@ -217,102 +221,105 @@ export function RoomImageGallery({ imagenes, roomNombre }: RoomImageGalleryProps
       </div>
 
       {/* FULL-RESOLUTION LIGHTBOX CAROUSEL */}
-      <AnimatePresence>
-        {isLightboxOpen && (
-          <div 
-            className="fixed inset-0 bg-neutral-950/90 z-50 flex flex-col justify-between p-4 md:p-6 backdrop-blur-md select-none"
-            onClick={() => setIsLightboxOpen(false)}
-          >
-            {/* Top Bar of Lightbox */}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {isLightboxOpen && (
             <div 
-              className="flex justify-between items-center text-white" 
-              onClick={(e) => e.stopPropagation()}
+              className="fixed inset-0 bg-neutral-950/95 z-[9999] flex flex-col justify-between p-4 md:p-6 backdrop-blur-xl select-none"
+              onClick={() => setIsLightboxOpen(false)}
             >
-              <div>
-                <h5 className="font-semibold text-sm md:text-base font-display">{roomNombre}</h5>
-                <p className="text-[10px] md:text-xs text-neutral-400">Galería de Fotos ({activeIndex + 1} de {displayImages.length})</p>
-              </div>
-              <button 
-                onClick={() => setIsLightboxOpen(false)}
-                className="p-2 hover:bg-white/10 text-neutral-300 hover:text-white rounded-full transition-all cursor-pointer"
+              {/* Top Bar of Lightbox */}
+              <div 
+                className="flex justify-between items-center text-white" 
+                onClick={(e) => e.stopPropagation()}
               >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-
-            {/* Main Stage Image */}
-            <div 
-              className="relative flex-1 flex items-center justify-center max-h-[70vh] my-4 w-full"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={activeIndex}
-                  className="max-w-full max-h-full aspect-video md:aspect-[16/9] w-full max-w-4xl flex items-center justify-center p-1 rounded-2xl overflow-hidden bg-black shadow-2xl border border-white/5"
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ duration: 0.25 }}
+                <div>
+                  <h5 className="font-semibold text-base font-display">{roomNombre}</h5>
+                  <p className="text-xs text-neutral-400">Galería de Fotos ({activeIndex + 1} de {displayImages.length})</p>
+                </div>
+                <button 
+                  onClick={() => setIsLightboxOpen(false)}
+                  className="p-2.5 hover:bg-white/10 text-neutral-300 hover:text-white rounded-full transition-all cursor-pointer border border-white/5 bg-white/5 shadow-lg"
                 >
-                  {getMediaEmbed(displayImages[activeIndex], "max-w-full max-h-full object-contain rounded-xl")}
-                </motion.div>
-              </AnimatePresence>
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
 
-              {/* Huge Navigation Arrows on stage */}
-              {displayImages.length > 1 && (
-                <>
-                  <button
-                    onClick={handlePrev}
-                    className="absolute left-2 md:left-4 w-12 h-12 bg-neutral-900/80 hover:bg-neutral-800 text-white rounded-full flex items-center justify-center shadow-2xl hover:scale-105 active:scale-95 transition-all cursor-pointer z-30 border border-white/10"
-                    title="Anterior"
+              {/* Main Stage Image */}
+              <div 
+                className="relative flex-1 flex items-center justify-center max-h-[85vh] my-2 w-full"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={activeIndex}
+                    className="max-w-full max-h-full aspect-video md:aspect-[16/9] w-full max-w-6xl flex items-center justify-center p-1 rounded-2xl overflow-hidden bg-black shadow-2xl border border-white/10"
+                    initial={{ opacity: 0, scale: 0.96 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.96 }}
+                    transition={{ duration: 0.22, ease: "easeOut" }}
                   >
-                    <ChevronLeft className="w-6 h-6" />
-                  </button>
-                  <button
-                    onClick={handleNext}
-                    className="absolute right-2 md:right-4 w-12 h-12 bg-neutral-900/80 hover:bg-neutral-800 text-white rounded-full flex items-center justify-center shadow-2xl hover:scale-105 active:scale-95 transition-all cursor-pointer z-30 border border-white/10"
-                    title="Siguiente"
-                  >
-                    <ChevronRight className="w-6 h-6" />
-                  </button>
-                </>
-              )}
-            </div>
+                    {getMediaEmbed(displayImages[activeIndex], "max-w-full max-h-full object-contain rounded-xl")}
+                  </motion.div>
+                </AnimatePresence>
 
-            {/* Bottom thumbnail selector of Lightbox */}
-            <div 
-              className="w-full max-w-xl mx-auto flex items-center justify-center gap-2.5 bg-neutral-900/60 p-3 rounded-2xl border border-white/10"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {displayImages.map((img, idx) => {
-                const isItemVideo = isVideoUrl(img);
-                return (
-                  <button
-                    key={idx}
-                    onClick={(e) => selectIndex(idx, e)}
-                    className={`relative w-14 md:w-16 h-10 md:h-12 rounded-lg overflow-hidden border transition-all duration-200 cursor-pointer ${
-                      activeIndex === idx 
-                        ? 'border-teal-500 scale-105 ring-2 ring-teal-500/20' 
-                        : 'border-white/20 opacity-50 hover:opacity-100 hover:border-white/50'
-                    }`}
-                  >
-                    {isItemVideo ? (
-                      <div className="w-full h-full bg-neutral-950 flex flex-col items-center justify-center text-white relative">
-                        <div className="absolute top-0.5 right-0.5 bg-red-650 rounded px-1 py-0.2 scale-75 z-10">
-                          <span className="text-[6px] uppercase font-bold tracking-wider text-white">Video</span>
+                {/* Huge Navigation Arrows on stage */}
+                {displayImages.length > 1 && (
+                  <>
+                    <button
+                      onClick={handlePrev}
+                      className="absolute left-2 md:left-6 w-12 h-12 bg-neutral-900/85 hover:bg-neutral-800 text-white rounded-full flex items-center justify-center shadow-2xl hover:scale-105 active:scale-95 transition-all cursor-pointer z-30 border border-white/10"
+                      title="Anterior"
+                    >
+                      <ChevronLeft className="w-6 h-6" />
+                    </button>
+                    <button
+                      onClick={handleNext}
+                      className="absolute right-2 md:right-6 w-12 h-12 bg-neutral-900/85 hover:bg-neutral-800 text-white rounded-full flex items-center justify-center shadow-2xl hover:scale-105 active:scale-95 transition-all cursor-pointer z-30 border border-white/10"
+                      title="Siguiente"
+                    >
+                      <ChevronRight className="w-6 h-6" />
+                    </button>
+                  </>
+                )}
+              </div>
+
+              {/* Bottom thumbnail selector of Lightbox */}
+              <div 
+                className="w-full max-w-2xl mx-auto flex items-center justify-center gap-2.5 bg-neutral-900/60 p-4 rounded-3xl border border-white/10 backdrop-blur-md"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {displayImages.map((img, idx) => {
+                  const isItemVideo = isVideoUrl(img);
+                  return (
+                    <button
+                      key={idx}
+                      onClick={(e) => selectIndex(idx, e)}
+                      className={`relative w-16 md:w-20 h-11 md:h-14 rounded-xl overflow-hidden border transition-all duration-300 cursor-pointer ${
+                        activeIndex === idx 
+                          ? 'border-teal-500 scale-105 ring-4 ring-teal-500/20 shadow-lg' 
+                          : 'border-white/10 opacity-40 hover:opacity-100 hover:border-white/40'
+                      }`}
+                    >
+                      {isItemVideo ? (
+                        <div className="w-full h-full bg-neutral-950 flex flex-col items-center justify-center text-white relative">
+                          <div className="absolute top-0.5 right-0.5 bg-red-650 rounded px-1 py-0.2 scale-75 z-10">
+                            <span className="text-[6px] uppercase font-bold tracking-wider text-white">Video</span>
+                          </div>
+                          <span className="text-sm">🎥</span>
                         </div>
-                        <span className="text-sm">🎥</span>
-                      </div>
-                    ) : (
-                      <img src={img} alt={`Thumb ${idx + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                    )}
-                  </button>
-                );
-              })}
+                      ) : (
+                        <img src={img} alt={`Thumb ${idx + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        )}
-      </AnimatePresence>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
     </>
   );
 }

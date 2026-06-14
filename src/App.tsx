@@ -116,6 +116,47 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
+  // Inactivity tracking: 15 minutes session timeout
+  useEffect(() => {
+    // If the user is logged out or activeUser doesn't exist, don't watch for inactivity
+    if (isLoggedOut || !activeUser) return;
+
+    const INACTIVITY_LIMIT_MS = 15 * 60 * 1000; // 15 minutes
+    let inactivityTimer: any;
+
+    const performAutomaticLogout = () => {
+      console.log("⏱️ Sesión expirada por inactividad (15 minutos). Cerrando sesión...");
+      localStorage.removeItem('aura_hotel_pms_current_user_id');
+      window.location.reload();
+    };
+
+    const resetInactivityTimer = () => {
+      if (inactivityTimer) {
+        clearTimeout(inactivityTimer);
+      }
+      inactivityTimer = setTimeout(performAutomaticLogout, INACTIVITY_LIMIT_MS);
+    };
+
+    // Listen to user activity indicators
+    const userEvents = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart', 'click'];
+    
+    userEvents.forEach(event => {
+      window.addEventListener(event, resetInactivityTimer);
+    });
+
+    // Start initial timer
+    resetInactivityTimer();
+
+    return () => {
+      if (inactivityTimer) {
+        clearTimeout(inactivityTimer);
+      }
+      userEvents.forEach(event => {
+        window.removeEventListener(event, resetInactivityTimer);
+      });
+    };
+  }, [isLoggedOut, activeUser]);
+
   // Profile Edit Modal States
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [profileNombre, setProfileNombre] = useState('');
