@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronLeft, ChevronRight, Maximize2, X, Image as ImageIcon } from 'lucide-react';
 import { isVideoUrl, getMediaEmbed } from './RoomImageGallery';
@@ -181,102 +182,105 @@ export function HotelImageGallery({ imagenes, portada, hotelNombre }: HotelImage
       </div>
 
       {/* IMMERSIVE COMPREHENSIVE LIGHTBOX CAROUSEL MODAL */}
-      <AnimatePresence>
-        {isLightboxOpen && (
-          <div 
-            className="fixed inset-0 bg-neutral-950/95 z-50 flex flex-col justify-between p-4 md:p-6 backdrop-blur-xl select-none"
-            onClick={() => setIsLightboxOpen(false)}
-          >
-            {/* Top Bar controls */}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {isLightboxOpen && (
             <div 
-              className="flex justify-between items-center text-white" 
-              onClick={(e) => e.stopPropagation()}
+              className="fixed inset-0 bg-neutral-950/95 z-[9999] flex flex-col justify-between p-4 md:p-6 backdrop-blur-xl select-none"
+              onClick={() => setIsLightboxOpen(false)}
             >
-              <div>
-                <h5 className="font-semibold text-base font-display">{hotelNombre}</h5>
-                <p className="text-xs text-neutral-400">Expediente de Fotos ({activeIndex + 1} de {allImages.length})</p>
-              </div>
-              <button 
-                onClick={() => setIsLightboxOpen(false)}
-                className="p-2.5 hover:bg-white/10 text-neutral-300 hover:text-white rounded-full transition-all cursor-pointer border border-white/5 bg-white/5 shadow-lg"
+              {/* Top Bar controls */}
+              <div 
+                className="flex justify-between items-center text-white" 
+                onClick={(e) => e.stopPropagation()}
               >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-
-            {/* Stage element */}
-            <div 
-              className="relative flex-1 flex items-center justify-center max-h-[75vh] my-4 w-full"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={activeIndex}
-                  className="max-w-full max-h-full aspect-video md:aspect-[16/9] w-full max-w-4xl flex items-center justify-center p-1 rounded-2xl overflow-hidden bg-black shadow-2xl border border-white/5"
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ duration: 0.25 }}
+                <div>
+                  <h5 className="font-semibold text-base font-display">{hotelNombre}</h5>
+                  <p className="text-xs text-neutral-400">Expediente de Fotos ({activeIndex + 1} de {allImages.length})</p>
+                </div>
+                <button 
+                  onClick={() => setIsLightboxOpen(false)}
+                  className="p-2.5 hover:bg-white/10 text-neutral-300 hover:text-white rounded-full transition-all cursor-pointer border border-white/5 bg-white/5 shadow-lg"
                 >
-                  {getMediaEmbed(allImages[activeIndex], "max-w-full max-h-full object-contain rounded-xl")}
-                </motion.div>
-              </AnimatePresence>
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
 
-              {/* Huge navigators */}
-              {allImages.length > 1 && (
-                <>
-                  <button
-                    onClick={handlePrev}
-                    className="absolute left-2 md:left-6 w-12 h-12 bg-neutral-900/85 hover:bg-neutral-800 text-white rounded-full flex items-center justify-center shadow-2xl hover:scale-105 active:scale-95 transition-all cursor-pointer z-30 border border-white/10"
-                    title="Anterior"
+              {/* Stage element */}
+              <div 
+                className="relative flex-1 flex items-center justify-center max-h-[75vh] my-4 w-full"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={activeIndex}
+                    className="max-w-full max-h-full aspect-video md:aspect-[16/9] w-full max-w-4xl flex items-center justify-center p-1 rounded-2xl overflow-hidden bg-black shadow-2xl border border-white/5"
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    transition={{ duration: 0.25 }}
                   >
-                    <ChevronLeft className="w-6 h-6" />
-                  </button>
-                  <button
-                    onClick={handleNext}
-                    className="absolute right-2 md:right-6 w-12 h-12 bg-neutral-900/85 hover:bg-neutral-800 text-white rounded-full flex items-center justify-center shadow-2xl hover:scale-105 active:scale-95 transition-all cursor-pointer z-30 border border-white/10"
-                    title="Siguiente"
-                  >
-                    <ChevronRight className="w-6 h-6" />
-                  </button>
-                </>
-              )}
-            </div>
+                    {getMediaEmbed(allImages[activeIndex], "max-w-full max-h-full object-contain rounded-xl")}
+                  </motion.div>
+                </AnimatePresence>
 
-            {/* Immersive Thumbnails belt */}
-            <div 
-              className="w-full max-w-2xl mx-auto flex items-center justify-center gap-2.5 bg-neutral-900/60 p-4 rounded-3xl border border-white/10 backdrop-blur-md"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {allImages.map((img, idx) => {
-                const isItemVideo = isVideoUrl(img);
-                return (
-                  <button
-                    key={idx}
-                    onClick={(e) => selectIndex(idx, e)}
-                    className={`relative w-16 md:w-20 h-11 md:h-14 rounded-xl overflow-hidden border transition-all duration-300 cursor-pointer ${
-                      activeIndex === idx 
-                        ? 'border-teal-500 scale-105 ring-4 ring-teal-500/20 shadow-lg' 
-                        : 'border-white/10 opacity-40 hover:opacity-100 hover:border-white/40'
-                    }`}
-                  >
-                    {isItemVideo ? (
-                      <div className="w-full h-full bg-neutral-950 flex flex-col items-center justify-center text-white relative">
-                        <div className="absolute top-0.5 right-0.5 bg-red-650 rounded px-1 py-0.2 scale-75 z-10">
-                          <span className="text-[6px] uppercase font-bold tracking-wider text-white">Video</span>
+                {/* Huge navigators */}
+                {allImages.length > 1 && (
+                  <>
+                    <button
+                      onClick={handlePrev}
+                      className="absolute left-2 md:left-6 w-12 h-12 bg-neutral-900/85 hover:bg-neutral-800 text-white rounded-full flex items-center justify-center shadow-2xl hover:scale-105 active:scale-95 transition-all cursor-pointer z-30 border border-white/10"
+                      title="Anterior"
+                    >
+                      <ChevronLeft className="w-6 h-6" />
+                    </button>
+                    <button
+                      onClick={handleNext}
+                      className="absolute right-2 md:right-6 w-12 h-12 bg-neutral-900/85 hover:bg-neutral-800 text-white rounded-full flex items-center justify-center shadow-2xl hover:scale-105 active:scale-95 transition-all cursor-pointer z-30 border border-white/10"
+                      title="Siguiente"
+                    >
+                      <ChevronRight className="w-6 h-6" />
+                    </button>
+                  </>
+                )}
+              </div>
+
+              {/* Immersive Thumbnails belt */}
+              <div 
+                className="w-full max-w-2xl mx-auto flex items-center justify-center gap-2.5 bg-neutral-900/60 p-4 rounded-3xl border border-white/10 backdrop-blur-md"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {allImages.map((img, idx) => {
+                  const isItemVideo = isVideoUrl(img);
+                  return (
+                    <button
+                      key={idx}
+                      onClick={(e) => selectIndex(idx, e)}
+                      className={`relative w-16 md:w-20 h-11 md:h-14 rounded-xl overflow-hidden border transition-all duration-300 cursor-pointer ${
+                        activeIndex === idx 
+                          ? 'border-teal-500 scale-105 ring-4 ring-teal-500/20 shadow-lg' 
+                          : 'border-white/10 opacity-40 hover:opacity-100 hover:border-white/40'
+                      }`}
+                    >
+                      {isItemVideo ? (
+                        <div className="w-full h-full bg-neutral-950 flex flex-col items-center justify-center text-white relative">
+                          <div className="absolute top-0.5 right-0.5 bg-red-650 rounded px-1 py-0.2 scale-75 z-10">
+                            <span className="text-[6px] uppercase font-bold tracking-wider text-white">Video</span>
+                          </div>
+                          <span className="text-sm">🎥</span>
                         </div>
-                        <span className="text-sm">🎥</span>
-                      </div>
-                    ) : (
-                      <img src={img} alt={`Thumb ${idx + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                    )}
-                  </button>
-                );
-              })}
+                      ) : (
+                        <img src={img} alt={`Thumb ${idx + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        )}
-      </AnimatePresence>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 }

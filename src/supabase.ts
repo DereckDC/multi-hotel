@@ -262,6 +262,27 @@ CREATE TABLE IF NOT EXISTS public.room_price_variations (
 ALTER TABLE public.room_price_variations ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Permitir todo a public en room_price_variations" ON public.room_price_variations;
 CREATE POLICY "Permitir todo a public en room_price_variations" ON public.room_price_variations FOR ALL USING (true) WITH CHECK (true);
+
+-- 11. RUTINA DE LIMPIEZA AUTOMÁTICA DE DATOS EXPIRADOS (CHAT > 24H, AUDITORÍA > 30 DÍAS)
+-- Esta rutina optimiza el almacenamiento purgando registros antiguos periódicamente de forma inteligente.
+CREATE OR REPLACE FUNCTION public.limpiar_datos_expirados()
+RETURNS void AS $$
+BEGIN
+  -- 11.1 Mensajes de chat: Eliminar por completo el live chat de los clientes tras 24 horas
+  DELETE FROM public.messages
+  WHERE (timestamp::timestamptz < (NOW() - INTERVAL '24 hours'))
+     OR (created_at < (NOW() - INTERVAL '24 hours'));
+
+  -- 11.2 Canal de auditoría: Eliminar registros de auditoría mayores a 1 mes automáticamente
+  DELETE FROM public.logs
+  WHERE (timestamp::timestamptz < (NOW() - INTERVAL '30 days'))
+     OR (created_at < (NOW() - INTERVAL '30 days'));
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Creación de índices con fines de rendimiento óptimo para consultas de purga recurrentes
+CREATE INDEX IF NOT EXISTS idx_messages_cleanup ON public.messages((timestamp::timestamptz));
+CREATE INDEX IF NOT EXISTS idx_logs_cleanup ON public.logs((timestamp::timestamptz));
 `;
 
 /**

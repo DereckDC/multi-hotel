@@ -778,14 +778,11 @@ export default function ClientView({
                     {/* Selected room details block */}
                     <div className="p-4 bg-neutral-50 rounded-2xl border border-neutral-100 text-xs flex gap-4 shadow-sm">
                       {bookingRoom.imagenes && bookingRoom.imagenes.length > 0 && (
-                        <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden shrink-0 border border-neutral-200 bg-white">
-                          <img 
-                            src={bookingRoom.imagenes[0]} 
-                            alt={bookingRoom.nombre} 
-                            className="w-full h-full object-cover" 
-                            referrerPolicy="no-referrer"
-                          />
-                        </div>
+                        <RoomImageGallery 
+                          imagenes={bookingRoom.imagenes} 
+                          roomNombre={bookingRoom.nombre} 
+                          className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden bg-neutral-100 shrink-0 border border-neutral-200 shadow-sm group cursor-pointer"
+                        />
                       )}
                       <div className="flex-1 flex flex-col justify-between">
                         <div>
