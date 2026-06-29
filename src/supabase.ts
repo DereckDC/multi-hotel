@@ -8,8 +8,8 @@ import { Hotel, Room, User, Reservation, ChatMessage, PaymentTransaction, Review
 import { ActivityLog } from './store';
 
 // Credentials are loaded strictly from secure environment variables to comply with OWASP Top 10 and prevent hardcoded secrets.
-const rawUrl = (import.meta as any).env?.VITE_SUPABASE_URL || 'https://evovuegtffpcdeylekfy.supabase.co/rest/v1/';
-const SUPABASE_ANON_KEY = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2b3Z1ZWd0ZmZwY2RleWxla2Z5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzNzI5NzAsImV4cCI6MjA5Njk0ODk3MH0.LIQZANzId5gA6ZUR_HiZ4pB5mTz_gxqkkfPoaI4Ud1U';
+const rawUrl = (typeof process !== 'undefined' && process.env?.VITE_SUPABASE_URL) || (import.meta as any).env?.VITE_SUPABASE_URL || 'https://evovuegtffpcdeylekfy.supabase.co/rest/v1/';
+const SUPABASE_ANON_KEY = (typeof process !== 'undefined' && process.env?.VITE_SUPABASE_ANON_KEY) || (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2b3Z1ZWd0ZmZwY2RleWxla2Z5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzNzI5NzAsImV4cCI6MjA5Njk0ODk3MH0.LIQZANzId5gA6ZUR_HiZ4pB5mTz_gxqkkfPoaI4Ud1U';
 
 // Sanitize URL to ensure the client-side SDK gets the base address without /rest/v1 suffix
 const SUPABASE_URL = rawUrl.replace(/\/rest\/v1\/?$/, '').trim();
@@ -20,7 +20,7 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
 
 export const supabase = createClient(
   SUPABASE_URL || 'https://evovuegtffpcdeylekfy.supabase.co',
-  SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2b3Z1ZWd0ZmZwY2RleWxla2Z5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzNzI5NzAsImV4cCI6MjA5Njk0ODk3MH0.LIQZANzId5gA6ZUR_HiZ4pB5mTz_gxqkkfPoaI4Ud1U'
+  SUPABASE_ANON_KEY
 );
 
 /**
