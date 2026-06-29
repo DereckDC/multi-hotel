@@ -207,8 +207,8 @@ export default function SupportChatDrawer({
         onClick={() => setIsOpen(!isOpen)}
         className={`w-14 h-14 rounded-full flex items-center justify-center cursor-pointer shadow-lg transition-transform active:scale-90 relative ${
           isOpen 
-            ? 'bg-slate-900 text-teal-400 border border-slate-700/60' 
-            : 'bg-teal-600 text-white hover:bg-teal-500 hover:scale-105'
+            ? 'bg-[#0E2A47] text-brand-cyan border border-brand-cyan/30' 
+            : 'bg-brand-cyan text-[#071726] hover:bg-[#3fc2f0] hover:scale-105'
         }`}
         title="Canal de Asistencia & Chat en Tiempo Real"
       >
@@ -220,7 +220,7 @@ export default function SupportChatDrawer({
 
         {/* Unread Alert Bullet Notification */}
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center justify-center border-2 border-white animate-bounce">
+          <span className="absolute -top-1 -right-1 bg-red-650 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center justify-center border-2 border-white animate-bounce">
             {unreadCount}
           </span>
         )}
@@ -234,17 +234,17 @@ export default function SupportChatDrawer({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 30, scale: 0.92 }}
             transition={{ type: 'spring', damping: 20, stiffness: 300 }}
-            className="absolute bottom-16 right-0 w-80 md:w-96 h-[500px] bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl flex flex-col overflow-hidden text-neutral-100"
+            className="absolute bottom-16 right-0 w-80 md:w-96 h-[500px] bg-[#071726] border border-[#0E2A47]/60 rounded-3xl shadow-2xl flex flex-col overflow-hidden text-neutral-100"
           >
             {/* Dark Aesthetic Header */}
-            <div className="bg-gradient-to-r from-teal-900 to-slate-950 p-4 border-b border-slate-800 flex items-center justify-between">
+            <div className="bg-gradient-to-r from-[#0E2A47] to-[#071726] p-4 border-b border-[#0E2A47] flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-teal-500/10 border border-teal-500/20 flex items-center justify-center">
-                  <Sparkles className="w-4 h-4 text-teal-400" />
+                <div className="w-8 h-8 rounded-full bg-brand-cyan/10 border border-brand-cyan/20 flex items-center justify-center">
+                  <Sparkles className="w-4 h-4 text-brand-cyan" />
                 </div>
                 <div>
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-teal-300">Asistencia de Huéspedes</h4>
-                  <p className="text-[10px] text-slate-400 font-mono">Roomia Secure Live Chat</p>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-brand-cyan">Asistencia de Huéspedes</h4>
+                  <p className="text-[10px] text-brand-grey font-mono">Roomia Secure Live Chat</p>
                 </div>
               </div>
               <button
@@ -368,7 +368,7 @@ export default function SupportChatDrawer({
             </div>
 
             {/* 4. CHAT FOOTER CONTROLS */}
-            <form onSubmit={handleSend} className="p-3 bg-slate-950 border-t border-slate-800 flex gap-2 items-center">
+            <form onSubmit={handleSend} className="p-3 bg-[#071726] border-t border-[#0E2A47]/60 flex gap-2 items-center">
               <input
                 type="text"
                 value={inputText}
@@ -379,12 +379,12 @@ export default function SupportChatDrawer({
                     : "Escribe tu mensaje..."
                 }
                 disabled={isStaff && !selectedCustomerId}
-                className="flex-1 text-xs bg-slate-900 border border-slate-850 rounded-xl px-3.5 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-teal-500/80 focus:border-transparent disabled:opacity-45"
+                className="flex-1 text-xs bg-[#0E2A47]/60 border border-[#0E2A47]/40 rounded-xl px-3.5 py-2.5 text-white placeholder-brand-grey focus:outline-none focus:ring-1 focus:ring-brand-cyan focus:border-transparent disabled:opacity-45"
               />
               <button
                 type="submit"
                 disabled={!inputText.trim() || (isStaff && !selectedCustomerId)}
-                className="p-2.5 bg-teal-600 hover:bg-teal-500 text-white rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-md"
+                className="p-2.5 bg-brand-cyan hover:bg-[#3fc2f0] text-[#071726] rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-md"
               >
                 <Send className="w-4 h-4" />
               </button>

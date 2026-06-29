@@ -259,7 +259,7 @@ export function useHotelStore() {
     const purged = loaded.filter(u => {
       if (!u || !u.email) return false;
       const emailLower = u.email.trim().toLowerCase();
-      if (emailLower === 'destructordereck@gmail.com') return true;
+      if (u.rol === 'super_admin') return true;
       // Filter out standard roomia demo accounts to ensure maximum security
       if (emailLower.includes('roomia') && (emailLower.includes('admin') || emailLower.includes('recepcionista') || emailLower.includes('cliente'))) {
         return false;
@@ -267,15 +267,12 @@ export function useHotelStore() {
       return true;
     });
 
-    const superAdmin = purged.find(u => u.email.trim().toLowerCase() === 'destructordereck@gmail.com');
+    const superAdmin = purged.find(u => u.rol === 'super_admin');
     if (!superAdmin) {
       return [INITIAL_USERS[0], ...purged];
     }
 
-    return purged.map(u => u.email.trim().toLowerCase() === 'destructordereck@gmail.com' 
-      ? { ...u, rol: 'super_admin' as const, password: '2450397340', estado: 'activo' as const } 
-      : u
-    );
+    return purged;
   });
   const [reservations, setReservations] = useState<Reservation[]>(() => []);
   const [currentUserId, setCurrentUserId] = useState<string>(() => loadFromLocalStorage(KEYS.CURRENT_USER_ID, ''));
@@ -455,7 +452,7 @@ export function useHotelStore() {
           console.log(`✅ Loaded ${dbUsers.length} users from Supabase.`);
           if (dbUsers.length > 0) {
             const mappedUsers = dbUsers.map(mapUserFromDb).filter(Boolean) as User[];
-            const hasSuperAdmin = mappedUsers.some(u => u && u.email && u.email.trim().toLowerCase() === 'destructordereck@gmail.com');
+            const hasSuperAdmin = mappedUsers.some(u => u && u.rol === 'super_admin');
             if (!hasSuperAdmin) {
               setUsers([INITIAL_USERS[0], ...mappedUsers]);
             } else {
@@ -726,12 +723,13 @@ export function useHotelStore() {
           const { data: dbRes } = await supabase.from('reservations').select('*');
           if (dbRes) setReservations(dbRes.map(mapReservationFromDb).filter(Boolean) as Reservation[]);
         } else {
-          // Double check that "destructordereck@gmail.com" resides in the Supabase users database as Super Admin
+          // Double check that a Super Admin resides in the Supabase users database
           const { data: matchedAdmin, error: adminErr } = await supabase
             .from('users')
             .select('*')
-            .eq('email', 'destructordereck@gmail.com')
-            .single();
+            .eq('rol', 'super_admin')
+            .limit(1)
+            .maybeSingle();
 
           if (adminErr || !matchedAdmin) {
             console.log("Super Admin not found in Supabase. Inserting seed admin...");
@@ -742,11 +740,10 @@ export function useHotelStore() {
             if (refUsers) setUsers(refUsers.map(mapUserFromDb).filter(Boolean) as User[]);
           } else {
             const mappedAdmin = mapUserFromDb(matchedAdmin);
-            if (mappedAdmin.rol !== 'super_admin' || mappedAdmin.password !== '2450397340' || mappedAdmin.estado !== 'activo') {
+            if (mappedAdmin.rol !== 'super_admin' || mappedAdmin.estado !== 'activo') {
               const correctedAdmin: User = {
                 ...mappedAdmin,
                 rol: 'super_admin' as UserRole,
-                password: '2450397340',
                 estado: 'activo' as const
               };
               await syncUserToSupabase(correctedAdmin);
@@ -774,11 +771,12 @@ export function useHotelStore() {
     avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
     rol: 'super_admin',
     fechaRegistro: '2026-06-03',
-    estado: 'activo',
-    password: '2450397340'
+    estado: 'activo'
   };
 
-  const activeUser = (users && users.find(u => u.id === currentUserId)) || (users && users[0]) || activeUserFallback;
+  const activeUser = currentUserId
+    ? (users && users.find(u => u.id === currentUserId)) || activeUserFallback
+    : null;
 
   // Self-healing database mechanism: when a Super Admin session is active,
   // we automatically detect if any seed hotels are missing from Supabase while there are active rooms
@@ -1070,6 +1068,31 @@ export function useHotelStore() {
     );
   };
 
+  const updateUserHotels = async (userId: string, hotelIds: string[]) => {
+    if (activeUser.rol !== 'super_admin') {
+      console.error("Acceso denegado: Únicamente el Super Admin puede cambiar los hoteles enlazados.");
+      return;
+    }
+
+    setUsers(prev => prev.map(u => u.id === userId ? { ...u, hotelIds, hotelId: hotelIds[0] || undefined } : u));
+    const target = users.find(u => u.id === userId);
+
+    if (target) {
+      try {
+        await syncUserToSupabase({ ...target, hotelIds, hotelId: hotelIds[0] || undefined });
+      } catch (err) {
+        console.warn("Supabase updateUserHotels sync error:", err);
+      }
+    }
+
+    addLog(
+      `${activeUser.nombre} ${activeUser.apellido}`,
+      activeUser.rol,
+      'Hoteles Enlazados Actualizados',
+      `Se actualizaron los hoteles enlazados para ${target?.nombre} ${target?.apellido}`
+    );
+  };
+
   const toggleUserStatus = async (userId: string) => {
     const target = users.find(u => u.id === userId);
     if (!target) return;
@@ -1170,9 +1193,9 @@ El Equipo de Hospitalidad de Roomia PMS.`;
     roomObj: Room | undefined,
     guestObj: User | undefined
   ) => {
-    const recipientEmail = guestObj?.email || activeUser?.email || 'destructordereck@gmail.com';
+    const recipientEmail = guestObj?.email || activeUser?.email || 'soporte@roomia.com';
     const recipientName = guestObj ? `${guestObj.nombre} ${guestObj.apellido}` : 'Huésped de Honor';
-    const isConfirmed = resObj.estado === 'confirmada' || resObj.estado === 'ocupada';
+    const isConfirmed = resObj.estado === 'confirmada' || resObj.estado === 'ocupada' || resObj.estado === 'finalizada';
 
     const subject = isConfirmed 
       ? `🏨 ¡Reserva Confirmada! - ${hotelObj?.nombre || 'Roomia PMS'}` 
@@ -1211,8 +1234,8 @@ El Equipo de Hospitalidad de Roomia PMS.`;
           
           <p style="font-size: 14px; color: #475569;">
             ${isConfirmed 
-              ? `Tu pago ha sido aprobado de manera segura por la pasarela de pagos Adyen. Nos complace confirmarte que tu estancia en <strong>${hotelObj?.nombre || ' nuestro hotel'}</strong> está correctamente programada.` 
-              : `Hemos registrado tu solicitud de reserva en <strong>${hotelObj?.nombre || ' nuestro hotel'}</strong>. Actualmente se encuentra en estado <strong>Pendiente de Pago</strong>. Por favor completa tu transacción en el portal de Adyen seguro para confirmarla.`
+              ? `Tu pago ha sido aprobado por administración. Nos complace confirmarte que tu estancia en <strong>${hotelObj?.nombre || ' nuestro hotel'}</strong> está correctamente programada.` 
+              : `Hemos registrado tu solicitud de reserva en <strong>${hotelObj?.nombre || ' nuestro hotel'}</strong>. Actualmente se encuentra en estado <strong>Pendiente de Pago</strong>. Por favor completa tu transacción de pago o abono del 20% con la administración o recepción del hotel para confirmarla.`
             }
           </p>
 
@@ -1257,7 +1280,7 @@ El Equipo de Hospitalidad de Roomia PMS.`;
               <td style="padding: 4px 0; text-align: right; font-family: monospace;">$${resObj.subtotal.toFixed(2)} USD</td>
             </tr>
             <tr>
-              <td style="padding: 4px 0;">Impuestos (10%):</td>
+              <td style="padding: 4px 0;">Impuestos (16%):</td>
               <td style="padding: 4px 0; text-align: right; font-family: monospace;">$${resObj.impuestos.toFixed(2)} USD</td>
             </tr>
             <tr style="border-top: 1px solid #e2e8f0;">
@@ -1414,17 +1437,27 @@ El Equipo de Hospitalidad de Roomia PMS.`;
     // Find user first from current users state array
     const targetUser = users.find(u => u.id === userId);
     
-    // Update local React state
-    setUsers(prev => prev.map(u => u.id === userId ? { ...u, password: newPass, debeCambiarPassword: false } : u));
+    // Update local React state (we don't store plain-text password in users array)
+    setUsers(prev => prev.map(u => u.id === userId ? { ...u, debeCambiarPassword: false } : u));
 
     if (!targetUser) {
       return { success: false, error: 'Usuario no encontrado' };
     }
 
     try {
-      await syncUserToSupabase({ ...targetUser, password: newPass, debeCambiarPassword: false });
+      // Securely update the password using Supabase Auth if it is the currently authenticated user
+      if (userId === currentUserId) {
+        const { error: authError } = await supabase.auth.updateUser({ password: newPass });
+        if (authError) {
+          console.error("Error updating password in Supabase Auth:", authError);
+          return { success: false, error: `Error en la autenticación de Supabase: ${authError.message}` };
+        }
+      }
+      
+      // Update public user profile metadata in Supabase database (does NOT serialize plaintext password)
+      await syncUserToSupabase({ ...targetUser, debeCambiarPassword: false });
     } catch (err) {
-      console.warn("Supabase changeUserPassword sync error:", err);
+      console.warn("Supabase changeUserPassword profile sync error:", err);
     }
 
     const editorName = activeUser ? `${activeUser.nombre} ${activeUser.apellido}` : 'Sistema';
@@ -1697,7 +1730,7 @@ El Equipo de Hospitalidad de Roomia PMS.`;
     const canceladas = reservations.filter(r => r.estado === 'cancelada').length;
 
     const totalIngresos = reservations
-      .filter(r => r.estado !== 'cancelada')
+      .filter(r => r.estado === 'ocupada' || r.estado === 'finalizada')
       .reduce((sum, r) => sum + r.total, 0);
 
     const totalHabitacionesCount = rooms.length;
@@ -1713,7 +1746,7 @@ El Equipo de Hospitalidad de Roomia PMS.`;
     // Calculate revenue breakdown by hotel
     const ingresosPorHotel = hotels.map(hotel => {
       const totalHotelRevenue = reservations
-        .filter(r => r.hotelId === hotel.id && r.estado !== 'cancelada')
+        .filter(r => r.hotelId === hotel.id && (r.estado === 'ocupada' || r.estado === 'finalizada'))
         .reduce((sum, r) => sum + r.total, 0);
       return {
         name: hotel.nombre,
@@ -1998,6 +2031,7 @@ El Equipo de Hospitalidad de Roomia PMS.`;
     updateRoomStatus,
     updateUserRole,
     updateUserHotel,
+    updateUserHotels,
     toggleUserStatus,
     registerUser,
     updateUserProfile,

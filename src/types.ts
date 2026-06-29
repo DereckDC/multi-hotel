@@ -21,6 +21,7 @@ export interface User {
   fechaRegistro: string;
   estado: 'activo' | 'inactivo';
   hotelId?: string; // If hotel_admin or receptionist is assigned to a specific hotel
+  hotelIds?: string[]; // Multiple hotels for hotel_admin
   password?: string; // Optional classic login password
   debeCambiarPassword?: boolean;
 }
@@ -184,6 +185,7 @@ export interface Review {
   comentario: string;
   fecha: string; // YYYY-MM-DD
   userName?: string;
+  isAnonymous?: boolean;
 }
 
 export interface RoomPriceVariation {

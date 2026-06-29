@@ -7,7 +7,7 @@ import React, { useState } from 'react';
 import { Hotel, Room, Reservation, User, RoomStatus, Review, RoomPriceVariation } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 
-import { MapPin, Calendar, Compass, List, CreditCard, ChevronRight, Sparkles, Filter, Check, Star, AlertCircle, Eye, Trash2, CalendarCheck, FileText, X, Building2, ShieldCheck, Lock, Home } from 'lucide-react';
+import { MapPin, Calendar, Compass, List, CreditCard, ChevronRight, Sparkles, Filter, Check, Star, AlertCircle, Eye, Trash2, CalendarCheck, FileText, X, Building2, ShieldCheck, Lock, Home, User as UserIcon } from 'lucide-react';
 import QRView from './QRView';
 import InvoicePDF from './InvoicePDF';
 import { RoomImageGallery } from './RoomImageGallery';
@@ -74,6 +74,8 @@ interface ClientViewProps {
   reviews?: Review[];
   onSubmitReview?: (review: Review) => void;
   roomPriceVariations?: RoomPriceVariation[];
+  onTriggerLogin?: () => void;
+  onTriggerBookingAuth?: () => void;
 }
 
 const ADDITIONAL_SERVICES = [
@@ -97,12 +99,14 @@ export default function ClientView({
   onOpenHotelChange,
   reviews = [],
   onSubmitReview,
-  roomPriceVariations = []
+  roomPriceVariations = [],
+  onTriggerLogin,
+  onTriggerBookingAuth
 }: ClientViewProps) {
-  // Navigation Tabs: 'explore' | 'reservations'
-  const [activeTab, setActiveTab] = useState<'explore' | 'reservations'>('explore');
+  // Navigation Tabs: 'explore' | 'properties' | 'reservations'
+  const [activeTab, setActiveTab] = useState<'explore' | 'properties' | 'reservations'>('explore');
 
-  // Adyen payment states
+  // Payment states
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedResForPayment, setSelectedResForPayment] = useState<Reservation | null>(null);
   const [paymentLoading, setPaymentLoading] = useState(false);
@@ -139,6 +143,7 @@ export default function ClientView({
   const [selectedResForReview, setSelectedResForReview] = useState<Reservation | null>(null);
   const [reviewRating, setReviewRating] = useState<number>(5);
   const [reviewComentario, setReviewComentario] = useState<string>('');
+  const [isAnonymousReview, setIsAnonymousReview] = useState(false);
 
   // Date Helpers for today & minimum check-out date calculations
   const getTodayString = (offsetDays = 0) => {
@@ -152,8 +157,57 @@ export default function ClientView({
     return `${yyyy}-${mm}-${dd}`;
   };
 
+  const getThreeMonthsLaterString = (baseDateStr: string) => {
+    if (!baseDateStr) return '';
+    const parts = baseDateStr.split('-');
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const day = parseInt(parts[2], 10);
+    const date = new Date(year, month + 3, day);
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const dd = String(date.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  const getDateAfterNMonths = (baseDateStr: string, monthsCount: number) => {
+    if (!baseDateStr) return '';
+    const parts = baseDateStr.split('-');
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const day = parseInt(parts[2], 10);
+    const date = new Date(year, month + monthsCount, day);
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const dd = String(date.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  const getMonthsCount = (d1: string, d2: string) => {
+    if (!d1 || !d2) return 0;
+    const start = new Date(d1 + 'T00:00:00');
+    const end = new Date(d2 + 'T00:00:00');
+    let months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+    const dayDiff = end.getDate() - start.getDate();
+    if (dayDiff > 0) {
+      months += dayDiff / 30.44;
+    } else if (dayDiff < 0) {
+      months += dayDiff / 30.44;
+    }
+    return Math.max(0, months);
+  };
+
   const getMinCheckOutDate = () => {
     if (!checkInDate) return getTodayString(1);
+
+    if (bookingRoom) {
+      const bHotel = hotels.find(h => h.id === bookingRoom.hotelId);
+      const isAlquiler = bHotel && (bHotel.tipoEstablecimiento === 'casa' || bHotel.tipoEstablecimiento === 'departamento') && bHotel.finalidad === 'alquiler';
+      if (isAlquiler) {
+        return getThreeMonthsLaterString(checkInDate);
+      }
+    }
+
     const parts = checkInDate.split('-');
     const year = parseInt(parts[0], 10);
     const month = parseInt(parts[1], 10) - 1;
@@ -169,18 +223,51 @@ export default function ClientView({
   const [bookingRoom, setBookingRoom] = useState<Room | null>(null);
   const [checkInDate, setCheckInDate] = useState<string>('');
   const [checkOutDate, setCheckOutDate] = useState<string>('');
+  const [rentalMonths, setRentalMonths] = useState<number>(3);
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [servicePeopleCount, setServicePeopleCount] = useState<Record<string, number>>({});
   const [bookingNote, setBookingNote] = useState('');
   const [bookingSuccess, setBookingSuccess] = useState(false);
   const [bookingError, setBookingError] = useState<string | null>(null);
 
-  // Limpiar fechas cuando cambia de hotel o de habitación elegida
+  // Reset booking Flow modal state and select options when chosen hotel/property changes to prevent leaking prior states
   React.useEffect(() => {
-    setCheckInDate('');
-    setCheckOutDate('');
+    setBookingRoom(null);
+    setSelectedServices([]);
+    setServicePeopleCount({});
+  }, [selectedHotelId]);
+
+  // Limpiar fechas cuando cambia de hotel o de habitación elegida, o preestablecer para alquileres de 3 meses
+  React.useEffect(() => {
+    if (bookingRoom) {
+      const bHotel = hotels.find(h => h.id === bookingRoom.hotelId);
+      const isAlquiler = bHotel && (bHotel.tipoEstablecimiento === 'casa' || bHotel.tipoEstablecimiento === 'departamento') && bHotel.finalidad === 'alquiler';
+      if (isAlquiler) {
+        const today = getTodayString(0);
+        setCheckInDate(today);
+        setRentalMonths(3);
+        setCheckOutDate(getDateAfterNMonths(today, 3));
+      } else {
+        setCheckInDate('');
+        setCheckOutDate('');
+      }
+    } else {
+      setCheckInDate('');
+      setCheckOutDate('');
+    }
     setBookingError(null);
   }, [bookingRoom, selectedHotelId]);
+
+  // Sincronizar automáticamente fechaSalida cuando cambien fechaEntrada o rentalMonths
+  React.useEffect(() => {
+    if (bookingRoom) {
+      const bHotel = hotels.find(h => h.id === bookingRoom.hotelId);
+      const isAlquiler = bHotel && (bHotel.tipoEstablecimiento === 'casa' || bHotel.tipoEstablecimiento === 'departamento') && bHotel.finalidad === 'alquiler';
+      if (isAlquiler && checkInDate) {
+        setCheckOutDate(getDateAfterNMonths(checkInDate, rentalMonths));
+      }
+    }
+  }, [checkInDate, rentalMonths, bookingRoom, hotels]);
 
   // Active Invoice preview modal state
   const [previewingRes, setPreviewingRes] = useState<Reservation | null>(null);
@@ -193,15 +280,30 @@ export default function ClientView({
   const activeHotel = hotels.find(h => h.id === selectedHotelId);
   const filteredHotels = hotels.filter(h => {
     if (h.estado !== 'activo') return false;
+    // Explora Hoteles should only return hotels
+    if (h.tipoEstablecimiento !== 'hotel') return false;
+    
+    const hotelRooms = rooms.filter(r => r.hotelId === h.id);
+    const minPrice = hotelRooms.length > 0 ? Math.min(...hotelRooms.map(r => r.precio)) : 150;
+      
+    if (minPrice > maxPrice) {
+      if (maxPrice < 2000) return false;
+    }
+    return true;
+  });
+
+  const filteredProperties = hotels.filter(h => {
+    if (h.estado !== 'activo') return false;
+    // Explora Propiedades should return casas & departamentos
+    if (h.tipoEstablecimiento !== 'casa' && h.tipoEstablecimiento !== 'departamento') return false;
+    
     if (propertyTypeFilter !== 'todos' && h.tipoEstablecimiento !== propertyTypeFilter) return false;
     
-    // Resolve dynamic minimum starting price of the hotel or property
-    const hotelRooms = rooms.filter(r => r.hotelId === h.id);
-    const minPrice = (h.tipoEstablecimiento === 'casa' || h.tipoEstablecimiento === 'departamento') && h.detallesInmueble?.precio
-      ? h.detallesInmueble.precio
-      : (hotelRooms.length > 0 ? Math.min(...hotelRooms.map(r => r.precio)) : 150);
+    const minPrice = h.detallesInmueble?.precio || 150;
       
-    if (minPrice > maxPrice) return false;
+    if (minPrice > maxPrice) {
+      if (maxPrice < 2000) return false;
+    }
     return true;
   });
   const roomsInActiveHotel = rooms.filter(r => {
@@ -374,19 +476,52 @@ export default function ClientView({
   };
 
   const getBookingTotal = (roomPrice: number) => {
+    if (bookingRoom) {
+      const bHotel = hotels.find(h => h.id === bookingRoom.hotelId);
+      const isAlquiler = bHotel && (bHotel.tipoEstablecimiento === 'casa' || bHotel.tipoEstablecimiento === 'departamento') && bHotel.finalidad === 'alquiler';
+      if (isAlquiler) {
+        const rentOneMonth = roomPrice;
+        const garantia = roomPrice;
+        const sub = rentOneMonth + garantia;
+        const isIvaAdded = bookingRoom.adicionarIva !== false;
+        const tax = isIvaAdded ? (rentOneMonth * 0.16) : 0;
+        return {
+          subtotal: sub,
+          tax: tax,
+          total: sub + tax,
+          isAlquiler: true,
+          garantia: garantia,
+          mensualidad: rentOneMonth
+        };
+      }
+    }
+
     const sub = getBookingSubtotal(roomPrice) + getServicesTotal();
     const isIvaAdded = bookingRoom ? (bookingRoom.adicionarIva !== false) : true;
     const tax = isIvaAdded ? (sub * 0.16) : 0; // 16% VAT if added, otherwise 0 (included in the room rate)
     return {
       subtotal: sub,
       tax: tax,
-      total: sub + tax
+      total: sub + tax,
+      isAlquiler: false
     };
   };
 
   const handleCreateBooking = (e: React.FormEvent) => {
     e.preventDefault();
     if (!bookingRoom) return;
+
+    // Direct guest intercept: prompt login/registration first before creating reservation
+    if (activeUser.id === 'guest') {
+      if (onTriggerBookingAuth) {
+        onTriggerBookingAuth();
+      } else if (onTriggerLogin) {
+        onTriggerLogin();
+      } else {
+        setBookingError("Por favor, inicie sesión o regístrese para continuar con su reserva.");
+      }
+      return;
+    }
 
     if (!checkInDate || !checkOutDate) {
       setBookingError("Por favor seleccione las fechas de check-in y check-out.");
@@ -403,6 +538,17 @@ export default function ClientView({
     if (checkOutDate <= checkInDate) {
       setBookingError("La fecha de check-out debe ser posterior a la fecha de entrada.");
       return;
+    }
+
+    // Alquiler 3-months limit validation
+    const bHotelForVal = hotels.find(h => h.id === bookingRoom.hotelId);
+    const isAlquilerForVal = bHotelForVal && (bHotelForVal.tipoEstablecimiento === 'casa' || bHotelForVal.tipoEstablecimiento === 'departamento') && bHotelForVal.finalidad === 'alquiler';
+    if (isAlquilerForVal) {
+      const months = getMonthsCount(checkInDate, checkOutDate);
+      if (months < 2.9) {
+        setBookingError("El período de alquiler para este inmueble debe ser de mínimo 3 meses.");
+        return;
+      }
     }
 
     // CHECK DATE OVERLAP:
@@ -542,7 +688,7 @@ export default function ClientView({
         setPaymentCardCVV('');
       } catch (err: any) {
         setPaymentLoading(false);
-        setPaymentError(err.message || "La pasarela de pago Adyen reportó un rechazo por fondos insuficientes o error de validación.");
+        setPaymentError(err.message || "El procesamiento del pago reportó un error o rechazo de validación.");
       }
     }, 2500);
   };
@@ -551,43 +697,52 @@ export default function ClientView({
     <div className="max-w-7xl mx-auto px-4 py-6">
       
       {/* Search Header Banner */}
-      <div className="bg-gradient-to-r from-teal-800 to-indigo-900 rounded-3xl p-6 md:p-10 text-white shadow-xl mb-8 relative overflow-hidden animate-fade-in">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-2xl transform translate-x-12 -translate-y-12" />
-        <div className="absolute bottom-0 left-0 w-48 h-48 bg-teal-500/10 rounded-full blur-2xl transform -translate-x-12 translate-y-12" />
+      <div className="bg-gradient-to-r from-teal-800 to-indigo-900 rounded-2xl p-5 md:py-6 md:px-8 text-white shadow-lg mb-6 relative overflow-hidden animate-fade-in">
+        <div className="absolute top-0 right-0 w-48 h-48 bg-white/5 rounded-full blur-2xl transform translate-x-12 -translate-y-12" />
+        <div className="absolute bottom-0 left-0 w-36 h-36 bg-teal-500/10 rounded-full blur-2xl transform -translate-x-12 translate-y-12" />
         
-        <div className="relative">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-400/20 text-teal-300 text-xs font-semibold uppercase tracking-wider mb-3">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Reserva de Hoteles Premium</span>
+        <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-4 md:gap-6">
+          <div className="max-w-xl lg:max-w-2xl">
+            <h2 className="text-2xl md:text-3xl font-display font-semibold tracking-tight leading-tight">
+              Descubre estadías extraordinarias
+            </h2>
+            <p className="text-teal-100/90 text-xs md:text-sm mt-1.5 leading-relaxed">
+              Disfrute de una suite de lujo seleccionada a mano, gestione sus reservas vigentes y obtenga sus pre-facturas electrónicas al instante.
+            </p>
           </div>
-          <h2 className="text-3xl md:text-4xl font-display font-semibold tracking-tight leading-tight">
-            Descubre estadías extraordinarias
-          </h2>
-          <p className="text-teal-100/90 max-w-xl text-sm md:text-base mt-2">
-            Disfrute de una suite de lujo seleccionada a mano, gestione sus reservas vigentes y obtenga sus pre-facturas electrónicas al instante.
-          </p>
 
-          <div className="mt-6 flex flex-wrap gap-2 print:hidden">
+          <div className="flex flex-col gap-2 shrink-0 print:hidden w-full sm:w-60">
             <button
               onClick={() => { setActiveTab('explore'); setSelectedHotelId(null); }}
-              className={`px-4 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2 cursor-pointer ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer w-full shadow-sm ${
                 activeTab === 'explore'
-                  ? 'bg-white text-teal-950 font-semibold shadow-sm'
-                  : 'bg-white/10 hover:bg-white/20 text-white'
+                  ? 'bg-white text-teal-950 font-bold shadow-md scale-[1.02] duration-200'
+                  : 'bg-white/10 hover:bg-white/20 text-white hover:scale-[1.01] duration-200'
               }`}
             >
-              <Compass className="w-4 h-4" />
+              <Compass className="w-3.5 h-3.5" />
               <span>Explorar Hoteles</span>
             </button>
             <button
-              onClick={() => setActiveTab('reservations')}
-              className={`px-4 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2 cursor-pointer ${
-                activeTab === 'reservations'
-                  ? 'bg-white text-teal-950 font-semibold shadow-sm'
-                  : 'bg-white/10 hover:bg-white/20 text-white'
+              onClick={() => { setActiveTab('properties'); setSelectedHotelId(null); }}
+              className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer w-full shadow-sm ${
+                activeTab === 'properties'
+                  ? 'bg-white text-teal-950 font-bold shadow-md scale-[1.02] duration-200'
+                  : 'bg-white/10 hover:bg-white/20 text-white hover:scale-[1.01] duration-200'
               }`}
             >
-              <List className="w-4 h-4" />
+              <Home className="w-3.5 h-3.5" />
+              <span>Explorar Propiedades</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('reservations')}
+              className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer w-full shadow-sm ${
+                activeTab === 'reservations'
+                  ? 'bg-white text-teal-950 font-bold shadow-md scale-[1.02] duration-200'
+                  : 'bg-white/10 hover:bg-white/20 text-white hover:scale-[1.01] duration-200'
+              }`}
+            >
+              <List className="w-3.5 h-3.5" />
               <span>Mis Reservaciones ({myReservations.length})</span>
             </button>
           </div>
@@ -595,7 +750,7 @@ export default function ClientView({
       </div>
 
       {/* EXPLORE TABS */}
-      {activeTab === 'explore' && (
+      {(activeTab === 'explore' || activeTab === 'properties') && (
         <div className="space-y-8">
           
           {selectedHotelId === null ? (
@@ -603,26 +758,33 @@ export default function ClientView({
             <div className="space-y-6">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                  <h3 className="text-xl font-semibold text-neutral-800">Catálogo de Destinos ({filteredHotels.length})</h3>
-                  <p className="text-xs text-neutral-400">Todos los alojamientos se ajustan a las directrices sanitarias y de mantenimiento modernas de Roomia SaaS</p>
+                  <h3 className="text-xl font-semibold text-neutral-800">
+                    {activeTab === 'explore' ? 'Catálogo de Hoteles Premium' : 'Catálogo de Propiedades Exclusivas'} ({activeTab === 'explore' ? filteredHotels.length : filteredProperties.length})
+                  </h3>
+                  <p className="text-xs text-neutral-400 mt-1">
+                    {activeTab === 'explore' 
+                      ? 'Seleccione un hotel boutique de primer nivel para explorar las habitaciones y suites disponibles.'
+                      : 'Explore nuestra selecta colección de casas y departamentos en alquiler temporario o venta definitiva.'}
+                  </p>
                 </div>
                 
                 {/* Visual Filters bar */}
                 <div className="flex flex-wrap items-center gap-4 text-xs font-medium">
-                  <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-lg border border-neutral-200 shadow-sm">
-                    <Home className="w-3.5 h-3.5 text-teal-600 shrink-0" />
-                    <span className="text-neutral-500 font-semibold">Tipo Alojamiento:</span>
-                    <select
-                      value={propertyTypeFilter}
-                      onChange={(e) => setPropertyTypeFilter(e.target.value)}
-                      className="border-none bg-transparent font-bold focus:ring-0 cursor-pointer text-teal-700"
-                    >
-                      <option value="todos">Todos</option>
-                      <option value="hotel">🏨 Hoteles</option>
-                      <option value="casa">🏡 Casas</option>
-                      <option value="departamento">🏢 Departamentos</option>
-                    </select>
-                  </div>
+                  {activeTab === 'properties' && (
+                    <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-lg border border-neutral-200 shadow-sm animate-fade-in">
+                      <Home className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                      <span className="text-neutral-500 font-semibold">Tipo de Propiedad:</span>
+                      <select
+                        value={propertyTypeFilter}
+                        onChange={(e) => setPropertyTypeFilter(e.target.value)}
+                        className="border-none bg-transparent font-bold focus:ring-0 cursor-pointer text-teal-700"
+                      >
+                        <option value="todos">Todas las Propiedades</option>
+                        <option value="casa">🏡 Casas</option>
+                        <option value="departamento">🏢 Departamentos</option>
+                      </select>
+                    </div>
+                  )}
 
                   <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-neutral-200">
                     <span className="text-neutral-500">Precio Máximo:</span>
@@ -641,13 +803,16 @@ export default function ClientView({
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredHotels
+                {(activeTab === 'explore' ? filteredHotels : filteredProperties)
                   .map(hotel => {
-                    // Quick lowest room price simulation
+                    // Quick lowest room price/property price calculation
                     const hotelRooms = rooms.filter(r => r.hotelId === hotel.id);
-                    const minPrice = hotelRooms.length > 0
-                      ? Math.min(...hotelRooms.map(r => r.precio))
-                      : 150;
+                    const isPropiedad = hotel.tipoEstablecimiento === 'casa' || hotel.tipoEstablecimiento === 'departamento';
+                    const displayPrice = isPropiedad && hotel.detallesInmueble?.precio
+                      ? hotel.detallesInmueble.precio
+                      : (hotelRooms.length > 0 ? Math.min(...hotelRooms.map(r => r.precio)) : 150);
+                    const hotelReviews = reviews.filter(r => r.hotelId === hotel.id);
+                    const isHotelOrAlquiler = !isPropiedad || hotel.finalidad === 'alquiler';
 
                     return (
                       <motion.div
@@ -667,22 +832,67 @@ export default function ClientView({
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                             referrerPolicy="no-referrer"
                           />
-                          <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-sm px-2.5 py-1 rounded-full text-[10px] font-bold text-neutral-800 uppercase tracking-widest flex items-center gap-1 shadow-sm font-sans border border-neutral-100">
-                            {hotel.tipoEstablecimiento === 'casa' ? '🏡 Casa Kompleta' :
-                             hotel.tipoEstablecimiento === 'departamento' ? '🏢 Departamento' :
-                             '🏨 Hotel Boutique'}
-                          </div>
+                           {hotel.tipoEstablecimiento === 'hotel' ? (() => {
+                            const avgRating = hotelReviews.length > 0 
+                              ? hotelReviews.reduce((sum, r) => sum + r.rating, 0) / hotelReviews.length
+                              : 5.0;
+                            return (
+                              <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-sm px-2.5 py-1 rounded-full text-[10px] font-bold text-neutral-800 flex items-center gap-1 shadow-sm font-sans border border-neutral-100/80 animate-fade-in">
+                                <div className="flex items-center gap-0.5">
+                                  {Array.from({ length: 5 }).map((_, idx) => (
+                                    <Star 
+                                      key={idx} 
+                                      className={`w-3 h-3 ${
+                                        idx < Math.round(avgRating) ? 'fill-current text-yellow-500' : 'text-neutral-200'
+                                      }`} 
+                                    />
+                                  ))}
+                                </div>
+                                <span className="text-[10px] font-extrabold text-neutral-850 ml-1 font-mono">
+                                  {avgRating.toFixed(1)}
+                                </span>
+                              </div>
+                            );
+                          })() : (
+                            <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-sm px-2.5 py-1 rounded-full text-[10px] font-bold text-neutral-800 uppercase tracking-widest flex items-center gap-1 shadow-sm font-sans border border-neutral-100">
+                              {hotel.tipoEstablecimiento === 'casa' ? '🏡 Casa Completa' : '🏢 Departamento'}
+                            </div>
+                          )}
                         </div>
 
                         <div className="p-5">
                           <div className="flex justify-between items-start gap-4 mb-2">
-                            <h4 className="font-semibold text-neutral-800 text-lg group-hover:text-teal-600 transition-colors">
+                            <h4 className="font-semibold text-neutral-800 text-lg group-hover:text-teal-600 transition-colors font-sans">
                               {hotel.nombre}
                             </h4>
-                            <span className="font-mono text-sm font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded">
-                              ${minPrice}+ <span className="font-normal text-xs text-teal-600">/noche</span>
+                            <span className="font-mono text-sm font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded shrink-0">
+                              ${displayPrice.toLocaleString()} <span className="font-sans font-normal text-xs text-neutral-500">
+                                {hotel.finalidad === 'venta' ? 'compra' : isPropiedad ? '/ mes' : '/ noche'}
+                              </span>
                             </span>
                           </div>
+
+                          {/* Stars Rating for Properties only (since hotels have it in the top badge instead of "Hotel Boutique") */}
+                          {isPropiedad && isHotelOrAlquiler && hotelReviews.length > 0 && (() => {
+                            const avgRating = hotelReviews.reduce((sum, r) => sum + r.rating, 0) / hotelReviews.length;
+                            return (
+                              <div className="flex items-center gap-1 mb-2.5 bg-yellow-500/5 border border-yellow-500/10 px-2 py-1 rounded-lg w-fit font-sans">
+                                <div className="flex items-center gap-0.5">
+                                  {Array.from({ length: 5 }).map((_, idx) => (
+                                    <Star 
+                                      key={idx} 
+                                      className={`w-3 h-3 ${
+                                        idx < Math.round(avgRating) ? 'fill-current text-yellow-500' : 'text-neutral-200'
+                                      }`} 
+                                    />
+                                  ))}
+                                </div>
+                                <span className="text-[10.5px] font-bold text-neutral-850 ml-1 font-mono">
+                                  {avgRating.toFixed(1)}
+                                </span>
+                              </div>
+                            );
+                          })()}
                           
                           <div className="flex items-center gap-1.5 text-xs text-neutral-400 mb-3">
                             <MapPin className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
@@ -719,8 +929,8 @@ export default function ClientView({
                             )}
                           </div>
 
-                          <div className="pt-4 border-t border-neutral-100 flex items-center justify-between text-xs text-teal-600 font-semibold">
-                            <span>Ver suites disponibles</span>
+                          <div className="pt-4 border-t border-neutral-100 flex items-center justify-between text-xs text-teal-600 font-semibold font-sans">
+                            <span>{isPropiedad ? 'Ver detalles de propiedad' : 'Ver suites disponibles'}</span>
                             <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                           </div>
                         </div>
@@ -734,10 +944,34 @@ export default function ClientView({
             <div className="space-y-6 animate-fade-in text-neutral-850">
               <button
                 onClick={() => setBookingRoom(null)}
-                className="inline-flex items-center gap-2 text-sm text-neutral-500 hover:text-neutral-800 transition-colors font-medium cursor-pointer bg-white px-3 py-1.5 rounded-lg border border-neutral-200 shadow-sm active:scale-95"
+                className="inline-flex items-center gap-2 text-sm text-neutral-500 hover:text-neutral-800 transition-colors font-medium cursor-pointer bg-white px-3 py-1.5 rounded-lg border border-neutral-200 shadow-sm active:scale-95 animate-fade-in"
               >
                 ← Volver a las habitaciones de {activeHotel?.nombre}
               </button>
+
+              {/* IMMERSIVE ROOM GALLERY AT THE TOP - MATCHES THE EXPERIENCE OF OPENING A HOTEL */}
+              <div className="bg-white p-5 rounded-3xl border border-neutral-200 shadow-sm space-y-4 animate-fade-in">
+                <HotelImageGallery 
+                  imagenes={bookingRoom.imagenes || []} 
+                  portada={bookingRoom.imagenes?.[0] || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1200&auto=format&fit=crop'} 
+                  hotelNombre={bookingRoom.nombre} 
+                />
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pt-2">
+                  <div>
+                    <h3 className="font-extrabold text-neutral-850 text-xl font-display leading-tight">{bookingRoom.nombre}</h3>
+                    <p className="text-xs text-neutral-500 font-medium mt-1">Suite N° {bookingRoom.numero} • Tipo: {bookingRoom.tipo} • Capacidad: {bookingRoom.capacidad} huéspedes • Camas: {bookingRoom.camas}</p>
+                  </div>
+                  <div className="bg-teal-50 border border-teal-100 p-2.5 px-4 rounded-xl text-left sm:text-right">
+                    <span className="text-[10px] font-bold text-teal-800 block uppercase tracking-wider">Precio base por noche</span>
+                    <span className="text-xl font-mono font-extrabold text-teal-700">${bookingRoom.precio} USD</span>
+                  </div>
+                </div>
+                {bookingRoom.descripcion && (
+                  <p className="text-xs text-neutral-600 leading-relaxed border-t border-neutral-100 pt-3">
+                    {bookingRoom.descripcion}
+                  </p>
+                )}
+              </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start animate-fade-in duration-300">
                 
@@ -753,16 +987,27 @@ export default function ClientView({
                     </p>
                   </div>
                   <div className="overflow-hidden">
-                    <RoomReservationCalendar
-                      hotels={hotels}
-                      rooms={rooms}
-                      reservations={reservations}
-                      users={users}
-                      activeUser={activeUser}
-                      forceHotelId={bookingRoom.hotelId}
-                      forceRoomId={bookingRoom.id}
-                      roomPriceVariations={roomPriceVariations}
-                    />
+                    {(() => {
+                      const bHotel = hotels.find(h => h.id === bookingRoom.hotelId);
+                      const isAlquiler = bHotel && (bHotel.tipoEstablecimiento === 'casa' || bHotel.tipoEstablecimiento === 'departamento') && bHotel.finalidad === 'alquiler';
+                      return (
+                        <RoomReservationCalendar
+                          hotels={hotels}
+                          rooms={rooms}
+                          reservations={reservations}
+                          users={users}
+                          activeUser={activeUser}
+                          forceHotelId={bookingRoom.hotelId}
+                          forceRoomId={bookingRoom.id}
+                          roomPriceVariations={roomPriceVariations}
+                          checkInDate={checkInDate}
+                          checkOutDate={checkOutDate}
+                          setCheckInDate={setCheckInDate}
+                          setCheckOutDate={setCheckOutDate}
+                          isAlquiler={!!isAlquiler}
+                        />
+                      );
+                    })()}
                   </div>
                 </div>
 
@@ -820,36 +1065,95 @@ export default function ClientView({
                         )}
 
                         {/* Dates Pickers */}
-                        <div className="grid grid-cols-2 gap-3.5">
-                          <div>
-                            <label className="text-xs font-semibold text-neutral-500 block mb-1.5">Check-In</label>
-                            <input
-                              type="date"
-                              required
-                              min={getTodayString(0)}
-                              value={checkInDate}
-                              onChange={(e) => {
-                                setCheckInDate(e.target.value);
-                                setBookingError(null);
-                              }}
-                              className="w-full text-xs border border-neutral-200 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 focus:outline-none bg-white cursor-pointer"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-xs font-semibold text-neutral-500 block mb-1.5">Check-Out</label>
-                            <input
-                              type="date"
-                              required
-                              min={getMinCheckOutDate()}
-                              value={checkOutDate}
-                              onChange={(e) => {
-                                setCheckOutDate(e.target.value);
-                                setBookingError(null);
-                              }}
-                              className="w-full text-xs border border-neutral-200 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 focus:outline-none bg-white cursor-pointer"
-                            />
-                          </div>
-                        </div>
+                        {(() => {
+                          const bHotel = bookingRoom ? hotels.find(h => h.id === bookingRoom.hotelId) : null;
+                          const isAlquiler = bHotel && (bHotel.tipoEstablecimiento === 'casa' || bHotel.tipoEstablecimiento === 'departamento') && bHotel.finalidad === 'alquiler';
+                          
+                          if (isAlquiler) {
+                            return (
+                              <div className="space-y-3">
+                                <div className="grid grid-cols-2 gap-3.5">
+                                  <div>
+                                    <label className="text-xs font-semibold text-neutral-500 block mb-1.5">Fecha de Inicio de Alquiler</label>
+                                    <input
+                                      type="date"
+                                      required
+                                      min={getTodayString(0)}
+                                      value={checkInDate}
+                                      onChange={(e) => {
+                                        setCheckInDate(e.target.value);
+                                        setBookingError(null);
+                                      }}
+                                      className="w-full text-xs border border-neutral-200 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 focus:outline-none bg-white cursor-pointer"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-xs font-semibold text-neutral-500 block mb-1.5">Duración (Meses de Alquiler)</label>
+                                    <select
+                                      value={rentalMonths}
+                                      onChange={(e) => {
+                                        const num = parseInt(e.target.value, 10);
+                                        setRentalMonths(num);
+                                        setBookingError(null);
+                                      }}
+                                      className="w-full text-xs border border-neutral-200 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 focus:outline-none bg-white cursor-pointer h-[34px] font-semibold"
+                                    >
+                                      <option value={3}>3 meses (Mínimo)</option>
+                                      <option value={4}>4 meses</option>
+                                      <option value={5}>5 meses</option>
+                                      <option value={6}>6 meses (Semestral)</option>
+                                      <option value={7}>7 meses</option>
+                                      <option value={8}>8 meses</option>
+                                      <option value={9}>9 meses</option>
+                                      <option value={10}>10 meses</option>
+                                      <option value={11}>11 meses</option>
+                                      <option value={12}>12 meses (Anual)</option>
+                                      <option value={18}>18 meses</option>
+                                      <option value={24}>24 meses (2 Años)</option>
+                                    </select>
+                                  </div>
+                                </div>
+                                <div className="text-[11px] text-teal-700 bg-teal-50/70 py-2 px-3.5 rounded-xl border border-teal-100 flex justify-between items-center font-semibold">
+                                  <span>📅 Fecha de Finalización Calculada:</span>
+                                  <strong className="font-mono text-neutral-800">{checkOutDate || 'Sin calcular'}</strong>
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div className="grid grid-cols-2 gap-3.5">
+                              <div>
+                                <label className="text-xs font-semibold text-neutral-500 block mb-1.5">Check-In</label>
+                                <input
+                                  type="date"
+                                  required
+                                  min={getTodayString(0)}
+                                  value={checkInDate}
+                                  onChange={(e) => {
+                                    setCheckInDate(e.target.value);
+                                    setBookingError(null);
+                                  }}
+                                  className="w-full text-xs border border-neutral-200 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 focus:outline-none bg-white cursor-pointer"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-xs font-semibold text-neutral-500 block mb-1.5">Check-Out</label>
+                                <input
+                                  type="date"
+                                  required
+                                  min={getMinCheckOutDate()}
+                                  value={checkOutDate}
+                                  onChange={(e) => {
+                                    setCheckOutDate(e.target.value);
+                                    setBookingError(null);
+                                  }}
+                                  className="w-full text-xs border border-neutral-200 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 focus:outline-none bg-white cursor-pointer"
+                                />
+                              </div>
+                            </div>
+                          );
+                        })()}
 
                         {/* Additional services checkout menu */}
                         <div className="space-y-2">
@@ -960,59 +1264,98 @@ export default function ClientView({
                         </div>
 
                         {/* AUTO COMPUTED PRICE BREAKDOWN PREVIEW */}
-                        <div className="p-4 bg-teal-50/40 rounded-2xl border border-teal-100 space-y-1.5 text-xs text-neutral-600">
-                          <p className="font-bold text-teal-900 uppercase text-[10px] tracking-wider border-b border-teal-100 pb-1 mb-2">Resumen de Pre-Factura Roomia SaaS</p>
-                          <div className="flex justify-between">
-                            <span>Noches de estadía:</span>
-                            <span className="font-semibold">{getNightsCount()} {getNightsCount() > 1 ? 'noches' : 'noche'}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Hospedaje ({bookingRoom.nombre}):</span>
-                            <span className="font-mono">${getBookingSubtotal(bookingRoom.precio)} USD</span>
-                          </div>
-                          {bookingRoom && (() => {
-                            const groupedVariations = getGroupedVariableNights(bookingRoom, checkInDate, checkOutDate);
-                            if (groupedVariations.length > 0) {
-                              return (
-                                <div className="mt-1 pl-3 border-l-2 border-teal-205 space-y-1 text-[10px] text-neutral-500 bg-teal-50/50 p-2 rounded-xl">
-                                  <p className="font-bold text-teal-800 text-[9px] uppercase tracking-wider">Variación Tarifaria por Fecha/Días:</p>
-                                  {groupedVariations.map((group, idx) => (
-                                    <div key={idx} className="flex justify-between font-mono">
-                                      <span>• ({group.formattedDate}) <span className="bg-white px-1 py-0.5 rounded border border-neutral-100 text-[8px] font-sans font-medium text-teal-700">{group.motivo}</span></span>
-                                      <span className="font-semibold text-teal-850">${group.precio} USD</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              );
-                            }
+                        {(() => {
+                          const billing = getBookingTotal(bookingRoom.precio);
+                          if (billing.isAlquiler) {
                             return (
-                              <div className="mt-1 pl-3 border-l-2 border-neutral-300/60 bg-neutral-100/40 p-2 rounded-xl text-[10px] text-neutral-400 italic">
-                                Tarifa estándar uniforme sin variaciones en este período.
+                              <div className="p-4 bg-amber-50/50 rounded-2xl border border-amber-200/80 space-y-2 text-xs text-neutral-600 font-sans">
+                                <p className="font-bold text-amber-900 uppercase text-[10px] tracking-wider border-b border-amber-200 pb-1 mb-2">Desglose de Contrato de Alquiler</p>
+                                <div className="flex justify-between">
+                                  <span>Plazo del Alquiler:</span>
+                                  <span className="font-semibold text-neutral-800">{getMonthsCount(checkInDate, checkOutDate).toFixed(1)} meses (mínimo 3)</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span>Valor Mensual de Renta:</span>
+                                  <span className="font-mono font-semibold text-neutral-800">${billing.mensualidad} USD / mes</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span>Depósito de Garantía:</span>
+                                  <span className="font-mono font-semibold text-amber-700">${billing.garantia} USD</span>
+                                </div>
+                                {billing.tax > 0 && (
+                                  <div className="flex justify-between">
+                                    <span>Impuestos (IVA 16% sobre renta):</span>
+                                    <span className="font-mono text-neutral-500">${billing.tax.toFixed(2)} USD</span>
+                                  </div>
+                                )}
+                                <div className="p-2 border border-amber-100 rounded-lg bg-white/70 text-[10px] text-amber-900 leading-normal">
+                                  💡 <b>Política de Garantía:</b> Al iniciar el alquiler se liquida el primer mes de alquiler por adelantado más la garantía equivalente a una mensualidad reembolsable.
+                                </div>
+                                <div className="h-[1px] bg-amber-200/50 my-1.5" />
+                                <div className="flex justify-between font-bold text-neutral-900 text-sm font-sans">
+                                  <span>Primer Pago Inicial Total:</span>
+                                  <span className="font-mono text-amber-900 text-base font-bold">${billing.total.toFixed(2)} USD</span>
+                                </div>
                               </div>
                             );
-                          })()}
-                          {getServicesTotal() > 0 && (
-                            <div className="flex justify-between">
-                              <span>Servicios Adicionales:</span>
-                              <span className="font-mono text-emerald-750">+${getServicesTotal()} USD</span>
+                          }
+
+                          return (
+                            <div className="p-4 bg-teal-50/40 rounded-2xl border border-teal-100 space-y-1.5 text-xs text-neutral-600">
+                              <p className="font-bold text-teal-900 uppercase text-[10px] tracking-wider border-b border-teal-100 pb-1 mb-2">Resumen de Pre-Factura Roomia SaaS</p>
+                              <div className="flex justify-between">
+                                <span>Noches de estadía:</span>
+                                <span className="font-semibold">{getNightsCount()} {getNightsCount() > 1 ? 'noches' : 'noche'}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span>Hospedaje ({bookingRoom.nombre}):</span>
+                                <span className="font-mono">${getBookingSubtotal(bookingRoom.precio)} USD</span>
+                              </div>
+                              {bookingRoom && (() => {
+                                const groupedVariations = getGroupedVariableNights(bookingRoom, checkInDate, checkOutDate);
+                                if (groupedVariations.length > 0) {
+                                  return (
+                                    <div className="mt-1 pl-3 border-l-2 border-teal-205 space-y-1 text-[10px] text-neutral-500 bg-teal-50/50 p-2 rounded-xl">
+                                      <p className="font-bold text-teal-800 text-[9px] uppercase tracking-wider">Variación Tarifaria por Fecha/Días:</p>
+                                      {groupedVariations.map((group, idx) => (
+                                        <div key={idx} className="flex justify-between font-mono">
+                                          <span>• ({group.formattedDate}) <span className="bg-white px-1 py-0.5 rounded border border-neutral-100 text-[8px] font-sans font-medium text-teal-700">{group.motivo}</span></span>
+                                          <span className="font-semibold text-teal-850">${group.precio} USD</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  );
+                                }
+                                return (
+                                  <div className="mt-1 pl-3 border-l-2 border-neutral-300/60 bg-neutral-100/40 p-2 rounded-xl text-[10px] text-neutral-400 italic">
+                                    Tarifa estándar uniforme sin variaciones en este período.
+                                  </div>
+                                );
+                              })()}
+                              {getServicesTotal() > 0 && (
+                                <div className="flex justify-between">
+                                  <span>Servicios Adicionales:</span>
+                                  <span className="font-mono text-emerald-750">+${getServicesTotal()} USD</span>
+                                </div>
+                              )}
+                              <div className="flex justify-between text-[11px]">
+                                <span>Impuestos (IVA 16%):</span>
+                                {bookingRoom.adicionarIva === false ? (
+                                  <span className="font-sans font-semibold text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-100 text-[9px]">
+                                    IVA Incluido
+                                  </span>
+                                ) : (
+                                  <span className="font-mono">${billing.tax.toFixed(2)} USD</span>
+                                )}
+                              </div>
+                              <div className="h-[1px] bg-teal-100/50 my-1.5" />
+                              <div className="flex justify-between font-bold text-neutral-900 text-sm">
+                                <span>Total Estimado:</span>
+                                <span className="font-mono text-teal-800">${billing.total.toFixed(2)} USD</span>
+                              </div>
                             </div>
-                          )}
-                          <div className="flex justify-between text-[11px]">
-                            <span>Impuestos (IVA 16%):</span>
-                            {bookingRoom.adicionarIva === false ? (
-                              <span className="font-sans font-semibold text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-100 text-[9px]">
-                                IVA Incluido
-                              </span>
-                            ) : (
-                              <span className="font-mono">${getBookingTotal(bookingRoom.precio).tax.toFixed(2)} USD</span>
-                            )}
-                          </div>
-                          <div className="h-[1px] bg-teal-100/50 my-1.5" />
-                          <div className="flex justify-between font-bold text-neutral-900 text-sm">
-                            <span>Total Estimado:</span>
-                            <span className="font-mono text-teal-800">${getBookingTotal(bookingRoom.precio).total.toFixed(2)} USD</span>
-                          </div>
-                        </div>
+                          );
+                        })()}
 
                         {/* Submit buttons */}
                         <div className="pt-2 flex gap-3">
@@ -1040,7 +1383,7 @@ export default function ClientView({
             </div>
           ) : (
             // HOTEL DETAIL PAGE & AVAILABLE ROOMS
-            <div className="space-y-8 animate-fade-in">
+            <div className="space-y-8 animate-fade-in" key={selectedHotelId || 'none'}>
               <button
                 onClick={() => setSelectedHotelId(null)}
                 className="inline-flex items-center gap-2 text-sm text-neutral-500 hover:text-neutral-800 transition-colors font-medium cursor-pointer"
@@ -1073,7 +1416,7 @@ export default function ClientView({
 
                   {/* Services & Utilities list */}
                   <div>
-                    <h4 className="font-semibold text-neutral-800 text-sm mb-3 uppercase tracking-wider text-neutral-400">Servicios Destacados</h4>
+                    <h4 className="font-semibold text-neutral-800 text-sm mb-3 uppercase tracking-wider text-neutral-400">Servicios Incluidos (Gratis)</h4>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                       {activeHotel?.servicios.map((serv, i) => (
                         <div key={i} className="flex items-center gap-2 text-xs bg-white px-3 py-2 rounded-xl border border-neutral-100 text-neutral-600 font-medium">
@@ -1087,6 +1430,36 @@ export default function ClientView({
 
                 {/* Info policies sidebar card */}
                 <div className="space-y-6">
+                  {/* PRECIO DESTACADO DE LA PROPIEDAD */}
+                  {activeHotel && (activeHotel.tipoEstablecimiento === 'casa' || activeHotel.tipoEstablecimiento === 'departamento') && (
+                    <div className="bg-gradient-to-br from-teal-50 to-emerald-50/30 border border-teal-100 rounded-2xl p-5 shadow-sm space-y-3.5 text-center">
+                      <div>
+                        {activeHotel.finalidad === 'venta' ? (
+                          <span className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border bg-amber-100 text-amber-800 border-amber-200">
+                            💰 EXCLUSIVA EN VENTA
+                          </span>
+                        ) : (
+                          <span className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border bg-teal-100 text-teal-800 border-teal-200">
+                            🔑 EN ALQUILER MENSUAL
+                          </span>
+                        )}
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-neutral-400 block font-bold uppercase tracking-wider">
+                          {activeHotel.finalidad === 'venta' ? 'PRECIO DE ADQUISICIÓN' : 'MENSUALIDAD BASE'}
+                        </span>
+                        <span className="font-mono font-black text-teal-900 text-3xl block mt-1">
+                          ${(activeHotel.detallesInmueble?.precio || 0).toLocaleString()} USD
+                        </span>
+                        <span className="text-[10.5px] text-neutral-500 block mt-1 leading-normal">
+                          {activeHotel.finalidad === 'venta' 
+                            ? 'Sujeto a escritura pública y negociación directa' 
+                            : 'Estadía mensual estándar (Contrato mín. 3 meses)'}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="bg-white border border-neutral-200 rounded-2xl p-5 shadow-sm space-y-4">
                     <h4 className="font-semibold text-neutral-800 text-base border-b border-neutral-100 pb-2">Información de Estadía</h4>
                     
@@ -1108,11 +1481,15 @@ export default function ClientView({
                       </div>
                       <div className="pt-2 border-t border-neutral-50">
                         <span className="text-neutral-400 block font-medium uppercase tracking-wider mb-2">Políticas Internas:</span>
-                        <ul className="space-y-1.5 list-disc pl-4 text-neutral-500">
-                          {activeHotel?.politicas.slice(0, 3).map((pol, idx) => (
-                            <li key={idx} className="leading-normal">{pol}</li>
-                          ))}
-                        </ul>
+                        {(!activeHotel?.politicas || activeHotel.politicas.length === 0) ? (
+                          <p className="text-neutral-400 italic text-[11px]">No se especificaron políticas de permanencia.</p>
+                        ) : (
+                          <ul className="space-y-1.5 list-disc pl-4 text-neutral-500">
+                            {activeHotel.politicas.map((pol, idx) => (
+                              <li key={idx} className="leading-normal">{pol}</li>
+                            ))}
+                          </ul>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1148,35 +1525,39 @@ export default function ClientView({
                         </div>
                       </div>
 
-                      <div className="border-t border-teal-100/70 pt-4">
-                        <h4 className="font-bold text-teal-800 text-xs uppercase tracking-widest flex items-center gap-1.5 border-b border-teal-100/60 pb-1.5">
-                          <span>👤 Propietario del Inmueble</span>
-                        </h4>
-                        {activeHotel.propietario ? (
-                          <div className="space-y-2 mt-2.5 text-xs font-semibold">
-                            <div>
-                              <span className="text-neutral-400 block text-[9px] uppercase font-bold">Propietario:</span>
-                              <span className="text-neutral-800 font-bold block">{activeHotel.propietario.nombre}</span>
-                            </div>
-                            <div className="grid grid-cols-2 gap-2">
+                      {activeHotel.finalidad !== 'venta' && (
+                        <div className="border-t border-teal-100/70 pt-4">
+                          <h4 className="font-bold text-teal-800 text-xs uppercase tracking-widest flex items-center gap-1.5 border-b border-teal-100/60 pb-1.5">
+                            <span>👤 Propietario del Inmueble</span>
+                          </h4>
+                          {activeHotel.propietario ? (
+                            <div className="space-y-2 mt-2.5 text-xs font-semibold">
                               <div>
-                                <span className="text-neutral-400 block text-[9px] uppercase font-bold">Teléfono Móvil:</span>
-                                <a href={`tel:${activeHotel.propietario.telefono}`} className="text-teal-700 font-black hover:underline font-mono">{activeHotel.propietario.telefono}</a>
+                                <span className="text-neutral-400 block text-[9px] uppercase font-bold">Propietario:</span>
+                                <span className="text-neutral-805 font-bold block">{activeHotel.propietario.nombre}</span>
+                              </div>
+                              <div className="grid grid-cols-2 gap-2">
+                                <div className={activeHotel.propietario.documento && activeHotel.propietario.documento.trim() !== '' ? "" : "col-span-2"}>
+                                  <span className="text-neutral-400 block text-[9px] uppercase font-bold">Teléfono Móvil:</span>
+                                  <a href={`tel:${activeHotel.propietario.telefono}`} className="text-teal-700 font-black hover:underline font-mono">{activeHotel.propietario.telefono}</a>
+                                </div>
+                                {activeHotel.propietario.documento && activeHotel.propietario.documento.trim() !== '' && (
+                                  <div>
+                                    <span className="text-neutral-400 block text-[9px] uppercase font-bold">Doc. Identidad:</span>
+                                    <span className="text-neutral-600 font-mono text-[10.5px]">{activeHotel.propietario.documento}</span>
+                                  </div>
+                                )}
                               </div>
                               <div>
-                                <span className="text-neutral-400 block text-[9px] uppercase font-bold">Doc. Identidad:</span>
-                                <span className="text-neutral-600 font-mono text-[10.5px]">{activeHotel.propietario.documento || 'No proveído'}</span>
+                                <span className="text-neutral-400 block text-[9px] uppercase font-bold">Correo de Contacto:</span>
+                                <span className="text-neutral-805 font-medium block truncate select-all font-mono text-[10px] bg-white border border-teal-50 px-1.5 py-0.5 rounded">{activeHotel.propietario.email}</span>
                               </div>
                             </div>
-                            <div>
-                              <span className="text-neutral-400 block text-[9px] uppercase font-bold">Correo de Contacto:</span>
-                              <span className="text-neutral-800 font-medium block truncate select-all font-mono text-[10px] bg-white border border-teal-50 px-1.5 py-0.5 rounded">{activeHotel.propietario.email}</span>
-                            </div>
-                          </div>
-                        ) : (
-                          <p className="text-neutral-400 text-xs mt-1 italic">Detalles de propietario no registrados.</p>
-                        )}
-                      </div>
+                          ) : (
+                            <p className="text-neutral-400 text-xs mt-1 italic">Detalles de propietario no registrados.</p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -1233,63 +1614,113 @@ export default function ClientView({
 
               {/* LIST OF SUITES AVAILABLE IN THIS HOTEL */}
               {activeHotel && (activeHotel.tipoEstablecimiento === 'casa' || activeHotel.tipoEstablecimiento === 'departamento') ? (
-                /* COMPILACION DIRECTA PARA CASAS Y DEPARTAMENTOS COMPLETOS */
-                <div className="space-y-5 pt-6 border-t border-neutral-200 animate-fade-in font-sans">
-                  <div>
-                    <h4 className="font-bold text-neutral-850 text-xl font-display flex items-center gap-2">
-                      <span>🏷️ Operación del Inmueble Completo</span>
-                    </h4>
-                    <p className="text-xs text-neutral-400 mt-0.5">La propiedad completa se ofrece en modalidad exclusiva de {activeHotel.finalidad === 'venta' ? 'venta inmobiliaria' : 'alquiler comercial residencial'}.</p>
-                  </div>
-
-                  <div className="bg-gradient-to-br from-teal-50/60 to-emerald-50/20 border border-teal-100 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row justify-between items-center gap-6">
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border ${
-                          activeHotel.finalidad === 'venta' ? 'bg-amber-100 text-amber-805 border-amber-200' : 'bg-teal-100 text-teal-805 border-teal-200'
-                        }`}>
-                          {activeHotel.finalidad === 'venta' ? '🏷️ Solicitud de Compra' : '🔑 Alquiler Temporario / Mensual'}
-                        </span>
-                        <span className="px-3 py-1 bg-white text-neutral-600 rounded-full text-xs font-bold border border-neutral-200 uppercase font-mono shadow-sm">
-                          {activeHotel.tipoEstablecimiento === 'casa' ? '🏡 Casa Completa' : '🏢 Departamento'}
-                        </span>
+                activeHotel.finalidad === 'venta' ? (
+                  /* INFORMACIÓN FINAL DEL PROPIETARIO A CONTACTAR (SIN CALENDARIOS NI RESERVAS) */
+                  <div className="space-y-6 pt-8 border-t border-neutral-200 animate-fade-in font-sans">
+                    <div className="p-6 bg-gradient-to-br from-amber-50 to-orange-50/40 border border-amber-200 rounded-3xl shadow-sm text-center max-w-2xl mx-auto space-y-4">
+                      <div className="mx-auto w-12 h-12 bg-amber-100/80 rounded-2xl flex items-center justify-center text-amber-700">
+                        <UserIcon className="w-6 h-6 stroke-[2.2]" />
                       </div>
-                      <h5 className="font-bold text-neutral-800 text-lg leading-tight">{activeHotel.nombre}</h5>
-                      <p className="text-xs text-neutral-500 leading-relaxed max-w-xl">{activeHotel.descripcion}</p>
-                    </div>
-
-                    <div className="w-full md:w-56 bg-white border border-teal-100/75 rounded-2xl p-4 shadow-sm flex flex-col justify-center items-center text-center space-y-3 shrink-0">
-                      <div>
-                        <span className="text-[10px] text-neutral-400 block font-bold uppercase tracking-wider">VALOR DE ESTA UNIDAD</span>
-                        <span className="font-mono font-extrabold text-teal-850 text-2xl">${activeHotel.detallesInmueble?.precio || 150} USD</span>
-                        <span className="text-[10px] text-neutral-500 block">{activeHotel.finalidad === 'venta' ? 'Valor comercial único' : 'Valor mensual estimado'}</span>
+                      <div className="space-y-1">
+                        <h4 className="font-bold text-neutral-850 text-lg font-display">Datos de Contacto del Propietario</h4>
+                        <p className="text-xs text-neutral-500 max-w-md mx-auto">Para consultas de compra, agendar visitas guiadas o solicitar propuestas para esta exclusiva propiedad, póngase en contacto directo:</p>
                       </div>
 
-                      <button
-                        onClick={() => {
-                          const syntheticRoom: Room = {
-                            id: `room-full-${activeHotel.id}`,
-                            hotelId: activeHotel.id,
-                            nombre: activeHotel.nombre,
-                            numero: 'Full',
-                            tipo: activeHotel.tipoEstablecimiento === 'casa' ? 'Suite Presidencial' : 'Suite',
-                            precio: activeHotel.detallesInmueble?.precio || 150,
-                            capacidad: (activeHotel.detallesInmueble?.habitaciones || 2) * 2,
-                            camas: activeHotel.detallesInmueble?.habitaciones || 2,
-                            descripcion: activeHotel.descripcion,
-                            imagenes: activeHotel.imagenes,
-                            servicios: activeHotel.servicios,
-                            estado: 'disponible'
-                          };
-                          setBookingRoom(syntheticRoom);
-                        }}
-                        className="w-full py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl transition-all cursor-pointer shadow-md hover:shadow-lg active:scale-95"
-                      >
-                        {activeHotel.finalidad === 'venta' ? 'Reservar Compra / Visita' : 'Alquilar Propiedad Completa'}
-                      </button>
+                      {activeHotel.propietario ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-md mx-auto mt-4 text-xs font-semibold">
+                          <div className="p-3 bg-white border border-neutral-200/60 rounded-xl shadow-xs text-left">
+                            <span className="text-neutral-400 block text-[9px] uppercase font-bold tracking-wider mb-0.5">Nombre Propietario</span>
+                            <span className="text-neutral-805 text-sm font-bold block">{activeHotel.propietario.nombre}</span>
+                          </div>
+                          <div className="p-3 bg-white border border-neutral-200/60 rounded-xl shadow-xs text-left">
+                            <span className="text-neutral-400 block text-[9px] uppercase font-bold tracking-wider mb-0.5 font-sans">WhatsApp / Llamar</span>
+                            <a 
+                              href={`https://wa.me/${activeHotel.propietario.telefono.replace(/[^0-9]/g, '')}`} 
+                              target="_blank" 
+                              rel="noopener noreferrer" 
+                              className="text-teal-600 hover:text-teal-750 font-extrabold text-sm flex items-center gap-1 mt-0.5 font-mono cursor-pointer"
+                            >
+                              📞 {activeHotel.propietario.telefono}
+                            </a>
+                          </div>
+                          {activeHotel.propietario.documento && activeHotel.propietario.documento.trim() !== '' && (
+                            <div className="col-span-1 sm:col-span-2 p-3 bg-white border border-neutral-200/60 rounded-xl shadow-xs text-left">
+                              <span className="text-neutral-400 block text-[9px] uppercase font-bold tracking-wider mb-0.5">Doc. Identidad / Cédula</span>
+                              <span className="text-neutral-805 text-xs font-mono font-bold block">{activeHotel.propietario.documento}</span>
+                            </div>
+                          )}
+                          <div className="col-span-1 sm:col-span-2 p-3 bg-white border border-neutral-200/60 rounded-xl shadow-xs text-left truncate">
+                            <span className="text-neutral-400 block text-[9px] uppercase font-bold tracking-wider mb-0.5">Correo de Contacto</span>
+                            <a 
+                              href={`mailto:${activeHotel.propietario.email}`} 
+                              className="text-teal-650 hover:text-teal-700 font-mono text-[11px] block truncate text-center select-all cursor-pointer"
+                            >
+                              {activeHotel.propietario.email}
+                            </a>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-neutral-400 text-xs italic">La información de contacto no está disponible actualmente.</p>
+                      )}
                     </div>
                   </div>
-                </div>
+                ) : (
+                  /* COMPILACION DIRECTA PARA CASAS Y DEPARTAMENTOS COMPLETOS EN ALQUILER */
+                  <div className="space-y-5 pt-6 border-t border-neutral-200 animate-fade-in font-sans">
+                    <div>
+                      <h4 className="font-bold text-neutral-850 text-xl font-display flex items-center gap-2">
+                        <span>🏷️ Operación del Inmueble Completo</span>
+                      </h4>
+                      <p className="text-xs text-neutral-400 mt-0.5">La propiedad completa se ofrece en modalidad exclusiva de alquiler comercial residencial.</p>
+                    </div>
+
+                    <div className="bg-gradient-to-br from-teal-50/60 to-emerald-50/20 border border-teal-100 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row justify-between items-center gap-6">
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border bg-teal-100 text-teal-805 border-teal-200">
+                            🔑 Alquiler Temporario / Mensual
+                          </span>
+                          <span className="px-3 py-1 bg-white text-neutral-600 rounded-full text-xs font-bold border border-neutral-200 uppercase font-mono shadow-sm">
+                            {activeHotel.tipoEstablecimiento === 'casa' ? '🏡 Casa Completa' : '🏢 Departamento'}
+                          </span>
+                        </div>
+                        <h5 className="font-bold text-neutral-800 text-lg leading-tight">{activeHotel.nombre}</h5>
+                        <p className="text-xs text-neutral-500 leading-relaxed max-w-xl">{activeHotel.descripcion}</p>
+                      </div>
+
+                      <div className="w-full md:w-56 bg-white border border-teal-100/75 rounded-2xl p-4 shadow-sm flex flex-col justify-center items-center text-center space-y-3 shrink-0">
+                        <div>
+                          <span className="text-[10px] text-neutral-400 block font-bold uppercase tracking-wider">VALOR DE ESTA UNIDAD</span>
+                          <span className="font-mono font-extrabold text-teal-850 text-2xl">${activeHotel.detallesInmueble?.precio || 150} USD</span>
+                          <span className="text-[10px] text-neutral-500 block">Valor mensual estimado (mín. 3 meses)</span>
+                        </div>
+
+                        <button
+                          onClick={() => {
+                            const syntheticRoom: Room = {
+                              id: `room-full-${activeHotel.id}`,
+                              hotelId: activeHotel.id,
+                              nombre: activeHotel.nombre,
+                              numero: 'Full',
+                              tipo: activeHotel.tipoEstablecimiento === 'casa' ? 'Suite Presidencial' : 'Suite',
+                              precio: activeHotel.detallesInmueble?.precio || 150,
+                              capacidad: (activeHotel.detallesInmueble?.habitaciones || 2) * 2,
+                              camas: activeHotel.detallesInmueble?.habitaciones || 2,
+                              descripcion: activeHotel.descripcion,
+                              imagenes: activeHotel.imagenes,
+                              servicios: activeHotel.servicios,
+                              estado: 'disponible'
+                            };
+                            setBookingRoom(syntheticRoom);
+                          }}
+                          className="w-full py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl transition-all cursor-pointer shadow-md hover:shadow-lg active:scale-95"
+                        >
+                          Alquilar Propiedad Completa
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )
               ) : (
                 /* LIST OF SUITES AVAILABLE IN THIS HOTEL (HOTELES TRADICIONALES EN SU CLASE) */
                 <div className="space-y-4 pt-4 border-t border-neutral-200">
@@ -1451,77 +1882,81 @@ export default function ClientView({
               )}
 
               {/* SECCIÓN DE RESEÑAS Y OPINIONES DEL HOTEL */}
-              <div className="mt-12 pt-8 border-t border-neutral-250">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-                  <div>
-                    <h4 className="font-semibold text-neutral-850 text-xl font-display flex items-center gap-2">
-                      <Star className="w-5 h-5 text-yellow-500 fill-current" />
-                      Opiniones de Huéspedes
-                    </h4>
-                    <p className="text-xs text-neutral-400 mt-0.5">
-                      Valoraciones auténticas compartidas por clientes reales que completaron su estadía en este establecimiento.
-                    </p>
-                  </div>
-                  
-                  <div className="flex items-center gap-3 bg-neutral-50 px-4 py-2.5 rounded-2xl border border-neutral-200">
-                    <div className="text-right">
-                      <span className="text-[10px] text-neutral-400 block font-semibold uppercase tracking-wider">PROMEDIO</span>
-                      <span className="font-bold text-neutral-800 text-sm">
-                        {reviews.filter(r => r.hotelId === selectedHotelId).length > 0 
-                          ? (reviews.filter(r => r.hotelId === selectedHotelId).reduce((sum, r) => sum + r.rating, 0) / reviews.filter(r => r.hotelId === selectedHotelId).length).toFixed(1)
-                          : '0.0'} / 5.0
-                      </span>
-                    </div>
-                    <div className="h-8 w-[1px] bg-neutral-200" />
+              {!(activeHotel && (activeHotel.tipoEstablecimiento === 'casa' || activeHotel.tipoEstablecimiento === 'departamento') && activeHotel.finalidad === 'venta') && (
+                <div className="mt-12 pt-8 border-t border-neutral-250">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                     <div>
-                      <span className="text-[10px] text-neutral-400 block font-semibold uppercase tracking-wider">TOTAL OPINIONES</span>
-                      <span className="font-mono font-bold text-teal-700 text-sm">{reviews.filter(r => r.hotelId === selectedHotelId).length} reseñas</span>
+                      <h4 className="font-semibold text-neutral-850 text-xl font-display flex items-center gap-2">
+                        <Star className="w-5 h-5 text-yellow-500 fill-current" />
+                        Opiniones de Huéspedes
+                      </h4>
+                      <p className="text-xs text-neutral-400 mt-0.5">
+                        Valoraciones auténticas compartidas por clientes reales que completaron su estadía en este establecimiento.
+                      </p>
+                    </div>
+                    
+                    <div className="flex items-center gap-3 bg-neutral-50 px-4 py-2.5 rounded-2xl border border-neutral-200">
+                      <div className="text-right">
+                        <span className="text-[10px] text-neutral-400 block font-semibold uppercase tracking-wider">PROMEDIO</span>
+                        <span className="font-bold text-neutral-800 text-sm">
+                          {reviews.filter(r => r.hotelId === selectedHotelId).length > 0 
+                            ? (reviews.filter(r => r.hotelId === selectedHotelId).reduce((sum, r) => sum + r.rating, 0) / reviews.filter(r => r.hotelId === selectedHotelId).length).toFixed(1)
+                            : '0.0'} / 5.0
+                        </span>
+                      </div>
+                      <div className="h-8 w-[1px] bg-neutral-200" />
+                      <div>
+                        <span className="text-[10px] text-neutral-400 block font-semibold uppercase tracking-wider">TOTAL OPINIONES</span>
+                        <span className="font-mono font-bold text-teal-700 text-sm">{reviews.filter(r => r.hotelId === selectedHotelId).length} reseñas</span>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {reviews.filter(r => r.hotelId === selectedHotelId).length === 0 ? (
-                  <div className="bg-neutral-50 rounded-2xl p-8 border border-neutral-200 text-center text-neutral-500 py-10">
-                    <p className="text-xs font-semibold text-neutral-450 uppercase tracking-widest mb-1">Aún sin calificaciones</p>
-                    <p className="text-xs text-neutral-400 max-w-sm mx-auto">Sé uno de los primeros en dejar tu opinión después de que finalice tu estadía en este hotel.</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {reviews.filter(r => r.hotelId === selectedHotelId).map(rev => (
-                      <div key={rev.id} className="bg-white rounded-2xl p-5 border border-neutral-200 shadow-sm flex flex-col justify-between">
-                        <div>
-                          <div className="flex justify-between items-center mb-3">
-                            <div className="flex items-center gap-2">
-                              <div className="w-8 h-8 rounded-full bg-teal-50 text-teal-850 border border-teal-100 flex items-center justify-center font-bold text-xs uppercase shadow-sm">
-                                {rev.userName ? rev.userName.slice(0, 2) : 'HU'}
+                  {reviews.filter(r => r.hotelId === selectedHotelId).length === 0 ? (
+                    <div className="bg-neutral-50 rounded-2xl p-8 border border-neutral-200 text-center text-neutral-500 py-10">
+                      <p className="text-xs font-semibold text-neutral-450 uppercase tracking-widest mb-1">Aún sin calificaciones</p>
+                      <p className="text-xs text-neutral-400 max-w-sm mx-auto">Sé uno de los primeros en dejar tu opinión después de que finalice tu estadía en este hotel.</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {reviews.filter(r => r.hotelId === selectedHotelId).map(rev => (
+                        <div key={rev.id} className="bg-white rounded-2xl p-5 border border-neutral-200 shadow-sm flex flex-col justify-between">
+                          <div>
+                            <div className="flex justify-between items-center mb-3">
+                              <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 rounded-full bg-teal-50 text-teal-850 border border-teal-100 flex items-center justify-center font-bold text-xs uppercase shadow-sm font-sans">
+                                  {rev.isAnonymous || rev.userName === 'Anónimo' ? 'AN' : (rev.userName ? rev.userName.slice(0, 2) : 'HU')}
+                                </div>
+                                <div>
+                                  <span className="text-xs font-bold text-neutral-800 block leading-tight">
+                                    {rev.isAnonymous || rev.userName === 'Anónimo' ? 'Anónimo' : (rev.userName || 'Huésped del Hotel')}
+                                  </span>
+                                  <span className="text-[9px] text-neutral-400 font-mono italic">{rev.fecha}</span>
+                                </div>
                               </div>
-                              <div>
-                                <span className="text-xs font-bold text-neutral-800 block leading-tight">{rev.userName || 'Huésped del Hotel'}</span>
-                                <span className="text-[9px] text-neutral-400 font-mono italic">{rev.fecha}</span>
+                              
+                              <div className="flex gap-0.5">
+                                {Array.from({ length: 5 }).map((_, i) => (
+                                  <Star 
+                                    key={i} 
+                                    className={`w-3.5 h-3.5 ${
+                                      i < rev.rating ? 'text-yellow-500 fill-current' : 'text-neutral-200'
+                                    }`} 
+                                  />
+                                ))}
                               </div>
                             </div>
                             
-                            <div className="flex gap-0.5">
-                              {Array.from({ length: 5 }).map((_, i) => (
-                                <Star 
-                                  key={i} 
-                                  className={`w-3.5 h-3.5 ${
-                                    i < rev.rating ? 'text-yellow-500 fill-current' : 'text-neutral-200'
-                                  }`} 
-                                />
-                              ))}
-                            </div>
+                            <p className="text-xs text-neutral-600 leading-relaxed italic bg-neutral-50/50 p-3 rounded-xl border border-neutral-100/70">
+                              "{rev.comentario || 'Sin comentario escrito.'}"
+                            </p>
                           </div>
-                          
-                          <p className="text-xs text-neutral-600 leading-relaxed italic bg-neutral-50/50 p-3 rounded-xl border border-neutral-100/70">
-                            "{rev.comentario || 'Sin comentario escrito.'}"
-                          </p>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -1531,17 +1966,33 @@ export default function ClientView({
       {/* RESERVATIONS TAB */}
       {activeTab === 'reservations' && (
         <div className="space-y-6">
-          <div>
-            <h3 className="text-xl font-semibold text-neutral-800">Mi Expediente de Huésped</h3>
-            <p className="text-xs text-neutral-400">Administre su hospedaje, presente los comprobantes QR al recepcionista para el Check-In, y descargue su pre-factura en formato PDF.</p>
-          </div>
+          {activeUser.id === 'guest' ? (
+            <div className="bg-white border border-neutral-200 rounded-3xl p-10 text-center flex flex-col items-center justify-center max-w-lg mx-auto shadow-sm">
+              <Lock className="w-12 h-12 text-teal-600 mb-3 animate-pulse" />
+              <h4 className="font-semibold text-neutral-800 text-base">Acceso para Miembros de Roomia</h4>
+              <p className="text-xs text-neutral-500 leading-normal max-w-xs mt-1.5">
+                Por favor, inicie sesión o regístrese para poder consultar sus reservas, descargar pre-facturas y subir comprobantes de pago.
+              </p>
+              <button
+                onClick={onTriggerLogin}
+                className="mt-4 px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl transition-all shadow-md hover:shadow-lg active:scale-95 cursor-pointer"
+              >
+                Iniciar Sesión / Registrarse 🔑
+              </button>
+            </div>
+          ) : (
+            <>
+              <div>
+                <h3 className="text-xl font-semibold text-neutral-800">Mi Expediente de Huésped</h3>
+                <p className="text-xs text-neutral-400">Administre su hospedaje, presente los comprobantes QR al recepcionista para el Check-In, y descargue su pre-factura en formato PDF.</p>
+              </div>
 
-          {myReservations.length === 0 ? (
+              {myReservations.length === 0 ? (
             <div className="bg-white border border-neutral-200 rounded-3xl p-10 text-center flex flex-col items-center justify-center max-w-lg mx-auto">
               <CalendarCheck className="w-12 h-12 text-neutral-300 mb-3" />
               <h4 className="font-semibold text-neutral-700 text-base">Sin reservaciones registradas</h4>
               <p className="text-xs text-neutral-500 leading-normal max-w-xs mt-1.5">
-                Aun no tienes ninguna estadía reservada con tu cuenta destructordereck@gmail.com en el sistema.
+                Actualmente no cuenta con estadías o contratos de alquiler registrados en el sistema. ¡Explore nuestras opciones para realizar su primera reserva!
               </p>
               <button
                 onClick={() => setActiveTab('explore')}
@@ -1730,6 +2181,7 @@ export default function ClientView({
                                 setSelectedResForReview(res);
                                 setReviewRating(5);
                                 setReviewComentario('');
+                                setIsAnonymousReview(false);
                                 setShowReviewModal(true);
                               }}
                               className="flex items-center gap-1.5 px-3 py-1.5 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg cursor-pointer transition-colors font-semibold text-[11px] shadow-sm font-sans"
@@ -1747,8 +2199,10 @@ export default function ClientView({
               })}
             </div>
           )}
-        </div>
+        </>
       )}
+    </div>
+  )}
 
       {/* PREVIEW ACTIVE PRE-FACTURA PDF MODAL */}
       {previewingRes && (
@@ -1761,7 +2215,7 @@ export default function ClientView({
         />
       )}
 
-      {/* 💳 ADYEN SECURE CHECKOUT MODAL OVERLAY */}
+      {/* 💳 SECURE CHECKOUT MODAL OVERLAY */}
       <AnimatePresence>
         {showPaymentModal && selectedResForPayment && (
           <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-55">
@@ -1801,7 +2255,12 @@ export default function ClientView({
                   <div className="h-px bg-slate-200/50" />
                   <div className="flex justify-between items-center">
                     <span className="text-slate-400 uppercase tracking-wide text-[9px] block font-sans">VALOR TOTAL DE LA ESTADÍA</span>
-                    <span className="font-mono font-bold text-teal-700 text-sm">${selectedResForPayment.total.toFixed(2)} USD</span>
+                    <span className="font-mono font-bold text-neutral-800 text-sm">${selectedResForPayment.total.toFixed(2)} USD</span>
+                  </div>
+                  <div className="h-px bg-slate-200/50" />
+                  <div className="flex justify-between items-center bg-teal-50/50 p-1.5 rounded-lg border border-teal-100">
+                    <span className="text-teal-800 uppercase tracking-wide text-[9px] block font-semibold">SEÑAL DE RESERVA (20%)</span>
+                    <span className="font-mono font-bold text-teal-600 text-sm">${(selectedResForPayment.total * 0.20).toFixed(2)} USD</span>
                   </div>
                 </div>
 
@@ -1811,10 +2270,13 @@ export default function ClientView({
                     <div className="space-y-1">
                       <p className="font-bold">⚠️ Importante: Límite de 24 Horas</p>
                       <p className="text-[11px] leading-relaxed text-amber-805">
-                        Su reservación ha sido registrada y se encuentra en estado <strong>"Reservación pendiente de pago"</strong>. Dispone de un plazo improrrogable de <strong>24 horas</strong> para tramitar el abono.
+                        Su reservación ha sido registrada y se encuentra en estado <strong>"Reservación pendiente de pago"</strong>. Dispone de un plazo de <strong>24 horas</strong> para tramitar el abono.
                       </p>
-                      <p className="text-[11px] leading-relaxed text-amber-700 font-semibold mt-1">
-                        Si pasadas las 24 horas no se valida el pago con la administración o recepción del hotel, la reservación se cancelará automáticamente y la unidad volverá a estar disponible libremente.
+                      <p className="text-[11px] leading-relaxed text-amber-800 font-semibold mt-1 bg-white/70 p-2 rounded border border-amber-100">
+                        <strong>Requisito mínimo:</strong> Se necesita pagar al menos el <strong>20% del valor de la estadía (${(selectedResForPayment.total * 0.20).toFixed(2)} USD)</strong> para que su reserva pase de estar en "Pendiente" a "Reservada" de forma confirmada. Obviamente, puede optar por abonar el valor total de <strong>${selectedResForPayment.total.toFixed(2)} USD</strong> o solo el 20% inicial para que quede reservado correctamente.
+                      </p>
+                      <p className="text-[10px] leading-relaxed text-amber-600 mt-1">
+                        Si pasadas las 24 horas no se valida al menos este pago mínimo de garantía con la administración o recepción del hotel, la reservación se cancelará automáticamente.
                       </p>
                     </div>
                   </div>
@@ -1832,10 +2294,10 @@ export default function ClientView({
                         Suministre su id de reserva <strong>{selectedResForPayment.id}</strong> para que ubiquen su transacción.
                       </li>
                       <li>
-                        Efectúe el pago por <strong>${selectedResForPayment.total.toFixed(2)} USD</strong> (en efectivo, depósito bancario o transferencia).
+                        Efectúe el pago por el valor total de <strong>${selectedResForPayment.total.toFixed(2)} USD</strong> o abone el depósito del 20% de <strong>${(selectedResForPayment.total * 0.20).toFixed(2)} USD</strong> (en efectivo, depósito bancario o transferencia).
                       </li>
                       <li>
-                        Al confirmarlo la administración, se actualizará su estado a <strong>"Reservada"</strong> y se le enviará su correo de confirmación respectivo.
+                        Al confirmarlo la administración, se actualizará su estado a <strong>"Reservada"</strong> (estado de reserva confirmada en el sistema) y se le enviará su correo de confirmación respectivo.
                       </li>
                     </ul>
                   </div>
@@ -1944,6 +2406,27 @@ export default function ClientView({
                     </span>
                   </div>
 
+                  {/* PUBLICAR COMO ANÓNIMO */}
+                  <div className="flex items-center justify-between bg-neutral-50 p-3.5 rounded-2xl border border-neutral-200/60">
+                    <div className="space-y-0.5">
+                      <label className="text-xs font-bold text-neutral-700 block">Publicar de forma anónima</label>
+                      <p className="text-[10px] text-neutral-400">Oculta su nombre real en la reseña pública</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsAnonymousReview(!isAnonymousReview)}
+                      className={`w-10 h-6 flex items-center rounded-full p-1 cursor-pointer transition-all ${
+                        isAnonymousReview ? 'bg-teal-600' : 'bg-neutral-350'
+                      }`}
+                    >
+                      <div
+                        className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-200 ${
+                          isAnonymousReview ? 'translate-x-4' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
                   {/* COMENTARIO */}
                   <div className="space-y-1">
                     <label className="text-xs font-semibold text-neutral-500 block">Escriba su reseña u opinión sincera (Obligatorio)</label>
@@ -1970,10 +2453,11 @@ export default function ClientView({
                         reservationId: selectedResForReview.id,
                         hotelId: selectedResForReview.hotelId,
                         guestId: activeUser.id,
-                        userName: activeUser.nombre || activeUser.email,
+                        userName: isAnonymousReview ? 'Anónimo' : (activeUser.nombre || activeUser.email),
                         rating: reviewRating,
                         comentario: reviewComentario,
-                        fecha: new Date().toISOString().split('T')[0]
+                        fecha: new Date().toISOString().split('T')[0],
+                        isAnonymous: isAnonymousReview
                       };
 
                       await onSubmitReview(newReview);

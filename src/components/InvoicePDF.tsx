@@ -9,6 +9,34 @@ import QRView from './QRView';
 import { useState } from 'react';
 import { jsPDF } from 'jspdf';
 import QRCode from 'qrcode';
+import { BrandLogo } from './BrandLogo';
+import RoomiaLogo from '../RoomiaPMSLogoSinFondo.png';
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  let binary = '';
+  const bytes = new Uint8Array(buffer);
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return window.btoa(binary);
+}
+
+async function loadAndAddFont(doc: jsPDF, url: string, fontName: string, fontStyle: string) {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+    const buffer = await res.arrayBuffer();
+    const base64 = arrayBufferToBase64(buffer);
+    const filename = `${fontName}-${fontStyle}.ttf`;
+    doc.addFileToVFS(filename, base64);
+    doc.addFont(filename, fontName, fontStyle);
+    return true;
+  } catch (err) {
+    console.warn(`Could not load custom font ${fontName} (${fontStyle}) from ${url}. Using standard fallback.`, err);
+    return false;
+  }
+}
 
 interface InvoicePDFProps {
   reservation: Reservation;
@@ -27,6 +55,9 @@ export default function InvoicePDF({
 }: InvoicePDFProps) {
   const [downloading, setDownloading] = useState(false);
   const [sentByEmail, setSentByEmail] = useState(false);
+
+  const isPropiedad = hotel && (hotel.tipoEstablecimiento === 'casa' || hotel.tipoEstablecimiento === 'departamento');
+  const isAlquiler = isPropiedad && hotel?.finalidad === 'alquiler';
 
   // Auto calculate nights
   const getNights = () => {
@@ -55,33 +86,99 @@ export default function InvoicePDF({
           format: 'a4'
         });
 
+        // ----------------- ESTABLISHED BRAND TYPOGRAPHY LOAD -----------------
+        const fontsLoaded = { montserrat: false, playfair: false };
+        try {
+          const timeout = (ms: number) => new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), ms));
+          
+          const loadFontsPromise = (async () => {
+            // Montserrat is the primary sans-serif font
+            await loadAndAddFont(doc, 'https://fonts.gstatic.com/s/montserrat/v25/JTUHjIg1_i6t8kCHKm4MV96gxpxq.ttf', 'Montserrat', 'normal');
+            await loadAndAddFont(doc, 'https://fonts.gstatic.com/s/montserrat/v25/JTURjIg1_i6t8kCHKm4MV_d7zpxq.ttf', 'Montserrat', 'bold');
+            // Playfair Display is the elegant display/serif font
+            await loadAndAddFont(doc, 'https://fonts.gstatic.com/s/playfairdisplay/v37/nuFvD-vYSZ27E9X6Sk8Vf112gE-NyHYB3Y42.ttf', 'PlayfairDisplay', 'normal');
+            await loadAndAddFont(doc, 'https://fonts.gstatic.com/s/playfairdisplay/v37/nuFlD-vYSZ27E9X6Sk8Vf112gE-NyG3FcbY.ttf', 'PlayfairDisplay', 'bold');
+          })();
+
+          await Promise.race([loadFontsPromise, timeout(3000)]);
+          fontsLoaded.montserrat = true;
+          fontsLoaded.playfair = true;
+        } catch (e) {
+          console.warn("Could not load premium Google Fonts within timeout, falling back gracefully.", e);
+        }
+
+        const getSansFont = () => fontsLoaded.montserrat ? 'Montserrat' : 'helvetica';
+        const getSerifFont = () => fontsLoaded.playfair ? 'PlayfairDisplay' : 'times';
+
+        // Decorate doc.setFont to map 'helvetica' to 'Montserrat' and 'times' to 'PlayfairDisplay' automatically
+        const originalSetFont = doc.setFont;
+        doc.setFont = function(fontName: string, fontStyle?: string) {
+          let targetFont = fontName;
+          if (fontName === 'helvetica' || fontName === 'Helvetica') {
+            targetFont = getSansFont();
+          } else if (fontName === 'times' || fontName === 'Times') {
+            targetFont = getSerifFont();
+          }
+          return originalSetFont.call(this, targetFont, fontStyle);
+        } as any;
+
+        // Apply default font
+        doc.setFont('helvetica', 'normal');
+
+        // ----------------- BRANDED HEADER BLOCK WITH LOGO -----------------
         // Background / Theme elements
-        doc.setFillColor(52, 77, 103); // #344D67 (Primary Theme color)
+        doc.setFillColor(7, 23, 38); // Official Roomia PMS Deep Dark Blue #071726
         doc.rect(0, 0, 210, 38, 'F');
 
-        // Header Text
-        doc.setTextColor(255, 255, 255);
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(22);
-        doc.text('ROOMIA SAAS', 15, 18);
+        // Logo Image
+        try {
+          const logoImg = await new Promise<HTMLImageElement>((resolve, reject) => {
+            const img = new Image();
+            img.src = RoomiaLogo;
+            img.onload = () => resolve(img);
+            img.onerror = () => reject();
+          });
+          doc.addImage(logoImg, 'PNG', 15, 8, 12, 12);
+        } catch (e) {
+          // Circular brand-compliant vector fallback badge in case image fails to load
+          doc.setFillColor(35, 180, 230); // brand-cyan #23B4E6
+          doc.circle(21, 14, 6, 'F');
+          doc.setTextColor(255, 255, 255);
+          doc.setFont('times', 'bold'); // Mapped to PlayfairDisplay Bold
+          doc.setFontSize(10);
+          doc.text('R', 19.5, 17.5);
+        }
 
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(9);
-        doc.text('SISTEMA PMS MULTI-HOTEL CENTRALIZADO', 15, 25);
-        doc.text(`ID TRANSACCION: ${reservation.id}`, 15, 30);
+        // Header Text next to logo
+        doc.setTextColor(255, 255, 255);
+        doc.setFont('times', 'bold'); // Mapped to PlayfairDisplay
+        doc.setFontSize(21);
+        doc.text('ROOMIA', 31, 16);
+        
+        doc.setFont('helvetica', 'bold'); // Mapped to Montserrat Bold
+        doc.setFontSize(8);
+        doc.setTextColor(35, 180, 230); // brand cyan
+        doc.text('PROPERTY MANAGEMENT SYSTEM', 31, 21.5);
+
+        doc.setFont('helvetica', 'normal'); // Mapped to Montserrat Regular
+        doc.setFontSize(7.5);
+        doc.setTextColor(168, 178, 189); // brand grey
+        doc.text(`ID TRANSACCIÓN: ${reservation.id}`, 31, 26.5);
 
         // Date right corner
-        doc.setFontSize(10);
-        doc.text(`EMISION: ${new Date(reservation.fechaRegistro).toLocaleDateString('es-ES')}`, 145, 18);
-        doc.text(`ESTADO: ${reservation.estado.toUpperCase()}`, 145, 25);
+        doc.setTextColor(255, 255, 255);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.text(`EMISIÓN: ${new Date(reservation.fechaRegistro).toLocaleDateString('es-ES')}`, 145, 16);
+        doc.text(`ESTADO: ${reservation.estado.toUpperCase()}`, 145, 21.5);
 
         // Divider
         doc.setDrawColor(226, 232, 240); // #E2E8F0
         doc.setLineWidth(0.5);
 
         // Section 1: Hotel vs Guest details
-        doc.setTextColor(26, 28, 30); // #1A1C1E
-        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(7, 23, 38); // #071726 deep dark blue
+        doc.setFont('times', 'bold');
         doc.setFontSize(11);
         doc.text('ESTABLECIMIENTO RECEPTOR', 15, 50);
         doc.text('DATOS DEL CLIENTE HOSPEDADO', 115, 50);
@@ -107,7 +204,7 @@ export default function InvoicePDF({
         doc.text(hotelEmail, 15, currentLocY + 5);
 
         const guestName = guest ? `${guest.nombre} ${guest.apellido}` : 'Invitado Particular';
-        const guestEmail = `E-mail: ${guest?.email || 'destructordereck@gmail.com'}`;
+        const guestEmail = `E-mail: ${guest?.email || 'cliente@roomia.com'}`;
         const guestPhone = `Tel: ${guest?.telefono || ''}`;
         const guestDoc = guest?.documento ? `Documento: ${guest.documento}` : '';
 
@@ -123,8 +220,8 @@ export default function InvoicePDF({
         // Section 2: Details of stay
         const stayY = 88;
         doc.line(15, stayY - 5, 195, stayY - 5);
-        doc.setTextColor(26, 28, 30);
-        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(7, 23, 38);
+        doc.setFont('times', 'bold');
         doc.setFontSize(11);
         doc.text('DETALLE DEL HOSPEDAJE', 15, stayY);
 
@@ -157,48 +254,103 @@ export default function InvoicePDF({
         doc.setTextColor(100, 116, 139);
         doc.text('Detalle / Servicio', 15, tableY);
         doc.text('Precio Unitario', 105, tableY, { align: 'right' });
-        doc.text('Noches / Cant.', 140, tableY, { align: 'center' });
+        doc.text('Unidad / Noches', 140, tableY, { align: 'center' });
         doc.text('Importe', 195, tableY, { align: 'right' });
         doc.line(15, tableY + 2, 195, tableY + 2);
 
-        // Row 1: Nights stay
+        // Row 1: Nights stay or monthly rent
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(9);
         doc.setTextColor(26, 28, 30);
         
-        const roomNameStr = room?.nombre || 'Hospedaje Standard';
-        doc.setFont('helvetica', 'bold');
-        doc.text(roomNameStr, 15, tableY + 8);
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(8);
-        doc.setTextColor(100, 116, 139);
-        doc.text(`Capacidad max: ${room?.capacidad || 2} personas`, 15, tableY + 12);
-        
-        doc.setFontSize(9);
-        doc.setTextColor(26, 28, 30);
-        const roomPrice = room?.precio ?? reservation.subtotal;
-        doc.text(`$${roomPrice.toFixed(2)} USD`, 105, tableY + 8, { align: 'right' });
-        
-        const diffNights = getNights();
-        doc.text(`${diffNights} noches`, 140, tableY + 8, { align: 'center' });
+        const isPropiedad = hotel && (hotel.tipoEstablecimiento === 'casa' || hotel.tipoEstablecimiento === 'departamento');
+        const isAlquiler = isPropiedad && hotel.finalidad === 'alquiler';
 
-        const subtotalHospedaje = roomPrice * diffNights;
-        doc.setFont('helvetica', 'bold');
-        doc.text(`$${subtotalHospedaje.toFixed(2)} USD`, 195, tableY + 8, { align: 'right' });
+        const roomPrice = room?.precio ?? reservation.subtotal;
+        let currentSrvY = tableY + 20;
+
+        if (isAlquiler) {
+          // Monthly Rent Row
+          const roomNameStr = room?.nombre || 'Alquiler Habitacional';
+          doc.setFont('helvetica', 'bold');
+          doc.text(roomNameStr, 15, tableY + 8);
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(8);
+          doc.setTextColor(100, 116, 139);
+          doc.text(`Alquiler Inmobiliario Completo - ${hotel?.tipoEstablecimiento === 'casa' ? 'Casa' : 'Departamento'}`, 15, tableY + 12);
+          
+          doc.setFontSize(9);
+          doc.setTextColor(26, 28, 30);
+          doc.text(`$${roomPrice.toFixed(2)} USD`, 105, tableY + 8, { align: 'right' });
+          doc.text('1 mes', 140, tableY + 8, { align: 'center' });
+          
+          doc.setFont('helvetica', 'bold');
+          doc.text(`$${roomPrice.toFixed(2)} USD`, 195, tableY + 8, { align: 'right' });
+
+          // Row 2: Security Deposit Row
+          doc.setFont('helvetica', 'bold');
+          doc.text('Depósito de Garantía Rembolsable', 15, tableY + 20);
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(8);
+          doc.setTextColor(100, 116, 139);
+          doc.text('Garantía de conservación del inmueble', 15, tableY + 24);
+
+          doc.setFontSize(9);
+          doc.setTextColor(26, 28, 30);
+          doc.text(`$${roomPrice.toFixed(2)} USD`, 105, tableY + 20, { align: 'right' });
+          doc.text('1', 140, tableY + 20, { align: 'center' });
+
+          doc.setFont('helvetica', 'bold');
+          doc.text(`$${roomPrice.toFixed(2)} USD`, 195, tableY + 20, { align: 'right' });
+
+          currentSrvY = tableY + 32;
+        } else {
+          // Standard Hotel Stay Row
+          const roomNameStr = room?.nombre || 'Hospedaje Standard';
+          doc.setFont('helvetica', 'bold');
+          doc.text(roomNameStr, 15, tableY + 8);
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(8);
+          doc.setTextColor(100, 116, 139);
+          doc.text(`Capacidad max: ${room?.capacidad || 2} personas`, 15, tableY + 12);
+          
+          doc.setFontSize(9);
+          doc.setTextColor(26, 28, 30);
+          doc.text(`$${roomPrice.toFixed(2)} USD`, 105, tableY + 8, { align: 'right' });
+          
+          const diffNights = getNights();
+          doc.text(`${diffNights} noches`, 140, tableY + 8, { align: 'center' });
+
+          const subtotalHospedaje = roomPrice * diffNights;
+          doc.setFont('helvetica', 'bold');
+          doc.text(`$${subtotalHospedaje.toFixed(2)} USD`, 195, tableY + 8, { align: 'right' });
+
+          currentSrvY = tableY + 20;
+        }
 
         // Services
-        let currentSrvY = tableY + 20;
         doc.line(15, currentSrvY - 4, 195, currentSrvY - 4);
 
         reservation.serviciosAdicionales.forEach((service) => {
           doc.setFont('helvetica', 'normal');
           doc.setFontSize(9);
           doc.setTextColor(26, 28, 30);
-          doc.text(`Servicio Adicional: ${service}`, 15, currentSrvY);
-          doc.text('$15.00 USD', 105, currentSrvY, { align: 'right' });
+          
+          // Parse price or use standard fallback
+          let serviceName = service;
+          let servicePrice = 15;
+          if (service.includes('($')) {
+            const match = service.match(/\(\$([0-9.]+)\)/);
+            if (match && match[1]) {
+              servicePrice = parseFloat(match[1]);
+            }
+          }
+
+          doc.text(`Servicio Adicional: ${serviceName}`, 15, currentSrvY);
+          doc.text(`$${servicePrice.toFixed(2)} USD`, 105, currentSrvY, { align: 'right' });
           doc.text('Global', 140, currentSrvY, { align: 'center' });
           doc.setFont('helvetica', 'bold');
-          doc.text('$15.00 USD', 195, currentSrvY, { align: 'right' });
+          doc.text(`$${servicePrice.toFixed(2)} USD`, 195, currentSrvY, { align: 'right' });
           currentSrvY += 6;
         });
 
@@ -328,8 +480,7 @@ export default function InvoicePDF({
           <div className="flex flex-col md:flex-row justify-between items-start gap-6 border-b border-neutral-200 pb-8">
             <div>
               <div className="flex items-center gap-2 mb-2">
-                <span className="w-8 h-8 rounded-lg bg-teal-600 text-white flex items-center justify-center font-display font-bold text-lg">R</span>
-                <span className="font-display font-bold text-xl tracking-tight text-neutral-800">ROOMIA SAAS</span>
+                <BrandLogo showText={true} lightText={false} size="md" />
               </div>
               <p className="text-xs text-neutral-400 font-mono">SISTEMA PMS MULTI-HOTEL CENTRALIZADO</p>
               <p className="text-xs text-neutral-500 mt-1">ID Transación: {reservation.id}</p>
@@ -355,7 +506,7 @@ export default function InvoicePDF({
             <div>
               <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">Datos del Cliente Hospedado</p>
               <h4 className="font-semibold text-neutral-800 text-base">{guest ? `${guest.nombre} ${guest.apellido}` : 'Invitado Particular'}</h4>
-              <p className="text-sm text-neutral-600 mt-1">E-mail: {guest?.email || 'destructordereck@gmail.com'}</p>
+              <p className="text-sm text-neutral-600 mt-1">E-mail: {guest?.email || 'cliente@roomia.com'}</p>
               <p className="text-sm text-neutral-600">Teléfono: {guest?.telefono || '+54 11 9876 5432'}</p>
               {guest?.documento && (
                 <p className="text-xs text-neutral-500 font-mono mt-1">Documento / Pasaporte: {guest.documento}</p>
@@ -398,25 +549,60 @@ export default function InvoicePDF({
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-100">
-                <tr>
-                  <td className="py-3">
-                    <span className="font-medium text-neutral-800 block">{room?.nombre || 'Hospedaje Standard'}</span>
-                    <span className="text-xs text-neutral-400">Capacidad máxima: {room?.capacidad} personas ({room?.camas} camas)</span>
-                  </td>
-                  <td className="py-3 text-right font-mono">${room?.precio || reservation.subtotal} USD</td>
-                  <td className="py-3 text-center">{getNights()} {getNights() > 1 ? 'noches' : 'noche'}</td>
-                  <td className="py-3 text-right font-semibold text-neutral-800 font-mono">${(room?.precio || 0) * getNights()} USD</td>
-                </tr>
-                {reservation.serviciosAdicionales.map((service, idx) => (
-                  <tr key={idx}>
-                    <td className="py-3 text-neutral-700">
-                      <span>Adicional: {service}</span>
+                {isAlquiler ? (
+                  <>
+                    {/* Alquiler Mensual Row */}
+                    <tr>
+                      <td className="py-3">
+                        <span className="font-medium text-neutral-800 block">{room?.nombre || 'Alquiler Habitacional'}</span>
+                        <span className="text-xs text-neutral-400">Arrendamiento de Propiedad Completa ({hotel?.tipoEstablecimiento === 'casa' ? 'Casa' : 'Departamento'})</span>
+                      </td>
+                      <td className="py-3 text-right font-mono">${(room?.precio ?? (reservation.subtotal / 2)).toFixed(2)} USD</td>
+                      <td className="py-3 text-center">1 mes</td>
+                      <td className="py-3 text-right font-semibold text-neutral-800 font-mono">${(room?.precio ?? (reservation.subtotal / 2)).toFixed(2)} USD</td>
+                    </tr>
+                    {/* Depósito de Garantía Row */}
+                    <tr>
+                      <td className="py-3">
+                        <span className="font-medium text-neutral-800 block">Depósito de Garantía</span>
+                        <span className="text-xs text-neutral-400">Garantía reembolsable de conservación del inmueble</span>
+                      </td>
+                      <td className="py-3 text-right font-mono">${(room?.precio ?? (reservation.subtotal / 2)).toFixed(2)} USD</td>
+                      <td className="py-3 text-center">1</td>
+                      <td className="py-3 text-right font-semibold text-neutral-800 font-mono">${(room?.precio ?? (reservation.subtotal / 2)).toFixed(2)} USD</td>
+                    </tr>
+                  </>
+                ) : (
+                  <tr>
+                    <td className="py-3">
+                      <span className="font-medium text-neutral-800 block">{room?.nombre || 'Hospedaje Standard'}</span>
+                      <span className="text-xs text-neutral-400">Capacidad máxima: {room?.capacidad} personas ({room?.camas} camas)</span>
                     </td>
-                    <td className="py-3 text-right font-mono">$15.00 USD</td>
-                    <td className="py-3 text-center">Global</td>
-                    <td className="py-3 text-right font-semibold text-neutral-800 font-mono">$15.00 USD</td>
+                    <td className="py-3 text-right font-mono">${(room?.precio || reservation.subtotal).toFixed(2)} USD</td>
+                    <td className="py-3 text-center">{getNights()} {getNights() > 1 ? 'noches' : 'noche'}</td>
+                    <td className="py-3 text-right font-semibold text-neutral-800 font-mono">${((room?.precio || 0) * getNights()).toFixed(2)} USD</td>
                   </tr>
-                ))}
+                )}
+                {reservation.serviciosAdicionales.map((service, idx) => {
+                  let srvName = service;
+                  let srvPrice = 15;
+                  if (service.includes('($')) {
+                    const match = service.match(/\(\$([0-9.]+)\)/);
+                    if (match && match[1]) {
+                      srvPrice = parseFloat(match[1]);
+                    }
+                  }
+                  return (
+                    <tr key={idx}>
+                      <td className="py-3 text-neutral-700">
+                        <span>Adicional: {srvName}</span>
+                      </td>
+                      <td className="py-3 text-right font-mono">${srvPrice.toFixed(2)} USD</td>
+                      <td className="py-3 text-center">Global</td>
+                      <td className="py-3 text-right font-semibold text-neutral-800 font-mono">${srvPrice.toFixed(2)} USD</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -449,19 +635,19 @@ export default function InvoicePDF({
 
               {/* Status footer inside invoice */}
               <div className={`mt-4 p-3 rounded-xl text-center border text-xs ${
-                reservation.estado === 'confirmada'
+                reservation.estado === 'confirmada' || reservation.estado === 'ocupada' || reservation.estado === 'finalizada'
                   ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
                   : 'bg-amber-50 border-amber-200 text-amber-800'
               }`}>
-                {reservation.estado === 'confirmada' ? (
+                {reservation.estado === 'confirmada' || reservation.estado === 'ocupada' || reservation.estado === 'finalizada' ? (
                   <div>
-                    <span className="font-bold">✓ PAGADO VIA ADYEN SECURE 🛡️</span>
-                    <p className="text-[10px] text-emerald-600 font-mono mt-0.5">Ref: ADY-REF-{reservation.id}</p>
+                    <span className="font-bold">✓ PAGADO Y CONFIRMADO POR ADMINISTRACIÓN 🛡️</span>
+                    <p className="text-[10px] text-emerald-600 font-mono mt-0.5">Ref: ADM-REF-{reservation.id}</p>
                   </div>
                 ) : (
                   <div>
                     <span className="font-bold">⚠️ PENDIENTE DE PAGO</span>
-                    <p className="text-[10px] text-amber-600 mt-0.5">Por favor pague mediante canales seguros de Adyen.</p>
+                    <p className="text-[10px] text-amber-600 mt-0.5">Por favor contacte a la administración o recepción para realizar su pago seguro.</p>
                   </div>
                 )}
               </div>

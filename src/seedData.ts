@@ -20,8 +20,7 @@ export const INITIAL_USERS: User[] = [
     avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
     rol: 'super_admin',
     fechaRegistro: '2026-06-03',
-    estado: 'activo',
-    password: '2450397340'
+    estado: 'activo'
   }
 ];
 
