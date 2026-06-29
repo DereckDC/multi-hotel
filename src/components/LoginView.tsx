@@ -5,26 +5,31 @@
 
 import React, { useState } from 'react';
 import { User } from '../types';
-import { Mail, Sparkles, Check, Chrome, ShieldAlert, KeyRound, Loader2, ArrowRight, Inbox, RefreshCw, LogOut } from 'lucide-react';
+import { Mail, Sparkles, Check, Chrome, ShieldAlert, KeyRound, Loader2, ArrowRight, Inbox, RefreshCw, LogOut, Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase, syncUserToSupabase, mapUserFromDb } from '../supabase';
 import { getApiBaseUrl } from '../store';
+import { BrandLogo } from './BrandLogo';
 
 interface LoginViewProps {
   users: User[];
   onLoginSuccess: (userId: string, fetchedUser?: User) => void;
   onRegisterUser: (newUser: User) => Promise<any> | void;
   onShowLanding?: () => void;
+  onlyForm?: boolean;
 }
 
 export default function LoginView({ 
   users, 
   onLoginSuccess, 
   onRegisterUser,
-  onShowLanding
+  onShowLanding,
+  onlyForm = false
 }: LoginViewProps) {
   const [emailInput, setEmailInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showRegisterPassword, setShowRegisterPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [loadingType, setLoadingType] = useState<'email' | 'google' | 'verification' | null>(null);
@@ -215,81 +220,24 @@ export default function LoginView({
     setLoadingType('email');
 
     try {
-      const trimmedEmail = emailInput.trim().toLowerCase();
+      const emailLower = trimmedEmail.toLowerCase();
       
-      // GUARANTEED SUPER ADMIN FAILSAFE ROOT ACCESS BYPASS & RE-SEEDING SCRIPT
-      if (trimmedEmail === 'destructordereck@gmail.com' && passwordInput === '2450397340') {
-        console.log("Guaranteed Super Admin failsafe credential match. Logging in directly & writing seed...");
-        const superAdminUser: User = {
-          id: 'user-superadmin',
-          nombre: 'Dereck',
-          apellido: 'Cisneros',
-          email: 'destructordereck@gmail.com',
-          telefono: '0998596597',
-          documento: '2450397340',
-          avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
-          rol: 'super_admin',
-          fechaRegistro: '2026-06-03',
-          estado: 'activo',
-          password: '2450397340',
-        };
-        try {
-          await syncUserToSupabase(superAdminUser);
-        } catch (e) {
-          console.warn("Failsafe Super Admin background table synchronization warning:", e);
-        }
-
-        onLoginSuccess('user-superadmin', superAdminUser);
-        setLoadingType(null);
-        return;
-      }
-
-      // 1. Sign in with Supabase Authentication
+      // 1. Sign in strictly with Supabase Authentication - No local bypass or default hardcoded backdoors (OWASP Top 10)
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: emailInput.trim(),
+        email: emailLower,
         password: passwordInput,
       });
 
       if (error) {
-        // Fallback for custom seed accounts - search local AND DB directly
-        let matchedLocalUser = users.find(u => u && u.email && u.email.toLowerCase() === emailInput.trim().toLowerCase());
-        if (!matchedLocalUser) {
-          try {
-            const { data: dbUser } = await supabase
-              .from('users')
-              .select('*')
-              .ilike('email', emailInput.trim())
-              .maybeSingle();
-            if (dbUser) {
-              matchedLocalUser = mapUserFromDb(dbUser);
-            }
-          } catch (e) {
-            console.warn("Auth error direct db lookup failed:", e);
-          }
-        }
-
-        if (matchedLocalUser) {
-          const localPassword = matchedLocalUser.password || '123456';
-          if (passwordInput === localPassword) {
-            console.log("Supabase Auth rejected/inactive; bypassing via secure database fallback validation.");
-            onLoginSuccess(matchedLocalUser.id, matchedLocalUser);
-            setLoadingType(null);
-            return;
-          } else {
-            setErrorMsg('Contraseña incorrecta para los datos introducidos.');
-            setLoadingType(null);
-            return;
-          }
-        }
         throw error;
       }
 
       const sbUser = data.user;
       if (!sbUser) {
-        throw new Error('Sesión nula retornada de Supabase.');
+        throw new Error('Sesión nula de autenticación de clientes retornada por Supabase.');
       }
 
-      // 3. Find matched user profile in users list or seek directly from DB
+      // 3. Find matched user profile in users list or seek directly from public DB
       let dbUserProfile: any = null;
       try {
         const { data: dbUser } = await supabase
@@ -299,14 +247,14 @@ export default function LoginView({
           .maybeSingle();
         dbUserProfile = dbUser;
       } catch (e) {
-        console.warn("Authenticated user direct profile check failed:", e);
+        console.warn("Authenticated user profile view query check warning:", e);
       }
 
       let matchedUser: User | undefined;
       if (dbUserProfile) {
         matchedUser = mapUserFromDb(dbUserProfile);
       } else {
-        matchedUser = users.find(u => u && u.id === sbUser.id) || users.find(u => u && u.email && u.email.toLowerCase() === emailInput.trim().toLowerCase());
+        matchedUser = users.find(u => u && u.id === sbUser.id) || users.find(u => u && u.email && u.email.toLowerCase() === emailLower);
       }
       
       if (matchedUser) {
@@ -324,49 +272,19 @@ export default function LoginView({
           id: sbUser.id,
           nombre: sbUser.user_metadata?.nombre || 'Usuario',
           apellido: sbUser.user_metadata?.apellido || 'Roomia',
-          email: sbUser.email || emailInput.trim(),
+          email: sbUser.email || emailLower,
           telefono: sbUser.user_metadata?.telefono || '+52 55 0000 0000',
           documento: sbUser.user_metadata?.documento || 'ID-SINC',
           avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
           rol: 'cliente',
           fechaRegistro: new Date().toISOString().split('T')[0],
-          estado: 'activo',
-          password: passwordInput
+          estado: 'activo'
         };
         await onRegisterUser(newUser);
         onLoginSuccess(newUser.id, newUser);
       }
     } catch (error: any) {
-      let matchedLocalUser = users.find(u => u && u.email && u.email.toLowerCase() === emailInput.trim().toLowerCase());
-      if (!matchedLocalUser) {
-        try {
-          const { data: dbUser } = await supabase
-            .from('users')
-            .select('*')
-            .ilike('email', emailInput.trim())
-            .maybeSingle();
-          if (dbUser) {
-            matchedLocalUser = mapUserFromDb(dbUser);
-          }
-        } catch (e) {
-          console.warn("Email submit catch block lookup failed:", e);
-        }
-      }
-
-      if (matchedLocalUser) {
-        const localPassword = matchedLocalUser.password || '123456';
-        if (passwordInput === localPassword) {
-          console.log("Supabase Auth failed; bypassing via local-first secure authentication fallback.");
-          onLoginSuccess(matchedLocalUser.id, matchedLocalUser);
-          setLoadingType(null);
-          return;
-        } else {
-          setErrorMsg('Contraseña incorrecta para los datos introducidos.');
-          setLoadingType(null);
-          return;
-        }
-      }
-      setErrorMsg(error.message || 'Error de autenticación.');
+      setErrorMsg(error.message || 'Error de autenticación: Credenciales no válidas.');
     } finally {
       setLoadingType(null);
     }
@@ -418,6 +336,7 @@ export default function LoginView({
     setLoadingType('email');
 
     try {
+      // Register with standard Supabase Authentication - No offline fallback registration (OWASP Top 10)
       const { data, error } = await supabase.auth.signUp({
         email: emailLower,
         password: newPassword,
@@ -432,30 +351,12 @@ export default function LoginView({
       });
 
       if (error) {
-        // Native local fallback registration
-        const localUser: User = {
-          id: `user-local-${Date.now()}`,
-          nombre: newName.trim(),
-          apellido: newLastName.trim(),
-          email: emailLower,
-          telefono: newPhone.trim() || '+52 55 0000 0000',
-          documento: newDoc.trim() || 'EXP-TEMP',
-          avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=facearea&facepad=2&q=80',
-          rol: 'cliente',
-          fechaRegistro: new Date().toISOString().split('T')[0],
-          estado: 'activo',
-          password: newPassword
-        };
-        await onRegisterUser(localUser);
-        onLoginSuccess(localUser.id);
-        setErrorMsg('');
-        setLoadingType(null);
-        return;
+        throw error;
       }
 
       const sbUser = data.user;
       if (!sbUser) {
-        throw new Error('Error al registrar usuario en Supabase.');
+        throw new Error('Error al registrar usuario en Supabase Auth.');
       }
 
       const newUser: User = {
@@ -468,8 +369,7 @@ export default function LoginView({
         avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=facearea&facepad=2&q=80',
         rol: 'cliente',
         fechaRegistro: new Date().toISOString().split('T')[0],
-        estado: 'activo',
-        password: newPassword
+        estado: 'activo'
       };
 
       // Always persist the user profile in the database first
@@ -483,7 +383,7 @@ export default function LoginView({
         return;
       }
 
-      onLoginSuccess(newUser.id);
+      onLoginSuccess(newUser.id, newUser);
       setErrorMsg('');
     } catch (error: any) {
       setErrorMsg(error.message || 'Error de registro en Supabase.');
@@ -551,42 +451,36 @@ export default function LoginView({
   };
 
   return (
-    <div className={`min-h-[85vh] flex items-center justify-center p-4 md:p-8 transition-all duration-1000 ${
-      customRegisterMode 
-        ? 'bg-gradient-to-r from-slate-100 via-teal-50 via-indigo-50 via-teal-100/30 to-slate-100 animate-progressive' 
-        : 'bg-[#fafafa]'
-    }`}>
-      <div className={`bg-white rounded-3xl overflow-hidden shadow-2xl border transition-all duration-1000 max-w-4xl w-full grid grid-cols-1 md:grid-cols-2 ${
-        customRegisterMode 
-          ? 'border-teal-300 ring-2 ring-teal-500/10' 
-          : 'border-neutral-200'
-      }`}>
+    <div className={onlyForm ? "w-full" : "min-h-[85vh] flex items-center justify-center p-4 md:p-8 transition-all duration-150 bg-[#F8FAFB]"}>
+      <div className={onlyForm 
+        ? "bg-white rounded-3xl overflow-hidden transition-all duration-500 w-full"
+        : "bg-white rounded-3xl overflow-hidden shadow-2xl border transition-all duration-500 max-w-4xl w-full grid grid-cols-1 md:grid-cols-2 border-[#0E2A47]/20"
+      }>
         
         {/* Visual Brand Panel Left */}
-        <div className={`transition-all duration-1000 p-8 md:p-12 text-white flex flex-col justify-between relative overflow-hidden ${
-          customRegisterMode 
-            ? 'bg-gradient-to-r from-[#213547] via-[#094d4a] via-[#1e1b4b] via-[#0284c7] via-[#0d9488] to-[#213547] animate-progressive shadow-lg' 
-            : 'bg-gradient-to-br from-[#344D67] to-[#1E2E3E]'
-        }`}>
-          <div className="absolute top-0 right-0 w-64 h-64 bg-teal-400/10 rounded-full blur-2xl transform translate-x-16 -translate-y-16" />
-          <div className="absolute bottom-0 left-0 w-48 h-48 bg-emerald-400/5 rounded-full blur-2xl transform -translate-x-12 translate-y-12" />
-          
-          <div className="relative">
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 backdrop-blur-sm rounded-full text-xs font-semibold text-[#6ECCAF] mb-6">
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Tu Próxima Estancia de Ensueño</span>
+        {!onlyForm && (
+          <div className="transition-all duration-500 p-8 md:p-12 text-white flex flex-col justify-between relative overflow-hidden bg-gradient-to-b from-[#071726] to-[#0E2A47]">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-[#23B4E6]/10 rounded-full blur-2xl transform translate-x-16 -translate-y-16" />
+            <div className="absolute bottom-0 left-0 w-48 h-48 bg-[#23B4E6]/5 rounded-full blur-2xl transform -translate-x-12 translate-y-12" />
+            
+            <div className="relative z-10 flex flex-col h-full justify-between gap-12">
+              <div className="space-y-4 my-auto">
+                <h1 className="text-2xl md:text-3xl font-serif font-black tracking-tight leading-tight text-white">
+                  Encuentra el Hospedaje Perfecto para ti 🏨✨
+                </h1>
+                <p className="text-[#A8B2BD] text-xs md:text-sm leading-relaxed font-sans font-medium">
+                  Reserva con total confianza, disfruta de confirmación al instante, accede a los mejores hoteles del país y vive una experiencia de hospedaje premium con Roomia PMS.
+                </p>
+              </div>
             </div>
-            <h1 className="text-3xl md:text-4xl font-display font-extrabold tracking-tight leading-tight">
-              Encuentra el Hospedaje Perfecto para ti 🏨✨
-            </h1>
-            <p className="text-neutral-200 text-xs md:text-sm mt-4 leading-relaxed font-sans">
-              Reserva con total confianza, disfruta de confirmación al instante, accede a los mejores hoteles de la región y vive una experiencia de viaje inolvidable con atención premium personalizada.
-            </p>
           </div>
-        </div>
+        )}
 
         {/* Interactable Login Panel Right */}
-        <div className="p-8 md:p-12 flex flex-col justify-center bg-white relative">
+        <div className={onlyForm 
+          ? "p-4 flex flex-col justify-center bg-white relative"
+          : "p-8 md:p-12 flex flex-col justify-center bg-[#F8FAFB] relative border-l border-[#0E2A47]/10"
+        }>
           
           <AnimatePresence mode="wait">
             {recoveryMode ? (
@@ -616,8 +510,8 @@ export default function LoginView({
 
                 {/* Simulated Loading Overlay */}
                 {loadingType === 'email' && (
-                  <div className="p-6 bg-[#F8FAFC] border border-[#E2E8F0] rounded-2xl flex flex-col items-center justify-center text-center space-y-3 animate-pulse">
-                    <Loader2 className="w-8 h-8 text-teal-600 animate-spin" />
+                  <div className="p-6 bg-[#F8FAFB] border border-[#0E2A47]/15 rounded-2xl flex flex-col items-center justify-center text-center space-y-3 animate-pulse">
+                    <Loader2 className="w-8 h-8 text-brand-cyan animate-spin" />
                     <div>
                       <p className="font-semibold text-xs text-neutral-800">
                         Buscando credenciales en la base de datos...
@@ -637,7 +531,7 @@ export default function LoginView({
                       Hemos enviado las instrucciones de recuperación a <span className="font-semibold">{recoveryEmail.trim()}</span> con tu nueva clave de acceso de uso exclusivo.
                     </p>
                     <div className="bg-white p-4 rounded-xl border border-emerald-200/80 space-y-2.5 font-sans shadow-sm">
-                      <p className="text-[10px] uppercase tracking-wider font-bold text-teal-700">🔐 Acceso Seguro Garantizado</p>
+                      <p className="text-[10px] uppercase tracking-wider font-bold text-[#0E2A47]">🔐 Acceso Seguro Garantizado</p>
                       <p className="text-neutral-600 text-[11px] leading-relaxed">
                         Por motivos de privacidad, tu contraseña no se muestra directamente en la pantalla.
                       </p>
@@ -655,7 +549,7 @@ export default function LoginView({
                         setRecoveryEmail('');
                         setRecoveredPassword('');
                       }}
-                      className="w-full mt-2 py-2 bg-[#344D67] hover:bg-[#1E2E3E] text-[#6ECCAF] text-xs font-bold rounded-xl transition-all cursor-pointer text-center"
+                      className="w-full mt-2 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl border border-slate-700 transition-all cursor-pointer text-center active:scale-95"
                     >
                       Volver al Inicio de Sesión
                     </button>
@@ -675,7 +569,7 @@ export default function LoginView({
                           placeholder="ejemplo@correo.com"
                           value={recoveryEmail}
                           onChange={(e) => setRecoveryEmail(e.target.value)}
-                          className="w-full text-xs font-medium border border-neutral-200 rounded-xl py-3 pl-10 pr-4 focus:ring-1 focus:ring-teal-600 focus:outline-none transition-all"
+                          className="w-full text-xs font-medium border border-neutral-200 rounded-xl py-3 pl-10 pr-4 focus:ring-1 focus:ring-[#23B4E6] focus:outline-none transition-all"
                         />
                         <Mail className="absolute left-3.5 top-3.5 w-4.5 h-4.5 text-neutral-400" />
                       </div>
@@ -695,7 +589,7 @@ export default function LoginView({
                       </button>
                       <button
                         type="submit"
-                        className="w-2/3 py-3 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl transition-all shadow-md hover:shadow-lg text-center cursor-pointer active:scale-95"
+                        className="w-2/3 py-3 bg-brand-cyan hover:bg-[#3fc2f0] text-[#071726] text-xs font-bold rounded-xl transition-all shadow-md hover:shadow-lg text-center cursor-pointer active:scale-95"
                       >
                         Enviar Correo de Recuperación
                       </button>
@@ -719,7 +613,7 @@ export default function LoginView({
                         ¡Bienvenido a tu Experiencia Elite! 👋
                       </h2>
                       <p className="text-xs text-neutral-400 mt-1.5 leading-relaxed">
-                        Inicia sesión para gestionar tus reservas vigentes, contratar servicios o explorar increíbles suites boutique disponibles para ti.
+                        Inicia sesión para gestionar tus reservas vigentes, ser anfitrión o explorar increíbles suites boutique disponibles para ti.
                       </p>
                     </div>
 
@@ -736,7 +630,7 @@ export default function LoginView({
                 {/* Simulated Loading Overlay */}
                 {loadingType && (
                   <div className="p-6 bg-[#F8FAFC] border border-[#E2E8F0] rounded-2xl flex flex-col items-center justify-center text-center space-y-3">
-                    <Loader2 className="w-8 h-8 text-teal-600 animate-spin" />
+                    <Loader2 className="w-8 h-8 text-brand-cyan animate-spin" />
                     <div>
                       <p className="font-semibold text-xs text-neutral-800">
                         {loadingType === 'google' 
@@ -752,7 +646,7 @@ export default function LoginView({
                   <>
                     <form onSubmit={handleEmailSubmit} className="space-y-4">
                       <div>
-                        <label className="text-xs font-semibold text-neutral-500 block mb-1.5">
+                        <label className="text-xs font-semibold text-neutral-500 block mb-1.5 font-sans">
                           Correo Electrónico / Gmail
                         </label>
                         <div className="relative">
@@ -762,26 +656,33 @@ export default function LoginView({
                             placeholder="ejemplo@correo.com"
                             value={emailInput}
                             onChange={(e) => setEmailInput(e.target.value)}
-                            className="w-full text-xs font-medium border border-neutral-200 rounded-xl py-3 pl-10 pr-4 focus:ring-1 focus:ring-[#344D67] focus:outline-none transition-all"
+                            className="w-full text-xs font-medium border border-[#0E2A47]/20 rounded-xl py-3 pl-10 pr-4 bg-white focus:ring-1 focus:ring-[#23B4E6] focus:border-[#23B4E6] focus:outline-none transition-all text-[#071726]"
                           />
-                          <Mail className="absolute left-3.5 top-3.5 w-4.5 h-4.5 text-neutral-400" />
+                          <Mail className="absolute left-3.5 top-3.5 w-4.5 h-4.5 text-[#A8B2BD]" />
                         </div>
                       </div>
 
                       <div>
-                        <label className="text-xs font-semibold text-neutral-500 block mb-1.5">
+                        <label className="text-xs font-semibold text-neutral-500 block mb-1.5 font-sans">
                           Contraseña
                         </label>
                         <div className="relative">
                           <input
-                            type="password"
+                            type={showPassword ? "text" : "password"}
                             required
                             placeholder="••••••••"
                             value={passwordInput}
                             onChange={(e) => setPasswordInput(e.target.value)}
-                            className="w-full text-xs font-medium border border-neutral-200 rounded-xl py-3 pl-10 pr-4 focus:ring-1 focus:ring-[#344D67] focus:outline-none transition-all"
+                            className="w-full text-xs font-medium border border-[#0E2A47]/20 rounded-xl py-3 pl-10 pr-12 bg-white focus:ring-1 focus:ring-[#23B4E6] focus:border-[#23B4E6] focus:outline-none transition-all text-[#071726]"
                           />
-                          <KeyRound className="absolute left-3.5 top-3.5 w-4.5 h-4.5 text-neutral-400" />
+                          <KeyRound className="absolute left-3.5 top-3.5 w-4.5 h-4.5 text-[#A8B2BD]" />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-3.5 top-3.5 p-0.5 text-neutral-500 hover:text-neutral-700 cursor-pointer"
+                          >
+                            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
                         </div>
                         <div className="text-right mt-1.5">
                           <button
@@ -792,7 +693,7 @@ export default function LoginView({
                               setRecoveryEmail(emailInput);
                               setRecoverySuccess(false);
                             }}
-                            className="text-xs text-teal-600 hover:text-teal-700 hover:underline font-semibold cursor-pointer"
+                            className="text-xs text-[#0E2A47] hover:text-[#23B4E6] hover:underline font-semibold cursor-pointer transition-colors"
                           >
                             ¿Olvidaste tu contraseña?
                           </button>
@@ -801,7 +702,7 @@ export default function LoginView({
 
                       <button
                         type="submit"
-                        className="w-full py-3 bg-[#344D67] hover:bg-[#1E2E3E] text-[#6ECCAF] text-xs font-bold rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 group cursor-pointer"
+                        className="w-full py-3 bg-[#0E2A47] hover:bg-[#133A62] text-white text-xs font-bold rounded-xl border border-brand-cyan/20 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 group cursor-pointer active:scale-95 text-center"
                       >
                         <span>Iniciar Sesión</span>
                         <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
@@ -827,7 +728,7 @@ export default function LoginView({
                             setIsGoogleAuthMode(false);
                             setCustomRegisterMode(true);
                           }}
-                          className="font-bold text-teal-600 hover:text-teal-700 underline cursor-pointer"
+                          className="font-bold text-[#0E2A47] hover:text-[#23B4E6] underline cursor-pointer transition-colors"
                         >
                           Registrar nuevo usuario aquí
                         </button>
@@ -848,7 +749,7 @@ export default function LoginView({
                 {verificationPending ? (
                   <div className="space-y-6">
                     <div className="text-center space-y-2">
-                      <div className="w-12 h-12 bg-teal-50 border border-teal-200 rounded-2xl flex items-center justify-center mx-auto text-teal-600 shadow-sm">
+                      <div className="w-12 h-12 bg-indigo-50/10 border border-brand-cyan/20 rounded-2xl flex items-center justify-center mx-auto text-brand-cyan shadow-sm">
                         <Mail className="w-6 h-6 animate-bounce" />
                       </div>
                       <h3 className="text-xl font-bold text-neutral-800">Confirma tu Correo</h3>
@@ -912,7 +813,7 @@ export default function LoginView({
                         <button
                           type="button"
                           onClick={handleResendEmailVerification}
-                          className="w-1/2 py-2.5 bg-teal-50 hover:bg-teal-100 text-teal-800 text-xs font-semibold rounded-xl transition-all cursor-pointer"
+                          className="w-1/2 py-2.5 bg-brand-cyan/10 hover:bg-brand-cyan/20 text-[#23B4E6] text-xs font-semibold rounded-xl transition-all cursor-pointer border border-brand-cyan/15"
                         >
                           Reenviar Correo
                         </button>
@@ -922,16 +823,25 @@ export default function LoginView({
                 ) : (
                   <>
                     <div>
-                      <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-bold mb-2">
-                        🌟 CLUB DE VIAJEROS DE ENSUEÑO
-                      </div>
                       <h3 className="text-xl font-bold text-neutral-800">Regístrate y Viaja de Forma Única ✨</h3>
                       <p className="text-xs text-neutral-400 mt-1">
                         Crea tu cuenta en minutos para reservar al instante, acceder a mejores tarifas y gestionar tus próximas estancias con total facilidad desde un solo lugar.
                       </p>
                     </div>
 
+                    {errorMsg && (
+                      <div className="bg-red-50 border border-red-200 text-red-700 px-3.5 py-2.5 rounded-xl text-xs flex items-center gap-1.5 font-sans justify-center select-none">
+                        <ShieldAlert className="w-4 h-4 shrink-0 text-red-650" />
+                        <span>{errorMsg}</span>
+                      </div>
+                    )}
 
+                    {successMsg && (
+                      <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-3.5 py-2.5 rounded-xl text-xs flex items-center gap-1.5 font-sans justify-center select-none animate-pulse">
+                        <Check className="w-4 h-4 shrink-0 text-emerald-600" />
+                        <span>{successMsg}</span>
+                      </div>
+                    )}
 
                     <form onSubmit={handleCustomRegister} className="space-y-3">
                       <div>
@@ -998,14 +908,21 @@ export default function LoginView({
                         <label className="text-[10px] uppercase font-bold text-neutral-400 block mb-1">Define tu Contraseña</label>
                         <div className="relative">
                           <input
-                            type="password"
+                            type={showRegisterPassword ? "text" : "password"}
                             required
                             placeholder="••••••••"
                             value={newPassword}
                             onChange={(e) => setNewPassword(e.target.value)}
-                            className="w-full text-xs border border-neutral-200 rounded-lg p-2.5 pl-10 focus:outline-none focus:ring-1 focus:ring-[#344D67]"
+                            className="w-full text-xs border border-neutral-200 rounded-lg p-2.5 pl-10 pr-10 focus:outline-none focus:ring-1 focus:ring-[#344D67]"
                           />
                           <KeyRound className="absolute left-3 top-3 w-4 h-4 text-neutral-400" />
+                          <button
+                            type="button"
+                            onClick={() => setShowRegisterPassword(!showRegisterPassword)}
+                            className="absolute right-3 top-2.5 p-1 hover:bg-neutral-100 rounded-full cursor-pointer text-neutral-400 hover:text-neutral-600 transition-colors"
+                          >
+                            {showRegisterPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
                         </div>
                       </div>
 
@@ -1022,9 +939,17 @@ export default function LoginView({
                         </button>
                         <button
                           type="submit"
-                          className="w-2/3 py-2.5 bg-[#344D67] hover:bg-[#1E2E3E] text-[#6ECCAF] text-xs font-bold rounded-xl transition-all shadow-md cursor-pointer text-center"
+                          disabled={loadingType === 'email'}
+                          className="w-2/3 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl border border-slate-700 transition-all shadow-md cursor-pointer text-center flex items-center justify-center gap-1.5 disabled:opacity-50 active:scale-95"
                         >
-                          Completar Registro
+                          {loadingType === 'email' ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              <span>Registrando...</span>
+                            </>
+                          ) : (
+                            <span>Completar Registro</span>
+                          )}
                         </button>
                       </div>
                     </form>

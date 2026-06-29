@@ -919,6 +919,12 @@ export default function ReceptionView({
             activeUser={activeUser}
             onUpdateRoomStatus={onUpdateRoomStatus}
             roomPriceVariations={roomPriceVariations}
+            checkInDate={bookCheckIn}
+            checkOutDate={bookCheckOut}
+            setCheckInDate={setBookCheckIn}
+            setCheckOutDate={setBookCheckOut}
+            isAlquiler={receptionistHotel && (receptionistHotel.tipoEstablecimiento === 'casa' || receptionistHotel.tipoEstablecimiento === 'departamento') && receptionistHotel.finalidad === 'alquiler'}
+            forceRoomId={bookRoomId || undefined}
           />
         </div>
 

@@ -5,6 +5,7 @@
 
 import { useState, useEffect, FormEvent } from 'react';
 import { useHotelStore, compressImage } from './store';
+import { supabase } from './supabase';
 import ClientView from './components/ClientView';
 import ReceptionView from './components/ReceptionView';
 import SupportChatDrawer from './components/SupportChatDrawer';
@@ -12,7 +13,9 @@ import AdminView from './components/AdminView';
 import LoginView from './components/LoginView';
 import LandingPageView from './components/LandingPageView';
 import LegalPageView, { LegalDocType } from './components/LegalPageView';
-import { LayoutDashboard, Users, User as UserIcon, CalendarDays, KeyRound, Star, Sparkles, Building2, ShieldAlert, LogOut, Edit3, Camera, Check, X, Shield, AlertCircle } from 'lucide-react';
+import { InteractiveContainer } from './components/InteractiveContainer';
+import { BrandLogo } from './components/BrandLogo';
+import { LayoutDashboard, Users, User as UserIcon, CalendarDays, KeyRound, Star, Sparkles, Building2, ShieldAlert, LogOut, Edit3, Camera, Check, X, Shield, AlertCircle, Eye, EyeOff, Briefcase, LogIn, Key } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function App() {
@@ -34,6 +37,7 @@ export default function App() {
     updateRoomStatus,
     updateUserRole,
     updateUserHotel,
+    updateUserHotels,
     toggleUserStatus,
     registerUser,
     updateUserProfile,
@@ -66,9 +70,24 @@ export default function App() {
     }
   });
 
-  const [showLandingPage, setShowLandingPage] = useState(isLoggedOut);
+  const [showLandingPage, setShowLandingPage] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showFullLoginScreen, setShowFullLoginScreen] = useState(false);
   const [openHotelId, setOpenHotelId] = useState<string | null>(null);
   const [viewOverride, setViewOverride] = useState<'admin' | 'reception' | null>(null);
+
+  const guestUser = {
+    id: 'guest',
+    nombre: 'Invitado',
+    apellido: '',
+    email: 'invitado@roomia.com',
+    telefono: '',
+    documento: '',
+    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=facearea&facepad=2&q=80',
+    rol: 'cliente' as const,
+    fechaRegistro: '2026-06-29',
+    estado: 'activo' as const
+  };
 
   // Legal documentation active routing state
   const [activeLegalDoc, setActiveLegalDoc] = useState<LegalDocType | null>(() => {
@@ -124,10 +143,9 @@ export default function App() {
     const INACTIVITY_LIMIT_MS = 15 * 60 * 1000; // 15 minutes
     let inactivityTimer: any;
 
-    const performAutomaticLogout = () => {
+    const performAutomaticLogout = async () => {
       console.log("⏱️ Sesión expirada por inactividad (15 minutos). Cerrando sesión...");
-      localStorage.removeItem('aura_hotel_pms_current_user_id');
-      window.location.reload();
+      await handleLogout();
     };
 
     const resetInactivityTimer = () => {
@@ -157,6 +175,36 @@ export default function App() {
     };
   }, [isLoggedOut, activeUser]);
 
+  // Custom non-blocking safe toasts/alerts state
+  const [toasts, setToasts] = useState<{ id: string; message: string; type?: 'info' | 'success' | 'warning' }[]>([]);
+
+  useEffect(() => {
+    const handleAlertEvent = (e: Event) => {
+      const customEvent = e as CustomEvent<{ message: string }>;
+      const message = customEvent.detail?.message || '';
+      if (!message) return;
+
+      const id = Math.random().toString(36).substring(2, 9);
+      // Try to determine toast type based on text content
+      let type: 'info' | 'success' | 'warning' = 'info';
+      if (message.includes('✅') || message.toLowerCase().includes('éxito') || message.toLowerCase().includes('exitosamente')) {
+        type = 'success';
+      } else if (message.includes('⚠️') || message.includes('❌') || message.toLowerCase().includes('error') || message.toLowerCase().includes('alerta')) {
+        type = 'warning';
+      }
+
+      setToasts(prev => [...prev, { id, message, type }]);
+
+      // Auto-remove toast after 4.5 seconds
+      setTimeout(() => {
+        setToasts(prev => prev.filter(t => t.id !== id));
+      }, 4500);
+    };
+
+    window.addEventListener('aura-toast', handleAlertEvent);
+    return () => window.removeEventListener('aura-toast', handleAlertEvent);
+  }, []);
+
   // Profile Edit Modal States
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [profileNombre, setProfileNombre] = useState('');
@@ -174,6 +222,11 @@ export default function App() {
   const [forcedPassSuccess, setForcedPassSuccess] = useState('');
   const [forcedPassError, setForcedPassError] = useState('');
 
+  // Password visibility state toggles
+  const [showProfilePass, setShowProfilePass] = useState(false);
+  const [showForcedPass, setShowForcedPass] = useState(false);
+  const [showForcedConfirmPass, setShowForcedConfirmPass] = useState(false);
+
   const PRESET_AVATARS = [
     { url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=facearea&facepad=2&q=80', label: 'Invitado Sophisticated' },
     { url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=facearea&facepad=2&q=80', label: 'Viajero Moderno' },
@@ -184,6 +237,26 @@ export default function App() {
     { url: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=facearea&facepad=2&q=80', label: 'Creador Digital' },
     { url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=facearea&facepad=2&q=80', label: 'Socio de Negocios' }
   ];
+
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.warn('⚠️ Supabase signOut error:', err);
+    }
+    // Purge local storage current user ID
+    localStorage.removeItem('aura_hotel_pms_current_user_id');
+    // Clear any potential pending draft registration data
+    localStorage.removeItem('aura_hotel_pms_pending_draft_user');
+    
+    // Switch the session in the store to empty string to reset activeUser state to null
+    switchSessionUser('');
+    
+    setIsLoggedOut(true);
+    setShowLandingPage(false);
+    setShowFullLoginScreen(false);
+    setShowAuthModal(false);
+  };
 
   const openProfileModal = () => {
     setProfileNombre(activeUser.nombre);
@@ -243,77 +316,66 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#fafafa] flex flex-col font-sans selection:bg-teal-500 selection:text-neutral-900">
+    <div className="min-h-screen bg-[#F8FAFB] flex flex-col font-sans selection:bg-brand-cyan selection:text-[#071726]">
       
       {/* 2. Global application Header */}
       {!showLandingPage && (
-        <header className="bg-white border-b border-neutral-100 shadow-sm print:hidden">
-          <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+        <header className="bg-[#0E2A47] border-b border-brand-cyan/25 shadow-md print:hidden">
+          <div className="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between">
             
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-teal-600 text-white flex items-center justify-center font-display font-black text-xl shadow-md cursor-pointer hover:scale-105 transition-transform">
-                R
-              </div>
-              <div>
-                <span className="font-display font-bold text-neutral-800 text-lg tracking-tight flex items-center gap-1">
-                  Roomia <span className="text-teal-600">PMS</span>
-                </span>
-                <p className="text-[9px] text-neutral-400 font-mono leading-none tracking-wider font-semibold uppercase">Multi-Hotel PMS Platform</p>
-              </div>
+            <div className="flex items-center gap-2.5 navbar-logo-container">
+              <BrandLogo size="lg" showText={true} lightText={true} />
             </div>
 
             {/* Current Persona signature badge */}
             {!isLoggedOut ? (
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
                 {(activeUser.rol === 'hotel_admin' || activeUser.rol === 'super_admin') && (
                   <button
                     onClick={() => {
                       setViewOverride(prev => prev === 'reception' ? 'admin' : 'reception');
                     }}
-                    className="px-3 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-700 hover:text-teal-850 rounded-xl transition-all border border-teal-200 cursor-pointer text-xs font-bold flex items-center gap-1.5 active:scale-95 shadow-sm font-sans"
+                    className="h-10 px-3 bg-[#071726] hover:bg-[#0c263d] text-brand-cyan border border-brand-cyan/25 hover:border-brand-cyan/50 rounded-xl transition-all cursor-pointer text-xs font-bold flex items-center gap-2 active:scale-95 shadow-sm font-sans"
                     title="Alternar entre panel de control administrativo y panel de recepcionista operativo"
                   >
                     {viewOverride === 'reception' ? (
                       <>
-                        <span>💼 Modulo Admin</span>
+                        <span>💼</span>
+                        <span className="hidden sm:inline">Módulo Admin</span>
                       </>
                     ) : (
                       <>
-                        <span>🛎️ Recepción (Check-In)</span>
+                        <span>🛎️</span>
+                        <span className="hidden sm:inline">Recepción (Check-In)</span>
                       </>
                     )}
                   </button>
                 )}
                 <button
                   onClick={openProfileModal}
-                  className="flex items-center gap-3 bg-neutral-50 hover:bg-neutral-100 px-3.5 py-1.5 rounded-2xl border border-neutral-200 shadow-inner group transition-all text-left cursor-pointer relative"
+                  className="h-10 px-3 bg-[#071726] hover:bg-[#0c263d] text-white border border-brand-cyan/25 hover:border-brand-cyan/50 rounded-xl transition-all cursor-pointer text-xs font-bold flex items-center gap-3 active:scale-95 shadow-sm font-sans group"
                   title="Haga clic para editar sus datos personales y de contacto o cambiar la foto de su perfil"
                 >
                   <div className="text-right hidden sm:block">
-                    <span className="font-semibold text-neutral-800 text-xs block leading-tight group-hover:text-teal-700 transition-colors">{activeUser.nombre} {activeUser.apellido}</span>
-                    <span className="text-[9px] text-[#344D67] font-semibold capitalize block">{activeUser.rol.replace('_', ' ')}</span>
+                    <span className="font-semibold text-white text-xs block leading-none group-hover:text-brand-cyan transition-colors">{activeUser.nombre} {activeUser.apellido}</span>
                   </div>
                   <div className="relative">
-                    <img
+                     <img
                       src={activeUser.avatar}
                       alt={activeUser.nombre}
-                      className="w-8 h-8 rounded-full border border-neutral-200 shrink-0 shadow group-hover:scale-105 transition-transform"
+                      className="w-7 h-7 rounded-full border border-brand-cyan/30 shrink-0 shadow group-hover:scale-105 transition-transform"
                     />
-                    <div className="absolute -bottom-1 -right-1 bg-teal-600 text-white rounded-full p-0.5 border border-white shadow scale-90 group-hover:scale-100 transition-transform">
+                    <div className="absolute -bottom-1 -right-1 bg-brand-cyan text-[#071726] rounded-full p-0.5 border border-[#0E2A47] shadow scale-90 group-hover:scale-100 transition-transform">
                       <Edit3 className="w-2 h-2" />
                     </div>
                   </div>
                 </button>
                 <button
-                  onClick={() => {
-                    localStorage.removeItem('aura_hotel_pms_current_user_id');
-                    setIsLoggedOut(true);
-                    setShowLandingPage(true);
-                  }}
+                  onClick={handleLogout}
                   title="Cerrar Sesión"
-                  className="px-3.5 py-2 bg-red-50 hover:bg-red-100 text-red-650 hover:text-red-700 rounded-xl transition-all border border-red-200 cursor-pointer text-xs font-semibold flex items-center gap-1.5 active:scale-95 shadow-sm"
+                  className="h-10 px-3 bg-red-950/40 hover:bg-red-900/40 text-red-300 hover:text-red-250 border border-red-900/40 hover:border-red-800/50 rounded-xl transition-all cursor-pointer text-xs font-bold flex items-center gap-2 active:scale-95 shadow-sm font-sans"
                 >
-                  <LogOut className="w-3.5 h-3.5" />
+                  <LogOut className="w-3.5 h-3.5 text-red-300" />
                   <span className="hidden sm:inline">Cerrar Sesión</span>
                 </button>
               </div>
@@ -321,11 +383,21 @@ export default function App() {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowLandingPage(true)}
-                  className="bg-teal-600 hover:bg-teal-700 text-white font-bold py-1.5 px-3.5 rounded-xl text-xs transition-colors cursor-pointer flex items-center gap-1 shadow-sm active:scale-95 shrink-0"
+                  onClick={() => setShowFullLoginScreen(true)}
+                  className="px-3.5 py-2.5 sm:px-4 bg-brand-cyan hover:bg-[#2fc4f7] text-[#071726] text-xs font-bold rounded-xl transition-all shadow-md shadow-brand-cyan/10 flex items-center gap-2 cursor-pointer hover:scale-[1.03] active:scale-95 shrink-0"
+                  title="Iniciar Sesión"
                 >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>contratanos</span>
+                  <Key className="w-4 h-4 text-[#071726]" />
+                  <span className="hidden sm:inline">Iniciar Sesión</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowLandingPage(true)}
+                  className="px-3.5 py-2.5 sm:px-4 bg-[#0E2A47] hover:bg-[#133A62] border border-brand-cyan/30 text-white text-xs font-semibold rounded-xl transition-all shadow-md shadow-brand-cyan/5 flex items-center gap-2 cursor-pointer hover:scale-[1.03] active:scale-95 shrink-0"
+                  title="Ser Anfitrión"
+                >
+                  <span className="text-sm">💼</span>
+                  <span className="hidden sm:inline">Ser Anfitrión</span>
                 </button>
               </div>
             )}
@@ -335,52 +407,67 @@ export default function App() {
       )}
 
       {/* 3. Panel Container with responsive grid animations */}
-      <main className="flex-1 pb-16">
-        <AnimatePresence mode="wait">
-          {isLoggedOut ? (
-            showLandingPage ? (
-              <LandingPageView 
-                onClose={() => setShowLandingPage(false)} 
-                onOpenLegal={(type) => {
-                  window.history.pushState(null, '', type === 'terminos' ? '/terminos-y-condiciones' : type === 'privacidad' ? '/politica-de-privacidad' : '/politica-de-cancelaciones-y-reembolsos');
-                  setActiveLegalDoc(type);
-                }}
-              />
-            ) : (
-              <motion.div
-                key="login-screen-view"
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -15 }}
-                transition={{ duration: 0.25 }}
-              >
-                <LoginView
-                  users={users}
-                  onLoginSuccess={(uid, fetchedUser) => {
-                    switchSessionUser(uid, fetchedUser);
-                    setIsLoggedOut(false);
-                  }}
-                  onRegisterUser={registerUser}
-                  onShowLanding={() => setShowLandingPage(true)}
-                />
-              </motion.div>
-            )
-          ) : (
+      {showLandingPage ? (
+        <main className="flex-1">
+          <AnimatePresence mode="wait">
+            <LandingPageView 
+              onClose={() => setShowLandingPage(false)} 
+              onOpenLegal={(type) => {
+                window.history.pushState(null, '', type === 'terminos' ? '/terminos-y-condiciones' : type === 'privacidad' ? '/politica-de-privacidad' : '/politica-de-cancelaciones-y-reembolsos');
+                setActiveLegalDoc(type);
+              }}
+            />
+          </AnimatePresence>
+        </main>
+      ) : showFullLoginScreen ? (
+        <main className="flex-1 pb-16">
+          <AnimatePresence mode="wait">
             <motion.div
-              key={activeUser.id}
+              key="login-screen-view"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              transition={{ duration: 0.25 }}
+            >
+              <div className="max-w-4xl mx-auto px-4 mt-6">
+                <button
+                  type="button"
+                  onClick={() => setShowFullLoginScreen(false)}
+                  className="mb-4 px-4 py-2 bg-neutral-200 hover:bg-neutral-350 text-neutral-800 text-xs font-bold rounded-xl transition-all cursor-pointer inline-flex items-center gap-2 active:scale-95"
+                >
+                  ← Regresar al Catálogo de Hoteles
+                </button>
+              </div>
+              <LoginView
+                users={users}
+                onLoginSuccess={(uid, fetchedUser) => {
+                  switchSessionUser(uid, fetchedUser);
+                  setIsLoggedOut(false);
+                  setShowFullLoginScreen(false);
+                }}
+                onRegisterUser={registerUser}
+                onShowLanding={() => setShowFullLoginScreen(false)}
+              />
+            </motion.div>
+          </AnimatePresence>
+        </main>
+      ) : (
+        <main className="flex-1 pb-16">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={isLoggedOut ? 'guest-view' : activeUser.id}
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -15 }}
               transition={{ duration: 0.25, ease: 'easeInOut' }}
             >
-              {/* ROLE DISPATCHER ROUTING */}
-              {activeUser.rol === 'cliente' && (
+              {isLoggedOut ? (
                 <ClientView
                   hotels={hotels}
                   rooms={rooms}
                   reservations={reservations}
                   users={users}
-                  activeUser={activeUser}
+                  activeUser={guestUser}
                   onCreateReservation={createReservation}
                   onCancelReservation={cancelReservation}
                   onDeleteReservation={deleteReservation}
@@ -390,94 +477,156 @@ export default function App() {
                   reviews={reviews}
                   onSubmitReview={submitReview}
                   roomPriceVariations={roomPriceVariations}
+                  onTriggerLogin={() => setShowFullLoginScreen(true)}
+                  onTriggerBookingAuth={() => setShowAuthModal(true)}
                 />
-              )}
+              ) : (
+                <>
+                  {/* ROLE DISPATCHER ROUTING */}
+                  {activeUser.rol === 'cliente' && (
+                    <ClientView
+                      hotels={hotels}
+                      rooms={rooms}
+                      reservations={reservations}
+                      users={users}
+                      activeUser={activeUser}
+                      onCreateReservation={createReservation}
+                      onCancelReservation={cancelReservation}
+                      onDeleteReservation={deleteReservation}
+                      transactions={transactions}
+                      onAddPaymentTransaction={addPaymentTransaction}
+                      onOpenHotelChange={setOpenHotelId}
+                      reviews={reviews}
+                      onSubmitReview={submitReview}
+                      roomPriceVariations={roomPriceVariations}
+                    />
+                  )}
 
-              {(activeUser.rol === 'recepcionista' || ((activeUser.rol === 'hotel_admin' || activeUser.rol === 'super_admin') && viewOverride === 'reception')) && (
-                <ReceptionView
-                  hotels={hotels}
-                  rooms={rooms}
-                  reservations={reservations}
-                  activeUser={activeUser}
-                  onPerformCheckIn={store.performCheckIn}
-                  onPerformCheckOut={store.performCheckOut}
-                  onUpdateRoomStatus={updateRoomStatus}
-                  onUpdateReservationStatus={updateReservationStatus}
-                  users={users}
-                  onAddLog={handleAddLogSimulated}
-                  onCreateReservation={createReservation}
-                  onRegisterUser={registerUser}
-                  roomPriceVariations={roomPriceVariations}
-                />
-              )}
+                  {(activeUser.rol === 'recepcionista' || ((activeUser.rol === 'hotel_admin' || activeUser.rol === 'super_admin') && viewOverride === 'reception')) && (
+                    <ReceptionView
+                      hotels={hotels}
+                      rooms={rooms}
+                      reservations={reservations}
+                      activeUser={activeUser}
+                      onPerformCheckIn={store.performCheckIn}
+                      onPerformCheckOut={store.performCheckOut}
+                      onUpdateRoomStatus={updateRoomStatus}
+                      onUpdateReservationStatus={updateReservationStatus}
+                      users={users}
+                      onAddLog={handleAddLogSimulated}
+                      onCreateReservation={createReservation}
+                      onRegisterUser={registerUser}
+                      roomPriceVariations={roomPriceVariations}
+                    />
+                  )}
 
-              {((activeUser.rol === 'hotel_admin' || activeUser.rol === 'super_admin') && viewOverride !== 'reception') && (
-                <AdminView
-                  hotels={hotels}
-                  rooms={rooms}
-                  users={users}
-                  reservations={reservations}
-                  logs={logs}
-                  activeUser={activeUser}
-                  onSaveHotel={saveHotel}
-                  onDeleteHotel={deleteHotel}
-                  onSaveRoom={saveRoom}
-                  onDeleteRoom={deleteRoom}
-                  onUpdateUserRole={updateUserRole}
-                  onUpdateUserHotel={updateUserHotel}
-                  onToggleUserStatus={toggleUserStatus}
-                  onChangeUserPassword={changeUserPassword}
-                  statistics={stats}
-                  onUpdateRoomStatus={updateRoomStatus}
-                  onUpdateReservationStatus={updateReservationStatus}
-                  onSyncAllToSupabase={store.syncAllToSupabase}
-                  reviews={reviews}
-                  roomPriceVariations={roomPriceVariations}
-                  onSaveRoomPriceVariation={saveRoomPriceVariation}
-                  onDeleteRoomPriceVariation={deleteRoomPriceVariation}
-                />
+                  {((activeUser.rol === 'hotel_admin' || activeUser.rol === 'super_admin') && viewOverride !== 'reception') && (
+                    <AdminView
+                      hotels={hotels}
+                      rooms={rooms}
+                      users={users}
+                      reservations={reservations}
+                      logs={logs}
+                      activeUser={activeUser}
+                      onSaveHotel={saveHotel}
+                      onDeleteHotel={deleteHotel}
+                      onSaveRoom={saveRoom}
+                      onDeleteRoom={deleteRoom}
+                      onUpdateUserRole={updateUserRole}
+                      onUpdateUserHotel={updateUserHotel}
+                      onUpdateUserHotels={updateUserHotels}
+                      onToggleUserStatus={toggleUserStatus}
+                      onChangeUserPassword={changeUserPassword}
+                      statistics={stats}
+                      onUpdateRoomStatus={updateRoomStatus}
+                      onUpdateReservationStatus={updateReservationStatus}
+                      onSyncAllToSupabase={store.syncAllToSupabase}
+                      reviews={reviews}
+                      roomPriceVariations={roomPriceVariations}
+                      onSaveRoomPriceVariation={saveRoomPriceVariation}
+                      onDeleteRoomPriceVariation={deleteRoomPriceVariation}
+                    />
+                  )}
+                </>
               )}
             </motion.div>
-          )}
-        </AnimatePresence>
-      </main>
+          </AnimatePresence>
+        </main>
+      )}
+
+      {/* AUTHENTICATION OVERLAY MODAL FOR GUEST CHECKOUT/BOOKINGS */}
+      {showAuthModal && (
+        <div className="fixed inset-0 bg-neutral-950/70 z-50 flex items-center justify-center p-4 overflow-y-auto backdrop-blur-sm animate-fade-in print:hidden">
+          <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-neutral-100 overflow-hidden animate-scale-up">
+            <button
+              type="button"
+              onClick={() => setShowAuthModal(false)}
+              className="absolute top-4 right-4 text-neutral-400 hover:text-neutral-700 p-2 rounded-full hover:bg-neutral-100 transition-colors z-50 cursor-pointer"
+              title="Cerrar"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <div className="max-h-[85vh] overflow-y-auto p-4 md:p-6">
+              <div className="text-center mb-4 mt-2">
+                <p className="text-xs text-teal-600 font-bold uppercase tracking-widest bg-teal-50 px-3 py-1 rounded-full inline-block">Paso Requerido 🔒</p>
+                <h3 className="text-lg font-bold text-neutral-800 mt-1">Identificación del Huésped</h3>
+                <p className="text-[11px] text-neutral-400 max-w-xs mx-auto mt-0.5">Inicie sesión o regístrese para continuar con su reserva y emitir su comprobante.</p>
+              </div>
+              <LoginView
+                users={users}
+                onlyForm={true}
+                onLoginSuccess={(uid, fetchedUser) => {
+                  switchSessionUser(uid, fetchedUser);
+                  setIsLoggedOut(false);
+                  setShowAuthModal(false);
+                }}
+                onRegisterUser={registerUser}
+                onShowLanding={() => {
+                  setShowAuthModal(false);
+                  setShowLandingPage(true);
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 4. Tiny visual footer */}
-      <footer className="py-8 border-t border-neutral-150 text-center text-[10px] text-neutral-400 font-mono print:hidden space-y-2">
-        <p>©2026 Maqyasoft</p>
-        <p>Hora Ecuador (GMT-5): {ecuadorTime || 'Cargando...'}</p>
-        <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-[11px] font-sans font-medium text-neutral-500 pt-1">
+      <footer className="py-12 border-t border-[#0E2A47] text-center text-[11px] font-mono print:hidden space-y-4 bg-[#071726] text-[#A8B2BD]">
+        <p className="text-white/80 font-semibold select-none">©2026 Roomia PMS — Maqyasoft</p>
+        <p className="text-white/40 text-[10px]">Hora Ecuador (GMT-5): {ecuadorTime || 'Cargando...'}</p>
+        <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs font-sans font-medium pt-2">
           <button
             type="button"
             onClick={() => {
               window.history.pushState(null, '', '/terminos-y-condiciones');
               setActiveLegalDoc('terminos');
             }}
-            className="hover:text-teal-600 transition-colors cursor-pointer"
+            className="hover:text-[#23B4E6] transition-colors cursor-pointer text-slate-300"
             id="footer-link-terminos"
           >
             Términos y Condiciones
           </button>
-          <span className="text-neutral-300 font-sans">•</span>
+          <span className="text-slate-700 font-sans select-none">•</span>
           <button
             type="button"
             onClick={() => {
               window.history.pushState(null, '', '/politica-de-privacidad');
               setActiveLegalDoc('privacidad');
             }}
-            className="hover:text-teal-600 transition-colors cursor-pointer"
+            className="hover:text-[#23B4E6] transition-colors cursor-pointer text-slate-300"
             id="footer-link-privacidad"
           >
             Política de Privacidad
           </button>
-          <span className="text-neutral-300 font-sans">•</span>
+          <span className="text-slate-700 font-sans select-none">•</span>
           <button
             type="button"
             onClick={() => {
               window.history.pushState(null, '', '/politica-de-cancelaciones-y-reembolsos');
               setActiveLegalDoc('cancelaciones');
             }}
-            className="hover:text-teal-600 transition-colors cursor-pointer"
+            className="hover:text-[#23B4E6] transition-colors cursor-pointer text-slate-300"
             id="footer-link-cancelaciones"
           >
             Política de Cancelación y Reembolsos
@@ -651,13 +800,22 @@ export default function App() {
 
                 <div className="col-span-2 border-t border-neutral-100 pt-3 mt-1">
                   <label className="text-[11px] font-bold text-amber-750 uppercase tracking-wide block mb-1">🔐 Cambiar Clave de Acceso:</label>
-                  <input
-                    type="password"
-                    value={profilePassword}
-                    onChange={(e) => setProfilePassword(e.target.value)}
-                    placeholder="Deje en blanco para conservar su clave de acceso habitual"
-                    className="w-full text-xs border border-neutral-250 p-2.5 rounded-xl focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-200 font-sans bg-amber-50/10 placeholder-neutral-400 font-semibold"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showProfilePass ? "text" : "password"}
+                      value={profilePassword}
+                      onChange={(e) => setProfilePassword(e.target.value)}
+                      placeholder="Deje en blanco para conservar su clave de acceso habitual"
+                      className="w-full text-xs border border-neutral-250 p-2.5 pr-10 rounded-xl focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-200 font-sans bg-amber-50/10 placeholder-neutral-400 font-semibold"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowProfilePass(!showProfilePass)}
+                      className="absolute right-3 top-3 p-0.5 text-neutral-400 hover:text-neutral-600 cursor-pointer"
+                    >
+                      {showProfilePass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                   <p className="text-[10px] text-neutral-400 mt-1">Al ingresar una nueva clave, se modificará su acceso y recibirá una notificación de seguridad por correo.</p>
                 </div>
               </div>
@@ -743,26 +901,44 @@ export default function App() {
             }} className="space-y-4">
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-neutral-400 uppercase tracking-wide block">Nueva Contraseña de Acceso:</label>
-                <input
-                  type="password"
-                  required
-                  value={forcedPassInput}
-                  onChange={(e) => setForcedPassInput(e.target.value)}
-                  placeholder="Por favor, ingrese su nueva contraseña"
-                  className="w-full text-xs border border-neutral-250 p-2.5 rounded-xl focus:outline-none focus:border-teal-500 font-mono text-center tracking-widest bg-slate-50 font-bold"
-                />
+                <div className="relative">
+                  <input
+                    type={showForcedPass ? "text" : "password"}
+                    required
+                    value={forcedPassInput}
+                    onChange={(e) => setForcedPassInput(e.target.value)}
+                    placeholder="Por favor, ingrese su nueva contraseña"
+                    className="w-full text-xs border border-neutral-250 p-2.5 pr-10 rounded-xl focus:outline-none focus:border-teal-500 font-mono text-center tracking-widest bg-slate-50 font-bold"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowForcedPass(!showForcedPass)}
+                    className="absolute right-3 top-3 p-0.5 text-neutral-400 hover:text-neutral-600 cursor-pointer"
+                  >
+                    {showForcedPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
 
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-neutral-400 uppercase tracking-wide block">Confirmar Contraseña:</label>
-                <input
-                  type="password"
-                  required
-                  value={forcedConfirmPassInput}
-                  onChange={(e) => setForcedConfirmPassInput(e.target.value)}
-                  placeholder="Re-escriba su contraseña"
-                  className="w-full text-xs border border-neutral-250 p-2.5 rounded-xl focus:outline-none focus:border-teal-500 font-mono text-center tracking-widest bg-slate-50 font-bold"
-                />
+                <div className="relative">
+                  <input
+                    type={showForcedConfirmPass ? "text" : "password"}
+                    required
+                    value={forcedConfirmPassInput}
+                    onChange={(e) => setForcedConfirmPassInput(e.target.value)}
+                    placeholder="Re-escriba su contraseña"
+                    className="w-full text-xs border border-neutral-250 p-2.5 pr-10 rounded-xl focus:outline-none focus:border-teal-500 font-mono text-center tracking-widest bg-slate-50 font-bold"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowForcedConfirmPass(!showForcedConfirmPass)}
+                    className="absolute right-3 top-3 p-0.5 text-neutral-400 hover:text-neutral-600 cursor-pointer"
+                  >
+                    {showForcedConfirmPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
 
               <button
@@ -799,6 +975,38 @@ export default function App() {
           openHotelId={openHotelId}
         />
       )}
+
+      {/* Modern Safe Toast Notifications Overlay */}
+      <div className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-3 max-w-sm w-full pointer-events-none print:hidden">
+        <AnimatePresence>
+          {toasts.map((toast) => (
+            <motion.div
+              key={toast.id}
+              initial={{ opacity: 0, y: 20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -10, scale: 0.95 }}
+              transition={{ duration: 0.25, ease: 'easeOut' }}
+              className={`p-4 rounded-2xl shadow-xl border text-xs font-semibold backdrop-blur-md pointer-events-auto flex items-start gap-3 justify-between ${
+                toast.type === 'success'
+                  ? 'bg-teal-600/95 border-teal-500 text-white'
+                  : toast.type === 'warning'
+                  ? 'bg-amber-600/95 border-amber-500 text-white'
+                  : 'bg-neutral-900/95 border-neutral-800 text-white'
+              }`}
+            >
+              <div className="flex-1 leading-relaxed">
+                {toast.message}
+              </div>
+              <button
+                onClick={() => setToasts(prev => prev.filter(t => t.id !== toast.id))}
+                className="text-white/60 hover:text-white transition-colors cursor-pointer p-0.5 shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
 
     </div>
   );

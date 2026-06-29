@@ -5,6 +5,13 @@ import './index.css';
 
 // Intercept and swallow injected web3 / metamask errors or random network 'Failed to fetch' errors gracefully
 if (typeof window !== 'undefined') {
+  // Override window.alert to completely prevent browser-blocking dialogs in iframe sandbox environments
+  window.alert = (message: string) => {
+    const event = new CustomEvent('aura-toast', { detail: { message } });
+    window.dispatchEvent(event);
+    console.log("Captured blocking alert and converted to custom safe event:", message);
+  };
+
   window.addEventListener('error', (event) => {
     const errorMsg = event.message || '';
     const errorStack = event.error?.stack || '';

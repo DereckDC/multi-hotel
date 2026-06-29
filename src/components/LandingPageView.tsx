@@ -18,8 +18,22 @@ import {
   Mail,
   MapPin,
   Check,
-  LogIn
+  LogIn,
+  AlertTriangle,
+  Play,
+  ArrowRight,
+  ShieldCheck,
+  CheckCircle2,
+  ListChecks,
+  Settings,
+  Layers,
+  Calendar,
+  CheckSquare,
+  HelpCircle
 } from 'lucide-react';
+import { InteractiveContainer } from './InteractiveContainer';
+import { GlobalTrailCursor } from './GlobalTrailCursor';
+import { BrandLogo } from './BrandLogo';
 
 interface LandingPageViewProps {
   onClose: () => void;
@@ -36,84 +50,59 @@ export default function LandingPageView({ onClose, onOpenLegal }: LandingPageVie
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans animate-fade-in">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans animate-fade-in relative">
+      <GlobalTrailCursor />
       
       {/* Dynamic Floating Navbar of the Landing Page */}
-      <nav className="bg-slate-900/95 border-b border-slate-800 sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+      <nav className="bg-slate-950/95 border-b border-slate-900 sticky top-0 z-40">
+        <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-teal-550 text-slate-950 flex items-center justify-center font-display font-black text-lg shadow-md">
-              R
-            </div>
-            <span className="font-bold text-white text-base tracking-tight">
-              Roomia <span className="text-teal-400 font-medium">PMS</span>
-            </span>
+            <BrandLogo size="lg" showText={true} lightText={true} />
           </div>
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-slate-850 hover:bg-slate-800 border border-slate-700 hover:border-slate-600 text-white text-xs font-semibold rounded-xl transition-all shadow-sm flex items-center gap-2 cursor-pointer active:scale-95"
+            className="px-4 py-2 bg-[#0E2A47] hover:bg-[#133A62] border border-brand-cyan/30 text-white text-xs font-semibold rounded-xl transition-all shadow-md shadow-brand-cyan/5 flex items-center gap-2 cursor-pointer active:scale-95"
           >
-            <LogIn className="w-4 h-4 text-teal-400" />
-            <span>Iniciar Sesion 🔑</span>
+            <ArrowLeft className="w-4 h-4 text-brand-cyan" />
+            <span>Volver</span>
           </button>
         </div>
       </nav>
 
       {/* Hero Header Marketing Section */}
-      <header className="relative bg-slate-950 overflow-hidden py-10 md:py-20 px-4 md:px-6 border-b border-slate-900">
-        {/* Futuristic Grid Overlay & Glow Effects */}
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b_1px,transparent_1px),linear-gradient(to_bottom,#1e293b_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] opacity-35" />
-        <div className="absolute top-0 right-1/4 w-[500px] h-[500px] bg-teal-500/10 rounded-full blur-[120px] pointer-events-none" />
-        <div className="absolute bottom-1/4 left-10 w-[300px] h-[300px] bg-indigo-500/10 rounded-full blur-[100px] pointer-events-none" />
+      <InteractiveContainer as="header" className="bg-slate-950 py-10 md:py-20 px-4 md:px-6 border-b border-slate-900">
+        <div className="absolute top-0 right-1/4 w-[500px] h-[500px] bg-brand-cyan/10 rounded-full blur-[120px] pointer-events-none" />
+        <div className="absolute bottom-1/4 left-10 w-[300px] h-[300px] bg-brand-cyan/5 rounded-full blur-[100px] pointer-events-none" />
 
         <div className="max-w-7xl mx-auto relative z-10">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-16 items-center">
                       {/* Left Column Text copy & CTA */}
-            <div className="lg:col-span-7 space-y-4 md:space-y-6 text-left">
-              <div className="inline-flex items-center gap-2 px-3 py-1 bg-teal-500/10 text-teal-300 rounded-full text-[11px] font-bold ring-1 ring-teal-500/20">
-                <Sparkles className="w-3.5 h-3.5 text-teal-400" />
-                <span>La Evolución Definitiva en Gestión de Propiedades y Alojamiento</span>
-              </div>
-
-              <h1 className="text-3xl md:text-5xl lg:text-6xl font-black tracking-tight text-white leading-tight">
-                Gestione sus Propiedades y Reservas con <span className="text-transparent bg-clip-text bg-gradient-to-r from-teal-400 via-emerald-300 to-indigo-400">Poder Absoluto</span>
+            <div className="lg:col-span-7 space-y-4 md:space-y-6 text-left font-sans">
+              <h1 className="text-3xl md:text-6xl lg:text-6.5xl font-serif font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-[#23B4E6] to-white leading-tight pr-2">
+                Administre reservas, habitaciones, huéspedes e ingresos desde un solo lugar
               </h1>
 
-              <p className="text-xs md:text-sm text-slate-300 max-w-xl leading-relaxed">
+              <p className="text-xs md:text-sm text-[#A8B2BD] max-w-xl leading-relaxed">
                 Roomia PMS es la suite premium en la nube diseñada para maximizar ingresos en cualquier tipo de propiedad (hoteles, hostales, departamentos, cabañas, glampings y más). Automatice la facturación de huéspedes, habilite Check-Ins rápidos con códigos QR y blinde sus operaciones en tiempo real con auditorías avanzadas.
               </p>
 
               <div className="flex flex-wrap gap-3 pt-1">
                 <button
-                  onClick={onClose}
-                  className="px-6 py-3 bg-teal-500 hover:bg-teal-400 text-slate-950 font-extrabold text-xs md:text-sm rounded-xl shadow-xl shadow-teal-500/20 hover:shadow-teal-500/30 transition-all hover:scale-[1.03] active:scale-95 cursor-pointer flex items-center gap-2"
+                  onClick={() => document.getElementById('contacto-directo')?.scrollIntoView({ behavior: 'smooth' })}
+                  className="px-6 py-3 bg-[#23B4E6] hover:bg-[#3fc2f0] text-[#071726] font-extrabold text-xs md:text-sm rounded-xl shadow-xl shadow-brand-cyan/20 hover:shadow-brand-cyan/30 transition-all hover:scale-[1.03] active:scale-95 cursor-pointer flex items-center gap-2"
                 >
-                  <span>Iniciar Mi Prueba Gratis</span>
-                  <ArrowLeft className="w-4 h-4 rotate-180 text-slate-950" />
+                  <span>Solicitar una demostración</span>
+                  <ArrowLeft className="w-4 h-4 rotate-180 text-[#071726]" />
                 </button>
                 <button
-                  onClick={onClose}
-                  className="px-5 py-3 bg-slate-900 hover:bg-slate-850 text-white font-bold text-xs md:text-sm rounded-xl border border-slate-800 hover:border-slate-705 transition-all active:scale-95 cursor-pointer"
+                  onClick={() => document.getElementById('beneficios')?.scrollIntoView({ behavior: 'smooth' })}
+                  className="px-5 py-3 bg-[#0E2A47] hover:bg-[#133A62] text-white font-bold text-xs md:text-sm rounded-xl border border-brand-cyan/20 transition-all active:scale-95 cursor-pointer"
                 >
-                  Ver Demo Operacional 💻
+                  Explorar plataforma 💻
                 </button>
               </div>
 
-              {/* Direct Metrics Trust Badge */}
-              <div className="grid grid-cols-3 gap-3 pt-4 border-t border-slate-800/85 max-w-lg text-slate-400 font-sans">
-                <div>
-                  <span className="block text-lg font-extrabold text-white">100%</span>
-                  <span className="text-[9px] uppercase font-mono tracking-wider">Infraestructura Cloud</span>
-                </div>
-                <div>
-                  <span className="block text-lg font-extrabold text-teal-400">⚡ Supabase</span>
-                  <span className="text-[9px] uppercase font-mono tracking-wider">Resguardo de Datos</span>
-                </div>
-                <div>
-                  <span className="block text-lg font-extrabold text-white">99.9%</span>
-                  <span className="text-[9px] uppercase font-mono tracking-wider">Uptime Garantizado</span>
-                </div>
-              </div>
+
             </div>
 
             {/* Right Column Product visual Mockup */}
@@ -128,10 +117,10 @@ export default function LandingPageView({ onClose, onOpenLegal }: LandingPageVie
                     <span className="w-2.5 h-2.5 rounded-full bg-red-500" />
                     <span className="w-2.5 h-2.5 rounded-full bg-yellow-500" />
                     <span className="w-2.5 h-2.5 rounded-full bg-green-500" />
-                    <span className="text-[10px] text-slate-500 font-mono ml-2 uppercase tracking-widest">LIVE_DASHBOARD_PREVIEW</span>
+                    <span className="text-[10px] text-slate-550 font-mono ml-2 uppercase tracking-widest">vista previa del panel</span>
                   </div>
                   <div className="px-2 py-0.5 bg-teal-400/10 text-teal-300 rounded text-[9px] font-bold tracking-wider font-mono">
-                    SUPER_ADMIN_MODE
+                    panel administrativo
                   </div>
                 </div>
 
@@ -142,7 +131,7 @@ export default function LandingPageView({ onClose, onOpenLegal }: LandingPageVie
                   <div className="p-3 bg-slate-950 border border-slate-850 rounded-xl space-y-1">
                     <div className="flex justify-between items-center">
                       <span className="text-[10px] text-teal-400 font-mono uppercase tracking-widest">Propiedad Seleccionada</span>
-                      <span className="text-[10px] text-slate-500 font-mono uppercase">24 Activas</span>
+                      <span className="text-[10px] text-slate-550 font-mono uppercase">24 Activas</span>
                     </div>
                     <p className="text-xs font-bold text-white flex items-center gap-2">
                       <Building2 className="w-3.5 h-3.5 text-teal-500" />
@@ -199,8 +188,8 @@ export default function LandingPageView({ onClose, onOpenLegal }: LandingPageVie
                   <div className="bg-[#1E2E3E]/30 border border-teal-500/20 rounded-xl p-3 flex gap-2.5 items-start">
                     <CheckCircle className="w-4 h-4 text-teal-400 shrink-0 mt-0.5" />
                     <div>
-                      <p className="text-[11px] font-bold text-white leading-tight">MÓDULO DE RECUPERACIÓN / QR INTEGRADO</p>
-                      <p className="text-[10px] text-slate-400 leading-normal">Códigos QR generados de manera automatizada para acelerar el arribo del huésped.</p>
+                      <p className="text-[11px] font-bold text-white leading-tight">Check-in con QR</p>
+                      <p className="text-[10px] text-slate-400 leading-normal">Genere un código QR por reserva para agilizar la llegada del huésped y validar su ingreso en segundos</p>
                     </div>
                   </div>
 
@@ -210,140 +199,406 @@ export default function LandingPageView({ onClose, onOpenLegal }: LandingPageVie
 
           </div>
         </div>
-      </header>
+      </InteractiveContainer>
+
+      {/* Sección 1: Problemas que resolvemos */}
+      <InteractiveContainer className="bg-slate-950 text-white py-14 px-6 border-b border-slate-900">
+        <div className="max-w-5xl mx-auto relative z-10">
+          <div className="text-center space-y-3 mb-12">
+            <h2 className="text-2xl md:text-4xl font-serif font-black tracking-tight text-white">
+              ¿Qué problemas resuelve Roomia PMS?
+            </h2>
+            <p className="text-xs md:text-sm text-[#A8B2BD] max-w-lg mx-auto">
+              La administración de un hospedaje es compleja. Así es como Roomia PMS soluciona los cuellos de botella más comunes en su operación diaria:
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            
+            {/* Problema 1 */}
+            <div className="p-6 bg-slate-900/50 hover:bg-slate-900 border border-slate-800 hover:border-teal-500/35 rounded-2xl transition-all duration-300 group">
+              <div className="w-10 h-10 rounded-xl bg-brand-cyan/10 text-brand-cyan flex items-center justify-center mb-4">
+                <AlertTriangle className="w-5 h-5 pointer-events-none" />
+              </div>
+              <h4 className="text-sm font-bold text-brand-cyan mb-2">Reservas desordenadas entre WhatsApp, cuadernos y Excel</h4>
+              <p className="text-xs text-[#A8B2BD] leading-relaxed">
+                Centralice toda la información en un solo lugar. Evite la duplicidad de reservas, la pérdida de datos y el desgaste de coordinar múltiples canales de forma manual.
+              </p>
+            </div>
+
+            {/* Problema 2 */}
+            <div className="p-6 bg-slate-900/50 hover:bg-slate-900 border border-slate-800 hover:border-teal-500/35 rounded-2xl transition-all duration-300 group">
+              <div className="w-10 h-10 rounded-xl bg-brand-cyan/10 text-brand-cyan flex items-center justify-center mb-4">
+                <Clock className="w-5 h-5 pointer-events-none" />
+              </div>
+              <h4 className="text-sm font-bold text-brand-cyan mb-2">Recepción lenta y procesos manuales</h4>
+              <p className="text-xs text-[#A8B2BD] leading-relaxed">
+                Acelere la llegada de huéspedes con fichas automatizadas y escaneo de códigos QR. Reduzca las filas de espera a segundos y brinde un servicio de nivel corporativo.
+              </p>
+            </div>
+
+            {/* Problema 3 */}
+            <div className="p-6 bg-slate-900/50 hover:bg-slate-900 border border-slate-800 hover:border-teal-500/35 rounded-2xl transition-all duration-300 group">
+              <div className="w-10 h-10 rounded-xl bg-brand-cyan/10 text-brand-cyan flex items-center justify-center mb-4">
+                <Building2 className="w-5 h-5 pointer-events-none" />
+              </div>
+              <h4 className="text-sm font-bold text-brand-cyan mb-2">Falta de control sobre habitaciones disponibles, ocupadas o en limpieza</h4>
+              <p className="text-xs text-[#A8B2BD] leading-relaxed">
+                Monitoree al instante el estado del inventario. Sepa qué suite necesita limpieza, cuál está en mantenimiento y evite asignaciones incorrectas desde el panel de recepción.
+              </p>
+            </div>
+
+            {/* Problema 4 */}
+            <div className="p-6 bg-slate-900/50 hover:bg-slate-900 border border-slate-800 hover:border-teal-500/35 rounded-2xl transition-all duration-300 group">
+              <div className="w-10 h-10 rounded-xl bg-brand-cyan/10 text-brand-cyan flex items-center justify-center mb-4">
+                <TrendingUp className="w-5 h-5 pointer-events-none" />
+              </div>
+              <h4 className="text-sm font-bold text-brand-cyan mb-2">Cobros y pagos poco organizados</h4>
+              <p className="text-xs text-[#A8B2BD] leading-relaxed">
+                Lleve un registro riguroso de cada abono, saldo pendiente de pago, impuestos correspondientes y transacciones financieras por cada reserva para evitar fugas de capital.
+              </p>
+            </div>
+
+            {/* Problema 5 */}
+            <div className="p-6 bg-slate-900/50 hover:bg-slate-900 border border-slate-800 hover:border-teal-500/35 rounded-2xl transition-all duration-300 group">
+              <div className="w-10 h-10 rounded-xl bg-brand-cyan/10 text-brand-cyan flex items-center justify-center mb-4">
+                <Layers className="w-5 h-5 pointer-events-none" />
+              </div>
+              <h4 className="text-sm font-bold text-brand-cyan mb-2">Dificultad para administrar varias propiedades</h4>
+              <p className="text-xs text-[#A8B2BD] leading-relaxed">
+                Cambie de establecimiento de forma instantánea. Controle inventarios, personal y tarifas de múltiples sucursales con total tranquilidad desde una sola cuenta administrativa.
+              </p>
+            </div>
+
+            {/* Problema 6 */}
+            <div className="p-6 bg-slate-900/50 hover:bg-slate-900 border border-slate-800 hover:border-teal-500/35 rounded-2xl transition-all duration-300 group">
+              <div className="w-10 h-10 rounded-xl bg-brand-cyan/10 text-brand-cyan flex items-center justify-center mb-4">
+                <Calendar className="w-5 h-5 pointer-events-none" />
+              </div>
+              <h4 className="text-sm font-bold text-brand-cyan mb-2">Reportes poco claros para tomar decisiones</h4>
+              <p className="text-xs text-[#A8B2BD] leading-relaxed">
+                Consiga métricas consolidadas en tiempo real. Analice tasa de ocupación, noches reservadas e ingresos mensuales de forma visual con gráficos limpios e integrales.
+              </p>
+            </div>
+
+          </div>
+        </div>
+      </InteractiveContainer>
 
       {/* Core Advantages Bento Grid */}
-      <section className="py-8 md:py-14 px-4 md:px-6 max-w-7xl mx-auto w-full space-y-6 md:space-y-10">
-        <div className="text-center space-y-1 md:space-y-2">
-          <h2 className="text-xl md:text-3xl font-bold tracking-tight text-slate-900">
-            Beneficios Exclusivos de Roomia PMS
-          </h2>
-          <p className="text-xs md:text-sm text-slate-500 max-w-xl mx-auto leading-relaxed">
-            Nuestra plataforma provee ventajas inmediatas para fidelizar huéspedes, optimizar la carga del personal y aumentar sus ingresos.
+      <InteractiveContainer id="beneficios" className="py-8 md:py-14 px-4 md:px-6 border-b border-slate-900/40">
+        <div className="max-w-7xl mx-auto w-full space-y-6 md:space-y-10">
+          <div className="text-center space-y-1 md:space-y-2">
+            <h2 className="text-3xl font-black tracking-tight text-white">
+              Funciones clave para una operación más rápida, ordenada y rentable
+            </h2>
+          <p className="text-xs md:text-sm text-slate-400 max-w-xl mx-auto leading-relaxed">
+            Roomia PMS le ayuda a organizar reservas, acelerar la recepción, controlar habitaciones, registrar cobros y visualizar el estado de su propiedad en tiempo real
           </p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 md:gap-8">
           
           {/* Card 1: Multi-Propiedad */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between hover:shadow-md hover:border-slate-300 transition-all">
+          <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-800 shadow-xl flex flex-col justify-between hover:border-teal-500/35 hover:bg-slate-900 transition-all">
             <div className="space-y-4">
-              <div className="w-12 h-12 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center">
+              <div className="w-12 h-12 rounded-xl bg-teal-500/10 text-teal-400 flex items-center justify-center">
                 <Building2 className="w-6 h-6" />
               </div>
-              <h3 className="font-bold text-slate-900 text-sm md:text-base">Control Multi-Hotel Centralizado</h3>
-              <p className="text-xs text-slate-500 leading-normal">
-                Registre e inspeccione múltiples establecimientos desde un único acceso. Cargue habitaciones de forma dinámica, configure tarifas de temporada y guarde fotos representativas al instante.
+              <h3 className="font-bold text-white text-sm md:text-base">Gestión multi-propiedad desde un solo panel</h3>
+              <p className="text-xs text-slate-400 leading-normal">
+                Administre uno o varios hospedajes desde la misma cuenta. Configure habitaciones, tarifas, temporadas, disponibilidad y datos de cada propiedad sin saltar entre sistemas o archivos dispersos.
               </p>
             </div>
-            <span className="text-[10px] text-teal-600 font-bold mt-4 block uppercase tracking-wider">★ GESTIÓN MULTI-SEDE</span>
+            <span className="text-[10px] text-teal-400 font-bold mt-4 block uppercase tracking-wider font-mono">★ CONTROL CENTRALIZADO</span>
           </div>
 
           {/* Card 2: QR Check-In */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between hover:shadow-md hover:border-slate-300 transition-all">
+          <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-800 shadow-xl flex flex-col justify-between hover:border-indigo-500/35 hover:bg-slate-900 transition-all">
             <div className="space-y-4">
-              <div className="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+              <div className="w-12 h-12 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center">
                 <QrCode className="w-6 h-6" />
               </div>
-              <h3 className="font-bold text-slate-900 text-sm md:text-base">Check-In Express con Códigos QR</h3>
-              <p className="text-xs text-slate-500 leading-normal">
-                Al confirmar una reserva, se expide un voucher interactivo con un código QR único. Al ingresar, el recepcionista verifica la estadía mediante un rápido escaneo sin contratiempos.
+              <h3 className="font-bold text-white text-sm md:text-base">Check-in más ágil con código QR</h3>
+              <p className="text-xs text-slate-400 leading-normal">
+                Genere un código QR por reserva para validar la llegada del huésped en segundos. Reduzca tiempos en recepción, evite búsquedas manuales y agilice el proceso de ingreso.
               </p>
             </div>
-            <span className="text-[10px] text-indigo-600 font-bold mt-4 block uppercase tracking-wider">★ AGILIDAD EN RECEPCIÓN</span>
+            <span className="text-[10px] text-indigo-400 font-bold mt-4 block uppercase tracking-wider font-mono">★ RECEPCIÓN MÁS RÁPIDA</span>
           </div>
 
           {/* Card 3: Presential Logins & Walk-Ins */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between hover:shadow-md hover:border-slate-300 transition-all">
+          <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-800 shadow-xl flex flex-col justify-between hover:border-emerald-500/35 hover:bg-slate-900 transition-all">
             <div className="space-y-4">
-              <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+              <div className="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
                 <Users className="w-6 h-6" />
               </div>
-              <h3 className="font-bold text-slate-900 text-sm md:text-base">Módulo Completo de Recepcionistas</h3>
-              <p className="text-xs text-slate-500 leading-normal">
-                Permita que su personal registre huéspedes sobre la marcha en segundos, rellenando la ficha oficial con datos de contacto, tipo de habitación seleccionada y abonos correspondientes.
+              <h3 className="font-bold text-white text-sm md:text-base">Recepción y registro de huéspedes en un solo flujo</h3>
+              <p className="text-xs text-slate-400 leading-normal">
+                Permita que su equipo registre huéspedes, asigne habitaciones, cargue datos de contacto, gestione ingresos sin reserva previa y registre pagos desde un mismo panel.
               </p>
             </div>
-            <span className="text-[10px] text-emerald-600 font-bold mt-4 block uppercase tracking-wider">★ RECEPCIÓN OPERATIVA</span>
+            <span className="text-[10px] text-emerald-400 font-bold mt-4 block uppercase tracking-wider font-mono">★ RECEPCIÓN OPERATIVA</span>
           </div>
 
           {/* Card 4: Live Analytics */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between hover:shadow-md hover:border-slate-300 transition-all">
+          <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-800 shadow-xl flex flex-col justify-between hover:border-amber-500/35 hover:bg-slate-900 transition-all">
             <div className="space-y-4">
-              <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+              <div className="w-12 h-12 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center">
                 <TrendingUp className="w-6 h-6" />
               </div>
-              <h3 className="font-bold text-slate-900 text-sm md:text-base">Reportes y Estadísticas de Ocupación</h3>
-              <p className="text-xs text-slate-500 leading-normal">
-                Visualice mediante gráficos interactivos cuántas noches han sido arrendadas, la tasa de ocupación promedio actual y los ingresos totales divididos por hotel o consolidados.
+              <h3 className="font-bold text-white text-sm md:text-base">Reportes de ocupación, ingresos y rendimiento</h3>
+              <p className="text-xs text-slate-400 leading-normal">
+                Consulte en tiempo real la ocupación, las noches reservadas, los ingresos por propiedad y el rendimiento general de su operación con reportes claros y fáciles de interpretar.
               </p>
             </div>
-            <span className="text-[10px] text-amber-600 font-bold mt-4 block uppercase tracking-wider">★ CONTROL DE INGRESOS</span>
+            <span className="text-[10px] text-amber-400 font-bold mt-4 block uppercase tracking-wider font-mono">★ VISIBILIDAD DEL NEGOCIO</span>
           </div>
 
           {/* Card 5: Real-time logs timeline */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between hover:shadow-md hover:border-slate-300 transition-all">
+          <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-800 shadow-xl flex flex-col justify-between hover:border-rose-500/35 hover:bg-slate-900 transition-all">
             <div className="space-y-4">
-              <div className="w-12 h-12 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
+              <div className="w-12 h-12 rounded-xl bg-rose-500/10 text-rose-400 flex items-center justify-center">
                 <Clock className="w-6 h-6" />
               </div>
-              <h3 className="font-bold text-slate-900 text-sm md:text-base">Bitácora de Novedades y Mantenimiento</h3>
-              <p className="text-xs text-slate-500 leading-normal">
-                Los recepcionistas pueden reportar averías e incidencias al momento. Cambie el estado de la suite a "Sucia" o "Mantenimiento" para bloquear y proteger el inventario de reservas erróneas.
+              <h3 className="font-bold text-white text-sm md:text-base">Incidencias, limpieza y mantenimiento bajo control</h3>
+              <p className="text-xs text-slate-400 leading-normal">
+                Reporte daños, novedades operativas y tareas de mantenimiento en tiempo real. Cambie el estado de una habitación a sucia, en limpieza o en mantenimiento para evitar asignaciones equivocadas y mantener la operación sincronizada.
               </p>
             </div>
-            <span className="text-[10px] text-rose-600 font-bold mt-4 block uppercase tracking-wider">★ PREVENCIÓN DE ERRORES</span>
+            <span className="text-[10px] text-rose-400 font-bold mt-4 block uppercase tracking-wider font-mono">★ MENOS ERRORES OPERATIVOS</span>
           </div>
 
           {/* Card 6: Interactive Calendars */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between hover:shadow-md hover:border-slate-300 transition-all">
+          <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-800 shadow-xl flex flex-col justify-between hover:border-teal-500/35 hover:bg-slate-900 transition-all">
             <div className="space-y-4">
-              <div className="w-12 h-12 rounded-xl bg-teal-50 text-teal-655 flex items-center justify-center">
+              <div className="w-12 h-12 rounded-xl bg-teal-500/10 text-teal-400 flex items-center justify-center">
                 <Workflow className="w-6 h-6" />
               </div>
-              <h3 className="font-bold text-slate-900 text-sm md:text-base">Agenda Visual Interactiva mensual</h3>
-              <p className="text-xs text-slate-500 leading-normal">
-                Consulte las reservas activas en un intuitivo mapa mensual. Planifique de un vistazo las llegadas de huéspedes, limpiezas necesarias y reubicaciones de suites en tiempo real.
+              <h3 className="font-bold text-white text-sm md:text-base">Calendario visual de reservas y ocupación</h3>
+              <p className="text-xs text-slate-400 leading-normal">
+                Visualice la ocupación por fechas, las entradas y salidas programadas, el estado de las habitaciones y la carga operativa de cada propiedad en una sola vista.
               </p>
             </div>
-            <span className="text-[10px] text-teal-655 font-bold mt-4 block uppercase tracking-wider">★ PLANIFICACIÓN VISUAL</span>
+            <span className="text-[10px] text-teal-400 font-bold mt-4 block uppercase tracking-wider font-mono">★ PLANIFICACIÓN MÁS SIMPLE</span>
           </div>
 
         </div>
-      </section>
+      </div>
+      </InteractiveContainer>
+
+      {/* Sección 2: Cómo funciona */}
+      <InteractiveContainer className="bg-slate-950 py-14 px-6 border-b border-slate-900/60">
+        <div className="max-w-5xl mx-auto space-y-12">
+          <div className="text-center space-y-3">
+            <h2 className="text-3xl font-black tracking-tight text-white">
+              ¿Cómo funciona?
+            </h2>
+            <p className="text-xs md:text-sm text-slate-400 max-w-lg mx-auto leading-relaxed">
+              Modernice la administración de su propiedad en tres sencillos pasos integrados en un solo flujo de trabajo diario:
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative">
+            
+            {/* Step 1 */}
+            <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-800 hover:border-teal-500/35 transition-all flex flex-col space-y-4 shadow-xl relative z-10">
+              <div className="w-12 h-12 rounded-xl bg-teal-500/10 text-teal-400 flex items-center justify-center shadow-sm">
+                <Settings className="w-5 h-5" />
+              </div>
+              <h3 className="font-bold text-white text-sm md:text-base">Configure su propiedad</h3>
+              <p className="text-xs text-slate-400 leading-normal">
+                Habitaciones, tipos de alojamiento, tarifas, datos y disponibilidad.
+              </p>
+            </div>
+
+            {/* Step 2 */}
+            <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-800 hover:border-indigo-500/35 transition-all flex flex-col space-y-4 shadow-xl relative z-10">
+              <div className="w-12 h-12 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center shadow-sm">
+                <Workflow className="w-5 h-5" />
+              </div>
+              <h3 className="font-bold text-white text-sm md:text-base">Gestione reservas y operación diaria</h3>
+              <p className="text-xs text-slate-400 leading-normal">
+                Check-ins, huéspedes, cobros, estados de habitaciones, incidencias y calendario.
+              </p>
+            </div>
+
+            {/* Step 3 */}
+            <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-800 hover:border-emerald-500/35 transition-all flex flex-col space-y-4 shadow-xl relative z-10">
+              <div className="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center shadow-sm">
+                <TrendingUp className="w-5 h-5" />
+              </div>
+              <h3 className="font-bold text-white text-sm md:text-base">Controle su negocio con reportes</h3>
+              <p className="text-xs text-slate-400 leading-normal">
+                Ocupación, ingresos, rendimiento por propiedad y visibilidad de la operación.
+              </p>
+            </div>
+
+          </div>
+        </div>
+      </InteractiveContainer>
+
+      {/* Sección 3: Para quién es Roomia */}
+      <InteractiveContainer className="bg-slate-950 text-white py-14 px-6 border-b border-slate-900">
+        <div className="max-w-5xl mx-auto space-y-12">
+          <div className="text-center space-y-3">
+            <h2 className="text-2xl md:text-3xl font-black tracking-tight text-white">
+              ¿Para quién es Roomia?
+            </h2>
+            <p className="text-xs md:text-sm text-slate-400 max-w-xl mx-auto leading-relaxed">
+              No listamos únicamente tipos de alojamiento; adaptamos nuestro PMS a cada perfil de administración y estructura operativa:
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            
+            <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex flex-col items-center text-center space-y-3 hover:border-teal-550/35 transition-colors group">
+              <div className="w-10 h-10 rounded-xl bg-teal-505/10 text-teal-400 flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
+                <Building2 className="w-5 h-5" />
+              </div>
+              <h4 className="font-extrabold text-xs text-slate-250 leading-snug">Hoteles y hostales</h4>
+            </div>
+
+            <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex flex-col items-center text-center space-y-3 hover:border-indigo-500/35 transition-colors group">
+              <div className="w-10 h-10 rounded-xl bg-indigo-505/10 text-indigo-400 flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
+                <Sparkles className="w-5 h-5" />
+              </div>
+              <h4 className="font-extrabold text-xs text-slate-250 leading-snug">Glampings y cabañas</h4>
+            </div>
+
+            <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex flex-col items-center text-center space-y-3 hover:border-rose-500/35 transition-colors group">
+              <div className="w-10 h-10 rounded-xl bg-rose-505/10 text-rose-400 flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
+                <MapPin className="w-5 h-5" />
+              </div>
+              <h4 className="font-extrabold text-xs text-slate-250 leading-snug">Suites y departamentos turísticos</h4>
+            </div>
+
+            <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex flex-col items-center text-center space-y-3 hover:border-emerald-500/35 transition-colors group">
+              <div className="w-10 h-10 rounded-xl bg-emerald-505/10 text-emerald-400 flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
+                <Layers className="w-5 h-5" />
+              </div>
+              <h4 className="font-extrabold text-xs text-slate-250 leading-snug">Negocios con una o varias propiedades</h4>
+            </div>
+
+            <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex flex-col items-center text-center space-y-3 hover:border-amber-500/35 transition-colors group sm:col-span-2 lg:col-span-1">
+              <div className="w-10 h-10 rounded-xl bg-amber-505/10 text-amber-400 flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
+                <Users className="w-5 h-5" />
+              </div>
+              <h4 className="font-extrabold text-xs text-slate-250 leading-snug">Administradores que necesitan ordenar su operación</h4>
+            </div>
+
+          </div>
+        </div>
+      </InteractiveContainer>
+
+      {/* Sección 4: Qué incluye la demo */}
+      <InteractiveContainer className="bg-slate-950 py-14 px-6 border-b border-slate-900">
+        <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
+          
+          <div className="md:col-span-5 relative">
+            <div className="absolute inset-0 bg-teal-500/10 rounded-3xl blur-2xl" />
+            <div className="relative bg-slate-900 text-white p-6 rounded-3xl border border-slate-800 shadow-xl space-y-4">
+              <h4 className="text-base font-bold text-white flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-teal-400" />
+                <span>Demo Garantizada</span>
+              </h4>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Nuestras demostraciones son interactivas, personalizadas y enfocadas en resolver los problemas particulares de su modelo de alojamiento.
+              </p>
+              <div className="pt-2 border-t border-slate-800 flex justify-between items-center text-[10px] text-slate-400 font-mono">
+                <span>DURACIÓN: ~15 MINS</span>
+                <span className="text-emerald-400 font-bold">GRATIS</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="md:col-span-7 space-y-5">
+            <h3 className="text-2xl md:text-3xl font-extrabold text-white leading-tight">
+              ¿Qué incluye la demo?
+            </h3>
+            <p className="text-xs md:text-sm text-slate-400 leading-relaxed">
+              En la demo le mostramos paso a paso cómo Roomia PMS se convierte en el motor operativo de su negocio de hospedaje:
+            </p>
+
+            <div className="space-y-3 pt-2">
+              
+              <div className="flex gap-3 items-start p-3 hover:bg-slate-900/50 rounded-xl transition-colors border border-transparent hover:border-slate-800">
+                <CheckCircle2 className="w-5 h-5 text-teal-400 shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="font-bold text-white text-xs md:text-sm">cómo registrar reservas y huéspedes</h4>
+                  <p className="text-xs text-slate-400 leading-normal">Asigne habitaciones, configure cargos adicionales y guarde un historial de forma automática.</p>
+                </div>
+              </div>
+
+              <div className="flex gap-3 items-start p-3 hover:bg-slate-900/50 rounded-xl transition-colors border border-transparent hover:border-slate-800">
+                <CheckCircle2 className="w-5 h-5 text-teal-400 shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="font-bold text-white text-xs md:text-sm">cómo controlar habitaciones y estados</h4>
+                  <p className="text-xs text-slate-400 leading-normal">Cambie el estado de la propiedad (limpieza, mantenimiento, ocupada) en tiempo real.</p>
+                </div>
+              </div>
+
+              <div className="flex gap-3 items-start p-3 hover:bg-slate-900/50 rounded-xl transition-colors border border-transparent hover:border-slate-800">
+                <CheckCircle2 className="w-5 h-5 text-teal-400 shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="font-bold text-white text-xs md:text-sm">cómo funciona el check-in con QR</h4>
+                  <p className="text-xs text-slate-400 leading-normal">Genere vouchers interactivos autogestionables y realice el ingreso manual en segundos.</p>
+                </div>
+              </div>
+
+              <div className="flex gap-3 items-start p-3 hover:bg-slate-900/50 rounded-xl transition-colors border border-transparent hover:border-slate-800">
+                <CheckCircle2 className="w-5 h-5 text-teal-400 shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="font-bold text-white text-xs md:text-sm">cómo ver ocupación e ingresos</h4>
+                  <p className="text-xs text-slate-400 leading-normal">Acceda a reportes financieros unificados por cada establecimiento operativo.</p>
+                </div>
+              </div>
+
+              <div className="flex gap-1.5 items-start p-3 hover:bg-slate-900/50 rounded-xl transition-colors border border-transparent hover:border-slate-800">
+                <CheckCircle2 className="w-5 h-5 text-teal-400 shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="font-bold text-white text-xs md:text-sm">cómo adaptar Roomia a su tipo de hospedaje</h4>
+                  <p className="text-xs text-slate-400 leading-normal">Modelamos el sistema según sea hotel tradicional, cabañas, glampings, hostal o dptos.</p>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+      </InteractiveContainer>
 
       {/* Featured Core System Capabilities */}
-      <section className="bg-white py-10 md:py-16 px-4 md:px-6 border-y border-slate-100">
+      <InteractiveContainer className="bg-slate-950 py-10 md:py-16 px-4 md:px-6 border-b border-slate-900">
         <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 items-center">
           <div className="space-y-5">
-            <span className="text-xs font-bold text-teal-600 uppercase tracking-widest font-mono">PANEL DE OPERACIONES</span>
-            <h3 className="text-2xl md:text-3xl font-extrabold text-slate-900 leading-tight">
+            <h3 className="text-2xl md:text-3xl font-extrabold text-white leading-tight">
               ¿Por qué los propietarios y administradores eligen Roomia PMS?
             </h3>
             
             <div className="space-y-3.5 pt-2">
               <div className="flex gap-2.5 items-start">
-                <CheckCircle className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
-                <p className="text-xs text-slate-600 leading-relaxed font-medium">
-                  <strong>Facilidad de Uso Extrema:</strong> Menos clics para habilitar habitaciones, registrar cobros boutique o liquidar saldos de salida de cualquier propiedad.
+                <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                <p className="text-xs text-slate-305 leading-relaxed font-medium">
+                  <strong>Fácil de usar, sin capacitaciones largas:</strong> Diseño intuitivo pensado para que usted y su equipo puedan registrar huéspedes, cobrar y ver el estado de sus propiedades en minutos, sin flujos complejos.
                 </p>
               </div>
               <div className="flex gap-2.5 items-start">
-                <CheckCircle className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
-                <p className="text-xs text-slate-600 leading-relaxed font-medium">
-                  <strong>Comunicación Automatizada por Correo:</strong> Envío inmediato de confirmaciones y de recuperación de accesos de manera de optimizar el contacto.
+                <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                <p className="text-xs text-slate-305 leading-relaxed font-medium">
+                  <strong>Operación 100% en tiempo real:</strong> Sincronización instantánea de estados de habitaciones, reservas y cobros. Todo su equipo trabaja sobre la misma información al instante.
                 </p>
               </div>
               <div className="flex gap-2.5 items-start">
-                <CheckCircle className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
-                <p className="text-xs text-slate-600 leading-relaxed font-medium">
-                  <strong>Control de Incidencias Operativas:</strong> Los recepcionistas publican reportes de daños o necesidades particulares gatillando el estado de mantenimiento correspondiente al instante.
+                <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                <p className="text-xs text-slate-305 leading-relaxed font-medium">
+                  <strong>Sin cobros sorpresivos ni de comisiones ocultas:</strong> Licenciamiento definitivo, transparente y adaptable al tamaño de su modelo de alojamiento. Pague únicamente por lo que necesita.
                 </p>
               </div>
               <div className="flex gap-2.5 items-start">
-                <CheckCircle className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
-                <p className="text-xs text-slate-600 leading-relaxed font-medium">
-                  <strong>Poderoso Calendario de Reservas:</strong> Vista interactiva del mapa mensual de ocupación e ingresos unificados por propiedad.
+                <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                <p className="text-xs text-slate-305 leading-relaxed font-medium">
+                  <strong>Soporte en español y atención directa:</strong> Mesa de ayuda y asesoría técnica en su mismo idioma, lista para acompañarle y resolver inquietudes operativas rápidamente.
                 </p>
               </div>
             </div>
@@ -358,7 +613,7 @@ export default function LandingPageView({ onClose, onOpenLegal }: LandingPageVie
             </div>
 
             <div className="space-y-4">
-              <h4 className="text-lg font-bold text-white">Una Suite para Todo Tipo de Hospedaje</h4>
+              <h4 className="text-lg font-bold text-white">Un PMS flexible para distintos tipos de hospedaje</h4>
               <p className="text-xs text-slate-300 leading-relaxed">
                 Nuestra plataforma se adapta a las dimensiones de su negocio. Ya sea que administre un hotel tradicional, un complejo de cabañas, departamentos vacacionales, glampings o hostales, Roomia PMS centraliza todas sus operaciones.
               </p>
@@ -390,17 +645,16 @@ export default function LandingPageView({ onClose, onOpenLegal }: LandingPageVie
                 rel="noopener noreferrer"
                 className="w-full bg-teal-500 hover:bg-teal-400 text-slate-950 font-extrabold py-3 rounded-xl text-xs transition-all shadow-md active:scale-95 cursor-pointer text-center block decoration-none"
               >
-                Solicitar Demo y Asesoría Directa 💬
+                Solicitar demo por WhatsApp 💬
               </a>
             </div>
           </div>
 
         </div>
-      </section>
+      </InteractiveContainer>
 
       {/* Compact Elegant Dark Modern Footer with Direct Contact Information */}
-      <footer className="py-10 md:py-16 px-4 md:px-6 bg-slate-950 text-white relative overflow-hidden border-t border-slate-800 space-y-6 md:space-y-10">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(13,148,136,0.05),transparent)] pointer-events-none" />
+      <InteractiveContainer as="footer" id="contacto-directo" className="py-10 md:py-16 px-4 md:px-6 bg-slate-950 text-white border-t border-slate-900 space-y-6 md:space-y-10">
         
         <div className="max-w-4xl mx-auto relative z-10 text-center space-y-4">
           <h2 className="text-xl md:text-3xl font-black text-white">¿Listo para modernizar la gestión de su propiedad?</h2>
@@ -410,7 +664,7 @@ export default function LandingPageView({ onClose, onOpenLegal }: LandingPageVie
         </div>
 
         {/* Contact info cards grid */}
-        <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6 relative z-10 text-left">
+        <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6 relative z-10 text-left mt-12 md:mt-20">
           
           {/* Card WhatsApp */}
           <a 
@@ -431,52 +685,45 @@ export default function LandingPageView({ onClose, onOpenLegal }: LandingPageVie
             </div>
           </a>
 
-          {/* Card Email with copy option */}
-          <div className="bg-slate-905 border border-slate-850 p-5 rounded-2xl flex items-start gap-4 shadow-sm relative group">
-            <div className="w-10 h-10 bg-indigo-500/10 text-indigo-400 rounded-xl flex items-center justify-center shrink-0">
+          {/* Card Email with direct link */}
+          <a 
+            href="mailto:roomia.admincontact@gmail.com"
+            className="bg-slate-905 hover:bg-slate-900 border border-slate-850 hover:border-indigo-500/30 p-5 rounded-2xl transition-all group flex items-start gap-4 shadow-sm"
+          >
+            <div className="w-10 h-10 bg-indigo-500/10 text-indigo-400 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform duration-300">
               <Mail className="w-5 h-5" />
             </div>
             <div className="space-y-1 min-w-0 flex-1">
               <span className="text-[10px] font-bold text-slate-500 block uppercase tracking-wider font-mono">Correo Administrativo</span>
-              <a 
-                href="mailto:roomia.admincontact@gmail.com"
-                className="text-white hover:text-indigo-400 font-bold text-[11px] md:text-xs tracking-tight transition-colors block truncate"
-              >
+              <span className="text-white group-hover:text-indigo-400 font-bold text-[11px] md:text-xs tracking-tight transition-colors block truncate">
                 roomia.admincontact@gmail.com
-              </a>
-              <button 
-                onClick={handleCopyEmail}
-                className="px-2 py-0.5 bg-white/5 hover:bg-teal-500/10 active:bg-teal-500/20 border border-white/10 text-[9px] text-slate-350 font-semibold rounded transition-colors cursor-pointer mt-1 flex items-center gap-1.5"
-              >
-                {copiedEmail ? (
-                  <>
-                    <Check className="w-2.5 h-2.5 text-emerald-450 animate-bounce" />
-                    <span className="text-emerald-450 font-bold">¡Copiado!</span>
-                  </>
-                ) : (
-                  <span>Copiar Dirección</span>
-                )}
-              </button>
+              </span>
+              <p className="text-[10px] text-slate-400 leading-normal">Consulte precios y solicite soporte inmediato.</p>
             </div>
-          </div>
+          </a>
 
           {/* Card Matrix Location */}
-          <div className="bg-slate-905 border border-slate-850 p-5 rounded-2xl flex items-start gap-4 shadow-sm">
-            <div className="w-10 h-10 bg-emerald-500/10 text-emerald-400 rounded-xl flex items-center justify-center shrink-0">
+          <a 
+            href="https://www.google.com/maps/place/Playa+de+San+Lorenzo/@-2.202538,-81.0186842,13z/data=!4m6!3m5!1s0x902e0e0e37032d23:0xaf778b30ad8848d1!8m2!3d-2.2025425!4d-80.9750194!16s%2Fg%2F1hc160w_p?entry=ttu&g_ep=EgoyMDI2MDYyMy4wIKXMDSoASAFQAw%3D%3D"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="bg-slate-905 hover:bg-slate-900 border border-slate-850 hover:border-emerald-500/30 p-5 rounded-2xl transition-all group flex items-start gap-4 shadow-sm"
+          >
+            <div className="w-10 h-10 bg-emerald-500/10 text-emerald-400 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform duration-300">
               <MapPin className="w-5 h-5" />
             </div>
             <div className="space-y-1">
               <span className="text-[10px] font-bold text-slate-500 block uppercase tracking-wider font-mono">Matriz de Operaciones</span>
-              <span className="text-white font-extrabold text-xs md:text-sm block leading-tight">
+              <span className="text-white group-hover:text-emerald-400 font-extrabold text-xs md:text-sm block leading-tight transition-colors">
                 Santa Elena - Ecuador
               </span>
-              <p className="text-[10px] text-slate-400 leading-normal">Licenciamiento SaaS cloud global.</p>
+              <p className="text-[10px] text-slate-400 leading-normal">SaaS cloud global desde la costa.</p>
             </div>
-          </div>
+          </a>
 
         </div>
 
-      </footer>
+      </InteractiveContainer>
 
     </div>
   );

@@ -33,6 +33,13 @@ interface RoomReservationCalendarProps {
   forceHotelId?: string;
   forceRoomId?: string;
   roomPriceVariations?: RoomPriceVariation[];
+  
+  // Optional date selection props
+  checkInDate?: string;
+  checkOutDate?: string;
+  setCheckInDate?: (date: string) => void;
+  setCheckOutDate?: (date: string) => void;
+  isAlquiler?: boolean;
 }
 
 export function RoomReservationCalendar({
@@ -44,8 +51,21 @@ export function RoomReservationCalendar({
   onUpdateRoomStatus,
   forceHotelId,
   forceRoomId,
-  roomPriceVariations = []
+  roomPriceVariations = [],
+  checkInDate,
+  checkOutDate,
+  setCheckInDate,
+  setCheckOutDate,
+  isAlquiler = false
 }: RoomReservationCalendarProps) {
+  // Today string YYYY-MM-DD
+  const todayStr = useMemo(() => {
+    const today = new Date();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    return `${today.getFullYear()}-${mm}-${dd}`;
+  }, []);
+
   // 1. STATE VARIABLES
   const [currentYear, setCurrentYear] = useState(() => new Date().getFullYear());
   const [currentMonth, setCurrentMonth] = useState(() => new Date().getMonth()); // 0-indexed
@@ -164,8 +184,16 @@ export function RoomReservationCalendar({
     return daysList;
   }, [currentYear, currentMonth]);
 
-  // Navigate Months
+  // Navigate Months (blocking past months)
   const handlePrevMonth = () => {
+    const today = new Date();
+    const todayYear = today.getFullYear();
+    const todayMonth = today.getMonth();
+
+    if (currentYear < todayYear || (currentYear === todayYear && currentMonth <= todayMonth)) {
+      return; // Blocked
+    }
+
     if (currentMonth === 0) {
       setCurrentMonth(11);
       setCurrentYear(prev => prev - 1);
@@ -180,6 +208,36 @@ export function RoomReservationCalendar({
       setCurrentYear(prev => prev + 1);
     } else {
       setCurrentMonth(prev => prev + 1);
+    }
+  };
+
+  // Dynamic Date Selection on Calendar Clicks
+  const handleDateClick = (dateStr: string) => {
+    if (dateStr < todayStr) return; // Strictly block clicking past dates
+
+    setSelectedDateStr(dateStr);
+
+    if (setCheckInDate) {
+      if (isAlquiler) {
+        // Renting property: only select check-in date
+        setCheckInDate(dateStr);
+      } else {
+        // Hotel room booking:
+        // First selection (or if both were already set) -> set as Check-In
+        if (!checkInDate || (checkInDate && checkOutDate)) {
+          setCheckInDate(dateStr);
+          if (setCheckOutDate) setCheckOutDate('');
+        } else {
+          // Check-Out selection must be at least 1 day after Check-In
+          if (dateStr > checkInDate) {
+            if (setCheckOutDate) setCheckOutDate(dateStr);
+          } else {
+            // Clicked before Check-In: reset Check-In to this earlier date
+            setCheckInDate(dateStr);
+            if (setCheckOutDate) setCheckOutDate('');
+          }
+        }
+      }
     }
   };
 
@@ -290,14 +348,25 @@ export function RoomReservationCalendar({
 
           {/* Month Navigator controllers */}
           <div className="flex items-center gap-1.5 self-end sm:self-auto bg-neutral-800 p-1 rounded-xl border border-neutral-700">
-            <button
-              onClick={handlePrevMonth}
-              type="button"
-              className="p-1.5 hover:bg-neutral-700 rounded-lg text-neutral-300 hover:text-white cursor-pointer transition-colors"
-              title="Mes Anterior"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
+            {(() => {
+              const today = new Date();
+              const isPrevDisabled = currentYear < today.getFullYear() || (currentYear === today.getFullYear() && currentMonth <= today.getMonth());
+              return (
+                <button
+                  onClick={handlePrevMonth}
+                  disabled={isPrevDisabled}
+                  type="button"
+                  className={`p-1.5 rounded-lg text-neutral-300 transition-colors ${
+                    isPrevDisabled 
+                      ? 'opacity-30 cursor-not-allowed text-neutral-500' 
+                      : 'hover:bg-neutral-700 hover:text-white cursor-pointer'
+                  }`}
+                  title={isPrevDisabled ? "Meses pasados bloqueados" : "Mes Anterior"}
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+              );
+            })()}
             <span className="text-xs font-bold px-3 uppercase tracking-wider min-w-[110px] text-center select-none text-neutral-200 font-mono">
               {MONTHS[currentMonth]} {currentYear}
             </span>
@@ -382,10 +451,11 @@ export function RoomReservationCalendar({
               const selectedRoomObj = selectedRoomId !== 'all' ? rooms.find(r => r.id === selectedRoomId) : null;
               const priceInfo = selectedRoomObj ? getRoomPriceForDate(selectedRoomObj, cell.dateStr) : null;
               
+              const isPastDate = cell.dateStr < todayStr;
+
               // Dynamic coloration classes
               let bgClass = 'bg-white text-neutral-800 hover:bg-neutral-50 border-neutral-200';
               let borderClass = 'border';
-              let textStatusColor = '';
 
               if (!cell.isCurrentMonth) {
                 bgClass = 'bg-neutral-50 text-neutral-400 opacity-40 border-neutral-100 hover:bg-neutral-100';
@@ -409,8 +479,26 @@ export function RoomReservationCalendar({
                 }
               }
 
-              // Highlight selected date border glowingly
-              if (isSelected) {
+              // Highlight check-in/out and range selection visually
+              const isCheckIn = checkInDate === cell.dateStr;
+              const isCheckOut = checkOutDate === cell.dateStr;
+              const isWithinRange = checkInDate && checkOutDate && cell.dateStr > checkInDate && cell.dateStr < checkOutDate;
+
+              if (isCheckIn) {
+                bgClass = 'bg-teal-600 text-white font-bold border-teal-600 shadow-md hover:bg-teal-600';
+              } else if (isCheckOut) {
+                bgClass = 'bg-teal-800 text-white font-bold border-teal-800 shadow-md hover:bg-teal-800';
+              } else if (isWithinRange) {
+                bgClass = 'bg-teal-50 text-teal-900 border-teal-200 font-semibold hover:bg-teal-100/70';
+              }
+
+              // Overwrite with past blocked styling
+              if (isPastDate) {
+                bgClass = 'bg-neutral-100 text-neutral-400 opacity-30 border-neutral-200 cursor-not-allowed line-through pointer-events-none';
+              }
+
+              // Highlight selected date border glowingly (if not past date)
+              if (isSelected && !isPastDate) {
                 borderClass = 'border-[2px] border-teal-500 ring-2 ring-teal-500/10 scale-105 z-10';
               }
 
@@ -421,15 +509,21 @@ export function RoomReservationCalendar({
               return (
                 <button
                   key={index}
-                  onClick={() => setSelectedDateStr(cell.dateStr)}
+                  onClick={() => handleDateClick(cell.dateStr)}
+                  disabled={isPastDate}
                   type="button"
-                  className={`relative p-2 rounded-xl flex flex-col justify-between items-center aspect-square text-xs transition-all duration-200 shadow-sm cursor-pointer ${bgClass} ${borderClass}`}
+                  className={`relative p-2 rounded-xl flex flex-col justify-between items-center aspect-square text-xs transition-all duration-200 shadow-sm ${
+                    isPastDate ? 'cursor-not-allowed' : 'cursor-pointer'
+                  } ${bgClass} ${borderClass}`}
+                  title={isPastDate ? 'Fecha pasada bloqueada' : `Fecha: ${cell.dateStr}`}
                 >
                   <div className="flex flex-col items-center">
-                    <span className="font-mono font-bold text-xs">{cell.day}</span>
+                    <span className={`font-mono font-bold text-xs ${isCheckIn || isCheckOut ? 'text-white' : ''}`}>{cell.day}</span>
                     {priceInfo && (
                       <span className={`text-[10px] font-bold mt-0.5 font-mono px-1 rounded ${
-                        priceInfo.isVariable ? 'text-teal-700 bg-teal-50 border border-teal-100' : 'text-neutral-500 font-normal'
+                        isCheckIn || isCheckOut
+                          ? 'text-white bg-teal-950/20'
+                          : priceInfo.isVariable ? 'text-teal-700 bg-teal-50 border border-teal-100' : 'text-neutral-500 font-normal'
                       }`}>
                         ${priceInfo.precio}
                       </span>

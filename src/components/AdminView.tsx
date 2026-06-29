@@ -6,11 +6,12 @@
 import React, { useState } from 'react';
 import { Hotel, Room, User, Reservation, RoomStatus, UserRole, Review, RoomPriceVariation } from '../types';
 import { RoomReservationCalendar } from './RoomReservationCalendar';
-import { SUPABASE_SQL_SCHEMA, fetchPropertyDetails } from '../supabase';
+import { fetchPropertyDetails } from '../supabase';
 import { compressImage } from '../store';
+import InvoicePDF from './InvoicePDF';
 
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, AreaChart, Area } from 'recharts';
-import { Plus, Edit3, Trash2, Shield, Users, HotelIcon, List, LayoutDashboard, Calendar, DollarSign, Percent, TrendingUp, AlertCircle, MapPin, EyeOff, ClipboardList, ToggleLeft, ToggleRight, Check, X, Upload, Database, Sparkles, Copy, Key, Building, Home, Star } from 'lucide-react';
+import { Plus, Edit3, Trash2, Shield, Users, HotelIcon, List, LayoutDashboard, Calendar, DollarSign, Percent, TrendingUp, AlertCircle, MapPin, EyeOff, ClipboardList, ToggleLeft, ToggleRight, Check, X, Upload, Database, Sparkles, Copy, Key, Building, Home, Star, Wrench, ChevronDown } from 'lucide-react';
 
 export function getMapEmbedUrl(ubicacion: string, googleMapsUrl?: string): string {
   if (!ubicacion && !googleMapsUrl) return '';
@@ -70,6 +71,7 @@ interface AdminViewProps {
   onDeleteRoom: (roomId: string) => void;
   onUpdateUserRole: (userId: string, role: UserRole) => void;
   onUpdateUserHotel: (userId: string, hotelId: string | undefined) => void;
+  onUpdateUserHotels?: (userId: string, hotelIds: string[]) => void;
   onToggleUserStatus: (userId: string) => void;
   statistics: any;
   onUpdateRoomStatus?: (roomId: string, status: RoomStatus, staffName?: string, staffRole?: string, changeMessage?: string) => void;
@@ -104,6 +106,7 @@ export default function AdminView({
   onDeleteRoom,
   onUpdateUserRole,
   onUpdateUserHotel,
+  onUpdateUserHotels,
   onToggleUserStatus,
   statistics,
   onUpdateRoomStatus,
@@ -115,9 +118,10 @@ export default function AdminView({
   onSaveRoomPriceVariation,
   onDeleteRoomPriceVariation
 }: AdminViewProps) {
-  // Navigation tabs within Admin: 'dashboard' | 'hotels' | 'rooms' | 'users' | 'logs' | 'reservations'
-  const [adminTab, setAdminTab] = useState<'dashboard' | 'hotels' | 'properties' | 'rooms' | 'users' | 'logs' | 'reservations'>('dashboard');
+  // Navigation tabs within Admin: 'dashboard' | 'hotels' | 'rooms' | 'users' | 'logs' | 'reservations' | 'refunds' | 'incidents'
+  const [adminTab, setAdminTab] = useState<'dashboard' | 'hotels' | 'properties' | 'rooms' | 'users' | 'logs' | 'reservations' | 'refunds' | 'incidents'>('dashboard');
   const [superAdminSelectedHotelId, setSuperAdminSelectedHotelId] = useState<string>('all');
+  const [frequentClientsTab, setFrequentClientsTab] = useState<'cards' | 'table'>('cards');
 
   // RBAC Access Control checking
   const isSuper = activeUser.rol === 'super_admin';
@@ -126,26 +130,31 @@ export default function AdminView({
   // Limit access vectors
   const allowedHotels = isSuper 
     ? hotels 
-    : hotels.filter(h => h.id === myHotelId);
+    : hotels.filter(h => h.id === myHotelId || (activeUser.hotelIds && activeUser.hotelIds.includes(h.id)));
 
   const allowedOnlyHotels = allowedHotels.filter(h => h.tipoEstablecimiento === 'hotel' || !h.tipoEstablecimiento);
   const allowedOnlyProperties = allowedHotels.filter(h => h.tipoEstablecimiento === 'casa' || h.tipoEstablecimiento === 'departamento');
 
-  const allowedRooms = isSuper 
-    ? (superAdminSelectedHotelId === 'all' ? rooms : rooms.filter(r => r.hotelId === superAdminSelectedHotelId))
-    : rooms.filter(r => r.hotelId === myHotelId);
+  const allowedRooms = (isSuper || allowedHotels.length > 1)
+    ? (superAdminSelectedHotelId === 'all' 
+        ? (isSuper ? rooms : rooms.filter(r => allowedHotels.some(ah => ah.id === r.hotelId)))
+        : rooms.filter(r => r.hotelId === superAdminSelectedHotelId))
+    : rooms.filter(r => r.hotelId === myHotelId || (activeUser.hotelIds && activeUser.hotelIds.includes(r.hotelId)));
 
   const allowedReservations = isSuper 
     ? reservations 
-    : reservations.filter(res => res.hotelId === myHotelId);
+    : reservations.filter(res => res.hotelId === myHotelId || (activeUser.hotelIds && activeUser.hotelIds.includes(res.hotelId)));
 
   const allowedUsers = isSuper
     ? users
     : users.filter(u => {
         if (u.id === activeUser.id) return true;
-        if (u.hotelId === myHotelId) return true;
-        // Include guests with reservations in my hotel
-        const isGuestOfMine = reservations.some(res => res.hotelId === myHotelId && res.guestId === u.id);
+        if (u.hotelId === myHotelId || (activeUser.hotelIds && activeUser.hotelIds.includes(u.hotelId || ''))) return true;
+        // Include guests with reservations in my hotels
+        const isGuestOfMine = reservations.some(res => 
+          (res.hotelId === myHotelId || (activeUser.hotelIds && activeUser.hotelIds.includes(res.hotelId))) 
+          && res.guestId === u.id
+        );
         return isGuestOfMine;
       });
 
@@ -168,7 +177,7 @@ export default function AdminView({
 
   // Filter dashboard by single hotel
   const [dashboardHotelFilter, setDashboardHotelFilter] = useState(
-    isSuper ? '' : myHotelId
+    (isSuper || allowedHotels.length > 1) ? '' : myHotelId
   );
 
   // States for date range filtering in administrative analytics
@@ -178,6 +187,10 @@ export default function AdminView({
   // CRUD Hotel State
   const [editingHotel, setEditingHotel] = useState<Hotel | null>(null);
   const [showHotelModal, setShowHotelModal] = useState(false);
+  const [newGeneralServiceText, setNewGeneralServiceText] = useState("");
+  const [newHotelPolicyText, setNewHotelPolicyText] = useState("");
+  const [newPropertyPolicyText, setNewPropertyPolicyText] = useState("");
+  const [newPropertyServiceText, setNewPropertyServiceText] = useState("");
 
   // CRUD Property State
   const [editingProperty, setEditingProperty] = useState<Hotel | null>(null);
@@ -194,6 +207,12 @@ export default function AdminView({
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
   const [showRoomModal, setShowRoomModal] = useState(false);
 
+  // Incident management states
+  const [incidentModalOpen, setIncidentModalOpen] = useState(false);
+  const [incidentRoomId, setIncidentRoomId] = useState('');
+  const [incidentDesc, setIncidentDesc] = useState('');
+  const [incidentHotelFilter, setIncidentHotelFilter] = useState<string>('todos');
+
   // Variable pricing states
   const [selectedRoomForVariations, setSelectedRoomForVariations] = useState<Room | null>(null);
   const [showVariationsModal, setShowVariationsModal] = useState(false);
@@ -203,6 +222,7 @@ export default function AdminView({
   const [newVarMotivo, setNewVarMotivo] = useState<string>('');
   const [newVarIsWeekend, setNewVarIsWeekend] = useState<boolean>(false);
   const [newVarIsAlways, setNewVarIsAlways] = useState<boolean>(false);
+  const [activeUserDropdown, setActiveUserDropdown] = useState<string | null>(null);
 
   // Sandbox-safe Confirmation States
   const [confirmDeleteHotelId, setConfirmDeleteHotelId] = useState<string | null>(null);
@@ -219,17 +239,20 @@ export default function AdminView({
 
   // Reservation edit state
   const [selectedResToEdit, setSelectedResToEdit] = useState<Reservation | null>(null);
+  const [previewingRes, setPreviewingRes] = useState<Reservation | null>(null);
   const [showResStatusModal, setShowResStatusModal] = useState(false);
   const [newResStatus, setNewResStatus] = useState<any>(null);
   const [statusChangeMessage, setStatusChangeMessage] = useState("");
 
-  // Admin password edit state for any user
-  const [editingUserForPass, setEditingUserForPass] = useState<User | null>(null);
-  const [tempNewPass, setTempNewPass] = useState("");
-  const [showPassModal, setShowPassModal] = useState(false);
-  const [passModalLoading, setPassModalLoading] = useState(false);
-  const [passModalSuccess, setPassModalSuccess] = useState("");
-  const [passModalError, setPassModalError] = useState("");
+  // Refunds tab states
+  const [showRefundModal, setShowRefundModal] = useState(false);
+  const [selectedResForRefund, setSelectedResForRefund] = useState<Reservation | null>(null);
+  const [simulatedRequestDate, setSimulatedRequestDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [refundNote, setRefundNote] = useState<string>('');
+  const [refundSearch, setRefundSearch] = useState<string>('');
+  const [refundHotelFilter, setRefundHotelFilter] = useState<string>('todos');
+
+
 
   // Supabase states for database administration and setup
   const [supabaseSyncLoading, setSupabaseSyncLoading] = useState(false);
@@ -244,12 +267,12 @@ export default function AdminView({
     // 1. Filter by role boundary
     const baseReservations = isSuper 
       ? reservations 
-      : reservations.filter(res => res.hotelId === myHotelId);
+      : reservations.filter(res => res.hotelId === myHotelId || (activeUser.hotelIds && activeUser.hotelIds.includes(res.hotelId)));
 
     // 2. Filter by search & dropdown parameters
     return baseReservations.filter(res => {
-      // Filter by Hotel selector if isSuper and not 'todos'
-      if (isSuper && resHotelFilter !== 'todos' && res.hotelId !== resHotelFilter) {
+      // Filter by Hotel selector if (isSuper or allowedHotels.length > 1) and not 'todos'
+      if ((isSuper || allowedHotels.length > 1) && resHotelFilter !== 'todos' && res.hotelId !== resHotelFilter) {
         return false;
       }
 
@@ -282,13 +305,13 @@ export default function AdminView({
 
   // Stats recalculations based on localized filter, role boundary, and date range parameters
   const getFilteredStats = () => {
-    // Standard hotel admin is strictly locked to their single hotel's stats
-    const selectedFilterId = isSuper ? dashboardHotelFilter : myHotelId;
+    // Standard hotel admin is strictly locked to their single hotel's stats unless they have multiple hotels linked
+    const selectedFilterId = (isSuper || allowedHotels.length > 1) ? dashboardHotelFilter : myHotelId;
 
     // 1. Filter reservations by hotel selection
     const firstFilteredReservations = selectedFilterId
       ? reservations.filter(r => r.hotelId === selectedFilterId)
-      : reservations;
+      : (isSuper ? reservations : reservations.filter(r => allowedHotels.some(ah => ah.id === r.hotelId)));
 
     // 2. Filter reservations by date range (fechaEntrada)
     const filteredReservations = firstFilteredReservations.filter(r => {
@@ -304,10 +327,10 @@ export default function AdminView({
     // 3. Filter rooms by hotel selection for capacity/occupancy calculations
     const filteredRooms = selectedFilterId
       ? rooms.filter(r => r.hotelId === selectedFilterId)
-      : rooms;
+      : (isSuper ? rooms : rooms.filter(r => allowedHotels.some(ah => ah.id === r.hotelId)));
 
     const totalIngresos = filteredReservations
-      .filter(r => r.estado !== 'cancelada')
+      .filter(r => r.estado === 'ocupada' || r.estado === 'finalizada')
       .reduce((sum, r) => sum + r.total, 0);
 
     const habOcupadas = filteredRooms.filter(r => r.estado === 'ocupado').length;
@@ -322,11 +345,11 @@ export default function AdminView({
     // Build matching hotel breakdowns
     const targetHotelsForBreakdown = selectedFilterId
       ? hotels.filter(h => h.id === selectedFilterId)
-      : hotels;
+      : (isSuper ? hotels : allowedHotels);
 
     const dynamicBreakdown = targetHotelsForBreakdown.map(hotel => {
       const hotelRevenue = filteredReservations
-        .filter(r => r.hotelId === hotel.id && r.estado !== 'cancelada')
+        .filter(r => r.hotelId === hotel.id && (r.estado === 'ocupada' || r.estado === 'finalizada'))
         .reduce((sum, r) => sum + r.total, 0);
       return {
         name: hotel.nombre,
@@ -501,6 +524,7 @@ export default function AdminView({
   };
 
   const startCreateProperty = () => {
+    setNewServiceForm({ id: '', nombre: '', precio: 0, descripcion: '', estado: 'activo' });
     setEditingProperty({
       id: `hotel-${Date.now()}`,
       nombre: '',
@@ -522,6 +546,7 @@ export default function AdminView({
       estado: 'activo',
       tipoEstablecimiento: 'casa',
       finalidad: 'alquiler',
+      serviciosDetallados: [],
       propietario: { nombre: '', telefono: '', email: '', documento: '' },
       detallesInmueble: { habitaciones: 0, banos: 0, metrosCuadrados: undefined, amueblado: false, tieneEstacionamiento: false }
     });
@@ -579,7 +604,7 @@ export default function AdminView({
   const startCreateRoom = () => {
     setEditingRoom({
       id: `room-${Date.now()}`,
-      hotelId: allowedHotels[0]?.id || '',
+      hotelId: allowedOnlyHotels[0]?.id || '',
       numero: '',
       nombre: '',
       descripcion: '',
@@ -615,11 +640,11 @@ export default function AdminView({
         </div>
 
         {/* TABS SELECTORS */}
-        <div className="flex flex-wrap gap-1.5 border border-neutral-100 p-1 rounded-xl bg-neutral-50/50">
+        <div className="flex flex-wrap gap-1.5 border border-[#0E2A47]/10 p-1 rounded-xl bg-neutral-50/50">
           <button
             onClick={() => setAdminTab('dashboard')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
-              adminTab === 'dashboard' ? 'bg-neutral-900 text-white shadow' : 'text-neutral-500 hover:bg-neutral-100'
+              adminTab === 'dashboard' ? 'bg-[#0E2A47] text-white shadow-md' : 'text-neutral-500 hover:bg-neutral-100'
             }`}
           >
             <LayoutDashboard className="w-4 h-4" />
@@ -628,7 +653,7 @@ export default function AdminView({
           <button
             onClick={() => setAdminTab('hotels')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
-              adminTab === 'hotels' ? 'bg-neutral-900 text-white shadow' : 'text-neutral-500 hover:bg-neutral-100'
+              adminTab === 'hotels' ? 'bg-[#0E2A47] text-white shadow-md' : 'text-neutral-500 hover:bg-neutral-100'
             }`}
           >
             <HotelIcon className="w-4 h-4" />
@@ -637,7 +662,7 @@ export default function AdminView({
           <button
             onClick={() => setAdminTab('properties')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
-              adminTab === 'properties' ? 'bg-neutral-900 text-white shadow' : 'text-neutral-500 hover:bg-neutral-100'
+              adminTab === 'properties' ? 'bg-[#0E2A47] text-white shadow-md' : 'text-neutral-500 hover:bg-neutral-100'
             }`}
           >
             <Building className="w-4 h-4" />
@@ -646,25 +671,27 @@ export default function AdminView({
           <button
             onClick={() => setAdminTab('rooms')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
-              adminTab === 'rooms' ? 'bg-neutral-900 text-white shadow' : 'text-neutral-500 hover:bg-neutral-100'
+              adminTab === 'rooms' ? 'bg-[#0E2A47] text-white shadow-md' : 'text-neutral-500 hover:bg-neutral-100'
             }`}
           >
             <List className="w-4 h-4" />
             <span>Habitaciones</span>
           </button>
-          <button
-            onClick={() => setAdminTab('users')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
-              adminTab === 'users' ? 'bg-neutral-900 text-white shadow' : 'text-neutral-500 hover:bg-neutral-100'
-            }`}
-          >
-            <Users className="w-4 h-4" />
-            <span>Usuarios (RBAC)</span>
-          </button>
+          {isSuper && (
+            <button
+              onClick={() => setAdminTab('users')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
+                adminTab === 'users' ? 'bg-[#0E2A47] text-white shadow-md' : 'text-neutral-500 hover:bg-neutral-100'
+              }`}
+            >
+              <Users className="w-4 h-4" />
+              <span>Usuarios</span>
+            </button>
+          )}
           <button
             onClick={() => setAdminTab('logs')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
-              adminTab === 'logs' ? 'bg-neutral-900 text-white shadow' : 'text-neutral-500 hover:bg-neutral-100'
+              adminTab === 'logs' ? 'bg-[#0E2A47] text-white shadow-md' : 'text-neutral-500 hover:bg-neutral-100'
             }`}
           >
             <ClipboardList className="w-4 h-4" />
@@ -673,11 +700,29 @@ export default function AdminView({
           <button
             onClick={() => setAdminTab('reservations')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
-              adminTab === 'reservations' ? 'bg-neutral-900 text-white shadow' : 'text-neutral-500 hover:bg-neutral-100'
+              adminTab === 'reservations' ? 'bg-[#0E2A47] text-white shadow-md' : 'text-neutral-500 hover:bg-neutral-100'
             }`}
           >
             <Calendar className="w-4 h-4" />
             <span>Reservas</span>
+          </button>
+          <button
+            onClick={() => setAdminTab('refunds')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
+              adminTab === 'refunds' ? 'bg-[#0E2A47] text-white shadow-md' : 'text-neutral-500 hover:bg-neutral-100'
+            }`}
+          >
+            <DollarSign className="w-4 h-4" />
+            <span>Reembolsos</span>
+          </button>
+          <button
+            onClick={() => setAdminTab('incidents')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
+              adminTab === 'incidents' ? 'bg-[#0E2A47] text-white shadow-md' : 'text-neutral-500 hover:bg-neutral-100'
+            }`}
+          >
+            <Wrench className="w-4 h-4" />
+            <span>Incidencias</span>
           </button>
         </div>
       </div>
@@ -699,11 +744,13 @@ export default function AdminView({
                 <span>Establecimiento:</span>
                 <select
                   value={dashboardHotelFilter}
-                  disabled={!isSuper}
+                  disabled={!(isSuper || allowedHotels.length > 1)}
                   onChange={(e) => setDashboardHotelFilter(e.target.value)}
                   className="font-bold border-none text-neutral-800 focus:outline-none focus:ring-0 cursor-pointer bg-transparent disabled:opacity-80"
                 >
-                  {isSuper && <option value="">Todos los hoteles</option>}
+                  {(isSuper || allowedHotels.length > 1) && (
+                    <option value="">{isSuper ? 'Todos los hoteles' : 'Todos mis establecimientos'}</option>
+                  )}
                   {allowedHotels.map(h => (
                     <option key={h.id} value={h.id}>{h.nombre}</option>
                   ))}
@@ -875,39 +922,105 @@ export default function AdminView({
           </div>
 
           {/* FREQUENT CLIENTELE BOARD */}
-          <div className="bg-white rounded-3xl p-6 border border-neutral-200 shadow-sm">
-            <h5 className="font-semibold text-neutral-800 text-sm mb-4">Registro Histórico de Huéspedes Frecuentes</h5>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs text-neutral-500">
-                <thead>
-                  <tr className="border-b border-neutral-150 pb-2 text-neutral-400 uppercase tracking-wider text-[10px]">
-                    <th className="py-2.5">Huésped</th>
-                    <th className="py-2.5">E-mail</th>
-                    <th className="py-2.5 text-center">N° Reservaciones</th>
-                    <th className="py-2.5 text-right">Preferencia Devolución</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-neutral-100">
-                  {currentStats.clientesFrecuentes.map((cli: any, index: number) => (
-                    <tr key={index}>
-                      <td className="py-3 font-semibold text-neutral-850 flex items-center gap-2">
-                        <img src={cli.avatar} alt="Avatar guest" className="w-8 h-8 rounded-full border border-neutral-200" />
-                        <span>{cli.nombre}</span>
-                      </td>
-                      <td className="py-3 font-mono">{cli.email}</td>
-                      <td className="py-3 text-center">
-                        <span className="px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 font-bold font-mono">
+          <div className="bg-white rounded-3xl p-6 border border-neutral-200 shadow-sm animate-fade-in">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5 border-b border-neutral-100 pb-4">
+              <div>
+                <h5 className="font-bold text-neutral-850 text-sm tracking-tight">Registro Histórico de Huéspedes Frecuentes</h5>
+                <p className="text-[11px] text-neutral-400 mt-0.5">Historial de pernoctación de clientes VIP recurrentes.</p>
+              </div>
+
+              {/* Segmented control bar / Mini Navbar */}
+              <div className="inline-flex p-1 bg-neutral-100 rounded-xl self-start sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => setFrequentClientsTab('cards')}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-lg cursor-pointer transition-all ${
+                    frequentClientsTab === 'cards' 
+                      ? 'bg-white text-[#1E2E3E] shadow-sm' 
+                      : 'text-neutral-500 hover:text-neutral-800'
+                  }`}
+                >
+                  📇 Vista Tarjetas
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFrequentClientsTab('table')}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-lg cursor-pointer transition-all ${
+                    frequentClientsTab === 'table' 
+                      ? 'bg-white text-[#1E2E3E] shadow-sm' 
+                      : 'text-neutral-500 hover:text-neutral-800'
+                  }`}
+                >
+                  📊 Tabla Desplazable
+                </button>
+              </div>
+            </div>
+            
+            {/* View 1: Cards Layout */}
+            {frequentClientsTab === 'cards' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 animate-fade-in">
+                {currentStats.clientesFrecuentes.map((cli: any, index: number) => (
+                  <div key={index} className="p-4 bg-neutral-50 rounded-2xl border border-neutral-150 flex flex-col justify-between space-y-3 hover:shadow-xs transition-all">
+                    <div className="flex items-start gap-3">
+                      <img src={cli.avatar} alt="Avatar guest" className="w-10 h-10 rounded-full border border-neutral-200 shrink-0 object-cover" />
+                      <div className="min-w-0 flex-1">
+                        <p className="font-extrabold text-neutral-850 text-xs block truncate leading-normal">{cli.nombre}</p>
+                        <p className="text-[10.5px] text-teal-700 font-mono block break-all leading-normal mt-0.5">{cli.email}</p>
+                      </div>
+                    </div>
+                    <div className="space-y-1.5 pt-2 border-t border-neutral-150 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="text-neutral-500 font-medium font-sans">Reservaciones completadas:</span>
+                        <span className="px-2 py-0.5 rounded-full bg-teal-50 text-teal-755 font-black font-mono text-[10px]">
                           {cli.reservas} veces
                         </span>
-                      </td>
-                      <td className="py-3 text-right">
-                        <span className="text-[10px] uppercase font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">VIP Preferencial</span>
-                      </td>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-neutral-500 font-medium font-sans">Estatus del Cliente:</span>
+                        <span className="text-[9px] uppercase font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100 font-sans">VIP Preferencial</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* View 2: Table Layout */}
+            {frequentClientsTab === 'table' && (
+              <div className="overflow-x-auto w-full rounded-2xl border border-neutral-150 animate-fade-in bg-white">
+                <table className="w-full min-w-[650px] text-left text-xs text-neutral-500 border-collapse">
+                  <thead>
+                    <tr className="border-b border-neutral-150 bg-neutral-50/50 text-neutral-400 uppercase tracking-wider text-[10px]">
+                      <th className="py-3 px-4">Huésped</th>
+                      <th className="py-3 px-4">E-mail de Contacto</th>
+                      <th className="py-3 px-4 text-center">N° Reservaciones</th>
+                      <th className="py-3 px-4 text-right pr-6">Preferencia</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-neutral-100">
+                    {currentStats.clientesFrecuentes.map((cli: any, index: number) => (
+                      <tr key={index} className="hover:bg-neutral-50/50 transition-colors">
+                        <td className="py-3 px-4 font-semibold text-neutral-850">
+                          <div className="flex items-center gap-2.5">
+                            <img src={cli.avatar} alt="Avatar guest" className="w-8 h-8 rounded-full border border-neutral-200 object-cover" />
+                            <span className="whitespace-nowrap">{cli.nombre}</span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 font-mono text-neutral-600 whitespace-nowrap">{cli.email}</td>
+                        <td className="py-3 px-4 text-center whitespace-nowrap">
+                          <span className="px-2.5 py-1 rounded-full bg-teal-50 text-teal-700 font-bold font-mono text-[11px]">
+                            {cli.reservas} veces
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right whitespace-nowrap pr-6">
+                          <span className="text-[10px] uppercase font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">VIP Preferencial</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
         </div>
@@ -916,7 +1029,7 @@ export default function AdminView({
       {/* CRUD HOTEL MANAGEMENT */}
       {adminTab === 'hotels' && (
         <div className="space-y-6 animate-fade-in">
-          <div className="flex justify-between items-center bg-neutral-50 p-4 rounded-2xl border border-neutral-100 font-sans">
+          <div className="flex justify-between items-center bg-neutral-50 p-4 rounded-2xl border border-neutral-100 font-sans flex-wrap gap-4">
             <div>
               <h4 className="font-semibold text-neutral-800 font-sans">Directorio de Hoteles Boutique ({allowedOnlyHotels.length})</h4>
               <p className="text-xs text-neutral-400">
@@ -926,15 +1039,28 @@ export default function AdminView({
                 }
               </p>
             </div>
-            {isSuper && (
+            <div className="flex items-center gap-2">
               <button
-                onClick={startCreateHotel}
-                className="flex items-center gap-1.5 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold shadow transition-transform cursor-pointer active:scale-95 animate-fade-in"
+                type="button"
+                onClick={() => {
+                  setAdminTab('rooms');
+                }}
+                className="flex items-center gap-1.5 px-4 py-2 bg-neutral-800 hover:bg-neutral-900 text-white rounded-xl text-xs font-bold shadow transition-all duration-200 hover:shadow-md cursor-pointer active:scale-95"
               >
-                <Plus className="w-4 h-4" />
-                <span>Agregar Hotel</span>
+                <Home className="w-4 h-4 text-brand-cyan" />
+                <span>Gestionar Habitaciones</span>
               </button>
-            )}
+
+              {isSuper && (
+                <button
+                  onClick={startCreateHotel}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold shadow transition-transform cursor-pointer active:scale-95 animate-fade-in"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Agregar Hotel</span>
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -954,7 +1080,7 @@ export default function AdminView({
                           h.tipoEstablecimiento === 'departamento' ? 'bg-purple-50 text-purple-700 border-purple-200' :
                           'bg-blue-50 text-blue-700 border-blue-200'
                         }`}>
-                          {h.tipoEstablecimiento === 'casa' ? '🏡 Casa de Alquiler' :
+                          {h.tipoEstablecimiento === 'casa' ? '🏡 Casa' :
                            h.tipoEstablecimiento === 'departamento' ? '🏢 Departamento' :
                            '🏨 Hotel'}
                         </span>
@@ -1056,10 +1182,10 @@ export default function AdminView({
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-2 text-[10px] text-neutral-500 pt-3 border-t border-neutral-100">
+                <div className="grid grid-cols-2 gap-2 text-[10px] text-neutral-500 pt-3 border-t border-neutral-100 items-center">
                   <div>
                     <span className="text-neutral-400 font-medium">Ubicación Física:</span>
-                    <p className="truncate block font-semibold text-neutral-700">{h.ubicacion}</p>
+                    <p className="truncate block font-semibold text-neutral-700 max-w-[130px]">{h.ubicacion}</p>
                   </div>
                   <div>
                     <span className="text-neutral-400 font-medium">Configuración de Suites:</span>
@@ -1131,7 +1257,7 @@ export default function AdminView({
                           <span className={`inline-block text-[9px] uppercase font-bold px-1.5 py-0.5 rounded-md border ${
                             h.tipoEstablecimiento === 'casa' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-purple-50 text-purple-700 border-purple-200'
                           }`}>
-                            {h.tipoEstablecimiento === 'casa' ? '🏡 Casa de Alquiler' : '🏢 Departamento'}
+                            {h.tipoEstablecimiento === 'casa' ? '🏡 Casa' : '🏢 Departamento'}
                           </span>
                           <span className={`inline-block text-[9px] uppercase font-bold px-1.5 py-0.5 rounded-md border ${
                             h.finalidad === 'venta' ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-pink-100 text-pink-800 border-pink-300'
@@ -1146,7 +1272,12 @@ export default function AdminView({
                     <div className="flex gap-1.5">
                       <button
                         onClick={() => {
-                          setEditingProperty({ ...h });
+                          setEditingProperty({ 
+                            ...h, 
+                            servicios: h.servicios || [],
+                            serviciosDetallados: h.serviciosDetallados || [] 
+                          });
+                          setNewServiceForm({ id: '', nombre: '', precio: 0, descripcion: '', estado: 'activo' });
                           setShowPropertyModal(true);
                         }}
                         className="p-1.5 text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 rounded-lg transition-colors cursor-pointer"
@@ -1258,27 +1389,41 @@ export default function AdminView({
       {/* CRUD INTERNAL ROOMS */}
       {adminTab === 'rooms' && (
         <div className="space-y-6 animate-fade-in font-sans">
-          <div className="flex justify-between items-center bg-neutral-50 p-4 rounded-2xl border border-neutral-100">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-neutral-50 p-4 rounded-2xl border border-neutral-100">
             <div>
               <h4 className="font-semibold text-neutral-800">Catálogo Operativo de Habitaciones Centralizado ({allowedRooms.length})</h4>
               <p className="text-xs text-neutral-400">Ajuste estructuralmente capacidades, asignaciones de cama, nombres y precios de suites.</p>
             </div>
-            {isSuper && (
+            <div className="flex flex-wrap items-center gap-2">
               <button
-                onClick={startCreateRoom}
-                className="flex items-center gap-1.5 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold shadow transition-transform cursor-pointer active:scale-95"
+                type="button"
+                onClick={() => {
+                  setAdminTab('incidents');
+                }}
+                className="flex items-center gap-1.5 px-4 py-2 bg-neutral-800 hover:bg-neutral-900 text-white rounded-xl text-xs font-bold shadow transition-all duration-200 hover:shadow-md cursor-pointer active:scale-95"
               >
-                <Plus className="w-4 h-4" />
-                <span>Nueva Habitación</span>
+                <Wrench className="w-4 h-4 text-teal-400" />
+                <span>Gestionar Incidencias</span>
               </button>
-            )}
+
+              {(isSuper || activeUser.rol === 'hotel_admin') && (
+                <button
+                  type="button"
+                  onClick={startCreateRoom}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold shadow transition-all duration-200 hover:shadow-md cursor-pointer active:scale-95"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Nueva Habitación</span>
+                </button>
+              )}
+            </div>
           </div>
 
-          {isSuper && (
+          {(isSuper || allowedHotels.length > 1) && (
             <div className="bg-white p-5 rounded-2xl border border-neutral-200 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm border-l-4 border-l-teal-600">
               <div className="space-y-0.5" id="super-admin-hotel-select-panel">
-                <span className="text-xs font-bold text-neutral-800 block">Filtro Administrativo de Hotel</span>
-                <p className="text-[10px] text-neutral-400">Seleccione una propiedad para limitar el catálogo operativo de habitaciones.</p>
+                <span className="text-xs font-bold text-neutral-800 block">Filtro de Establecimiento</span>
+                <p className="text-[10px] text-neutral-400">Seleccione un establecimiento para filtrar las habitaciones mostradas.</p>
               </div>
               <select
                 id="super-admin-selected-hotel-dropdown"
@@ -1286,8 +1431,8 @@ export default function AdminView({
                 onChange={(e) => setSuperAdminSelectedHotelId(e.target.value)}
                 className="text-xs font-semibold text-neutral-700 bg-neutral-50 hover:bg-neutral-100 border border-neutral-200 rounded-xl p-3 focus:outline-none cursor-pointer w-full md:max-w-md transition-colors"
               >
-                <option value="all">🏨 Mostrar todos los hoteles ({rooms.length} habitaciones)</option>
-                {hotels.map(h => (
+                <option value="all">🏨 Mostrar todos {isSuper ? '' : 'mis'} los establecimientos ({isSuper ? rooms.length : rooms.filter(r => allowedHotels.some(ah => ah.id === r.hotelId)).length} habitaciones)</option>
+                {allowedHotels.map(h => (
                   <option key={h.id} value={h.id}>
                     🏢 {h.nombre} ({rooms.filter(r => r.hotelId === h.id).length} habitaciones registradas)
                   </option>
@@ -1457,20 +1602,124 @@ export default function AdminView({
                           {u.rol === 'super_admin' ? (
                             <span className="text-[10px] text-neutral-400 italic">Todos / Global</span>
                           ) : !isSuper ? (
-                            <span className="text-[10px] font-semibold text-neutral-600 bg-slate-100 px-2 py-1 rounded">
-                              {hotels.find(h => h.id === u.hotelId)?.nombre || 'Ninguno / Libre'}
-                            </span>
-                          ) : (
-                            <select
-                              value={u.hotelId || ''}
-                              onChange={(e) => onUpdateUserHotel(u.id, e.target.value || undefined)}
-                              className="bg-white border border-neutral-200 rounded text-[10px] font-semibold py-1 px-1.5 focus:outline-none cursor-pointer"
-                            >
-                              <option value="">Ninguno / Libre</option>
-                              {hotels.map(h => (
-                                <option key={h.id} value={h.id}>{h.nombre}</option>
+                            <div className="flex flex-wrap gap-1">
+                              {hotels.filter(h => h.id === u.hotelId || (u.hotelIds && u.hotelIds.includes(h.id))).map(h => (
+                                <span key={h.id} className="text-[9px] font-semibold text-neutral-600 bg-slate-100 px-1.5 py-0.5 rounded">
+                                  {h.nombre}
+                                </span>
                               ))}
-                            </select>
+                              {(!u.hotelId && (!u.hotelIds || u.hotelIds.length === 0)) && (
+                                <span className="text-[9px] text-neutral-400 italic">Ninguno / Libre</span>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="relative inline-block text-left w-full max-w-[150px]">
+                              <button
+                                type="button"
+                                onClick={() => setActiveUserDropdown(activeUserDropdown === u.id ? null : u.id)}
+                                className="w-full flex items-center justify-between gap-1.5 bg-white border border-neutral-200 rounded text-[10px] font-semibold py-1 px-1.5 focus:outline-none cursor-pointer hover:bg-neutral-50 hover:border-neutral-300 transition-colors"
+                              >
+                                <span className="truncate text-left max-w-[110px]">
+                                  {(() => {
+                                    const linked = hotels.filter(h => h.id === u.hotelId || (u.hotelIds && u.hotelIds.includes(h.id)));
+                                    if (linked.length === 0) return 'Ninguno / Libre';
+                                    if (linked.length === 1) return linked[0].nombre;
+                                    return `${linked.length} Hoteles`;
+                                  })()}
+                                </span>
+                                <svg 
+                                  className="w-3 h-3 text-neutral-400 shrink-0" 
+                                  xmlns="http://www.w3.org/2000/svg" 
+                                  viewBox="0 0 20 20" 
+                                  fill="currentColor"
+                                >
+                                  <path 
+                                    fillRule="evenodd" 
+                                    d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" 
+                                    clipRule="evenodd" 
+                                  />
+                                </svg>
+                              </button>
+                              
+                              {activeUserDropdown === u.id && (
+                                <>
+                                  {/* Responsive Backdrop: backdrop-blur on mobile, transparent on desktop */}
+                                  <div 
+                                    className="fixed inset-0 md:absolute md:inset-0 z-30 bg-neutral-900/40 md:bg-transparent backdrop-blur-[2px] md:backdrop-blur-none cursor-pointer" 
+                                    onClick={() => setActiveUserDropdown(null)}
+                                  />
+                                  
+                                  {/* Modal / Popover container */}
+                                  <div className="fixed inset-x-4 top-1/2 -translate-y-1/2 md:translate-y-0 md:top-auto md:absolute md:right-0 md:left-0 mt-1 w-auto max-w-sm md:w-56 bg-white border border-neutral-200 rounded-xl md:rounded shadow-2xl md:shadow-lg z-40 p-4 md:p-2 space-y-3 md:space-y-1 max-h-[70vh] md:max-h-48 overflow-y-auto mx-auto md:mx-0">
+                                    <div className="flex items-center justify-between px-1">
+                                      <span className="text-xs md:text-[9px] text-neutral-800 md:text-neutral-400 font-bold uppercase">
+                                        Vincular Hoteles
+                                      </span>
+                                      {/* Close icon ONLY on mobile */}
+                                      <button 
+                                        type="button"
+                                        onClick={() => setActiveUserDropdown(null)}
+                                        className="md:hidden p-1 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 rounded-full cursor-pointer"
+                                      >
+                                        <X className="w-4 h-4" />
+                                      </button>
+                                    </div>
+
+                                    <div className="h-[1px] bg-neutral-100 my-1" />
+
+                                    <div className="space-y-1 max-h-[40vh] md:max-h-36 overflow-y-auto">
+                                      {hotels.map(h => {
+                                        const isChecked = u.hotelId === h.id || (u.hotelIds && u.hotelIds.includes(h.id));
+                                        return (
+                                          <label 
+                                            key={h.id} 
+                                            className="flex items-center gap-3 md:gap-2 px-3 py-2.5 md:px-2 md:py-1.5 hover:bg-neutral-50 rounded cursor-pointer text-[12px] md:text-[10px] font-semibold text-neutral-700 hover:text-neutral-900 transition-colors"
+                                          >
+                                            <input
+                                              type="checkbox"
+                                              checked={!!isChecked}
+                                              onChange={() => {
+                                                let currentIds = u.hotelIds || [];
+                                                if (u.hotelId && !currentIds.includes(u.hotelId)) {
+                                                  currentIds = [u.hotelId, ...currentIds];
+                                                }
+                                                let nextIds: string[];
+                                                if (isChecked) {
+                                                  nextIds = currentIds.filter(id => id !== h.id);
+                                                } else {
+                                                  nextIds = [...currentIds, h.id];
+                                                }
+                                                if (onUpdateUserHotels) {
+                                                  onUpdateUserHotels(u.id, nextIds);
+                                                } else {
+                                                  onUpdateUserHotel(u.id, nextIds[0] || undefined);
+                                                }
+                                              }}
+                                              className="rounded border-neutral-300 text-teal-600 focus:ring-teal-500 w-4.5 h-4.5 md:w-3.5 md:h-3.5 cursor-pointer"
+                                            />
+                                            <span className="truncate" title={h.nombre}>{h.nombre}</span>
+                                          </label>
+                                        );
+                                      })}
+                                      {hotels.length === 0 && (
+                                        <div className="text-[10px] md:text-[9px] text-neutral-400 italic p-1.5 text-center">No hay hoteles creados</div>
+                                      )}
+                                    </div>
+
+                                    {/* Done button ONLY on mobile to close selection window */}
+                                    <div className="md:hidden pt-2 border-t border-neutral-100">
+                                      <button
+                                        type="button"
+                                        onClick={() => setActiveUserDropdown(null)}
+                                        className="w-full bg-teal-600 hover:bg-teal-700 text-white font-semibold py-2 px-3 rounded-lg text-xs transition-colors cursor-pointer text-center"
+                                      >
+                                        Aceptar
+                                      </button>
+                                    </div>
+                                  </div>
+                                </>
+                              )}
+                            </div>
                           )}
                         </td>
                         <td className="py-3 px-4">
@@ -1487,20 +1736,7 @@ export default function AdminView({
                               <option value="cliente">Cliente</option>
                             </select>
 
-                            <button
-                              onClick={() => {
-                                setEditingUserForPass(u);
-                                setTempNewPass("");
-                                setPassModalSuccess("");
-                                setPassModalError("");
-                                setShowPassModal(true);
-                              }}
-                              className="flex items-center gap-1 py-1 px-2.5 bg-neutral-105 hover:bg-neutral-200 text-neutral-700 rounded text-[10px] font-bold cursor-pointer transition-all active:scale-95 border border-neutral-200 shadow-sm"
-                              title="Establecer nueva contraseña de acceso segura"
-                            >
-                              <Key className="w-3 h-3 text-teal-600" />
-                              <span>Generar Clave</span>
-                            </button>
+
                           </div>
                         </td>
                       </tr>
@@ -1574,29 +1810,33 @@ export default function AdminView({
             )}
           </div>
 
-          <div className="h-[1.5px] bg-neutral-150 my-8" />
+          {isSuper && (
+            <>
+              <div className="h-[1.5px] bg-neutral-150 my-8" />
 
-          {/* HISTORIAL CRONOLÓGICO */}
-          <div>
-            <h4 className="font-semibold text-neutral-800">Canal de Auditoría en Vivo (Activity Logs)</h4>
-            <p className="text-xs text-neutral-400">Supervisión en tiempo real de transacciones de bases de datos, inicio de sesión y validación de Check-Ins.</p>
-          </div>
-
-          <div className="bg-white border border-neutral-200 rounded-2xl p-4 shadow-sm max-h-96 overflow-y-auto space-y-3 font-mono text-xs">
-            {allowedLogs.map((log: any) => (
-              <div key={log.id} className="p-3 bg-neutral-50 rounded-xl border border-neutral-100 flex flex-col sm:flex-row justify-between sm:items-center gap-2">
-                <div>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-[10px] text-neutral-400">{new Date(log.timestamp).toLocaleTimeString()}</span>
-                    <span className="text-[10px] uppercase font-bold text-teal-700 font-sans">{log.action}</span>
-                    <span className="text-[9px] bg-white border border-neutral-200 rounded px-1 text-neutral-500 font-sans">{log.role}</span>
-                  </div>
-                  <p className="text-xs text-neutral-700 mt-1 font-sans">{log.detalles}</p>
-                </div>
-                <span className="text-[10px] text-neutral-500 font-bold font-sans self-start sm:self-center">Operado por {log.user}</span>
+              {/* HISTORIAL CRONOLÓGICO */}
+              <div>
+                <h4 className="font-semibold text-neutral-800">Canal de Auditoría en Vivo (Activity Logs)</h4>
+                <p className="text-xs text-neutral-400">Supervisión en tiempo real de transacciones de bases de datos, inicio de sesión y validación de Check-Ins.</p>
               </div>
-            ))}
-          </div>
+
+              <div className="bg-white border border-neutral-200 rounded-2xl p-4 shadow-sm max-h-96 overflow-y-auto space-y-3 font-mono text-xs mt-4">
+                {allowedLogs.map((log: any) => (
+                  <div key={log.id} className="p-3 bg-neutral-50 rounded-xl border border-neutral-100 flex flex-col sm:flex-row justify-between sm:items-center gap-2">
+                    <div>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[10px] text-neutral-400">{new Date(log.timestamp).toLocaleTimeString()}</span>
+                        <span className="text-[10px] uppercase font-bold text-teal-700 font-sans">{log.action}</span>
+                        <span className="text-[9px] bg-white border border-neutral-200 rounded px-1 text-neutral-500 font-sans">{log.role}</span>
+                      </div>
+                      <p className="text-xs text-neutral-700 mt-1 font-sans">{log.detalles}</p>
+                    </div>
+                    <span className="text-[10px] text-neutral-500 font-bold font-sans self-start sm:self-center">Operado por {log.user}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -1657,16 +1897,16 @@ export default function AdminView({
               </select>
             </div>
 
-            {isSuper && (
+            {(isSuper || allowedHotels.length > 1) && (
               <div>
-                <label className="text-[11px] font-semibold text-neutral-500 block mb-1 font-mono">Filtrar por Hotel Destino:</label>
+                <label className="text-[11px] font-semibold text-neutral-500 block mb-1 font-mono">Filtrar por Establecimiento:</label>
                 <select
                   value={resHotelFilter}
                   onChange={(e) => setResHotelFilter(e.target.value)}
-                  className="w-full text-xs border border-neutral-250 p-2.5 rounded-lg bg-white focus:outline-none cursor-pointer"
+                  className="w-full text-xs border border-neutral-250 p-2.5 rounded-lg bg-white focus:outline-none cursor-pointer font-semibold text-neutral-700"
                 >
-                  <option value="todos">Todos los Hoteles</option>
-                  {hotels.map(h => (
+                  <option value="todos">{isSuper ? 'Todos los Hoteles' : 'Todos mis Establecimientos'}</option>
+                  {allowedHotels.map(h => (
                     <option key={h.id} value={h.id}>{h.nombre}</option>
                   ))}
                 </select>
@@ -1704,8 +1944,15 @@ export default function AdminView({
 
                       return (
                         <tr key={res.id} className="hover:bg-neutral-50/40 transition-colors">
-                          <td className="p-4 font-mono font-bold text-neutral-800">
-                            {res.id}
+                          <td className="p-4">
+                            <button
+                              type="button"
+                              onClick={() => setPreviewingRes(res)}
+                              className="font-mono font-bold text-neutral-800 hover:text-brand-cyan cursor-pointer transition-colors text-left focus:outline-none focus:underline"
+                              title="Ver prefactura / recibo de la reserva"
+                            >
+                              {res.id}
+                            </button>
                           </td>
                           <td className="p-4 space-y-0.5">
                             <span className="font-semibold text-neutral-900 block">
@@ -1779,128 +2026,592 @@ export default function AdminView({
         </div>
       )}
 
-      {/* SECURITY MODAL: CHANGE PASSWORD OF ANY USER */}
-      {showPassModal && editingUserForPass && (
-        <div className="fixed inset-0 bg-neutral-950/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm animate-fade-in font-sans">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full border border-neutral-105 flex flex-col scale-100 transition-all duration-200">
+      {/* GESTIÓN DE REEMBOLSOS Y POLÍTICAS DE CANCELACIÓN TAB */}
+      {adminTab === 'refunds' && (
+        <div className="space-y-6 animate-fade-in text-xs font-sans">
+          
+          {/* Header Info */}
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <h4 className="text-base font-bold text-neutral-850">Gestión de Reembolsos y Cancelaciones</h4>
+              <p className="text-[11px] text-neutral-400">
+                Administre cancelaciones, compute los días de anticipación y determine la tasa de reembolso aplicable de acuerdo a las políticas del hotel.
+              </p>
+            </div>
+          </div>
+
+          {/* POLICIES CARDS & SIMULATION PANEL */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
-            {/* Header */}
-            <div className="px-6 py-4.5 border-b border-neutral-100 flex justify-between items-center bg-neutral-50 rounded-t-3xl">
-              <div className="flex items-center gap-2">
-                <Key className="w-5 h-5 text-teal-600 animate-pulse" />
-                <div>
-                  <h4 className="font-bold text-neutral-850 text-sm">Cambiar Clave de Acceso</h4>
-                  <p className="text-[10px] text-neutral-400 font-mono uppercase">{editingUserForPass.email}</p>
+            {/* Cancellation policies breakdown card */}
+            <div className="lg:col-span-2 bg-white p-5 rounded-2xl border border-neutral-200 shadow-sm space-y-4">
+              <div className="flex items-center gap-2 border-b border-neutral-100 pb-2">
+                <Percent className="w-4 h-4 text-teal-600" />
+                <h5 className="font-bold text-neutral-800 text-xs">Políticas de Cancelación Establecidas</h5>
+              </div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-[11px]">
+                <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-150">
+                  <span className="font-bold text-emerald-700 block">🟢 &gt;= 15 días de anticipación:</span>
+                  <span className="text-neutral-500 text-[10.5px]">Reembolso del <strong className="text-neutral-800 font-bold">100%</strong> de lo abonado. Cancelación temprana sin costo administrativo.</span>
+                </div>
+                
+                <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-150">
+                  <span className="font-bold text-blue-700 block">🔵 7 a 14 días de anticipación:</span>
+                  <span className="text-neutral-500 text-[10.5px]">Reembolso del <strong className="text-neutral-800 font-bold">50%</strong> de lo abonado. Retención por bloqueo de habitación.</span>
+                </div>
+
+                <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-150">
+                  <span className="font-bold text-amber-700 block">🟡 3 a 6 días de anticipación:</span>
+                  <span className="text-neutral-500 text-[10.5px]">Reembolso del <strong className="text-neutral-800 font-bold">20%</strong> de lo abonado. Penalidad moderada por cancelación corta.</span>
+                </div>
+
+                <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-150">
+                  <span className="font-bold text-red-700 block">🔴 Menos de 3 días / No-Show:</span>
+                  <span className="text-neutral-500 text-[10.5px]">Reembolso del <strong className="text-neutral-800 font-bold">0%</strong>. No aplica devolución de dinero por cancelación tardía.</span>
                 </div>
               </div>
-              <button 
-                onClick={() => setShowPassModal(false)} 
-                className="p-1.5 hover:bg-neutral-200 rounded-full cursor-pointer text-neutral-400 hover:text-neutral-600 transition-colors"
-                title="Cerrar modal"
-              >
-                <X className="w-4.5 h-4.5" />
-              </button>
+
+              <div className="bg-amber-50 p-3 rounded-xl border border-amber-200 flex gap-2.5 text-amber-800 text-[11px] leading-relaxed">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <strong className="font-bold">Regla Importante de Pago Pendiente:</strong> Si la reservación se encuentra en estado <strong className="font-bold uppercase">Pendiente de Pago</strong>, pasa únicamente a <strong className="font-bold uppercase">Cancelada</strong> y no aplica a ningún reembolso, ya que no se ha registrado abono ni pago al administrador.
+                </div>
+              </div>
             </div>
 
-            {/* Body */}
-            <div className="p-6 space-y-4">
-              <div className="p-3.5 bg-neutral-50 rounded-xl border border-neutral-200 text-xs text-neutral-600 leading-relaxed block">
-                Establezca una nueva contraseña para <strong>{editingUserForPass.nombre} {editingUserForPass.apellido}</strong>.
-                Se actualizará la contraseña y se enviará una notificación con el acceso por correo real.
+            {/* Simulation controls card */}
+            <div className="bg-white p-5 rounded-2xl border border-neutral-200 shadow-sm space-y-4">
+              <div className="flex items-center gap-2 border-b border-neutral-100 pb-2">
+                <Calendar className="w-4 h-4 text-blue-600" />
+                <h5 className="font-bold text-neutral-800 text-xs">Simulador de Fecha de Solicitud</h5>
               </div>
-
-              {passModalSuccess && (
-                <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-3.5 rounded-xl text-xs flex items-center gap-2 animate-fade-in font-sans">
-                  <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>{passModalSuccess}</span>
-                </div>
-              )}
-
-              {passModalError && (
-                <div className="bg-red-50 border border-red-200 text-red-855 p-3.5 rounded-xl text-xs flex items-center gap-2 animate-fade-in font-sans">
-                  <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
-                  <span>{passModalError}</span>
-                </div>
-              )}
-
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-bold text-neutral-400 uppercase tracking-wide block">Nueva Contraseña de Acceso:</label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={tempNewPass}
-                    onChange={(e) => setTempNewPass(e.target.value)}
-                    placeholder="Escriba o auto-genere"
-                    className="flex-1 text-xs border border-neutral-250 p-2.5 rounded-xl focus:outline-none focus:border-teal-500 font-mono tracking-wider bg-white"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const randPass = 'Roomia' + Math.floor(1000 + Math.random() * 9000);
-                      setTempNewPass(randPass);
-                    }}
-                    className="px-3 bg-neutral-100 hover:bg-neutral-200 border border-neutral-200 text-neutral-700 rounded-xl text-xs font-semibold cursor-pointer transition-colors active:scale-95"
-                  >
-                    Generar
-                  </button>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button" 
-                  onClick={() => setShowPassModal(false)}
-                  className="w-1/2 px-4 py-2.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-semibold rounded-xl text-xs cursor-pointer transition-colors"
-                >
-                  Cancelar
-                </button>
+              <p className="text-[10.5px] text-neutral-400 leading-normal">
+                Modifique la fecha simulada en la que el cliente solicita el reembolso para auditar la regla y ver cómo cambian los reembolsos calculados:
+              </p>
+              
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-neutral-500 uppercase block">Fecha de Simulación:</label>
+                <input
+                  type="date"
+                  value={simulatedRequestDate}
+                  onChange={(e) => setSimulatedRequestDate(e.target.value)}
+                  className="w-full text-xs border border-neutral-250 p-2.5 rounded-xl focus:outline-none focus:border-neutral-900 bg-white font-semibold"
+                />
                 <button
                   type="button"
-                  disabled={passModalLoading || !tempNewPass.trim()}
-                  onClick={async () => {
-                    if (!tempNewPass.trim()) return;
-                    setPassModalLoading(true);
-                    setPassModalSuccess("");
-                    setPassModalError("");
-                    try {
-                      if (onChangeUserPassword) {
-                        const res = await onChangeUserPassword(editingUserForPass.id, tempNewPass.trim(), true);
-                        if (res.success) {
-                          setPassModalSuccess("¡Contraseña actualizada y enviada!");
-                          setTimeout(() => {
-                            setShowPassModal(false);
-                            setEditingUserForPass(null);
-                          }, 1500);
-                        } else {
-                          setPassModalError(res.error || "No se pudo actualizar la contraseña.");
-                        }
-                      } else {
-                        setPassModalError("Servicio de seguridad no enlazado.");
-                      }
-                    } catch (err: any) {
-                      setPassModalError(err.message || String(err));
-                    } finally {
-                      setPassModalLoading(false);
-                    }
-                  }}
-                  className="w-1/2 px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl text-xs cursor-pointer shadow-md transition-colors flex items-center justify-center gap-1.5 disabled:bg-neutral-300 disabled:text-neutral-500 disabled:cursor-not-allowed"
+                  onClick={() => setSimulatedRequestDate(new Date().toISOString().split('T')[0])}
+                  className="w-full py-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-bold rounded-lg transition-colors cursor-pointer text-[10.5px]"
                 >
-                  {passModalLoading ? (
-                    <span>Guardando...</span>
-                  ) : (
-                    <>
-                      <Check className="w-4 h-4" />
-                      <span>Guardar & Enviar</span>
-                    </>
-                  )}
+                  Restaurar a Fecha de Hoy
                 </button>
               </div>
+              
+              <div className="text-[10px] text-neutral-400 bg-neutral-50 p-2 rounded-lg text-center font-mono">
+                Hoy es: {new Date().toISOString().split('T')[0]}
+              </div>
+            </div>
 
+          </div>
+
+          {/* FILTER BAR & LIST */}
+          <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden space-y-4 p-5">
+            <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
+              <h5 className="font-bold text-neutral-850 text-xs">Reservaciones Registradas para Gestión</h5>
+              
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Search input */}
+                <input
+                  type="text"
+                  value={refundSearch}
+                  onChange={(e) => setRefundSearch(e.target.value)}
+                  placeholder="Buscar por huésped, ID de reserva..."
+                  className="text-xs border border-neutral-250 px-3 py-2 rounded-xl focus:outline-none w-52"
+                />
+
+                {/* Hotel Filter */}
+                {isSuper && (
+                  <select
+                    value={refundHotelFilter}
+                    onChange={(e) => setRefundHotelFilter(e.target.value)}
+                    className="text-xs border border-neutral-250 px-3 py-2 rounded-xl bg-white focus:outline-none cursor-pointer"
+                  >
+                    <option value="todos">Todos los Hoteles</option>
+                    {allowedHotels.map(h => (
+                      <option key={h.id} value={h.id}>{h.nombre}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            </div>
+
+            <div className="overflow-x-auto border border-neutral-150 rounded-xl">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-neutral-50 text-[10.5px] font-bold text-neutral-500 uppercase border-b border-neutral-150">
+                    <th className="p-3">Código / Huésped</th>
+                    <th className="p-3">Establecimiento</th>
+                    <th className="p-3">Fecha Reserva</th>
+                    <th className="p-3">Estado Actual</th>
+                    <th className="p-3">Monto Total</th>
+                    <th className="p-3 text-center">Días de Anticipación</th>
+                    <th className="p-3">Diagnóstico Reembolso</th>
+                    <th className="p-3 text-right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-150">
+                  {(() => {
+                    const getDaysDiff = (checkInStr: string, requestStr: string) => {
+                      if (!checkInStr || !requestStr) return 0;
+                      const checkIn = new Date(checkInStr + 'T00:00:00');
+                      const request = new Date(requestStr + 'T00:00:00');
+                      const diffTime = checkIn.getTime() - request.getTime();
+                      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                      return diffDays;
+                    };
+
+                    const getRefundCategory = (res: Reservation, requestDate: string) => {
+                      if (res.estado === 'pendiente') {
+                        return {
+                          percent: 0,
+                          label: 'Sin pago - Solo Cancelación',
+                          color: 'bg-amber-50 text-amber-800 border-amber-200',
+                          applyRefund: false,
+                          desc: 'No se registró ningún pago. Pasa directo a Cancelada sin reembolso.'
+                        };
+                      }
+                      
+                      const days = getDaysDiff(res.fechaEntrada, requestDate);
+                      
+                      if (days >= 15) {
+                        return {
+                          percent: 100,
+                          label: 'Reembolso Completo (100%)',
+                          color: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+                          applyRefund: true,
+                          desc: 'Cancelación con alta anticipación (>= 15 días).'
+                        };
+                      } else if (days >= 7) {
+                        return {
+                          percent: 50,
+                          label: 'Reembolso Parcial (50%)',
+                          color: 'bg-blue-50 text-blue-800 border-blue-200',
+                          applyRefund: true,
+                          desc: 'Cancelación con media anticipación (7 a 14 días).'
+                        };
+                      } else if (days >= 3) {
+                        return {
+                          percent: 20,
+                          label: 'Reembolso Mínimo (20%)',
+                          color: 'bg-amber-50 text-amber-800 border-amber-200',
+                          applyRefund: true,
+                          desc: 'Cancelación con poca anticipación (3 a 6 días).'
+                        };
+                      } else {
+                        return {
+                          percent: 0,
+                          label: 'Penalización Completa (0%)',
+                          color: 'bg-red-50 text-red-800 border-red-200',
+                          applyRefund: true,
+                          desc: 'Cancelación tardía o No-Show (< 3 días o posterior).'
+                        };
+                      }
+                    };
+
+                    const filtered = allowedReservations.filter(res => {
+                      // 1. Only show canceled reservations
+                      if (res.estado !== 'cancelada') return false;
+
+                      // 2. Must qualify for a refund (anticipation >= 3 days)
+                      const days = getDaysDiff(res.fechaEntrada, simulatedRequestDate);
+                      if (days < 3) return false;
+
+                      // 3. Must have positive refund category
+                      const diag = getRefundCategory(res, simulatedRequestDate);
+                      if (!diag.applyRefund || diag.percent === 0) return false;
+
+                      // Apply search filter
+                      const guest = users.find(u => u.id === res.guestId);
+                      const guestName = guest ? `${guest.nombre} ${guest.apellido}` : 'Huésped';
+                      const guestEmail = guest?.email || '';
+                      const matchesSearch = res.id.toLowerCase().includes(refundSearch.toLowerCase()) ||
+                        guestName.toLowerCase().includes(refundSearch.toLowerCase()) ||
+                        guestEmail.toLowerCase().includes(refundSearch.toLowerCase());
+                      
+                      // Apply hotel filter
+                      const matchesHotel = refundHotelFilter === 'todos' ? true : res.hotelId === refundHotelFilter;
+
+                      return matchesSearch && matchesHotel;
+                    });
+
+                    if (filtered.length === 0) {
+                      return (
+                        <tr>
+                          <td colSpan={8} className="p-8 text-center text-neutral-400 text-xs italic">
+                            No se encontraron reservaciones canceladas con reembolsos pendientes por procesar.
+                          </td>
+                        </tr>
+                      );
+                    }
+
+                    return filtered.map(res => {
+                      const guest = users.find(u => u.id === res.guestId);
+                      const guestName = guest ? `${guest.nombre} ${guest.apellido}` : 'Huésped Particular';
+                      const hotel = hotels.find(h => h.id === res.hotelId);
+                      const roomObj = rooms.find(r => r.id === res.roomId);
+                      
+                      const daysAnticipacion = getDaysDiff(res.fechaEntrada, simulatedRequestDate);
+                      const diag = getRefundCategory(res, simulatedRequestDate);
+                      const refundAmount = ((diag.percent * res.total) / 100).toFixed(2);
+
+                      return (
+                        <tr key={res.id} className="hover:bg-neutral-50/50 transition-colors text-neutral-800">
+                          <td className="p-3">
+                            <span className="font-mono font-bold text-neutral-800 block text-[11px]">{res.id}</span>
+                            <span className="text-neutral-400 text-[10px]">{guestName}</span>
+                          </td>
+                          <td className="p-3">
+                            <span className="font-semibold text-neutral-700 block">{hotel?.nombre || 'Desconocido'}</span>
+                            <span className="text-neutral-450 text-[10px]">Hab N° {roomObj?.numero || 'S/N'}</span>
+                          </td>
+                          <td className="p-3 whitespace-nowrap">
+                            <span className="font-semibold block">{res.fechaEntrada}</span>
+                            <span className="text-[10px] text-neutral-400">al {res.fechaSalida}</span>
+                          </td>
+                          <td className="p-3">
+                            <span className="px-2 py-0.5 text-[9px] bg-red-50 text-red-700 border border-red-200 rounded font-bold uppercase">Cancelada</span>
+                          </td>
+                          <td className="p-3 font-bold text-neutral-800">
+                            ${res.total} USD
+                          </td>
+                          <td className="p-3 text-center">
+                            <span className={`font-mono font-bold text-xs ${daysAnticipacion < 3 ? 'text-red-600' : daysAnticipacion < 15 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                              {daysAnticipacion} {daysAnticipacion === 1 ? 'día' : 'días'}
+                            </span>
+                          </td>
+                          <td className="p-3">
+                            <div className="space-y-1">
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${diag.color} inline-block`}>
+                                {diag.label}
+                              </span>
+                              <span className="text-[9.5px] text-neutral-500 block leading-tight">{diag.desc}</span>
+                              <span className="text-[10.5px] text-teal-600 font-extrabold block">Reembolso calculado: ${refundAmount} USD ({diag.percent}%)</span>
+                            </div>
+                          </td>
+                          <td className="p-3 text-right whitespace-nowrap">
+                            {(res.mensajeCambio || '').includes('REEMBOLSO_PAGADO') ? (
+                              <span className="px-2.5 py-1 text-[9.5px] bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg font-bold">✓ DEVUELTO AL HUÉSPED</span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (confirm(`¿Confirmar que se ha efectuado y enviado el reembolso de $${refundAmount} USD al huésped ${guestName}?`)) {
+                                    if (onUpdateReservationStatus) {
+                                      onUpdateReservationStatus(
+                                        res.id,
+                                        'cancelada',
+                                        activeUser.nombre,
+                                        activeUser.rol,
+                                        `${res.mensajeCambio || ''} | REEMBOLSO_PAGADO`
+                                      );
+                                      alert("✅ Reembolso registrado con éxito en el historial de la reserva.");
+                                    }
+                                  }
+                                }}
+                                className="px-2.5 py-1.5 bg-[#0E2A47] hover:bg-neutral-800 text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer shadow-sm active:scale-95"
+                              >
+                                Pagar Reembolso
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    });
+                  })()}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
       )}
+
+      {/* 🛠️ GESTIÓN DE INCIDENCIAS MÓDULO ADICIONAL DEL PANEL */}
+      {adminTab === 'incidents' && (
+        <div className="space-y-6 animate-fade-in font-sans">
+          
+          {/* Header of incidents tab */}
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-neutral-50 p-4 rounded-2xl border border-neutral-200">
+            <div>
+              <h4 className="font-semibold text-neutral-800 text-lg font-display flex items-center gap-2">
+                <Wrench className="w-5 h-5 text-teal-600 animate-pulse" />
+                <span>Gestión de Incidencias Operativas</span>
+              </h4>
+              <p className="text-xs text-neutral-400 mt-0.5">Reporte, seguimiento de mantenimiento y bitácora de novedades técnicas por habitación.</p>
+            </div>
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-neutral-500 font-medium whitespace-nowrap">Filtrar Establecimiento:</span>
+              <select
+                value={incidentHotelFilter}
+                onChange={(e) => {
+                  setIncidentHotelFilter(e.target.value);
+                  setIncidentRoomId('');
+                }}
+                className="bg-white border border-neutral-200 hover:border-neutral-300 rounded-xl text-xs font-semibold py-1.5 px-3 focus:outline-none cursor-pointer text-[#0E2A47] shadow-sm transition-colors"
+              >
+                <option value="todos" className="text-neutral-800 font-semibold">Todos los Establecimientos</option>
+                {allowedHotels.map(h => (
+                  <option key={h.id} value={h.id} className="text-neutral-800 font-semibold">
+                    {h.tipoEstablecimiento === 'casa' || h.tipoEstablecimiento === 'departamento' ? '🏡' : '🏨'} {h.nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+            
+            {/* Columna Izquierda: Reportar Nueva Incidencia (2/5 size) */}
+            <div className="lg:col-span-2 space-y-4">
+              <div className="bg-white p-5 rounded-2xl border border-neutral-200 shadow-sm space-y-4">
+                <h5 className="font-bold text-neutral-800 text-xs uppercase tracking-wider flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 bg-teal-500 rounded-full animate-ping"></span>
+                  Reportar Nueva Novedad / Avería
+                </h5>
+                <p className="text-xs text-neutral-500 leading-relaxed">
+                  Registre un daño técnico o avería operativa. Esto transicionará automáticamente el aposento a estado de <strong className="text-neutral-800 font-bold">Mantenimiento</strong> en los tableros del staff.
+                </p>
+
+                <div className="space-y-4 pt-2">
+                  <div>
+                    <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider block mb-1.5">Seleccionar Habitación Afectada:</label>
+                    <select
+                      value={incidentRoomId}
+                      onChange={(e) => setIncidentRoomId(e.target.value)}
+                      className="w-full text-xs border border-neutral-250 p-3 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-neutral-900 cursor-pointer text-neutral-800 font-medium shadow-sm"
+                    >
+                      <option value="">-- Seleccione una Habitación --</option>
+                      {allowedRooms
+                        .filter(r => incidentHotelFilter === 'todos' || r.hotelId === incidentHotelFilter)
+                        .map(r => (
+                          <option key={r.id} value={r.id}>
+                            Habitación N° {r.numero} - {r.nombre} ({r.estado.toUpperCase()})
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider block mb-1.5">Descripción Detallada del Incidente:</label>
+                    <textarea
+                      rows={5}
+                      value={incidentDesc}
+                      onChange={(e) => setIncidentDesc(e.target.value)}
+                      placeholder="Especifique el daño técnico. Ej: Fuga de agua en el baño principal, aire acondicionado inoperativo, cerradura electrónica descargada..."
+                      className="w-full text-xs border border-neutral-250 p-3 rounded-lg focus:outline-none focus:ring-1 focus:ring-neutral-900 placeholder-neutral-400 bg-white text-neutral-800 font-sans shadow-sm"
+                    ></textarea>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!incidentRoomId) {
+                        alert("⚠️ Alerta: Por favor seleccione la habitación afectada.");
+                        return;
+                      }
+                      if (!incidentDesc.trim()) {
+                        alert("⚠️ Alerta: Por favor especifique los detalles o motivo de la incidencia.");
+                        return;
+                      }
+                      const target = rooms.find(r => r.id === incidentRoomId);
+                      if (!target) return;
+
+                      if (onUpdateRoomStatus) {
+                        onUpdateRoomStatus(incidentRoomId, 'mantenimiento', activeUser.nombre, activeUser.rol, incidentDesc);
+                        alert(`✅ Incidencia reportada exitosamente. La habitación N° ${target.numero} ha sido colocada en Mantenimiento.`);
+                        setIncidentDesc('');
+                        setIncidentRoomId('');
+                      }
+                    }}
+                    className="w-full py-3 bg-[#0E2A47] hover:bg-neutral-800 text-white font-bold rounded-xl text-xs transition-all duration-200 cursor-pointer shadow active:scale-95 text-center uppercase tracking-wider"
+                  >
+                    Registrar en Bitácora de Mantenimiento
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Columna Derecha: Historial/Bitácora de Incidencias (3/5 size) */}
+            <div className="lg:col-span-3 space-y-4">
+              <div className="bg-white p-5 rounded-2xl border border-neutral-200 shadow-sm space-y-4 flex flex-col min-h-[450px]">
+                <div className="flex justify-between items-center pb-2 border-b border-neutral-100">
+                  <h5 className="font-bold text-neutral-800 text-xs uppercase tracking-wider flex items-center gap-2">
+                    <ClipboardList className="w-4 h-4 text-[#0E2A47]" />
+                    <span>Bitácora Histórica de Incidencias</span>
+                  </h5>
+                  <span className="text-[10px] font-mono text-neutral-400 font-bold bg-neutral-100 px-2 py-0.5 rounded-md">
+                    Total en Historial: {allowedLogs.filter(log => {
+                      const detailsLower = (log.detalles || '').toLowerCase();
+                      const actionLower = (log.action || '').toLowerCase();
+                      const isIncident = actionLower.includes('incidencia') || detailsLower.includes('incidencia') || (detailsLower.includes('mantenimiento') && detailsLower.includes('habitación'));
+                      if (!isIncident) return false;
+                      
+                      if (incidentHotelFilter !== 'todos') {
+                        const roomMatch = rooms.find(r => 
+                          log.detalles.includes(`N° ${r.numero}`) || 
+                          log.detalles.includes(`N°${r.numero}`) || 
+                          log.detalles.toLowerCase().includes(`habitación ${r.numero}`)
+                        );
+                        const selectedHotel = hotels.find(h => h.id === incidentHotelFilter);
+                        const selectedHotelNameLower = selectedHotel ? selectedHotel.nombre.toLowerCase() : '';
+                        const matchesHotel = (roomMatch && roomMatch.hotelId === incidentHotelFilter) ||
+                                             (selectedHotelNameLower && detailsLower.includes(selectedHotelNameLower)) ||
+                                             detailsLower.includes(incidentHotelFilter.toLowerCase());
+                        if (!matchesHotel) return false;
+                      }
+                      return true;
+                    }).length}
+                  </span>
+                </div>
+
+                <div className="space-y-3 overflow-y-auto max-h-[550px] pr-1">
+                  {(() => {
+                    const incidentsList = allowedLogs.filter(log => {
+                      const detailsLower = (log.detalles || '').toLowerCase();
+                      const actionLower = (log.action || '').toLowerCase();
+                      const isIncident = (
+                        actionLower.includes('incidencia') || 
+                        detailsLower.includes('incidencia') || 
+                        (detailsLower.includes('mantenimiento') && detailsLower.includes('habitación'))
+                      );
+                      if (!isIncident) return false;
+                      
+                      if (incidentHotelFilter !== 'todos') {
+                        const roomMatch = rooms.find(r => 
+                          log.detalles.includes(`N° ${r.numero}`) || 
+                          log.detalles.includes(`N°${r.numero}`) || 
+                          log.detalles.toLowerCase().includes(`habitación ${r.numero}`)
+                        );
+                        const selectedHotel = hotels.find(h => h.id === incidentHotelFilter);
+                        const selectedHotelNameLower = selectedHotel ? selectedHotel.nombre.toLowerCase() : '';
+                        const matchesHotel = (roomMatch && roomMatch.hotelId === incidentHotelFilter) ||
+                                             (selectedHotelNameLower && detailsLower.includes(selectedHotelNameLower)) ||
+                                             detailsLower.includes(incidentHotelFilter.toLowerCase());
+                        if (!matchesHotel) return false;
+                      }
+                      return true;
+                    });
+
+                    if (incidentsList.length === 0) {
+                      return (
+                        <div className="text-center py-20 bg-neutral-50 rounded-2xl border border-dashed border-neutral-200">
+                          <Wrench className="w-8 h-8 text-neutral-300 mx-auto mb-2.5" />
+                          <p className="text-neutral-400 text-xs italic font-sans">No hay registros de incidencias para las habitaciones de este establecimiento.</p>
+                        </div>
+                      );
+                    }
+
+                    return incidentsList.map((log, idx) => {
+                      const roomMatch = rooms.find(r => 
+                        log.detalles.includes(`N° ${r.numero}`) || 
+                        log.detalles.includes(`N°${r.numero}`) || 
+                        log.detalles.toLowerCase().includes(`habitación ${r.numero}`)
+                      );
+
+                      const formattedDate = log.timestamp 
+                        ? new Date(log.timestamp).toLocaleString('es-ES', { 
+                            year: 'numeric', 
+                            month: 'short', 
+                            day: 'numeric', 
+                            hour: '2-digit', 
+                            minute: '2-digit' 
+                          }) 
+                        : 'Fecha desconocida';
+
+                      return (
+                        <div key={log.id || idx} className="p-4 bg-neutral-50 rounded-2xl border border-neutral-150 hover:bg-neutral-100/30 transition-all space-y-2.5">
+                          <div className="flex justify-between items-start gap-4">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                {roomMatch ? (
+                                  <span className="bg-[#0E2A47] text-white text-[9.5px] font-mono font-bold px-2 py-0.5 rounded-md">
+                                    Hab N° {roomMatch.numero} ({roomMatch.estado.toUpperCase()})
+                                  </span>
+                                ) : (
+                                  <span className="bg-neutral-800 text-white text-[9.5px] font-mono font-bold px-2 py-0.5 rounded-md">
+                                    Habitación Operativa
+                                  </span>
+                                )}
+                                <span className="text-[10px] text-neutral-400 font-mono">{formattedDate}</span>
+                              </div>
+                              <div className="text-[10px] text-neutral-450 font-sans">
+                                Registrado por: <strong className="text-neutral-600 font-bold">{log.usuario}</strong> ({log.userRol ? log.userRol.replace('_', ' ').toUpperCase() : 'STAFF'})
+                              </div>
+                            </div>
+                            
+                            {roomMatch && (
+                              <div className="text-right">
+                                {roomMatch.estado === 'mantenimiento' ? (
+                                  <div className="flex flex-col items-end gap-1.5">
+                                    <span className="bg-red-50 text-red-700 border border-red-150 text-[9px] font-bold px-1.5 py-0.5 rounded-full">
+                                      🔴 Mantenimiento Activo
+                                    </span>
+                                    {onUpdateRoomStatus && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          if (confirm(`¿Desea resolver la incidencia de la Habitación N° ${roomMatch.numero} y habilitarla de nuevo para reservas?`)) {
+                                            onUpdateRoomStatus(roomMatch.id, 'disponible', activeUser.nombre, activeUser.rol, "Incidencia solucionada por administración y devuelta a servicio.");
+                                            alert(`✅ Habitación N° ${roomMatch.numero} puesta como Disponible.`);
+                                          }
+                                        }}
+                                        className="text-[10px] bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1 px-2.5 rounded-lg cursor-pointer transition-all shadow-sm active:scale-95 whitespace-nowrap"
+                                      >
+                                        Marcar Solucionada
+                                      </button>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span className="bg-emerald-50 text-emerald-700 border border-emerald-150 text-[9px] font-bold px-1.5 py-0.5 rounded-full">
+                                    🟢 Solucionada / Disponible
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          <p className="text-xs text-neutral-700 font-medium leading-relaxed font-sans bg-white p-2.5 rounded-xl border border-neutral-100">
+                            {log.detalles}
+                          </p>
+
+                          <div className="flex justify-between items-center text-[10px] text-neutral-450 border-t border-neutral-200/60 pt-2 font-sans">
+                            <span>Acción Operativa: <strong className="text-neutral-600 font-bold">{log.action}</strong></span>
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+
+
+      {/* PREVIEW ACTIVE PRE-FACTURA PDF MODAL */}
+      {previewingRes && (
+        <InvoicePDF
+          reservation={previewingRes}
+          hotel={hotels.find(h => h.id === previewingRes.hotelId)}
+          room={rooms.find(r => r.id === previewingRes.roomId)}
+          guest={users.find(u => u.id === previewingRes.guestId)}
+          onClose={() => setPreviewingRes(null)}
+        />
+      )}
+
+
 
       {/* CRUD MODAL: ADD / EDIT HOTEL */}
       {showHotelModal && editingHotel && (
@@ -1917,20 +2628,13 @@ export default function AdminView({
             <form onSubmit={handleHotelSubmit} className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div className="col-span-2">
-                  <label className="text-[11px] font-semibold text-neutral-500 block mb-1">Tipo de Establecimiento / Propiedad:</label>
+                  <label className="text-[11px] font-semibold text-neutral-500 block mb-1">Tipo de Establecimiento:</label>
                   <select
-                    value={editingHotel.tipoEstablecimiento || 'hotel'}
-                    onChange={(e) => setEditingHotel({
-                      ...editingHotel,
-                      tipoEstablecimiento: e.target.value as 'hotel' | 'casa' | 'departamento',
-                      propietario: editingHotel.propietario || { nombre: '', telefono: '', email: '', documento: '' },
-                      detallesInmueble: editingHotel.detallesInmueble || { habitaciones: 1, banos: 1, metrosCuadrados: 40, amueblado: true, tieneEstacionamiento: false }
-                    })}
-                    className="w-full text-xs border border-neutral-250 p-2 rounded-lg focus:outline-none bg-white font-semibold cursor-pointer text-teal-700"
+                    value="hotel"
+                    disabled
+                    className="w-full text-xs border border-neutral-250 p-2 rounded-lg focus:outline-none bg-neutral-100 font-semibold cursor-not-allowed text-teal-700"
                   >
                     <option value="hotel">🏨 Hotel / Hostal (Múltiples habitaciones independientes)</option>
-                    <option value="casa">🏡 Casa Completa (Alquiler de unidad completa y terreno)</option>
-                    <option value="departamento">🏢 Departamento / Flat Completo (Alquiler vacacional o residencial)</option>
                   </select>
                 </div>
 
@@ -2085,11 +2789,10 @@ export default function AdminView({
                           />
                         </div>
                       </div>
-                      <div>
+                       <div>
                         <label className="text-[10px] font-semibold text-neutral-500 block mb-1">Documento de Identidad (Cédula de Identidad, DNI o Pasaporte):</label>
                         <input
                           type="text"
-                          required
                           placeholder="Ej: CI-093849120"
                           value={editingHotel.propietario?.documento || ''}
                           onChange={(e) => setEditingHotel({
@@ -2433,6 +3136,90 @@ export default function AdminView({
                 </div>
               </div>
 
+              {/* COMPREHENSIVE GENERAL FREE SERVICES SECTION */}
+              <div className="col-span-2 space-y-3 bg-neutral-50 p-4 rounded-xl border border-neutral-200 mt-2 font-sans text-xs">
+                <div className="flex justify-between items-center pb-2 border-b border-neutral-200">
+                  <span className="text-[11px] font-bold text-neutral-700 uppercase tracking-wide flex items-center gap-1.5">
+                    <Check className="w-3.5 h-3.5 text-emerald-600" /> Servicios Generales Incluidos (Gratis)
+                  </span>
+                  <span className="text-[9px] text-neutral-400 font-medium">Servicios estándar incluidos en cualquier estadía</span>
+                </div>
+
+                {/* Add Service Bar */}
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Ej:- Internet Wi-Fi de alta velocidad, Desayuno Buffet, Parqueadero"
+                    value={newGeneralServiceText}
+                    onChange={(e) => setNewGeneralServiceText(e.target.value)}
+                    className="flex-1 text-xs bg-white border border-neutral-250 p-1.5 rounded-lg focus:outline-none focus:border-teal-500"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (newGeneralServiceText.trim()) {
+                          const current = editingHotel.servicios || [];
+                          if (!current.includes(newGeneralServiceText.trim())) {
+                            setEditingHotel({
+                              ...editingHotel,
+                              servicios: [...current, newGeneralServiceText.trim()]
+                            });
+                          }
+                          setNewGeneralServiceText('');
+                        }
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (newGeneralServiceText.trim()) {
+                        const current = editingHotel.servicios || [];
+                        if (!current.includes(newGeneralServiceText.trim())) {
+                          setEditingHotel({
+                            ...editingHotel,
+                            servicios: [...current, newGeneralServiceText.trim()]
+                          });
+                        }
+                        setNewGeneralServiceText('');
+                      }
+                    }}
+                    className="bg-emerald-650 hover:bg-emerald-705 text-white font-semibold text-xs px-3 rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
+                  >
+                    Agregar
+                  </button>
+                </div>
+
+                {/* Existing general services */}
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {(!editingHotel.servicios || editingHotel.servicios.length === 0) ? (
+                    <span className="text-[10px] text-neutral-400 italic">No hay servicios generales definidos. Todos los huéspedes tendrán servicios vacíos.</span>
+                  ) : (
+                    editingHotel.servicios.map((service, index) => (
+                      <span
+                        key={index}
+                        className="inline-flex items-center gap-1 bg-white border border-neutral-200 text-neutral-700 font-semibold px-2 py-1 rounded-lg text-[10px] shadow-xs"
+                      >
+                        {service}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const filtered = editingHotel.servicios?.filter((_, idx) => idx !== index) || [];
+                            setEditingHotel({
+                              ...editingHotel,
+                              servicios: filtered
+                            });
+                          }}
+                          className="hover:text-red-500 text-neutral-400 font-bold ml-0.5 text-[9px] cursor-pointer"
+                          title="Eliminar este servicio"
+                        >
+                          ✕
+                        </button>
+                      </span>
+                    ))
+                  )}
+                </div>
+              </div>
+
               {/* DETAILED SERVICES SECTION */}
               <div className="col-span-2 space-y-3 bg-neutral-50 p-4 rounded-xl border border-neutral-200 mt-2">
                 <div className="flex justify-between items-center pb-2 border-b border-neutral-200">
@@ -2591,6 +3378,88 @@ export default function AdminView({
                 </div>
               </div>
 
+              {/* POLÍTICAS INTERNAS DE ESTADÍA */}
+              <div className="col-span-2 space-y-3 bg-neutral-50 p-4 rounded-xl border border-neutral-200 mt-2 font-sans">
+                <div className="flex flex-col">
+                  <span className="text-[11px] font-bold text-neutral-700 uppercase tracking-wide flex items-center gap-1.5">
+                    📋 Políticas Internas del Establecimiento ({(editingHotel.politicas || []).length})
+                  </span>
+                  <span className="text-[9px] text-neutral-400 font-medium">Políticas, normas de convivencia u horarios del establecimiento</span>
+                </div>
+
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Ej: Prohibido fumar en interiores, Hora de silencio 22:00, Se aceptan mascotas pequeñas"
+                    value={newHotelPolicyText}
+                    onChange={(e) => setNewHotelPolicyText(e.target.value)}
+                    className="flex-1 text-xs bg-white border border-neutral-250 p-1.5 rounded-lg focus:outline-none focus:border-teal-500 font-sans"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (newHotelPolicyText.trim()) {
+                          const current = editingHotel.politicas || [];
+                          if (!current.includes(newHotelPolicyText.trim())) {
+                            setEditingHotel({
+                              ...editingHotel,
+                              politicas: [...current, newHotelPolicyText.trim()]
+                            });
+                          }
+                          setNewHotelPolicyText('');
+                        }
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (newHotelPolicyText.trim()) {
+                        const current = editingHotel.politicas || [];
+                        if (!current.includes(newHotelPolicyText.trim())) {
+                          setEditingHotel({
+                            ...editingHotel,
+                            politicas: [...current, newHotelPolicyText.trim()]
+                          });
+                        }
+                        setNewHotelPolicyText('');
+                      }
+                    }}
+                    className="bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs px-3 rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
+                  >
+                    Agregar
+                  </button>
+                </div>
+
+                <div className="flex flex-col gap-1.5 mt-2">
+                  {(!editingHotel.politicas || editingHotel.politicas.length === 0) ? (
+                    <span className="text-[10px] text-neutral-400 italic">No hay políticas internas registradas.</span>
+                  ) : (
+                    editingHotel.politicas.map((pol, index) => (
+                      <div
+                        key={index}
+                        className="flex justify-between items-center bg-white border border-neutral-200 text-neutral-700 font-semibold px-2.5 py-1.5 rounded-lg text-[11px]"
+                      >
+                        <span className="truncate">{pol}</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const filtered = editingHotel.politicas?.filter((_, idx) => idx !== index) || [];
+                            setEditingHotel({
+                              ...editingHotel,
+                              politicas: filtered
+                            });
+                          }}
+                          className="text-red-500 hover:text-red-705 font-bold ml-2 text-[10px] cursor-pointer shrink-0"
+                          title="Eliminar política"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
               <div className="pt-2 flex gap-3">
                 <button
                   type="button" onClick={() => setShowHotelModal(false)}
@@ -2640,8 +3509,8 @@ export default function AdminView({
                     })}
                     className="w-full text-xs border border-neutral-250 p-2 rounded-lg focus:outline-none bg-white font-semibold cursor-pointer text-teal-700"
                   >
-                    <option value="casa">🏡 Casa de Alquiler</option>
-                    <option value="departamento">🏢 Departamento / Flat</option>
+                    <option value="casa">🏡 Casa</option>
+                    <option value="departamento">🏢 Departamento</option>
                   </select>
                 </div>
 
@@ -2700,7 +3569,7 @@ export default function AdminView({
                       type="number"
                       required
                       min="0"
-                      value={editingProperty.detallesInmueble?.habitaciones ?? 0}
+                      value={editingProperty.detallesInmueble?.habitaciones === 0 ? '' : (editingProperty.detallesInmueble?.habitaciones ?? '')}
                       onChange={(e) => {
                         const val = parseInt(e.target.value);
                         setEditingProperty({
@@ -2721,7 +3590,7 @@ export default function AdminView({
                       type="number"
                       required
                       min="0"
-                      value={editingProperty.detallesInmueble?.banos ?? 0}
+                      value={editingProperty.detallesInmueble?.banos === 0 ? '' : (editingProperty.detallesInmueble?.banos ?? '')}
                       onChange={(e) => {
                         const val = parseInt(e.target.value);
                         setEditingProperty({
@@ -3076,6 +3945,329 @@ export default function AdminView({
                 )}
               </div>
 
+              {/* SERVICIOS INCLUIDOS (GRATIS) */}
+              <div className="space-y-3 bg-neutral-50 p-4 rounded-xl border border-neutral-200 mt-2 font-sans text-xs">
+                <div className="flex flex-col border-b border-neutral-200 pb-1.5 mb-2">
+                  <span className="text-[11px] font-bold text-neutral-700 uppercase tracking-wide flex items-center gap-1.5 font-sans">
+                    🎁 Servicios Incluidos (Gratis) ({(editingProperty.servicios || []).length})
+                  </span>
+                  <span className="text-[9px] text-neutral-400 font-medium font-sans">Servicios y comodidades que ya vienen incluidos gratis en la propiedad</span>
+                </div>
+
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Ej / Wifi Fibra Óptica, Agua Caliente, Aire Acondicionado, Estacionamiento Gratis"
+                    value={newPropertyServiceText}
+                    onChange={(e) => setNewPropertyServiceText(e.target.value)}
+                    className="flex-1 text-xs bg-white border border-neutral-250 p-1.5 rounded-lg focus:outline-none focus:border-teal-500 font-sans font-semibold text-neutral-800"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (newPropertyServiceText.trim()) {
+                          const current = editingProperty.servicios || [];
+                          if (!current.includes(newPropertyServiceText.trim())) {
+                            setEditingProperty({
+                              ...editingProperty,
+                              servicios: [...current, newPropertyServiceText.trim()]
+                            });
+                          }
+                          setNewPropertyServiceText('');
+                        }
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (newPropertyServiceText.trim()) {
+                        const current = editingProperty.servicios || [];
+                        if (!current.includes(newPropertyServiceText.trim())) {
+                          setEditingProperty({
+                            ...editingProperty,
+                            servicios: [...current, newPropertyServiceText.trim()]
+                          });
+                        }
+                        setNewPropertyServiceText('');
+                      }
+                    }}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-3 rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
+                  >
+                    Agregar
+                  </button>
+                </div>
+
+                <div className="flex flex-wrap gap-1.5 mt-2 font-semibold">
+                  {(!editingProperty.servicios || editingProperty.servicios.length === 0) ? (
+                    <span className="text-[10px] text-neutral-400 italic">No hay servicios incluidos definidos aún.</span>
+                  ) : (
+                    editingProperty.servicios.map((service, index) => (
+                      <span
+                        key={index}
+                        className="inline-flex items-center gap-1 bg-white border border-neutral-200 text-neutral-700 font-semibold px-2 py-1 rounded-lg text-[10px] shadow-xs"
+                      >
+                        {service}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const filtered = editingProperty.servicios?.filter((_, idx) => idx !== index) || [];
+                            setEditingProperty({
+                              ...editingProperty,
+                              servicios: filtered
+                            });
+                          }}
+                          className="text-red-500 hover:text-red-700 ml-1 font-bold font-mono focus:outline-none cursor-pointer"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* POLÍTICAS INTERNAS DEL INMUEBLE */}
+              <div className="space-y-3 bg-neutral-50 p-4 rounded-xl border border-neutral-200 mt-2 font-sans text-xs">
+                <div className="flex flex-col">
+                  <span className="text-[11px] font-bold text-neutral-700 uppercase tracking-wide flex items-center gap-1.5 font-sans">
+                    📋 Políticas Internas de esta Propiedad ({(editingProperty.politicas || []).length})
+                  </span>
+                  <span className="text-[9px] text-neutral-400 font-medium font-sans">Normas de convivencia, políticas de cuidado o requisitos del propietario</span>
+                </div>
+
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Ej: Cuidado obligatorio del jardín, No se permiten fiestas, Se solicita identificación"
+                    value={newPropertyPolicyText}
+                    onChange={(e) => setNewPropertyPolicyText(e.target.value)}
+                    className="flex-1 text-xs bg-white border border-neutral-250 p-1.5 rounded-lg focus:outline-none focus:border-teal-500 font-sans"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (newPropertyPolicyText.trim()) {
+                          const current = editingProperty.politicas || [];
+                          if (!current.includes(newPropertyPolicyText.trim())) {
+                            setEditingProperty({
+                              ...editingProperty,
+                              politicas: [...current, newPropertyPolicyText.trim()]
+                            });
+                          }
+                          setNewPropertyPolicyText('');
+                        }
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (newPropertyPolicyText.trim()) {
+                        const current = editingProperty.politicas || [];
+                        if (!current.includes(newPropertyPolicyText.trim())) {
+                          setEditingProperty({
+                            ...editingProperty,
+                            politicas: [...current, newPropertyPolicyText.trim()]
+                          });
+                        }
+                        setNewPropertyPolicyText('');
+                      }
+                    }}
+                    className="bg-neutral-900 hover:bg-neutral-800 text-white font-semibold text-xs px-3 rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
+                  >
+                    Agregar
+                  </button>
+                </div>
+
+                <div className="flex flex-col gap-1.5 mt-2">
+                  {(!editingProperty.politicas || editingProperty.politicas.length === 0) ? (
+                    <span className="text-[10px] text-neutral-400 italic font-sans">No hay políticas registradas para esta propiedad.</span>
+                  ) : (
+                    editingProperty.politicas.map((pol, index) => (
+                      <div
+                        key={index}
+                        className="flex justify-between items-center bg-white border border-neutral-200 text-neutral-700 font-semibold px-2.5 py-1.5 rounded-lg text-[11px] font-sans"
+                      >
+                        <span className="truncate">{pol}</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const filtered = editingProperty.politicas?.filter((_, idx) => idx !== index) || [];
+                            setEditingProperty({
+                              ...editingProperty,
+                              politicas: filtered
+                            });
+                          }}
+                          className="text-red-500 hover:text-red-705 font-bold ml-2 text-[10px] cursor-pointer shrink-0"
+                          title="Eliminar política"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* SERVICIOS DETALLADOS PARA ALQUILER */}
+              {editingProperty.finalidad !== 'venta' && (
+                <div className="space-y-3 bg-neutral-50 p-4 rounded-xl border border-neutral-200 mt-2">
+                  <div className="flex justify-between items-center pb-2 border-b border-neutral-200">
+                    <span className="text-[11px] font-bold text-neutral-700 uppercase tracking-wide flex items-center gap-1.5">
+                      <Sparkles className="w-4 h-4 text-teal-600" /> Servicios Adicionales en Alquiler
+                    </span>
+                    <span className="text-[9px] text-neutral-400 font-medium">Precios por persona, editables en reserva</span>
+                  </div>
+
+                  {/* Existing services list */}
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    {(!editingProperty.serviciosDetallados || editingProperty.serviciosDetallados.length === 0) ? (
+                      <p className="text-[10px] text-neutral-400 text-center py-2 italic font-sans dark:text-neutral-500">No hay servicios adicionales creados aún para esta propiedad.</p>
+                    ) : (
+                      editingProperty.serviciosDetallados.map((service, sIndex) => (
+                        <div key={service.id || sIndex} className="p-2.5 rounded-lg bg-white border border-neutral-200 flex justify-between items-start gap-4">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-[11px] font-bold text-neutral-800">{service.nombre}</span>
+                              <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded uppercase ${
+                                service.estado === 'activo' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/50' : 'bg-neutral-150 text-neutral-500'
+                              }`}>
+                                {service.estado}
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-neutral-500 mt-0.5 leading-snug line-clamp-2">{service.descripcion}</p>
+                          </div>
+                          <div className="text-right shrink-0 flex flex-col items-end gap-1.5">
+                            <span className="text-xs font-extrabold text-neutral-850 font-mono">${service.precio} <span className="text-[9px] text-neutral-400 font-normal">/ pers</span></span>
+                            <div className="flex gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setNewServiceForm({
+                                    id: service.id,
+                                    nombre: service.nombre,
+                                    precio: service.precio,
+                                    descripcion: service.descripcion,
+                                    estado: service.estado
+                                  });
+                                }}
+                                className="text-[9px] font-bold text-teal-600 hover:text-teal-700 cursor-pointer"
+                              >
+                                Editar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const remains = (editingProperty.serviciosDetallados || []).filter((_, i) => i !== sIndex);
+                                  setEditingProperty({ ...editingProperty, serviciosDetallados: remains });
+                                }}
+                                className="text-[9px] font-bold text-red-500 hover:text-red-700 cursor-pointer"
+                              >
+                                Quitar
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  {/* Add / Edit service sub-form */}
+                  <div className="p-3 bg-white border border-neutral-200 rounded-xl space-y-2.5">
+                    <p className="text-[10.5px] font-bold text-neutral-700 flex items-center gap-1.5 align-middle font-sans">
+                      {newServiceForm.id ? "✏️ Editar Servicio Adicional" : "➕ Agregar Servicio Adicional"}
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="col-span-2">
+                        <input
+                          type="text"
+                          placeholder="Nombre. Ej: Desayuno americano, Transfer al aeropuerto"
+                          value={newServiceForm.nombre}
+                          onChange={(e) => setNewServiceForm({ ...newServiceForm, nombre: e.target.value })}
+                          className="w-full text-xs border border-neutral-250 p-1.5 rounded-lg focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <input
+                          type="number"
+                          min="1"
+                          placeholder="Precio unitario ($)"
+                          value={newServiceForm.precio || ''}
+                          onChange={(e) => setNewServiceForm({ ...newServiceForm, precio: parseFloat(e.target.value) || 0 })}
+                          className="w-full text-xs border border-neutral-250 p-1.5 rounded-lg focus:outline-none font-mono"
+                        />
+                      </div>
+                      <div>
+                        <select
+                          value={newServiceForm.estado}
+                          onChange={(e) => setNewServiceForm({ ...newServiceForm, estado: e.target.value as 'activo' | 'inactivo' })}
+                          className="w-full text-xs border border-neutral-250 p-1.5 rounded-lg focus:outline-none bg-white cursor-pointer"
+                        >
+                          <option value="activo">Activo</option>
+                          <option value="inactivo">Inactivo</option>
+                        </select>
+                      </div>
+                      <div className="col-span-2">
+                        <textarea
+                          placeholder="Descripción del servicio..."
+                          value={newServiceForm.descripcion}
+                          onChange={(e) => setNewServiceForm({ ...newServiceForm, descripcion: e.target.value })}
+                          className="w-full h-11 text-xs border border-neutral-250 p-1.5 rounded-lg focus:outline-none leading-tight"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex gap-2 justify-end pt-1">
+                      {newServiceForm.id && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setNewServiceForm({ id: '', nombre: '', precio: 0, descripcion: '', estado: 'activo' });
+                          }}
+                          className="px-2.5 py-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-600 rounded-lg text-[10px] font-bold cursor-pointer"
+                        >
+                          Limpiar
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!newServiceForm.nombre.trim()) {
+                            alert("Por favor ingrese el nombre del servicio.");
+                            return;
+                          }
+                          if (newServiceForm.precio <= 0) {
+                            alert("Por favor ingrese un precio mayor a $0.");
+                            return;
+                          }
+
+                          const currentList = editingProperty.serviciosDetallados || [];
+                          let nextList;
+                          if (newServiceForm.id) {
+                            // Edit mode
+                            nextList = currentList.map(s => s.id === newServiceForm.id ? { ...newServiceForm } : s);
+                          } else {
+                            // Add mode
+                            const newServiceObj = {
+                              id: `srv-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+                              nombre: newServiceForm.nombre.trim(),
+                              precio: newServiceForm.precio,
+                              descripcion: newServiceForm.descripcion.trim(),
+                              estado: newServiceForm.estado as 'activo' | 'inactivo'
+                            };
+                            nextList = [...currentList, newServiceObj];
+                          }
+
+                          setEditingProperty({ ...editingProperty, serviciosDetallados: nextList });
+                          setNewServiceForm({ id: '', nombre: '', precio: 0, descripcion: '', estado: 'activo' });
+                        }}
+                        className="px-3 py-1 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-[10px] font-bold cursor-pointer shadow-sm"
+                      >
+                        {newServiceForm.id ? "Actualizar" : "Agregar"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* ACCIONES */}
               <div className="pt-2 flex gap-3">
                 <button
@@ -3116,15 +4308,17 @@ export default function AdminView({
                 <div className="col-span-2">
                   <label className="text-[11px] font-semibold text-neutral-500 block mb-1">Hotel Destinatario:</label>
                   <select
-                    disabled={!isSuper}
+                    disabled={!(isSuper || activeUser.rol === 'hotel_admin') || allowedHotels.length <= 1}
                     value={editingRoom.hotelId}
                     onChange={(e) => setEditingRoom({ ...editingRoom, hotelId: e.target.value })}
                     className="w-full text-xs border border-neutral-250 p-2 rounded-lg bg-white disabled:bg-neutral-50 disabled:text-neutral-500 focus:outline-none cursor-pointer"
                   >
-                    {!allowedHotels.some(h => h.id === editingRoom.hotelId) && (
-                      <option value={editingRoom.hotelId}>Establecimiento desconocido ({editingRoom.hotelId})</option>
+                    {!allowedOnlyHotels.some(h => h.id === editingRoom.hotelId) && (
+                      <option value={editingRoom.hotelId}>
+                        {hotels.find(h => h.id === editingRoom.hotelId)?.nombre || `Establecimiento (${editingRoom.hotelId})`}
+                      </option>
                     )}
-                    {allowedHotels.map(h => (
+                    {allowedOnlyHotels.map(h => (
                        <option key={h.id} value={h.id}>{h.nombre}</option>
                     ))}
                   </select>
@@ -3181,8 +4375,8 @@ export default function AdminView({
                   <label className="text-[11px] font-semibold text-neutral-500 block mb-1">Precio por noche ($ USD):</label>
                   <input
                     type="number" required
-                    value={editingRoom.precio}
-                    onChange={(e) => setEditingRoom({ ...editingRoom, precio: parseInt(e.target.value) })}
+                    value={editingRoom.precio === 0 ? '' : editingRoom.precio}
+                    onChange={(e) => setEditingRoom({ ...editingRoom, precio: parseInt(e.target.value) || 0 })}
                     className="w-full text-xs border border-neutral-250 p-2 rounded-lg focus:outline-none"
                   />
                 </div>
@@ -3191,8 +4385,8 @@ export default function AdminView({
                   <label className="text-[11px] font-semibold text-neutral-500 block mb-1">Capacidad (Personas):</label>
                   <input
                     type="number" required
-                    value={editingRoom.capacidad}
-                    onChange={(e) => setEditingRoom({ ...editingRoom, capacidad: parseInt(e.target.value) })}
+                    value={editingRoom.capacidad === 0 ? '' : editingRoom.capacidad}
+                    onChange={(e) => setEditingRoom({ ...editingRoom, capacidad: parseInt(e.target.value) || 0 })}
                     className="w-full text-xs border border-neutral-250 p-2 rounded-lg focus:outline-none"
                   />
                 </div>
@@ -3201,8 +4395,8 @@ export default function AdminView({
                   <label className="text-[11px] font-semibold text-neutral-500 block mb-1">Cantidad de camas:</label>
                   <input
                     type="number" required
-                    value={editingRoom.camas}
-                    onChange={(e) => setEditingRoom({ ...editingRoom, camas: parseInt(e.target.value) })}
+                    value={editingRoom.camas === 0 ? '' : editingRoom.camas}
+                    onChange={(e) => setEditingRoom({ ...editingRoom, camas: parseInt(e.target.value) || 0 })}
                     className="w-full text-xs border border-neutral-250 p-2 rounded-lg focus:outline-none"
                   />
                 </div>
@@ -3505,6 +4699,185 @@ export default function AdminView({
         </div>
       )}
 
+      {/* MODAL: PROCESAR CANCELACIÓN Y REEMBOLSO */}
+      {showRefundModal && selectedResForRefund && (() => {
+        const guest = users.find(u => u.id === selectedResForRefund.guestId);
+        const guestName = guest ? `${guest.nombre} ${guest.apellido}` : 'Huésped Particular';
+        
+        const getDaysDiff = (checkInStr: string, requestStr: string) => {
+          if (!checkInStr || !requestStr) return 0;
+          const checkIn = new Date(checkInStr + 'T00:00:00');
+          const request = new Date(requestStr + 'T00:00:00');
+          const diffTime = checkIn.getTime() - request.getTime();
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          return diffDays;
+        };
+
+        const getRefundCategory = (res: Reservation, requestDate: string) => {
+          if (res.estado === 'pendiente') {
+            return {
+              percent: 0,
+              label: 'Sin pago - Solo Cancelación',
+              color: 'bg-amber-50 text-amber-800 border-amber-200',
+              applyRefund: false,
+              desc: 'No se registró ningún pago. Pasa directo a Cancelada sin reembolso.'
+            };
+          }
+          
+          const days = getDaysDiff(res.fechaEntrada, requestDate);
+          
+          if (days >= 15) {
+            return {
+              percent: 100,
+              label: 'Reembolso Completo (100%)',
+              color: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+              applyRefund: true,
+              desc: 'Cancelación con alta anticipación (>= 15 días).'
+            };
+          } else if (days >= 7) {
+            return {
+              percent: 50,
+              label: 'Reembolso Parcial (50%)',
+              color: 'bg-blue-50 text-blue-800 border-blue-200',
+              applyRefund: true,
+              desc: 'Cancelación con media anticipación (7 a 14 días).'
+            };
+          } else if (days >= 3) {
+            return {
+              percent: 20,
+              label: 'Reembolso Mínimo (20%)',
+              color: 'bg-amber-50 text-amber-800 border-amber-200',
+              applyRefund: true,
+              desc: 'Cancelación con poca anticipación (3 a 6 días).'
+            };
+          } else {
+            return {
+              percent: 0,
+              label: 'Penalización Completa (0%)',
+              color: 'bg-red-50 text-red-800 border-red-200',
+              applyRefund: true,
+              desc: 'Cancelación tardía o No-Show (< 3 días o posterior).'
+            };
+          }
+        };
+
+        const diag = getRefundCategory(selectedResForRefund, simulatedRequestDate);
+        const days = getDaysDiff(selectedResForRefund.fechaEntrada, simulatedRequestDate);
+        const refundAmount = ((diag.percent * selectedResForRefund.total) / 100).toFixed(2);
+        
+        return (
+          <div className="fixed inset-0 bg-neutral-950/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm animate-fade-in text-xs">
+            <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 border border-neutral-100 space-y-4">
+              <div className="flex justify-between items-center border-b border-neutral-150 pb-3 bg-neutral-50 px-4 py-3 -m-6 mb-2 rounded-t-2xl">
+                <h4 className="font-bold text-neutral-850 text-xs">Procesar Cancelación & Reembolso</h4>
+                <button 
+                  onClick={() => setShowRefundModal(false)} 
+                  className="p-1 hover:bg-neutral-200 rounded-full cursor-pointer text-neutral-400"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="space-y-3 font-sans text-xs">
+                <div>
+                  <span className="text-[10px] text-neutral-400 font-bold uppercase block font-mono">Reserva:</span>
+                  <span className="text-xs font-mono font-extrabold text-neutral-800">{selectedResForRefund.id} ({guestName})</span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5 bg-neutral-50 p-2.5 rounded-xl border border-neutral-150 text-[11px]">
+                  <div>
+                    <span className="text-neutral-450 block">Entrada:</span>
+                    <strong className="text-neutral-700 font-bold">{selectedResForRefund.fechaEntrada}</strong>
+                  </div>
+                  <div>
+                    <span className="text-neutral-450 block">Monto Total Reserva:</span>
+                    <strong className="text-neutral-700 font-bold">${selectedResForRefund.total} USD</strong>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5 bg-neutral-50 p-2.5 rounded-xl border border-neutral-150 text-[11px]">
+                  <div>
+                    <span className="text-neutral-450 block">Fecha Solicitud:</span>
+                    <strong className="text-neutral-700 font-bold">{simulatedRequestDate}</strong>
+                  </div>
+                  <div>
+                    <span className="text-neutral-450 block">Días de Anticipación:</span>
+                    <strong className="text-neutral-700 font-bold">{days} {days === 1 ? 'día' : 'días'}</strong>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl border space-y-1 bg-neutral-50">
+                  <span className="text-[10px] text-neutral-400 font-bold uppercase block font-mono">Diagnóstico del Reembolso:</span>
+                  <span className={`px-2 py-0.5 rounded text-[11px] font-bold border ${diag.color} inline-block`}>
+                    {diag.label}
+                  </span>
+                  <p className="text-[10.5px] text-neutral-600 font-sans mt-1">
+                    {diag.desc}
+                  </p>
+                  {selectedResForRefund.estado !== 'pendiente' && (
+                    <div className="text-[11px] font-bold text-neutral-850 pt-1 border-t border-neutral-200 mt-2 flex justify-between">
+                      <span>Monto a Reembolsar:</span>
+                      <span className="text-teal-600 font-extrabold">${refundAmount} USD ({diag.percent}%)</span>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold text-neutral-500 block mb-1">
+                    Nota o Justificación interna de cancelación (Requerido):
+                  </label>
+                  <textarea
+                    required
+                    rows={3}
+                    placeholder="Escriba aquí los detalles del reembolso o por qué se solicita la cancelación..."
+                    value={refundNote}
+                    onChange={(e) => setRefundNote(e.target.value)}
+                    className="w-full text-xs border border-neutral-250 p-2.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-neutral-900 text-neutral-800"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowRefundModal(false)}
+                  className="w-1/2 px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-semibold rounded-xl text-xs cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onUpdateReservationStatus) {
+                      let calcMessage = "";
+                      if (selectedResForRefund.estado === 'pendiente') {
+                        calcMessage = `Cancelación directa sin cobro (Reserva estaba Pendiente de Pago). Nota: ${refundNote}`;
+                      } else {
+                        calcMessage = `Cancelación con ${days} días de anticipación. Reembolso calculado del ${diag.percent}% ($${refundAmount} USD). Nota: ${refundNote}`;
+                      }
+                      onUpdateReservationStatus(
+                        selectedResForRefund.id,
+                        'cancelada',
+                        activeUser.nombre,
+                        activeUser.rol,
+                        calcMessage
+                      );
+                      alert("✅ Cancelación y diagnóstico de reembolso procesado con éxito.");
+                      setShowRefundModal(false);
+                      setSelectedResForRefund(null);
+                    }
+                  }}
+                  disabled={!refundNote.trim()}
+                  className="w-1/2 px-4 py-2 bg-[#0E2A47] hover:bg-neutral-800 text-white font-bold rounded-xl text-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+                >
+                  Confirmar Procesamiento
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* 📈 GESTIÓN DE TARIFAS Y VARIACIONES DE PRECIOS MODAL */}
       {showVariationsModal && selectedRoomForVariations && (
         <div className="fixed inset-0 bg-neutral-950/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm animate-fade-in text-xs">
@@ -3732,16 +5105,16 @@ export default function AdminView({
                 <button
                   type="button"
                   onClick={() => {
-                    if (!newVarPrice) {
-                      alert("Por favor especifique un precio especial válido.");
+                    if (!newVarPrice || newVarPrice <= 0) {
+                      alert("⚠️ Alerta: El precio especial es requerido y debe ser mayor a 0.");
                       return;
                     }
                     if (!newVarIsWeekend && newVarDates.length === 0) {
-                      alert("Por favor seleccione al menos un día en el selector de fecha de aplicación.");
+                      alert("⚠️ Alerta: La fecha de aplicación es requerida. Por favor, seleccione al menos un día en el selector.");
                       return;
                     }
                     if (!newVarMotivo.trim()) {
-                      alert("Por favor especifique un motivo descriptivo.");
+                      alert("⚠️ Alerta: El motivo o temporada especial es requerido.");
                       return;
                     }
 
