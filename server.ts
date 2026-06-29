@@ -13,6 +13,16 @@ async function startServer() {
   // Use JSON middleware to parse requests
   app.use(express.json());
 
+  // Dynamic Supabase Configuration endpoint to bypass static bundler caching and ensure the frontend always uses the current database configuration from host environment variables.
+  app.get("/supabase-env.js", (req, res) => {
+    res.setHeader("Content-Type", "application/javascript");
+    const config = {
+      VITE_SUPABASE_URL: process.env.VITE_SUPABASE_URL || "https://evovuegtffpcdeylekfy.supabase.co/rest/v1/",
+      VITE_SUPABASE_ANON_KEY: process.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2b3Z1ZWd0ZmZwY2RleWxla2Z5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzNzI5NzAsImV4cCI6MjA5Njk0ODk3MH0.LIQZANzId5gA6ZUR_HiZ4pB5mTz_gxqkkfPoaI4Ud1U"
+    };
+    res.send(`window.__SUPABASE_ENV__ = ${JSON.stringify(config)};`);
+  });
+
   // Enable CORS manually to support APK WebViews safely (capacitor://, file://, etc.)
   app.use((req, res, next) => {
     res.header("Access-Control-Allow-Origin", "*");
