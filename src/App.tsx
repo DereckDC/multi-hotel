@@ -256,6 +256,9 @@ export default function App() {
     setShowLandingPage(false);
     setShowFullLoginScreen(false);
     setShowAuthModal(false);
+    
+    // Reload the page to reset in-memory states and ensure data is synchronized from Supabase
+    window.location.reload();
   };
 
   const openProfileModal = () => {
@@ -444,6 +447,9 @@ export default function App() {
                   switchSessionUser(uid, fetchedUser);
                   setIsLoggedOut(false);
                   setShowFullLoginScreen(false);
+                  // Save user ID to localStorage immediately and reload the page to ensure complete sync with Supabase
+                  localStorage.setItem('aura_hotel_pms_current_user_id', uid);
+                  window.location.reload();
                 }}
                 onRegisterUser={registerUser}
                 onShowLanding={() => setShowFullLoginScreen(false)}
@@ -579,6 +585,9 @@ export default function App() {
                   switchSessionUser(uid, fetchedUser);
                   setIsLoggedOut(false);
                   setShowAuthModal(false);
+                  // Save user ID to localStorage immediately and reload the page to ensure complete sync with Supabase
+                  localStorage.setItem('aura_hotel_pms_current_user_id', uid);
+                  window.location.reload();
                 }}
                 onRegisterUser={registerUser}
                 onShowLanding={() => {
