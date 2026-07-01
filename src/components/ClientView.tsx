@@ -76,6 +76,8 @@ interface ClientViewProps {
   roomPriceVariations?: RoomPriceVariation[];
   onTriggerLogin?: () => void;
   onTriggerBookingAuth?: () => void;
+  activeTab?: 'explore' | 'properties' | 'reservations';
+  onActiveTabChange?: (tab: 'explore' | 'properties' | 'reservations') => void;
 }
 
 const ADDITIONAL_SERVICES = [
@@ -101,10 +103,22 @@ export default function ClientView({
   onSubmitReview,
   roomPriceVariations = [],
   onTriggerLogin,
-  onTriggerBookingAuth
+  onTriggerBookingAuth,
+  activeTab: propActiveTab,
+  onActiveTabChange
 }: ClientViewProps) {
   // Navigation Tabs: 'explore' | 'properties' | 'reservations'
-  const [activeTab, setActiveTab] = useState<'explore' | 'properties' | 'reservations'>('explore');
+  const [localActiveTab, setLocalActiveTab] = useState<'explore' | 'properties' | 'reservations'>('explore');
+  const activeTabValue = propActiveTab !== undefined ? propActiveTab : localActiveTab;
+  const setActiveTabValue = (tab: 'explore' | 'properties' | 'reservations') => {
+    if (onActiveTabChange) {
+      onActiveTabChange(tab);
+    } else {
+      setLocalActiveTab(tab);
+    }
+  };
+  const activeTab = activeTabValue;
+  const setActiveTab = setActiveTabValue;
 
   // Payment states
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -129,7 +143,8 @@ export default function ClientView({
   }, [selectedHotelId, onOpenHotelChange]);
   
   // Advanced Filter state
-  const [maxPrice, setMaxPrice] = useState<number>(2000);
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [bedsFilter, setBedsFilter] = useState<string>('todos');
   const [showOnlyAvailableRooms, setShowOnlyAvailableRooms] = useState<boolean>(false); // By default, show all rooms and browse, as requested by user
   const [propertyTypeFilter, setPropertyTypeFilter] = useState<string>('todos');
 
@@ -278,34 +293,67 @@ export default function ClientView({
 
   // Helper getters
   const activeHotel = hotels.find(h => h.id === selectedHotelId);
-  const filteredHotels = hotels.filter(h => {
-    if (h.estado !== 'activo') return false;
-    // Explora Hoteles should only return hotels
-    if (h.tipoEstablecimiento !== 'hotel') return false;
-    
-    const hotelRooms = rooms.filter(r => r.hotelId === h.id);
-    const minPrice = hotelRooms.length > 0 ? Math.min(...hotelRooms.map(r => r.precio)) : 150;
-      
-    if (minPrice > maxPrice) {
-      if (maxPrice < 2000) return false;
-    }
-    return true;
-  });
 
-  const filteredProperties = hotels.filter(h => {
-    if (h.estado !== 'activo') return false;
-    // Explora Propiedades should return casas & departamentos
-    if (h.tipoEstablecimiento !== 'casa' && h.tipoEstablecimiento !== 'departamento') return false;
-    
-    if (propertyTypeFilter !== 'todos' && h.tipoEstablecimiento !== propertyTypeFilter) return false;
-    
-    const minPrice = h.detallesInmueble?.precio || 150;
-      
-    if (minPrice > maxPrice) {
-      if (maxPrice < 2000) return false;
+  const getEstablishmentPrice = (h: Hotel) => {
+    const isPropiedad = h.tipoEstablecimiento === 'casa' || h.tipoEstablecimiento === 'departamento';
+    if (isPropiedad && h.detallesInmueble?.precio) {
+      return h.detallesInmueble.precio;
     }
-    return true;
-  });
+    const hotelRooms = rooms.filter(r => r.hotelId === h.id);
+    return hotelRooms.length > 0 ? Math.min(...hotelRooms.map(r => r.precio)) : 150;
+  };
+
+  const filteredHotels = hotels
+    .filter(h => {
+      if (h.estado !== 'activo') return false;
+      // Explora Hoteles should only return hotels
+      if (h.tipoEstablecimiento !== 'hotel') return false;
+      
+      // Beds filter
+      if (bedsFilter !== 'todos') {
+        const targetBeds = parseInt(bedsFilter, 10);
+        const hotelRooms = rooms.filter(r => r.hotelId === h.id);
+        if (bedsFilter === '4') {
+          const hasMatchingRoom = hotelRooms.some(r => r.camas >= 4);
+          if (!hasMatchingRoom) return false;
+        } else {
+          const hasMatchingRoom = hotelRooms.some(r => r.camas === targetBeds);
+          if (!hasMatchingRoom) return false;
+        }
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      const priceA = getEstablishmentPrice(a);
+      const priceB = getEstablishmentPrice(b);
+      return sortOrder === 'asc' ? priceA - priceB : priceB - priceA;
+    });
+
+  const filteredProperties = hotels
+    .filter(h => {
+      if (h.estado !== 'activo') return false;
+      // Explora Propiedades should return casas & departamentos
+      if (h.tipoEstablecimiento !== 'casa' && h.tipoEstablecimiento !== 'departamento') return false;
+      
+      if (propertyTypeFilter !== 'todos' && h.tipoEstablecimiento !== propertyTypeFilter) return false;
+      
+      // Beds filter
+      if (bedsFilter !== 'todos') {
+        const targetBeds = parseInt(bedsFilter, 10);
+        const bedsCount = h.detallesInmueble?.habitaciones || 1;
+        if (bedsFilter === '4') {
+          if (bedsCount < 4) return false;
+        } else {
+          if (bedsCount !== targetBeds) return false;
+        }
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      const priceA = getEstablishmentPrice(a);
+      const priceB = getEstablishmentPrice(b);
+      return sortOrder === 'asc' ? priceA - priceB : priceB - priceA;
+    });
   const roomsInActiveHotel = rooms.filter(r => {
     if (r.hotelId !== selectedHotelId) return false;
     if (showOnlyAvailableRooms && r.estado === 'mantenimiento') return false;
@@ -701,51 +749,13 @@ export default function ClientView({
         <div className="absolute top-0 right-0 w-48 h-48 bg-white/5 rounded-full blur-2xl transform translate-x-12 -translate-y-12" />
         <div className="absolute bottom-0 left-0 w-36 h-36 bg-teal-500/10 rounded-full blur-2xl transform -translate-x-12 translate-y-12" />
         
-        <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-4 md:gap-6">
-          <div className="max-w-xl lg:max-w-2xl">
-            <h2 className="text-2xl md:text-3xl font-display font-semibold tracking-tight leading-tight">
-              Descubre estadías extraordinarias
-            </h2>
-            <p className="text-teal-100/90 text-xs md:text-sm mt-1.5 leading-relaxed">
-              Disfrute de una suite de lujo seleccionada a mano, gestione sus reservas vigentes y obtenga sus pre-facturas electrónicas al instante.
-            </p>
-          </div>
-
-          <div className="flex flex-col gap-2 shrink-0 print:hidden w-full sm:w-60">
-            <button
-              onClick={() => { setActiveTab('explore'); setSelectedHotelId(null); }}
-              className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer w-full shadow-sm ${
-                activeTab === 'explore'
-                  ? 'bg-white text-teal-950 font-bold shadow-md scale-[1.02] duration-200'
-                  : 'bg-white/10 hover:bg-white/20 text-white hover:scale-[1.01] duration-200'
-              }`}
-            >
-              <Compass className="w-3.5 h-3.5" />
-              <span>Explorar Hoteles</span>
-            </button>
-            <button
-              onClick={() => { setActiveTab('properties'); setSelectedHotelId(null); }}
-              className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer w-full shadow-sm ${
-                activeTab === 'properties'
-                  ? 'bg-white text-teal-950 font-bold shadow-md scale-[1.02] duration-200'
-                  : 'bg-white/10 hover:bg-white/20 text-white hover:scale-[1.01] duration-200'
-              }`}
-            >
-              <Home className="w-3.5 h-3.5" />
-              <span>Explorar Propiedades</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('reservations')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer w-full shadow-sm ${
-                activeTab === 'reservations'
-                  ? 'bg-white text-teal-950 font-bold shadow-md scale-[1.02] duration-200'
-                  : 'bg-white/10 hover:bg-white/20 text-white hover:scale-[1.01] duration-200'
-              }`}
-            >
-              <List className="w-3.5 h-3.5" />
-              <span>Mis Reservaciones ({myReservations.length})</span>
-            </button>
-          </div>
+        <div className="relative">
+          <h2 className="text-2xl md:text-3xl font-display font-semibold tracking-tight leading-tight">
+            Descubre estadías extraordinarias
+          </h2>
+          <p className="text-teal-100/90 text-xs md:text-sm mt-1.5 leading-relaxed max-w-2xl">
+            Disfrute de una suite de lujo seleccionada a mano, gestione sus reservas vigentes y obtenga sus pre-facturas electrónicas al instante.
+          </p>
         </div>
       </div>
 
@@ -786,18 +796,31 @@ export default function ClientView({
                     </div>
                   )}
 
-                  <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-neutral-200">
-                    <span className="text-neutral-500">Precio Máximo:</span>
-                    <input
-                      type="range"
-                      min="50"
-                      max="2000"
-                      step="50"
-                      value={maxPrice}
-                      onChange={(e) => setMaxPrice(parseInt(e.target.value))}
-                      className="w-24 accent-teal-600 focus:outline-none cursor-pointer"
-                    />
-                    <span className="font-mono font-semibold">${maxPrice} USD</span>
+                  <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-lg border border-neutral-200 shadow-sm">
+                    <span className="text-neutral-500 font-semibold">Ordenar por:</span>
+                    <select
+                      value={sortOrder}
+                      onChange={(e) => setSortOrder(e.target.value as 'asc' | 'desc')}
+                      className="border-none bg-transparent font-bold focus:ring-0 cursor-pointer text-teal-700 text-xs"
+                    >
+                      <option value="asc">Precio: de menor a mayor ↗️</option>
+                      <option value="desc">Precio: de mayor a menor ↘️</option>
+                    </select>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-lg border border-neutral-200 shadow-sm">
+                    <span className="text-neutral-500 font-semibold">Número de camas:</span>
+                    <select
+                      value={bedsFilter}
+                      onChange={(e) => setBedsFilter(e.target.value)}
+                      className="border-none bg-transparent font-bold focus:ring-0 cursor-pointer text-teal-700 text-xs"
+                    >
+                      <option value="todos">Cualquiera</option>
+                      <option value="1">1 Cama</option>
+                      <option value="2">2 Camas</option>
+                      <option value="3">3 Camas</option>
+                      <option value="4">4 o más Camas</option>
+                    </select>
                   </div>
                 </div>
               </div>
