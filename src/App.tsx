@@ -212,40 +212,80 @@ export default function App() {
   // Inactivity tracking: 15 minutes session timeout
   useEffect(() => {
     // If the user is logged out or activeUser doesn't exist, don't watch for inactivity
-    if (isLoggedOut || !activeUser) return;
+    if (isLoggedOut || !activeUser) {
+      localStorage.removeItem('roomia_last_activity');
+      return;
+    }
 
     const INACTIVITY_LIMIT_MS = 15 * 60 * 1000; // 15 minutes
     let inactivityTimer: any;
 
     const performAutomaticLogout = async () => {
-      console.log("⏱️ Sesión expirada por inactividad (15 minutos). Cerrando sesión...");
+      console.log("⏱️ Sesión expirada por inactividad. Cerrando sesión...");
+      localStorage.removeItem('roomia_last_activity');
       await handleLogout();
     };
 
+    const checkInactivity = () => {
+      const lastActivityStr = localStorage.getItem('roomia_last_activity');
+      if (lastActivityStr) {
+        const lastActivity = parseInt(lastActivityStr, 10);
+        if (!isNaN(lastActivity) && Date.now() - lastActivity >= INACTIVITY_LIMIT_MS) {
+          performAutomaticLogout();
+          return true;
+        }
+      }
+      return false;
+    };
+
     const resetInactivityTimer = () => {
+      localStorage.setItem('roomia_last_activity', Date.now().toString());
       if (inactivityTimer) {
         clearTimeout(inactivityTimer);
       }
       inactivityTimer = setTimeout(performAutomaticLogout, INACTIVITY_LIMIT_MS);
     };
 
+    // Initialize/check on mount
+    const expired = checkInactivity();
+    if (!expired) {
+      resetInactivityTimer();
+    }
+
+    // Check periodically (every 5 seconds) to catch timeouts even if events aren't firing
+    const checkInterval = setInterval(() => {
+      checkInactivity();
+    }, 5000);
+
     // Listen to user activity indicators
     const userEvents = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart', 'click'];
-    
+    const handleUserActivity = () => {
+      resetInactivityTimer();
+    };
+
     userEvents.forEach(event => {
-      window.addEventListener(event, resetInactivityTimer);
+      window.addEventListener(event, handleUserActivity);
     });
 
-    // Start initial timer
-    resetInactivityTimer();
+    // Handle visibility changes (e.g. mobile lock, switching tabs)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkInactivity();
+      }
+    };
+    window.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleVisibilityChange);
 
     return () => {
       if (inactivityTimer) {
         clearTimeout(inactivityTimer);
       }
+      clearInterval(checkInterval);
       userEvents.forEach(event => {
-        window.removeEventListener(event, resetInactivityTimer);
+        window.removeEventListener(event, handleUserActivity);
       });
+      window.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleVisibilityChange);
     };
   }, [isLoggedOut, activeUser]);
 
