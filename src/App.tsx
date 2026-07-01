@@ -15,7 +15,7 @@ import LandingPageView from './components/LandingPageView';
 import LegalPageView, { LegalDocType } from './components/LegalPageView';
 import { InteractiveContainer } from './components/InteractiveContainer';
 import { BrandLogo } from './components/BrandLogo';
-import { LayoutDashboard, Users, User as UserIcon, CalendarDays, KeyRound, Star, Sparkles, Building2, ShieldAlert, LogOut, Edit3, Camera, Check, X, Shield, AlertCircle, Eye, EyeOff, Briefcase, LogIn, Key, Menu, Home, Compass, DollarSign, ClipboardList, QrCode, Calendar } from 'lucide-react';
+import { LayoutDashboard, Users, User as UserIcon, CalendarDays, KeyRound, Star, Sparkles, Building2, ShieldAlert, LogOut, Edit3, Camera, Check, X, Shield, AlertCircle, Eye, EyeOff, Briefcase, LogIn, Key, Menu, Home, Compass, DollarSign, ClipboardList, QrCode, Calendar, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function App() {
@@ -334,16 +334,29 @@ export default function App() {
           <div className="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between">
             
             <div className="flex items-center gap-2 navbar-logo-container">
-              <button
-                type="button"
-                onClick={() => setSidebarOpen(prev => !prev)}
-                className="p-2 text-[#23B4E6] hover:text-white bg-[#071726]/40 hover:bg-[#071726]/80 rounded-xl transition-all cursor-pointer active:scale-95 flex items-center justify-center mr-1 shadow border border-brand-cyan/20"
-                title="Menú de Navegación"
-              >
-                <Menu className="w-5 h-5" />
-              </button>
+              {!showFullLoginScreen && (
+                <button
+                  type="button"
+                  onClick={() => setSidebarOpen(prev => !prev)}
+                  className="p-2 text-[#23B4E6] hover:text-white bg-[#071726]/40 hover:bg-[#071726]/80 rounded-xl transition-all cursor-pointer active:scale-95 flex items-center justify-center mr-1 shadow border border-brand-cyan/20"
+                  title="Menú de Navegación"
+                >
+                  <Menu className="w-5 h-5" />
+                </button>
+              )}
               <BrandLogo size="lg" showText={true} lightText={true} />
             </div>
+
+            {showFullLoginScreen && (
+              <button
+                type="button"
+                onClick={() => setShowFullLoginScreen(false)}
+                className="px-4 py-2 bg-[#0E2A47] hover:bg-[#133A62] border border-brand-cyan/30 text-white text-xs font-semibold rounded-xl transition-all shadow-md shadow-brand-cyan/5 flex items-center gap-2 cursor-pointer active:scale-95"
+              >
+                <ArrowLeft className="w-4 h-4 text-brand-cyan" />
+                <span>Volver</span>
+              </button>
+            )}
 
             {/* Current Persona signature badge removed as requested since they are in the menu */}
 
@@ -374,28 +387,21 @@ export default function App() {
               exit={{ opacity: 0, y: -15 }}
               transition={{ duration: 0.25 }}
             >
-              <div className="max-w-4xl mx-auto px-4 mt-6">
-                <button
-                  type="button"
-                  onClick={() => setShowFullLoginScreen(false)}
-                  className="mb-4 px-4 py-2 bg-neutral-200 hover:bg-neutral-350 text-neutral-800 text-xs font-bold rounded-xl transition-all cursor-pointer inline-flex items-center gap-2 active:scale-95"
-                >
-                  ← Regresar al Catálogo de Hoteles
-                </button>
+              <div className="pt-8">
+                <LoginView
+                  users={users}
+                  onLoginSuccess={(uid, fetchedUser) => {
+                    switchSessionUser(uid, fetchedUser);
+                    setIsLoggedOut(false);
+                    setShowFullLoginScreen(false);
+                    // Save user ID to localStorage immediately and reload the page to ensure complete sync with Supabase
+                    localStorage.setItem('aura_hotel_pms_current_user_id', uid);
+                    window.location.reload();
+                  }}
+                  onRegisterUser={registerUser}
+                  onShowLanding={() => setShowFullLoginScreen(false)}
+                />
               </div>
-              <LoginView
-                users={users}
-                onLoginSuccess={(uid, fetchedUser) => {
-                  switchSessionUser(uid, fetchedUser);
-                  setIsLoggedOut(false);
-                  setShowFullLoginScreen(false);
-                  // Save user ID to localStorage immediately and reload the page to ensure complete sync with Supabase
-                  localStorage.setItem('aura_hotel_pms_current_user_id', uid);
-                  window.location.reload();
-                }}
-                onRegisterUser={registerUser}
-                onShowLanding={() => setShowFullLoginScreen(false)}
-              />
             </motion.div>
           </AnimatePresence>
         </main>
