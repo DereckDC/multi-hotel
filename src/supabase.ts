@@ -168,6 +168,12 @@ export function mapReservationToDb(res: Reservation): any {
   const diffTime = Math.abs(salida.getTime() - entrada.getTime());
   const nochesCalc = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) || 1;
 
+  let dbNotes = res.notas || '';
+  if (res.montoPagado !== undefined || res.montoPendiente !== undefined) {
+    dbNotes = dbNotes.replace(/\s*\[PAYMENT_INFO:.*?\]/g, '').trim();
+    dbNotes += (dbNotes ? ' ' : '') + `[PAYMENT_INFO:${JSON.stringify({ montoPagado: res.montoPagado, montoPendiente: res.montoPendiente })}]`;
+  }
+
   return {
     id: res.id,
     roomid: res.roomId || null, // Nullable para estadías completas de casas/departamentos
@@ -189,7 +195,7 @@ export function mapReservationToDb(res: Reservation): any {
     serviciosadicionales: res.serviciosAdicionales || [],
     subtotal: res.subtotal || 0,
     impuestos: res.impuestos || 0,
-    notes: res.notas || '',
+    notes: dbNotes,
     cambiadoporid: res.cambiadoPorId || null,
     reservation_type: res.reservationType || 'hospedaje'
   };
@@ -197,6 +203,23 @@ export function mapReservationToDb(res: Reservation): any {
 
 export function mapReservationFromDb(db: any): Reservation {
   if (!db) return db;
+  const rawNotes = db.notes || db.notas || '';
+  let montoPagado: number | undefined;
+  let montoPendiente: number | undefined;
+  let cleanNotes = rawNotes;
+
+  const paymentMatch = rawNotes.match(/\[PAYMENT_INFO:(.*?)\]/);
+  if (paymentMatch) {
+    try {
+      const parsed = JSON.parse(paymentMatch[1]);
+      montoPagado = parsed.montoPagado;
+      montoPendiente = parsed.montoPendiente;
+      cleanNotes = rawNotes.replace(/\s*\[PAYMENT_INFO:.*?\]/g, '').trim();
+    } catch (e) {
+      console.warn("Failed to parse payment info from notes", e);
+    }
+  }
+
   return {
     id: db.id,
     roomId: db.roomid !== undefined ? db.roomid : (db.roomId || null),
@@ -218,7 +241,9 @@ export function mapReservationFromDb(db: any): Reservation {
     serviciosAdicionales: db.serviciosadicionales || db.serviciosAdicionales || [],
     subtotal: Number(db.subtotal || 0),
     impuestos: Number(db.impuestos || 0),
-    notas: db.notes || db.notas || '',
+    notas: cleanNotes,
+    montoPagado,
+    montoPendiente,
     cambiadoPorId: db.cambiadoporid !== undefined ? db.cambiadoporid : (db.cambiadoPorId || undefined),
     fechaRegistro: db.fecharegistro !== undefined ? db.fecharegistro : (db.fechaRegistro || new Date().toISOString().split('T')[0]),
     reservationType: db.reservation_type || 'hospedaje'

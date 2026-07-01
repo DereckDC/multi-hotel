@@ -1918,7 +1918,13 @@ export default function AdminView({
                           <td className="p-4 space-y-0.5">
                             <span className="block font-medium text-neutral-700">{res.fechaEntrada} ➜ {res.fechaSalida}</span>
                             <span className="block text-[10px] font-mono font-bold text-neutral-500 flex flex-col">
-                              <span>Monto: ${res.total?.toFixed(2) || '0.00'} USD</span>
+                              <span>Monto Total: ${res.total?.toFixed(2) || '0.00'} USD</span>
+                              {res.montoPagado !== undefined && res.montoPagado > 0 && (
+                                <span className="text-emerald-700 text-[9px]">Abonado: ${res.montoPagado.toFixed(2)} USD</span>
+                              )}
+                              {res.montoPendiente !== undefined && res.montoPendiente > 0 && (
+                                <span className="text-red-600 text-[9px]">Pendiente: ${res.montoPendiente.toFixed(2)} USD</span>
+                              )}
                               {res.checkedInAt && <span className="text-emerald-700 text-[9px]">Check-In: {res.checkedInAt}</span>}
                               {res.checkedOutAt && <span className="text-neutral-500 text-[9px]">Check-Out: {res.checkedOutAt}</span>}
                             </span>
