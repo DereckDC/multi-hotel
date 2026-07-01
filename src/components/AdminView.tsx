@@ -2025,10 +2025,18 @@ export default function AdminView({
               </div>
             </div>
 
-            <div className="bg-amber-50 p-3 rounded-xl border border-amber-200 flex gap-2.5 text-amber-800 text-[11px] leading-relaxed">
-              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-              <div>
-                <strong className="font-bold">Regla Importante de Pago Pendiente:</strong> Si la reservación se encuentra en estado <strong className="font-bold uppercase">Pendiente de Pago</strong>, pasa únicamente a <strong className="font-bold uppercase">Cancelada</strong> y no aplica a ningún reembolso, ya que no se ha registrado abono ni pago al administrador.
+            <div className="bg-amber-50 p-3 rounded-xl border border-amber-200 flex flex-col gap-2 text-amber-800 text-[11px] leading-relaxed">
+              <div className="flex gap-2.5">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <strong className="font-bold">Regla de Pago Completo:</strong> El reembolso aplica únicamente cuando la reserva ha sido pagada en su totalidad (<strong className="font-bold">100% abonado</strong>) y posteriormente se cancela. Si la reserva solo se garantizó con un pago parcial (seña del <strong className="font-bold">20%</strong>), no se aplica devolución ni reembolso del dinero abonado.
+                </div>
+              </div>
+              <div className="flex gap-2.5 border-t border-amber-200/50 pt-2 mt-1">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <strong className="font-bold">Regla Importante de Pago Pendiente:</strong> Si la reservación se encuentra en estado <strong className="font-bold uppercase">Pendiente de Pago</strong>, pasa únicamente a <strong className="font-bold uppercase">Cancelada</strong> y no aplica a ningún reembolso, ya que no se ha registrado abono ni pago al administrador.
+                </div>
               </div>
             </div>
           </div>
@@ -2099,6 +2107,19 @@ export default function AdminView({
                           desc: 'No se registró ningún pago. Pasa directo a Cancelada sin reembolso.'
                         };
                       }
+
+                      const montoAbonado = res.montoPagado !== undefined ? res.montoPagado : res.total;
+                      const pagadoTotal = res.montoPendiente !== undefined ? (res.montoPendiente === 0) : (montoAbonado >= res.total);
+
+                      if (!pagadoTotal) {
+                        return {
+                          percent: 0,
+                          label: 'Sin Reembolso (Pago Parcial 20%)',
+                          color: 'bg-red-50 text-red-800 border-red-200',
+                          applyRefund: false,
+                          desc: 'El reembolso solo aplica cuando una reserva se pagó el valor total.'
+                        };
+                      }
                       
                       const days = getDaysDiff(res.fechaEntrada, requestDate);
                       
@@ -2108,7 +2129,7 @@ export default function AdminView({
                           label: 'Reembolso Completo (100%)',
                           color: 'bg-emerald-50 text-emerald-800 border-emerald-200',
                           applyRefund: true,
-                          desc: 'Cancelación con alta anticipación (>= 15 días).'
+                          desc: '🟢 Reembolso del 100% de lo abonado. Cancelación temprana sin costo administrativo.'
                         };
                       } else if (days >= 7) {
                         return {
@@ -2116,7 +2137,7 @@ export default function AdminView({
                           label: 'Reembolso Parcial (50%)',
                           color: 'bg-blue-50 text-blue-800 border-blue-200',
                           applyRefund: true,
-                          desc: 'Cancelación con media anticipación (7 a 14 días).'
+                          desc: '🔵 Reembolso del 50% de lo abonado. Retención por bloqueo de habitación.'
                         };
                       } else if (days >= 3) {
                         return {
@@ -2124,7 +2145,7 @@ export default function AdminView({
                           label: 'Reembolso Mínimo (20%)',
                           color: 'bg-amber-50 text-amber-800 border-amber-200',
                           applyRefund: true,
-                          desc: 'Cancelación con poca anticipación (3 a 6 días).'
+                          desc: '🟡 Reembolso del 20% de lo abonado. Penalidad moderada por cancelación corta.'
                         };
                       } else {
                         return {
@@ -2132,7 +2153,7 @@ export default function AdminView({
                           label: 'Penalización Completa (0%)',
                           color: 'bg-red-50 text-red-800 border-red-200',
                           applyRefund: true,
-                          desc: 'Cancelación tardía o No-Show (< 3 días o posterior).'
+                          desc: '🔴 Reembolso del 0%. No aplica devolución de dinero por cancelación tardía.'
                         };
                       }
                     };
@@ -2181,7 +2202,8 @@ export default function AdminView({
                       
                       const daysAnticipacion = getDaysDiff(res.fechaEntrada, simulatedRequestDate);
                       const diag = getRefundCategory(res, simulatedRequestDate);
-                      const refundAmount = ((diag.percent * res.total) / 100).toFixed(2);
+                      const montoAbonado = res.montoPagado !== undefined ? res.montoPagado : res.total;
+                      const refundAmount = ((diag.percent * montoAbonado) / 100).toFixed(2);
 
                       return (
                         <tr key={res.id} className="hover:bg-neutral-50/50 transition-colors text-neutral-800">
@@ -2200,8 +2222,11 @@ export default function AdminView({
                           <td className="p-3">
                             <span className="px-2 py-0.5 text-[9px] bg-red-50 text-red-700 border border-red-200 rounded font-bold uppercase">Cancelada</span>
                           </td>
-                          <td className="p-3 font-bold text-neutral-800">
-                            ${res.total} USD
+                          <td className="p-3">
+                            <span className="font-bold text-neutral-850 block">${res.total} USD</span>
+                            {res.montoPagado !== undefined && (
+                              <span className="text-[10px] text-emerald-700 block font-medium">Abonado: ${res.montoPagado} USD</span>
+                            )}
                           </td>
                           <td className="p-3 text-center">
                             <span className={`font-mono font-bold text-xs ${daysAnticipacion < 3 ? 'text-red-600' : daysAnticipacion < 15 ? 'text-amber-600' : 'text-emerald-600'}`}>
@@ -4622,7 +4647,7 @@ export default function AdminView({
       {showRefundModal && selectedResForRefund && (() => {
         const guest = users.find(u => u.id === selectedResForRefund.guestId);
         const guestName = guest ? `${guest.nombre} ${guest.apellido}` : 'Huésped Particular';
-        
+
         const getDaysDiff = (checkInStr: string, requestStr: string) => {
           if (!checkInStr || !requestStr) return 0;
           const checkIn = new Date(checkInStr + 'T00:00:00');
@@ -4642,6 +4667,19 @@ export default function AdminView({
               desc: 'No se registró ningún pago. Pasa directo a Cancelada sin reembolso.'
             };
           }
+
+          const montoAbonado = res.montoPagado !== undefined ? res.montoPagado : res.total;
+          const pagadoTotal = res.montoPendiente !== undefined ? (res.montoPendiente === 0) : (montoAbonado >= res.total);
+
+          if (!pagadoTotal) {
+            return {
+              percent: 0,
+              label: 'Sin Reembolso (Pago Parcial 20%)',
+              color: 'bg-red-50 text-red-800 border-red-200',
+              applyRefund: false,
+              desc: 'No aplica reembolso. El reembolso solo aplica cuando una reserva se pagó el valor total.'
+            };
+          }
           
           const days = getDaysDiff(res.fechaEntrada, requestDate);
           
@@ -4651,7 +4689,7 @@ export default function AdminView({
               label: 'Reembolso Completo (100%)',
               color: 'bg-emerald-50 text-emerald-800 border-emerald-200',
               applyRefund: true,
-              desc: 'Cancelación con alta anticipación (>= 15 días).'
+              desc: '🟢 Reembolso del 100% de lo abonado. Cancelación temprana sin costo administrativo.'
             };
           } else if (days >= 7) {
             return {
@@ -4659,7 +4697,7 @@ export default function AdminView({
               label: 'Reembolso Parcial (50%)',
               color: 'bg-blue-50 text-blue-800 border-blue-200',
               applyRefund: true,
-              desc: 'Cancelación con media anticipación (7 a 14 días).'
+              desc: '🔵 Reembolso del 50% de lo abonado. Retención por bloqueo de habitación.'
             };
           } else if (days >= 3) {
             return {
@@ -4667,7 +4705,7 @@ export default function AdminView({
               label: 'Reembolso Mínimo (20%)',
               color: 'bg-amber-50 text-amber-800 border-amber-200',
               applyRefund: true,
-              desc: 'Cancelación con poca anticipación (3 a 6 días).'
+              desc: '🟡 Reembolso del 20% de lo abonado. Penalidad moderada por cancelación corta.'
             };
           } else {
             return {
@@ -4675,14 +4713,15 @@ export default function AdminView({
               label: 'Penalización Completa (0%)',
               color: 'bg-red-50 text-red-800 border-red-200',
               applyRefund: true,
-              desc: 'Cancelación tardía o No-Show (< 3 días o posterior).'
+              desc: '🔴 Reembolso del 0%. No aplica devolución de dinero por cancelación tardía.'
             };
           }
         };
 
         const diag = getRefundCategory(selectedResForRefund, simulatedRequestDate);
         const days = getDaysDiff(selectedResForRefund.fechaEntrada, simulatedRequestDate);
-        const refundAmount = ((diag.percent * selectedResForRefund.total) / 100).toFixed(2);
+        const montoAbonado = selectedResForRefund.montoPagado !== undefined ? selectedResForRefund.montoPagado : selectedResForRefund.total;
+        const refundAmount = ((diag.percent * montoAbonado) / 100).toFixed(2);
         
         return (
           <div className="fixed inset-0 bg-neutral-950/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm animate-fade-in text-xs">
@@ -4716,6 +4755,17 @@ export default function AdminView({
 
                 <div className="grid grid-cols-2 gap-2.5 bg-neutral-50 p-2.5 rounded-xl border border-neutral-150 text-[11px]">
                   <div>
+                    <span className="text-neutral-450 block">Monto Abonado:</span>
+                    <strong className="text-emerald-700 font-bold">${montoAbonado} USD</strong>
+                  </div>
+                  <div>
+                    <span className="text-neutral-450 block">Saldo Pendiente:</span>
+                    <strong className="text-red-600 font-bold">${selectedResForRefund.montoPendiente !== undefined ? selectedResForRefund.montoPendiente : 0} USD</strong>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5 bg-neutral-50 p-2.5 rounded-xl border border-neutral-150 text-[11px]">
+                  <div>
                     <span className="text-neutral-450 block">Fecha Solicitud:</span>
                     <strong className="text-neutral-700 font-bold">{simulatedRequestDate}</strong>
                   </div>
@@ -4733,7 +4783,7 @@ export default function AdminView({
                   <p className="text-[10.5px] text-neutral-600 font-sans mt-1">
                     {diag.desc}
                   </p>
-                  {selectedResForRefund.estado !== 'pendiente' && (
+                  {selectedResForRefund.estado !== 'pendiente' && diag.percent > 0 && (
                     <div className="text-[11px] font-bold text-neutral-850 pt-1 border-t border-neutral-200 mt-2 flex justify-between">
                       <span>Monto a Reembolsar:</span>
                       <span className="text-teal-600 font-extrabold">${refundAmount} USD ({diag.percent}%)</span>
@@ -4772,7 +4822,12 @@ export default function AdminView({
                       if (selectedResForRefund.estado === 'pendiente') {
                         calcMessage = `Cancelación directa sin cobro (Reserva estaba Pendiente de Pago). Nota: ${refundNote}`;
                       } else {
-                        calcMessage = `Cancelación con ${days} días de anticipación. Reembolso calculado del ${diag.percent}% ($${refundAmount} USD). Nota: ${refundNote}`;
+                        const pagadoTotal = selectedResForRefund.montoPendiente !== undefined ? (selectedResForRefund.montoPendiente === 0) : (montoAbonado >= selectedResForRefund.total);
+                        if (!pagadoTotal) {
+                          calcMessage = `Cancelación con pago parcial (20% seña). No aplica reembolso. Nota: ${refundNote}`;
+                        } else {
+                          calcMessage = `Cancelación con ${days} días de anticipación. Reembolso calculado del ${diag.percent}% ($${refundAmount} USD) sobre lo abonado ($${montoAbonado} USD). Nota: ${refundNote}`;
+                        }
                       }
                       onUpdateReservationStatus(
                         selectedResForRefund.id,
@@ -4787,7 +4842,7 @@ export default function AdminView({
                     }
                   }}
                   disabled={!refundNote.trim()}
-                  className="w-1/2 px-4 py-2 bg-[#0E2A47] hover:bg-neutral-800 text-white font-bold rounded-xl text-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+                  className="w-1/2 px-4 py-2 bg-[#0E2A47] hover:bg-[#1a3d60] text-white font-bold rounded-xl text-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
                 >
                   Confirmar Procesamiento
                 </button>
