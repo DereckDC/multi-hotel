@@ -7,7 +7,7 @@ import React, { useState } from 'react';
 import { Hotel, Room, Reservation, User, RoomStatus, Review, RoomPriceVariation } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 
-import { MapPin, Calendar, Compass, List, CreditCard, ChevronRight, Sparkles, Filter, Check, Star, AlertCircle, Eye, Trash2, CalendarCheck, FileText, X, Building2, ShieldCheck, Lock, Home, User as UserIcon } from 'lucide-react';
+import { MapPin, Calendar, Compass, List, CreditCard, ChevronRight, Sparkles, Filter, Check, Star, AlertCircle, Eye, Trash2, CalendarCheck, FileText, X, Building2, ShieldCheck, Lock, Home, Search, User as UserIcon } from 'lucide-react';
 import QRView from './QRView';
 import InvoicePDF from './InvoicePDF';
 import { RoomImageGallery } from './RoomImageGallery';
@@ -78,6 +78,7 @@ interface ClientViewProps {
   onTriggerBookingAuth?: () => void;
   activeTab?: 'explore' | 'properties' | 'reservations';
   onActiveTabChange?: (tab: 'explore' | 'properties' | 'reservations') => void;
+  openHotelId?: string | null;
 }
 
 const ADDITIONAL_SERVICES = [
@@ -105,7 +106,8 @@ export default function ClientView({
   onTriggerLogin,
   onTriggerBookingAuth,
   activeTab: propActiveTab,
-  onActiveTabChange
+  onActiveTabChange,
+  openHotelId
 }: ClientViewProps) {
   // Navigation Tabs: 'explore' | 'properties' | 'reservations'
   const [localActiveTab, setLocalActiveTab] = useState<'explore' | 'properties' | 'reservations'>('explore');
@@ -135,11 +137,23 @@ export default function ClientView({
   // Selected Hotel details
   const [selectedHotelId, setSelectedHotelId] = useState<string | null>(null);
 
+  // Sync internal selectedHotelId with prop from parent
+  React.useEffect(() => {
+    if (openHotelId !== undefined) {
+      setSelectedHotelId(openHotelId);
+    }
+  }, [openHotelId]);
+
   // Sync selected hotel with parent app to feed active hotel conversational chat
   React.useEffect(() => {
     if (onOpenHotelChange) {
       onOpenHotelChange(selectedHotelId);
     }
+    // Reset filters when changing/opening a hotel
+    setRoomMaxPrice(1500);
+    setRoomMaxPriceInput('1500');
+    setRoomCapacity('');
+    setRoomTypeFilter('');
   }, [selectedHotelId, onOpenHotelChange]);
   
   // Advanced Filter state
@@ -150,6 +164,7 @@ export default function ClientView({
 
   // Detailed room list filters inside a hotel
   const [roomMaxPrice, setRoomMaxPrice] = useState<number>(1500);
+  const [roomMaxPriceInput, setRoomMaxPriceInput] = useState<string>('1500');
   const [roomCapacity, setRoomCapacity] = useState<string>('');
   const [roomTypeFilter, setRoomTypeFilter] = useState<string>('');
 
@@ -856,9 +871,14 @@ export default function ClientView({
                             referrerPolicy="no-referrer"
                           />
                            {hotel.tipoEstablecimiento === 'hotel' ? (() => {
-                            const avgRating = hotelReviews.length > 0 
-                              ? hotelReviews.reduce((sum, r) => sum + r.rating, 0) / hotelReviews.length
-                              : 5.0;
+                             if (hotelReviews.length === 0) {
+                               return (
+                                 <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-sm px-2.5 py-1 rounded-full text-[10px] font-extrabold text-neutral-800 uppercase tracking-widest flex items-center gap-1 shadow-sm font-sans border border-neutral-100">
+                                   🏨 Hotel
+                                 </div>
+                               );
+                             }
+                             const avgRating = hotelReviews.reduce((sum, r) => sum + r.rating, 0) / hotelReviews.length;
                             return (
                               <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-sm px-2.5 py-1 rounded-full text-[10px] font-bold text-neutral-800 flex items-center gap-1 shadow-sm font-sans border border-neutral-100/80 animate-fade-in">
                                 <div className="flex items-center gap-0.5">
@@ -1786,22 +1806,39 @@ export default function ClientView({
                       </select>
                     </div>
 
-                    {/* Filter 3: Price Slider (Precios) */}
+                    {/* Filter 3: Price Input & Search (Precios) */}
                     <div className="space-y-1.5 col-span-1">
                       <div className="flex justify-between items-center">
                         <span className="text-neutral-500 font-semibold uppercase tracking-wider text-[10px]">Precio Máximo por noche</span>
-                        <span className="text-teal-700 font-mono font-bold text-[11px]">${roomMaxPrice} USD</span>
+                        <span className="text-teal-700 font-mono font-bold text-[11px]">Actual: ${roomMaxPrice} USD</span>
                       </div>
-                      <div className="flex items-center gap-3 h-[38px] bg-white border border-neutral-200 rounded-xl px-3 shadow-sm">
-                        <input
-                          type="range"
-                          min="50"
-                          max="1000"
-                          step="25"
-                          value={roomMaxPrice}
-                          onChange={(e) => setRoomMaxPrice(parseInt(e.target.value))}
-                          className="w-full accent-teal-600 focus:outline-none cursor-pointer"
-                        />
+                      <div className="flex items-center gap-2">
+                        <div className="relative flex-1">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 font-mono text-xs font-semibold">$</span>
+                          <input
+                            type="number"
+                            placeholder="Ej. 300"
+                            value={roomMaxPriceInput}
+                            onChange={(e) => setRoomMaxPriceInput(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                const val = parseInt(roomMaxPriceInput);
+                                setRoomMaxPrice(isNaN(val) ? 999999 : val);
+                              }
+                            }}
+                            className="w-full bg-white border border-neutral-200 rounded-xl py-2 pl-7 pr-3 focus:ring-1 focus:ring-teal-500 focus:outline-none h-[38px] shadow-sm font-semibold text-neutral-800"
+                          />
+                        </div>
+                        <button
+                          onClick={() => {
+                            const val = parseInt(roomMaxPriceInput);
+                            setRoomMaxPrice(isNaN(val) ? 999999 : val);
+                          }}
+                          className="px-3.5 h-[38px] bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-bold transition-all shadow-sm flex items-center justify-center gap-1 shrink-0 text-xs cursor-pointer active:scale-95"
+                        >
+                          <Search className="w-3.5 h-3.5" />
+                          <span>Buscar</span>
+                        </button>
                       </div>
                     </div>
                   </div>

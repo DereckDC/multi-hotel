@@ -96,6 +96,20 @@ export default function App() {
     estado: 'activo' as const
   };
 
+  // Slugify helper to convert hotel/property names to clean URL paths
+  const slugify = (text: string): string => {
+    return text
+      .toString()
+      .toLowerCase()
+      .normalize('NFD') // remove accents
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, '-') // replace spaces with hyphens
+      .replace(/[^\w\-]+/g, '') // remove non-alphanumeric chars (except hyphens)
+      .replace(/\-\-+/g, '-') // collapse multiple hyphens
+      .replace(/^-+/, '') // trim leading hyphens
+      .replace(/-+$/, ''); // trim trailing hyphens
+  };
+
   // Legal documentation active routing state
   const [activeLegalDoc, setActiveLegalDoc] = useState<LegalDocType | null>(() => {
     const path = window.location.pathname;
@@ -105,19 +119,72 @@ export default function App() {
     return null;
   });
 
-  // Keep track of back/forward navigation for legal routes
+  // Synchronize browser URL with openHotelId
   useEffect(() => {
-    const handlePopState = () => {
+    const path = window.location.pathname;
+    // Don't modify if we're on a legal document page
+    if (path === '/terminos-y-condiciones' || path === '/politica-de-privacidad' || path === '/politica-de-cancelaciones-y-reembolsos') {
+      return;
+    }
+
+    if (openHotelId) {
+      const hotel = hotels.find(h => h.id === openHotelId);
+      if (hotel) {
+        const slug = slugify(hotel.nombre);
+        if (path !== `/${slug}`) {
+          window.history.pushState(null, '', `/${slug}`);
+        }
+      }
+    } else {
+      // If no hotel is open, and we're not on a legal page, we should go back to '/'
+      // only if the current path matches one of the hotel slugs or is non-empty.
+      const isHotelPath = hotels.some(h => `/${slugify(h.nombre)}` === path);
+      if (path !== '/' && (isHotelPath || path.length > 1)) {
+        window.history.pushState(null, '', '/');
+      }
+    }
+  }, [openHotelId, hotels]);
+
+  // Handle page load and popstate routing for legal documents and hotels
+  useEffect(() => {
+    const handleRouting = () => {
       const path = window.location.pathname;
-      if (path === '/terminos-y-condiciones') setActiveLegalDoc('terminos');
-      else if (path === '/politica-de-privacidad') setActiveLegalDoc('privacidad');
-      else if (path === '/politica-de-cancelaciones-y-reembolsos') setActiveLegalDoc('cancelaciones');
-      else setActiveLegalDoc(null);
+      if (path === '/terminos-y-condiciones') {
+        setActiveLegalDoc('terminos');
+      } else if (path === '/politica-de-privacidad') {
+        setActiveLegalDoc('privacidad');
+      } else if (path === '/politica-de-cancelaciones-y-reembolsos') {
+        setActiveLegalDoc('cancelaciones');
+      } else {
+        setActiveLegalDoc(null);
+        if (path === '/' || !path || path === '') {
+          setOpenHotelId(null);
+        } else {
+          const slug = path.substring(1);
+          const matchedHotel = hotels.find(h => slugify(h.nombre) === slug);
+          if (matchedHotel) {
+            setShowLandingPage(false);
+            setOpenHotelId(matchedHotel.id);
+            if (matchedHotel.tipoEstablecimiento === 'propiedad') {
+              setClientTab('properties');
+            } else {
+              setClientTab('explore');
+            }
+          } else {
+            setOpenHotelId(null);
+          }
+        }
+      }
     };
 
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
+    // Run once when hotels are loaded/updated
+    if (hotels && hotels.length > 0) {
+      handleRouting();
+    }
+
+    window.addEventListener('popstate', handleRouting);
+    return () => window.removeEventListener('popstate', handleRouting);
+  }, [hotels]);
 
   // Real-time Ecuador GMT-5 clock for the general footer
   const [ecuadorTime, setEcuadorTime] = useState('');
@@ -330,7 +397,7 @@ export default function App() {
       
       {/* 2. Global application Header */}
       {!showLandingPage && (
-        <header className="bg-[#0E2A47] border-b border-brand-cyan/25 shadow-md print:hidden">
+        <header className="bg-slate-950 border-b border-slate-900 shadow-md print:hidden">
           <div className="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between">
             
             <div className="flex items-center gap-2 navbar-logo-container">
@@ -421,20 +488,20 @@ export default function App() {
               {
                 icon: Compass,
                 label: "Explorar Hoteles",
-                active: clientTab === 'explore',
-                onClick: () => { setClientTab('explore'); setSidebarOpen(false); }
+                active: clientTab === 'explore' && openHotelId === null,
+                onClick: () => { setClientTab('explore'); setOpenHotelId(null); setSidebarOpen(false); }
               },
               {
                 icon: Home,
                 label: "Propiedades",
-                active: clientTab === 'properties',
-                onClick: () => { setClientTab('properties'); setSidebarOpen(false); }
+                active: clientTab === 'properties' && openHotelId === null,
+                onClick: () => { setClientTab('properties'); setOpenHotelId(null); setSidebarOpen(false); }
               },
               {
                 icon: CalendarDays,
                 label: "Mis Reservas",
                 active: clientTab === 'reservations',
-                onClick: () => { setClientTab('reservations'); setSidebarOpen(false); }
+                onClick: () => { setClientTab('reservations'); setOpenHotelId(null); setSidebarOpen(false); }
               }
             );
 
@@ -655,7 +722,7 @@ export default function App() {
                     animate={{ height: 'auto', opacity: 1 }}
                     exit={{ height: 0, opacity: 0 }}
                     transition={{ duration: 0.3, ease: 'easeInOut' }}
-                    className="fixed md:hidden top-20 left-0 right-0 w-full bg-[#0E2A47] border-b border-brand-cyan/25 z-40 shadow-2xl overflow-hidden flex flex-col"
+                    className="fixed md:hidden top-20 left-0 right-0 w-full bg-slate-950 border-b border-slate-900 z-40 shadow-2xl overflow-hidden flex flex-col"
                     id="mobile-dropdown-menu"
                   >
                     <div className="py-4 px-4 space-y-1.5 max-h-[70vh] overflow-y-auto">
@@ -687,7 +754,7 @@ export default function App() {
               <aside
                 onMouseEnter={() => setSidebarHovered(true)}
                 onMouseLeave={() => setSidebarHovered(false)}
-                className={`bg-[#0E2A47] border-r border-brand-cyan/20 flex flex-col justify-between transition-all duration-300 shrink-0 z-40 h-[calc(100vh-5rem)] ${
+                className={`bg-slate-950 border-r border-slate-900 flex flex-col justify-between transition-all duration-300 shrink-0 z-40 h-[calc(100vh-5rem)] ${
                   sidebarOpen || sidebarHovered 
                     ? 'w-64' 
                     : 'w-16'
@@ -740,6 +807,7 @@ export default function App() {
                           transactions={transactions}
                           onAddPaymentTransaction={addPaymentTransaction}
                           onOpenHotelChange={setOpenHotelId}
+                          openHotelId={openHotelId}
                           reviews={reviews}
                           onSubmitReview={submitReview}
                           roomPriceVariations={roomPriceVariations}
@@ -764,6 +832,7 @@ export default function App() {
                               transactions={transactions}
                               onAddPaymentTransaction={addPaymentTransaction}
                               onOpenHotelChange={setOpenHotelId}
+                              openHotelId={openHotelId}
                               reviews={reviews}
                               onSubmitReview={submitReview}
                               roomPriceVariations={roomPriceVariations}
@@ -874,7 +943,7 @@ export default function App() {
       )}
 
       {/* 4. Tiny visual footer */}
-      <footer className="py-12 border-t border-[#0E2A47] text-center text-[11px] font-mono print:hidden space-y-4 bg-[#071726] text-[#A8B2BD]">
+      <footer className="py-12 border-t border-slate-900 text-center text-[11px] font-mono print:hidden space-y-4 bg-slate-950 text-[#A8B2BD]">
         <p className="text-white/80 font-semibold select-none">©2026 Roomia PMS — Maqyasoft</p>
         <p className="text-white/40 text-[10px]">Hora Ecuador (GMT-5): {ecuadorTime || 'Cargando...'}</p>
         <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs font-sans font-medium pt-2">
