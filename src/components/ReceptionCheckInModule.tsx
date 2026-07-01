@@ -113,7 +113,7 @@ export default function ReceptionCheckInModule({
             <div className={`bg-neutral-950 border border-neutral-800 rounded-2xl h-56 relative overflow-hidden flex flex-col items-center justify-center ${useRealCamera ? 'p-0' : 'p-4'}`}>
               
               {useRealCamera ? (
-                <div id="reader" className="w-full h-full object-cover"></div>
+                <div id="qr-camera-element" className="w-full h-full object-cover"></div>
               ) : (
                 <>
                   <div className="absolute inset-0 bg-radial-gradient from-teal-500/10 via-transparent to-transparent pointer-events-none" />

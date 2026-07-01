@@ -103,6 +103,7 @@ export default function ReceptionView({
 
   // Start real camera scanner
   const startRealCamera = async (cameraId?: any) => {
+    const targetCameraId = (typeof cameraId === 'string' && cameraId) ? cameraId : undefined;
     setScanError(null);
     setScannedResult(null);
     setUseRealCamera(true);
@@ -141,7 +142,7 @@ export default function ReceptionView({
         html5QrCodeRef.current = html5QrCode;
 
         // Fetch cameras using Html5Qrcode
-        let currentCamSelection: any = cameraId || activeCamId;
+        let currentCamSelection: any = targetCameraId || activeCamId;
         if (!currentCamSelection) {
           try {
             const devices = await Html5Qrcode.getCameras();
@@ -156,6 +157,8 @@ export default function ReceptionView({
             console.warn("Listing cameras failed. Using high-compatibility constraints fallback:", camErr);
             currentCamSelection = { facingMode: "environment" };
           }
+        } else if (targetCameraId) {
+          setActiveCamId(targetCameraId);
         }
 
         await html5QrCode.start(
@@ -656,7 +659,7 @@ export default function ReceptionView({
           handleSimulateScan={handleSimulateScan}
           startRealCamera={startRealCamera}
           stopRealCamera={stopRealCamera}
-          switchCamera={stopRealCamera}
+          switchCamera={startRealCamera}
           handleCheckIn={handleCheckIn}
           handleCheckOut={handleCheckOut}
           onUpdateReservationStatus={onUpdateReservationStatus}
