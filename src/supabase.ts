@@ -24,6 +24,51 @@ export const supabase = createClient(
   SUPABASE_ANON_KEY
 );
 
+// Self-healing: Detect and handle invalid refresh tokens or failed fetches gracefully
+if (typeof window !== 'undefined') {
+  // 1. Check initial session to catch auth/refresh errors before they bubble up
+  supabase.auth.getSession().then(({ error }) => {
+    if (error) {
+      console.warn("⚠️ Supabase getSession early catch:", error.message);
+      if (error.message?.toLowerCase().includes('refresh token')) {
+        localStorage.removeItem('sb-evovuegtffpcdeylekfy-auth-token');
+        localStorage.removeItem('aura_hotel_pms_current_user_id');
+      }
+    }
+  }).catch((err) => {
+    console.warn("⚠️ Supabase getSession early exception:", err);
+  });
+
+  // 2. Intercept unhandled promise rejections (often fired by library background refresh threads)
+  window.addEventListener('unhandledrejection', (event) => {
+    const reason = event.reason;
+    if (reason) {
+      const msg = String(reason.message || reason).toLowerCase();
+      if (msg.includes('refresh token') || msg.includes('failed to fetch') || msg.includes('fetch') || msg.includes('network error')) {
+        console.warn('⚠️ Self-healing: Prevented unhandled rejection for network/auth refresh error:', msg);
+        if (msg.includes('refresh token')) {
+          localStorage.removeItem('sb-evovuegtffpcdeylekfy-auth-token');
+          localStorage.removeItem('aura_hotel_pms_current_user_id');
+        }
+        event.preventDefault(); // Stop from reaching browser console as uncaught
+      }
+    }
+  });
+
+  // 3. Intercept general window runtime errors
+  window.addEventListener('error', (event) => {
+    const msg = String(event.message || '').toLowerCase();
+    if (msg.includes('refresh token') || msg.includes('failed to fetch') || msg.includes('fetch') || msg.includes('network error')) {
+      console.warn('⚠️ Self-healing: Intercepted and handled runtime error:', msg);
+      if (msg.includes('refresh token')) {
+        localStorage.removeItem('sb-evovuegtffpcdeylekfy-auth-token');
+        localStorage.removeItem('aura_hotel_pms_current_user_id');
+      }
+      event.preventDefault(); // Stop propagation
+    }
+  }, true);
+}
+
 /**
  * Nota: El esquema completo de inicialización de Supabase con sus políticas RLS
  * se encuentra ahora en el archivo principal /supabase_schema.sql para despliegues limpios y manuales.
