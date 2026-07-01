@@ -132,6 +132,8 @@ export interface Reservation {
   cambiadoPorId?: string; // ID del staff
   eliminadaPorCliente?: boolean; // Si el cliente eliminó la reserva de su historial
   reservationType?: 'hospedaje' | 'alquiler_mensual' | 'venta';
+  montoPagado?: number;
+  montoPendiente?: number;
 }
 
 export interface MaintenanceLog {

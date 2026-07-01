@@ -164,11 +164,7 @@ export default function ReceptionView({
         await html5QrCode.start(
           currentCamSelection,
           {
-            fps: 20,
-            qrbox: (width, height) => {
-              const exactSize = Math.min(width, height) * 0.75;
-              return { width: exactSize, height: exactSize };
-            }
+            fps: 20
           },
           (decodedText) => {
             console.log("Real QR code scanned successfully:", decodedText);

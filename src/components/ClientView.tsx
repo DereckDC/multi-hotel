@@ -2246,17 +2246,17 @@ export default function ClientView({
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-white rounded-3xl border border-neutral-200 shadow-2xl max-w-md w-full overflow-hidden text-neutral-800 animate-fade-in text-xs"
+              className="bg-white rounded-3xl border border-neutral-200 shadow-2xl max-w-sm w-full max-h-[90vh] flex flex-col overflow-hidden text-neutral-800 animate-fade-in text-xs"
             >
               {/* Header */}
-              <div className="bg-[#0f172a] text-white p-5 flex items-center justify-between border-b border-neutral-800">
-                <div className="flex items-center gap-2.5">
-                  <div className="bg-amber-500 text-[#0f172a] font-extrabold text-[10px] px-2 py-0.5 rounded tracking-wide uppercase font-mono">
+              <div className="bg-[#0f172a] text-white p-4 flex items-center justify-between border-b border-neutral-800 shrink-0">
+                <div className="flex items-center gap-2">
+                  <div className="bg-amber-500 text-[#0f172a] font-extrabold text-[9px] px-1.5 py-0.5 rounded tracking-wide uppercase font-mono">
                     PENDIENTE DE PAGO
                   </div>
                   <div>
                     <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-300">Instrucciones de Pago</h4>
-                    <p className="text-[10px] text-amber-400 font-mono">Reserva Retenida Temporalmente (24h)</p>
+                    <p className="text-[9px] text-amber-400 font-mono">Reserva Retenida (24h)</p>
                   </div>
                 </div>
                 <button
@@ -2265,11 +2265,11 @@ export default function ClientView({
                   }}
                   className="p-1 hover:bg-neutral-800 rounded-full text-neutral-400 hover:text-white cursor-pointer"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-4 h-4" />
                 </button>
               </div>
 
-              <div className="p-6 space-y-4">
+              <div className="p-4 sm:p-5 space-y-3.5 overflow-y-auto flex-1">
                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-2 text-xs">
                   <div className="flex justify-between items-center">
                     <span className="text-slate-400 uppercase tracking-wide text-[9px] block">CÓDIGO DE RESERVA</span>

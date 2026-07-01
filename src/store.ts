@@ -1504,9 +1504,17 @@ El Equipo de Hospitalidad de Roomia PMS.`;
     status: ReservationStatus,
     staffName?: string,
     staffRole?: string,
-    mensajeCambio?: string
+    mensajeCambio?: string,
+    montoPagado?: number,
+    montoPendiente?: number
   ) => {
     const changes: Partial<Reservation> = { estado: status };
+    if (montoPagado !== undefined) {
+      changes.montoPagado = montoPagado;
+    }
+    if (montoPendiente !== undefined) {
+      changes.montoPendiente = montoPendiente;
+    }
     if (staffName && staffRole) {
       const updaterInfo = `${staffRole === 'super_admin' ? 'Super Administrador' : staffRole === 'hotel_admin' ? 'Administrador de Hotel' : 'Recepcionista'} (${staffName})`;
       changes.modificadoPor = updaterInfo;
@@ -1638,7 +1646,9 @@ El Equipo de Hospitalidad de Roomia PMS.`;
       ...r,
       estado: 'ocupada',
       checkedInAt: nowIso,
-      recepcionistaId: receptionistId
+      recepcionistaId: receptionistId,
+      montoPagado: r.total,
+      montoPendiente: 0
     } : r));
 
     // Update Room: reservado -> ocupado
@@ -1648,7 +1658,9 @@ El Equipo de Hospitalidad de Roomia PMS.`;
       ...res,
       estado: 'ocupada' as ReservationStatus,
       checkedInAt: nowIso,
-      recepcionistaId: receptionistId
+      recepcionistaId: receptionistId,
+      montoPagado: res.total,
+      montoPendiente: 0
     };
 
     try {

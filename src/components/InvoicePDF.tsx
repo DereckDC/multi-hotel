@@ -432,18 +432,18 @@ export default function InvoicePDF({
 
   return (
     <div id="invoice-modal" className="fixed inset-0 bg-neutral-950/60 flex items-center justify-center p-2 sm:p-4 z-[100] backdrop-blur-sm animate-fade-in print:bg-white print:p-0">
-      <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[96vh] sm:max-h-[90vh] overflow-y-auto border border-neutral-200 flex flex-col print:shadow-none print:border-none print:max-h-full print:rounded-none">
+      <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[94vh] sm:max-h-[85vh] overflow-y-auto border border-neutral-200 flex flex-col print:shadow-none print:border-none print:max-h-full print:rounded-none">
         
         {/* Header toolbar - hidden in printing */}
-        <div className="px-3 py-2.5 sm:px-6 sm:py-4 border-b border-neutral-100 flex items-center justify-between bg-neutral-50 rounded-t-2xl print:hidden">
+        <div className="px-3 py-2.5 sm:px-5 sm:py-3 border-b border-neutral-100 flex items-center justify-between bg-neutral-50 rounded-t-2xl print:hidden">
           <div className="flex items-center gap-1.5 sm:gap-2">
             <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-teal-600" />
-            <h3 className="font-semibold text-neutral-800 text-xs sm:text-sm md:text-base">Pre-Factura</h3>
+            <h3 className="font-semibold text-neutral-800 text-xs sm:text-sm">Pre-Factura</h3>
           </div>
           <div className="flex items-center gap-1 sm:gap-2">
             <button
               onClick={handlePrint}
-              className="flex items-center gap-1 px-2.5 py-1.5 bg-white text-neutral-700 text-xs hover:bg-neutral-100 border border-neutral-200 rounded-lg transition-colors cursor-pointer"
+              className="flex items-center gap-1 px-2 py-1 bg-white text-neutral-700 text-xs hover:bg-neutral-100 border border-neutral-200 rounded-lg transition-colors cursor-pointer"
             >
               <Printer className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Imprimir</span>
@@ -451,7 +451,7 @@ export default function InvoicePDF({
             <button
               onClick={handleDownload}
               disabled={downloading}
-              className="flex items-center gap-1 px-2.5 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs rounded-lg transition-colors cursor-pointer disabled:bg-teal-400"
+              className="flex items-center gap-1 px-2 py-1 bg-teal-600 hover:bg-teal-700 text-white text-xs rounded-lg transition-colors cursor-pointer disabled:bg-teal-400"
             >
               <Download className="w-3.5 h-3.5" />
               <span>{downloading ? 'Generando...' : 'Descargar PDF'}</span>
@@ -466,16 +466,16 @@ export default function InvoicePDF({
         </div>
 
         {/* Android WebView / APK compatibility notice */}
-        <div className="mx-3 sm:mx-6 mt-3 p-3 bg-teal-50 border border-teal-150 rounded-xl sm:rounded-2xl flex items-start gap-2.5 text-[10px] sm:text-[11px] text-teal-800 leading-normal font-sans print:hidden">
+        <div className="mx-3 sm:mx-5 mt-2.5 p-2 bg-teal-50 border border-teal-150 rounded-xl flex items-start gap-2.5 text-[10px] text-teal-800 leading-normal font-sans print:hidden">
           <span className="text-sm shrink-0">💡</span>
           <div>
-            <p className="font-bold uppercase tracking-wider text-[9px] sm:text-[10px] text-teal-900">Compatibilidad con App Móvil / APK activa:</p>
-            <p className="mt-0.5">Si estás utilizando nuestra app APK y no puedes descargar directamente el archivo PDF debido a restricciones del sistema, presiona <strong className="text-teal-950">Imprimir</strong> en el menú superior y elige <strong className="text-teal-950">"Guardar como PDF / Save as PDF"</strong> para almacenarlo de manera integrada sin limitaciones en tu dispositivo.</p>
+            <p className="font-bold uppercase tracking-wider text-[9px] text-teal-900">Compatibilidad con App Móvil / APK activa:</p>
+            <p className="mt-0.5">Si estás utilizando nuestra app APK y no puedes descargar directamente el archivo PDF, presiona <strong className="text-teal-950">Imprimir</strong> y elige <strong className="text-teal-950">"Guardar como PDF"</strong>.</p>
           </div>
         </div>
 
         {/* Invoice Printable Viewport */}
-        <div className="p-4 sm:p-8 md:p-10 flex-1 overflow-y-auto" id="printable-area">
+        <div className="p-4 sm:p-6 flex-1 overflow-y-auto" id="printable-area">
           {/* Top Brand Block */}
           <div className="flex flex-col md:flex-row justify-between items-start gap-6 border-b border-neutral-200 pb-8">
             <div>
@@ -631,15 +631,39 @@ export default function InvoicePDF({
                   <span>Monto Total:</span>
                   <span className="font-mono">${reservation.total.toFixed(2)} USD</span>
                 </div>
+                {reservation.montoPagado !== undefined && reservation.montoPagado > 0 && (
+                  <div className="flex justify-between text-xs text-emerald-700 font-semibold border-t border-dashed border-neutral-200 pt-1.5 mt-1.5">
+                    <span>Monto Abonado:</span>
+                    <span className="font-mono">-${reservation.montoPagado.toFixed(2)} USD</span>
+                  </div>
+                )}
+                {reservation.montoPendiente !== undefined && reservation.montoPendiente > 0 ? (
+                  <div className="flex justify-between text-xs text-red-600 font-bold bg-red-50 p-1.5 rounded border border-red-100 mt-1.5">
+                    <span>Monto Pendiente:</span>
+                    <span className="font-mono">${reservation.montoPendiente.toFixed(2)} USD</span>
+                  </div>
+                ) : reservation.montoPagado !== undefined && reservation.montoPagado >= reservation.total ? (
+                  <div className="flex justify-between text-xs text-emerald-600 font-bold bg-emerald-50 p-1.5 rounded border border-emerald-100 mt-1.5">
+                    <span>Saldo Pendiente:</span>
+                    <span className="font-mono">$0.00 USD</span>
+                  </div>
+                ) : null}
               </div>
 
               {/* Status footer inside invoice */}
               <div className={`mt-4 p-3 rounded-xl text-center border text-xs ${
-                reservation.estado === 'confirmada' || reservation.estado === 'ocupada' || reservation.estado === 'finalizada'
-                  ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                  : 'bg-amber-50 border-amber-200 text-amber-800'
+                reservation.estado === 'confirmada' && reservation.montoPendiente !== undefined && reservation.montoPendiente > 0
+                  ? 'bg-amber-50 border-amber-200 text-amber-800'
+                  : reservation.estado === 'confirmada' || reservation.estado === 'ocupada' || reservation.estado === 'finalizada'
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                    : 'bg-amber-50 border-amber-200 text-amber-800'
               }`}>
-                {reservation.estado === 'confirmada' || reservation.estado === 'ocupada' || reservation.estado === 'finalizada' ? (
+                {reservation.estado === 'confirmada' && reservation.montoPendiente !== undefined && reservation.montoPendiente > 0 ? (
+                  <div>
+                    <span className="font-bold">✓ RESERVADA CON PAGO PARCIAL (20%) ⚠️</span>
+                    <p className="text-[10px] text-amber-600 mt-0.5">Señal de reserva garantizada. Saldo pendiente (${reservation.montoPendiente.toFixed(2)} USD) pagadero al check-in.</p>
+                  </div>
+                ) : reservation.estado === 'confirmada' || reservation.estado === 'ocupada' || reservation.estado === 'finalizada' ? (
                   <div>
                     <span className="font-bold">✓ PAGADO Y CONFIRMADO POR ADMINISTRACIÓN 🛡️</span>
                     <p className="text-[10px] text-emerald-600 font-mono mt-0.5">Ref: ADM-REF-{reservation.id}</p>

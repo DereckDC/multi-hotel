@@ -288,14 +288,67 @@ export default function ReceptionCheckInModule({
             {/* Dynamic Operator Actions */}
             <div className="flex flex-col sm:flex-row gap-3 pt-2">
               {scannedResult.estado === 'confirmada' && (
-                <button
-                  type="button"
-                  onClick={() => handleCheckIn(scannedResult.id)}
-                  className="flex-1 bg-teal-500 hover:bg-teal-400 text-neutral-950 font-bold py-3 px-4 rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 shadow-md shadow-teal-500/10 active:scale-95 cursor-pointer"
-                >
-                  <UserCheck className="w-4 h-4" />
-                  Procesar Entrada (Check-In) 🛎️
-                </button>
+                scannedResult.montoPendiente !== undefined && scannedResult.montoPendiente > 0 ? (
+                  <div className="w-full space-y-3">
+                    <div className="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-xl text-[11px] leading-relaxed">
+                      ⚠️ **Estadía con Saldo Pendiente**: Esta reserva tiene un saldo pendiente de <strong>${scannedResult.montoPendiente.toFixed(2)} USD</strong>. Al procesar el ingreso, se asume que el cliente ha liquidado este monto.
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          // Complete payment & process entry
+                          if (onUpdateReservationStatus) {
+                            onUpdateReservationStatus(
+                              scannedResult.id, 
+                              'ocupada', 
+                              activeUser.nombre, 
+                              activeUser.rol, 
+                              'Saldo pendiente liquidado en mostrador al realizar Check-In.',
+                              scannedResult.total,
+                              0
+                            );
+                          }
+                          handleCheckIn(scannedResult.id);
+                        }}
+                        className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-3 rounded-lg text-xs transition-colors cursor-pointer text-center shadow-sm"
+                      >
+                        💸 Pago Completo
+                      </button>
+                      
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (onUpdateReservationStatus) {
+                            onUpdateReservationStatus(scannedResult.id, 'cancelada', activeUser.nombre, activeUser.rol, 'Reserva cancelada en mostrador.');
+                            onAddLog('Reserva Cancelada', `Reserva ${scannedResult.id} cancelada al check-in.`);
+                            setScannedResult(null);
+                          }
+                        }}
+                        className="bg-red-50 hover:bg-red-100 border border-red-200 text-red-750 font-bold py-2.5 px-3 rounded-lg text-xs transition-colors cursor-pointer text-center"
+                      >
+                        ❌ Cancelar
+                      </button>
+                      
+                      <button
+                        type="button"
+                        onClick={() => setScannedResult(null)}
+                        className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 px-3 rounded-lg text-xs transition-colors cursor-pointer text-center"
+                      >
+                        🚪 Cerrar
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleCheckIn(scannedResult.id)}
+                    className="flex-1 bg-teal-500 hover:bg-teal-400 text-neutral-950 font-bold py-3 px-4 rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 shadow-md shadow-teal-500/10 active:scale-95 cursor-pointer"
+                  >
+                    <UserCheck className="w-4 h-4" />
+                    Procesar Entrada (Check-In) 🛎️
+                  </button>
+                )
               )}
 
               {scannedResult.estado === 'ocupada' && (
@@ -312,22 +365,65 @@ export default function ReceptionCheckInModule({
               {scannedResult.estado === 'pendiente' && (
                 <div className="w-full space-y-3">
                   <div className="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-xl text-[11px] leading-relaxed">
-                    ⚠️ **Transacción en Estado Pendiente de Pago**: Para permitir el ingreso formal al aposento, debe registrarse el pago de garantía presencial o conciliar la pasarela.
+                    ⚠️ **Transacción en Estado Pendiente de Pago**: Elija una opción para registrar el pago inicial y pasar la reserva a estado <strong>Reservada</strong>.
                   </div>
-                  <div className="flex gap-2">
+                  <div className="grid grid-cols-4 gap-2">
                     <button
                       type="button"
                       onClick={() => {
                         if (onUpdateReservationStatus) {
-                          onUpdateReservationStatus(scannedResult.id, 'confirmada', activeUser.nombre, activeUser.rol, 'Pago presencial conciliado en mostrador.');
-                          onAddLog('Cobro Realizado', `Reserva ${scannedResult.id} cobrada en efectivo/tarjeta por recepcionista.`);
-                          setScannedResult({ ...scannedResult, estado: 'confirmada' });
+                          onUpdateReservationStatus(
+                            scannedResult.id, 
+                            'confirmada', 
+                            activeUser.nombre, 
+                            activeUser.rol, 
+                            'Pago Completo registrado en recepción.',
+                            scannedResult.total,
+                            0
+                          );
+                          onAddLog('Cobro Realizado', `Reserva ${scannedResult.id} cobrado el total de $${scannedResult.total} USD.`);
+                          setScannedResult({ 
+                            ...scannedResult, 
+                            estado: 'confirmada',
+                            montoPagado: scannedResult.total,
+                            montoPendiente: 0
+                          });
                         }
                       }}
-                      className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-3 rounded-lg text-xs transition-colors cursor-pointer text-center"
+                      className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-1 rounded-lg text-[10px] transition-colors cursor-pointer text-center shadow-sm"
                     >
-                      💸 Conciliar Pago Completo
+                      💸 Pago Completo
                     </button>
+                    
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (onUpdateReservationStatus) {
+                          const pagado = Number((scannedResult.total * 0.20).toFixed(2));
+                          const pendiente = Number((scannedResult.total * 0.80).toFixed(2));
+                          onUpdateReservationStatus(
+                            scannedResult.id, 
+                            'confirmada', 
+                            activeUser.nombre, 
+                            activeUser.rol, 
+                            'Pago Parcial del 20% registrado en recepción.',
+                            pagado,
+                            pendiente
+                          );
+                          onAddLog('Cobro Realizado', `Reserva ${scannedResult.id} cobrado el 20% de garantía ($${pagado} USD).`);
+                          setScannedResult({ 
+                            ...scannedResult, 
+                            estado: 'confirmada',
+                            montoPagado: pagado,
+                            montoPendiente: pendiente
+                          });
+                        }
+                      }}
+                      className="bg-teal-600 hover:bg-teal-500 text-white font-bold py-2.5 px-1 rounded-lg text-[10px] transition-colors cursor-pointer text-center shadow-sm"
+                    >
+                      💰 Pago 20%
+                    </button>
+                    
                     <button
                       type="button"
                       onClick={() => {
@@ -337,21 +433,31 @@ export default function ReceptionCheckInModule({
                           setScannedResult(null);
                         }
                       }}
-                      className="px-3 py-2 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 font-bold rounded-lg text-xs transition-colors cursor-pointer text-center"
+                      className="bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 font-bold py-2.5 px-1 rounded-lg text-[10px] transition-colors cursor-pointer text-center"
                     >
-                      Cancelar Reserva
+                      ❌ Cancelar
+                    </button>
+                    
+                    <button
+                      type="button"
+                      onClick={() => setScannedResult(null)}
+                      className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 px-1 rounded-lg text-[10px] transition-colors cursor-pointer text-center"
+                    >
+                      🚪 Cerrar
                     </button>
                   </div>
                 </div>
               )}
 
-              <button
-                type="button"
-                onClick={() => setScannedResult(null)}
-                className="px-4 py-3 bg-neutral-100 hover:bg-neutral-200 text-neutral-600 font-semibold rounded-xl text-xs transition-all text-center cursor-pointer"
-              >
-                Cerrar
-              </button>
+              {!(scannedResult.estado === 'pendiente' || (scannedResult.estado === 'confirmada' && scannedResult.montoPendiente !== undefined && scannedResult.montoPendiente > 0)) && (
+                <button
+                  type="button"
+                  onClick={() => setScannedResult(null)}
+                  className="px-4 py-3 bg-neutral-100 hover:bg-neutral-200 text-neutral-600 font-semibold rounded-xl text-xs transition-all text-center cursor-pointer"
+                >
+                  Cerrar
+                </button>
+              )}
             </div>
           </div>
         )}
