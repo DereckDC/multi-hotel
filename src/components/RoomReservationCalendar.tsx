@@ -333,10 +333,6 @@ export function RoomReservationCalendar({
       <div className="bg-neutral-900 text-white p-5 md:p-6 space-y-4">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <div className="space-y-1">
-            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-teal-500/10 text-[9px] text-teal-400 font-bold uppercase tracking-wider border border-teal-500/20">
-              <Sparkles className="w-3 h-3" />
-              <span>Control e Inspección Roomia</span>
-            </span>
             <h3 className="text-lg md:text-xl font-display font-bold flex items-center gap-2">
               <CalendarIcon className="w-5 h-5 text-teal-400" />
               <span>Calendario de Disponibilidad y Reservas</span>
@@ -458,7 +454,7 @@ export function RoomReservationCalendar({
               let borderClass = 'border';
 
               if (!cell.isCurrentMonth) {
-                bgClass = 'bg-neutral-50 text-neutral-400 opacity-40 border-neutral-100 hover:bg-neutral-100';
+                bgClass = 'bg-neutral-50 text-neutral-950 font-bold opacity-85 border-neutral-100 hover:bg-neutral-100';
               }
 
               // Overriding styling if we have reservations on this date
@@ -602,20 +598,22 @@ export function RoomReservationCalendar({
             )}
           </div>
 
-          {/* Monthly percentage occupancy heatmap metrics for admin/receptionist */}
-          <div className="bg-gradient-to-r from-teal-50 to-emerald-50 border border-teal-150 p-4 rounded-xl flex items-center justify-between dark:from-neutral-900/10">
-            <div className="space-y-1">
-              <h5 className="font-bold text-neutral-800 text-xs flex items-center gap-1">
-                <TrendingUp className="w-4 h-4 text-teal-600" />
-                <span>Ocupación Estimada del Mes ({MONTHS[currentMonth]})</span>
-              </h5>
-              <p className="text-[10px] text-neutral-500 font-medium">Calculando promedio de días ocupados sobre capacidad de la vista actual</p>
+          {/* Monthly percentage occupancy heatmap metrics for admin */}
+          {(activeUser.rol === 'super_admin' || activeUser.rol === 'hotel_admin') && (
+            <div className="bg-gradient-to-r from-teal-50 to-emerald-50 border border-teal-150 p-4 rounded-xl flex items-center justify-between dark:from-neutral-900/10">
+              <div className="space-y-1">
+                <h5 className="font-bold text-neutral-800 text-xs flex items-center gap-1">
+                  <TrendingUp className="w-4 h-4 text-teal-600" />
+                  <span>Ocupación Estimada del Mes ({MONTHS[currentMonth]})</span>
+                </h5>
+                <p className="text-[10px] text-neutral-500 font-medium">Calculando promedio de días ocupados sobre capacidad de la vista actual</p>
+              </div>
+              <div className="text-right">
+                <span className="text-2xl font-mono font-bold text-teal-700">{monthStats.ocupacionPorcentaje}%</span>
+                <span className="text-[9px] text-neutral-400 block font-semibold">{monthStats.diasOcupados} Días Reservados</span>
+              </div>
             </div>
-            <div className="text-right">
-              <span className="text-2xl font-mono font-bold text-teal-700">{monthStats.ocupacionPorcentaje}%</span>
-              <span className="text-[9px] text-neutral-400 block font-semibold">{monthStats.diasOcupados} Días Reservados</span>
-            </div>
-          </div>
+          )}
 
         </div>
 

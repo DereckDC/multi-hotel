@@ -482,124 +482,124 @@ export default function InvoicePDF({
               <div className="flex items-center gap-2 mb-2">
                 <BrandLogo showText={true} lightText={false} size="md" />
               </div>
-              <p className="text-xs text-neutral-400 font-mono">SISTEMA PMS MULTI-HOTEL CENTRALIZADO</p>
-              <p className="text-xs text-neutral-500 mt-1">ID Transación: {reservation.id}</p>
+              <p className="text-xs text-neutral-800 font-bold font-mono">SISTEMA PMS MULTI-HOTEL CENTRALIZADO</p>
+              <p className="text-xs text-neutral-900 font-bold mt-1">ID Transación: {reservation.id}</p>
             </div>
             <div className="text-right md:text-right flex flex-col items-end">
               <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(reservation.estado)} uppercase mb-3`}>
                 Reserva {reservation.estado}
               </span>
-              <p className="text-xs text-neutral-500">Fecha de Emisión: {new Date(reservation.fechaRegistro).toLocaleDateString('es-ES')}</p>
-              <p className="text-xs text-neutral-500 font-mono">2026-05-24T04:44:00Z</p>
+              <p className="text-xs text-neutral-900 font-bold">Fecha de Emisión: {new Date(reservation.fechaRegistro).toLocaleDateString('es-ES')}</p>
+              <p className="text-xs text-neutral-900 font-bold font-mono">2026-05-24T04:44:00Z</p>
             </div>
           </div>
 
           {/* Hotel & Guest metadata Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 py-8 border-b border-neutral-200">
             <div>
-              <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">Establecimiento Receptor</p>
-              <h4 className="font-semibold text-neutral-800 text-base">{hotel?.nombre || 'Hotel Roomia'}</h4>
-              <p className="text-sm text-neutral-600 mt-1 leading-relaxed">{hotel?.ubicacion}</p>
-              <p className="text-xs text-neutral-500 mt-2">Teléfono: {hotel?.contacto.telefono}</p>
-              <p className="text-xs text-neutral-500">E-mail: {hotel?.contacto.email}</p>
+              <p className="text-xs font-bold text-neutral-900 uppercase tracking-wider mb-2">Establecimiento Receptor</p>
+              <h4 className="font-bold text-neutral-950 text-base">{hotel?.nombre || 'Hotel Roomia'}</h4>
+              <p className="text-sm text-neutral-900 font-semibold mt-1 leading-relaxed">{hotel?.ubicacion}</p>
+              <p className="text-xs text-neutral-900 font-bold mt-2">Teléfono: {hotel?.contacto.telefono}</p>
+              <p className="text-xs text-neutral-900 font-bold">E-mail: {hotel?.contacto.email}</p>
             </div>
             <div>
-              <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">Datos del Cliente Hospedado</p>
-              <h4 className="font-semibold text-neutral-800 text-base">{guest ? `${guest.nombre} ${guest.apellido}` : 'Invitado Particular'}</h4>
-              <p className="text-sm text-neutral-600 mt-1">E-mail: {guest?.email || 'cliente@roomia.com'}</p>
-              <p className="text-sm text-neutral-600">Teléfono: {guest?.telefono || '+54 11 9876 5432'}</p>
+              <p className="text-xs font-bold text-neutral-900 uppercase tracking-wider mb-2">Datos del Cliente Hospedado</p>
+              <h4 className="font-bold text-neutral-950 text-base">{guest ? `${guest.nombre} ${guest.apellido}` : 'Invitado Particular'}</h4>
+              <p className="text-sm text-neutral-900 font-semibold mt-1">E-mail: {guest?.email || 'cliente@roomia.com'}</p>
+              <p className="text-sm text-neutral-900 font-semibold">Teléfono: {guest?.telefono || '+54 11 9876 5432'}</p>
               {guest?.documento && (
-                <p className="text-xs text-neutral-500 font-mono mt-1">Documento / Pasaporte: {guest.documento}</p>
+                <p className="text-xs text-neutral-900 font-bold font-mono mt-1">Documento / Pasaporte: {guest.documento}</p>
               )}
             </div>
           </div>
 
           {/* Stay Specifics details banner */}
           <div className="py-6 border-b border-neutral-200">
-            <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-3">Detalle del Hospedaje</p>
+            <p className="text-xs font-bold text-neutral-900 uppercase tracking-wider mb-3">Detalle del Hospedaje</p>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-neutral-50 p-4 rounded-xl border border-neutral-100">
               <div>
-                <span className="text-xs text-neutral-500 block">Habitación N°</span>
-                <span className="font-semibold text-neutral-800 font-mono text-sm">{room?.numero || 'S/N'}</span>
+                <span className="text-xs text-neutral-900 font-bold block">Habitación N°</span>
+                <span className="font-bold text-neutral-950 font-mono text-sm">{room?.numero || 'S/N'}</span>
               </div>
               <div>
-                <span className="text-xs text-neutral-500 block">Tipo Habitación</span>
-                <span className="font-medium text-neutral-800 text-sm">{room?.tipo || 'Suite'}</span>
+                <span className="text-xs text-neutral-900 font-bold block">Tipo Habitación</span>
+                <span className="font-bold text-neutral-950 text-sm">{room?.tipo || 'Suite'}</span>
               </div>
               <div>
-                <span className="text-xs text-neutral-500 block">Check-In</span>
-                <span className="font-medium text-neutral-800 text-sm whitespace-nowrap">{reservation.fechaEntrada}</span>
+                <span className="text-xs text-neutral-900 font-bold block">Check-In</span>
+                <span className="font-bold text-neutral-950 text-sm whitespace-nowrap">{reservation.fechaEntrada}</span>
               </div>
               <div>
-                <span className="text-xs text-neutral-500 block">Check-Out</span>
-                <span className="font-medium text-neutral-800 text-sm whitespace-nowrap">{reservation.fechaSalida}</span>
+                <span className="text-xs text-neutral-900 font-bold block">Check-Out</span>
+                <span className="font-bold text-neutral-950 text-sm whitespace-nowrap">{reservation.fechaSalida}</span>
               </div>
             </div>
           </div>
 
           {/* Cost breakdown table */}
           <div className="py-4 overflow-x-auto w-full">
-            <table className="w-full min-w-[500px] text-left text-sm text-neutral-600">
+            <table className="w-full min-w-[500px] text-left text-sm text-neutral-950">
               <thead>
-                <tr className="border-b border-neutral-200 text-neutral-400 text-xs font-semibold uppercase">
+                <tr className="border-b border-neutral-300 text-neutral-950 text-xs font-bold uppercase">
                   <th className="py-2">Descripción del Servicio / Detalle</th>
                   <th className="py-2 text-right">Precio Unitario</th>
                   <th className="py-2 text-center">Unidad / Noches</th>
                   <th className="py-2 text-right">Importe</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-neutral-100">
+              <tbody className="divide-y divide-neutral-150">
                 {isAlquiler ? (
                   <>
                     {/* Alquiler Mensual Row */}
                     <tr>
                       <td className="py-3">
-                        <span className="font-medium text-neutral-800 block">{room?.nombre || 'Alquiler Habitacional'}</span>
-                        <span className="text-xs text-neutral-400">Arrendamiento de Propiedad Completa ({hotel?.tipoEstablecimiento === 'casa' ? 'Casa' : 'Departamento'})</span>
+                        <span className="font-bold text-neutral-950 block">{room?.nombre || 'Alquiler Habitacional'}</span>
+                        <span className="text-xs text-neutral-900 font-bold">Arrendamiento de Propiedad Completa ({hotel?.tipoEstablecimiento === 'casa' ? 'Casa' : 'Departamento'})</span>
                       </td>
-                      <td className="py-3 text-right font-mono">${(room?.precio ?? (reservation.subtotal / 2)).toFixed(2)} USD</td>
-                      <td className="py-3 text-center">1 mes</td>
-                      <td className="py-3 text-right font-semibold text-neutral-800 font-mono">${(room?.precio ?? (reservation.subtotal / 2)).toFixed(2)} USD</td>
+                      <td className="py-3 text-right font-mono font-bold">${(room?.precio ?? (reservation.subtotal / 2)).toFixed(2)} USD</td>
+                      <td className="py-3 text-center font-bold">1 mes</td>
+                      <td className="py-3 text-right font-bold text-neutral-950 font-mono">${(room?.precio ?? (reservation.subtotal / 2)).toFixed(2)} USD</td>
                     </tr>
                     {/* Depósito de Garantía Row */}
                     <tr>
                       <td className="py-3">
-                        <span className="font-medium text-neutral-800 block">Depósito de Garantía</span>
-                        <span className="text-xs text-neutral-400">Garantía reembolsable de conservación del inmueble</span>
+                        <span className="font-bold text-neutral-950 block">Depósito de Garantía</span>
+                        <span className="text-xs text-neutral-900 font-bold">Garantía reembolsable de conservación del inmueble</span>
                       </td>
-                      <td className="py-3 text-right font-mono">${(room?.precio ?? (reservation.subtotal / 2)).toFixed(2)} USD</td>
-                      <td className="py-3 text-center">1</td>
-                      <td className="py-3 text-right font-semibold text-neutral-800 font-mono">${(room?.precio ?? (reservation.subtotal / 2)).toFixed(2)} USD</td>
+                      <td className="py-3 text-right font-mono font-bold">${(room?.precio ?? (reservation.subtotal / 2)).toFixed(2)} USD</td>
+                      <td className="py-3 text-center font-bold">1</td>
+                      <td className="py-3 text-right font-bold text-neutral-950 font-mono">${(room?.precio ?? (reservation.subtotal / 2)).toFixed(2)} USD</td>
                     </tr>
                   </>
                 ) : (
                   <tr>
                     <td className="py-3">
-                      <span className="font-medium text-neutral-800 block">{room?.nombre || 'Hospedaje Standard'}</span>
-                      <span className="text-xs text-neutral-400">Capacidad máxima: {room?.capacidad} personas ({room?.camas} camas)</span>
+                      <span className="font-bold text-neutral-950 block">{room?.nombre || 'Hospedaje Standard'}</span>
+                      <span className="text-xs text-neutral-900 font-bold">Capacidad máxima: {room?.capacidad} personas ({room?.camas} camas)</span>
                     </td>
-                    <td className="py-3 text-right font-mono">${(room?.precio || reservation.subtotal).toFixed(2)} USD</td>
-                    <td className="py-3 text-center">{getNights()} {getNights() > 1 ? 'noches' : 'noche'}</td>
-                    <td className="py-3 text-right font-semibold text-neutral-800 font-mono">${((room?.precio || 0) * getNights()).toFixed(2)} USD</td>
+                    <td className="py-3 text-right font-mono font-bold">${(room?.precio || reservation.subtotal).toFixed(2)} USD</td>
+                    <td className="py-3 text-center font-bold">{getNights()} {getNights() > 1 ? 'noches' : 'noche'}</td>
+                    <td className="py-3 text-right font-bold text-neutral-950 font-mono">${((room?.precio || 0) * getNights()).toFixed(2)} USD</td>
                   </tr>
                 )}
                 {reservation.serviciosAdicionales.map((service, idx) => {
                   let srvName = service;
                   let srvPrice = 15;
                   if (service.includes('($')) {
-                    const match = service.match(/\(\$([0-9.]+)\)/);
-                    if (match && match[1]) {
-                      srvPrice = parseFloat(match[1]);
-                    }
+                     const match = service.match(/\(\$([0-9.]+)\)/);
+                     if (match && match[1]) {
+                       srvPrice = parseFloat(match[1]);
+                     }
                   }
                   return (
                     <tr key={idx}>
-                      <td className="py-3 text-neutral-700">
+                      <td className="py-3 text-neutral-950 font-bold">
                         <span>Adicional: {srvName}</span>
                       </td>
-                      <td className="py-3 text-right font-mono">${srvPrice.toFixed(2)} USD</td>
-                      <td className="py-3 text-center">Global</td>
-                      <td className="py-3 text-right font-semibold text-neutral-800 font-mono">${srvPrice.toFixed(2)} USD</td>
+                      <td className="py-3 text-right font-mono font-bold">${srvPrice.toFixed(2)} USD</td>
+                      <td className="py-3 text-center font-bold">Global</td>
+                      <td className="py-3 text-right font-bold text-neutral-950 font-mono">${srvPrice.toFixed(2)} USD</td>
                     </tr>
                   );
                 })}
@@ -611,23 +611,23 @@ export default function InvoicePDF({
           <div className="border-t border-neutral-200 pt-6 flex flex-col md:flex-row justify-between items-center md:items-start gap-8">
             <div className="flex flex-col items-center md:items-start">
               <QRView value={reservation.qrCode} size={110} />
-              <p className="text-[10px] text-neutral-400 mt-2 text-center md:text-left leading-relaxed">
+              <p className="text-[10px] text-neutral-950 font-bold mt-2 text-center md:text-left leading-relaxed">
                 Escanee este código QR en el mostrador del hotel para procesar su Check-In instantáneo.
               </p>
             </div>
 
             <div className="w-full md:w-64">
-              <div className="space-y-2 text-sm text-neutral-600">
+              <div className="space-y-2 text-sm text-neutral-950 font-bold">
                 <div className="flex justify-between">
                   <span>Subtotal Neto:</span>
-                  <span className="font-mono font-medium text-neutral-800">${reservation.subtotal.toFixed(2)} USD</span>
+                  <span className="font-mono font-bold text-neutral-950">${reservation.subtotal.toFixed(2)} USD</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Impuestos (IVA 16%):</span>
-                  <span className="font-mono text-neutral-800">${reservation.impuestos.toFixed(2)} USD</span>
+                  <span className="font-mono text-neutral-950">${reservation.impuestos.toFixed(2)} USD</span>
                 </div>
                 <div className="h-[1px] bg-neutral-200 my-2" />
-                <div className="flex justify-between text-base font-bold text-teal-700">
+                <div className="flex justify-between text-base font-extrabold text-teal-700">
                   <span>Monto Total:</span>
                   <span className="font-mono">${reservation.total.toFixed(2)} USD</span>
                 </div>
@@ -655,8 +655,8 @@ export default function InvoicePDF({
           </div>
 
           {/* Policies & legal terms */}
-          <div className="mt-10 pt-6 border-t border-neutral-100 text-[10px] text-neutral-400 leading-relaxed">
-            <p className="font-semibold mb-1">Políticas importantes del hotel:</p>
+          <div className="mt-10 pt-6 border-t border-neutral-300 text-[10.5px] text-neutral-900 font-semibold leading-relaxed">
+            <p className="font-bold mb-1">Políticas importantes del hotel:</p>
             <ul className="list-disc pl-4 space-y-1">
               <li>Check-in formal requerido presentando Identificación Oficial (Cédula de identidad o pasaporte).</li>
               <li>Las cancelaciones deben procesarse con un mínimo de 24 horas antes del ingreso para evitar cargos de No-Show.</li>

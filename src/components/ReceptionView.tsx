@@ -5,9 +5,12 @@
 
 import React, { useState, useRef } from 'react';
 import { Hotel, Room, Reservation, User, RoomStatus, ReservationStatus, RoomPriceVariation } from '../types';
-import { QrCode, Search, Check, ShieldAlert, Sparkles, AlertTriangle, Calendar, UserCheck, ShieldCheck, Hammer, HelpCircle, Loader, Coffee, CreditCard } from 'lucide-react';
-import { RoomReservationCalendar } from './RoomReservationCalendar';
+import { Coffee, AlertTriangle } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
+import { ActivityLog } from '../store';
+import ReceptionCheckInModule from './ReceptionCheckInModule';
+import ReceptionRegistroModule from './ReceptionRegistroModule';
+import ReceptionIncidenciasModule from './ReceptionIncidenciasModule';
 
 interface ReceptionViewProps {
   hotels: Hotel[];
@@ -29,6 +32,8 @@ interface ReceptionViewProps {
     mensajeCambio?: string
   ) => void;
   roomPriceVariations?: RoomPriceVariation[];
+  activeTab?: 'checkin' | 'registro' | 'incidencias';
+  logs?: ActivityLog[];
 }
 
 export default function ReceptionView({
@@ -44,8 +49,23 @@ export default function ReceptionView({
   onCreateReservation,
   onRegisterUser,
   onUpdateReservationStatus,
-  roomPriceVariations = []
+  roomPriceVariations = [],
+  activeTab = 'checkin',
+  logs = []
 }: ReceptionViewProps) {
+  const getTabLabel = () => {
+    switch (activeTab) {
+      case 'checkin':
+        return 'Check-In / QR';
+      case 'registro':
+        return 'Registro / Walk-In';
+      case 'incidencias':
+        return 'Incidencias';
+      default:
+        return 'General';
+    }
+  };
+
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedHotelFilter, setSelectedHotelFilter] = useState(() => {
@@ -95,12 +115,10 @@ export default function ReceptionView({
       } catch (err) {}
     }
 
-    // Step 1: Explicitly request camera permissions from the browser/webview OS layer.
-    // This pops up the native Android/iOS system permission request dialog inside the WebView
+    // Explicitly request camera permissions from the browser/webview OS layer.
     try {
       if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-        // Immediately release the camera stream to avoid locks when html5-qrcode occupies it
         stream.getTracks().forEach(track => track.stop());
       }
     } catch (permErr: any) {
@@ -132,7 +150,6 @@ export default function ReceptionView({
               currentCamSelection = devices[0].id;
               setActiveCamId(currentCamSelection);
             } else {
-              // Direct constraint fallback
               currentCamSelection = { facingMode: "environment" };
             }
           } catch (camErr) {
@@ -152,16 +169,14 @@ export default function ReceptionView({
           },
           (decodedText) => {
             console.log("Real QR code scanned successfully:", decodedText);
-            // Handle scanned code
             completeScan(decodedText);
-            // Stop and disable camera view on success
             stopRealCamera();
           },
           () => {} // silent frame reject errors
         );
       } catch (err: any) {
         console.error("Error starting camera qr scanner:", err);
-        setScanError(`No se pudo arrancar la cámara: ${err.message || String(err)}. Por favor concede permisos de cámara permanentes en la configuración de la aplicación de tu teléfono.`);
+        setScanError(`No se pudo arrancar la cámara: ${err.message || String(err)}.`);
         setUseRealCamera(false);
       }
     }, 150);
@@ -194,6 +209,31 @@ export default function ReceptionView({
   // Auto-assign active hotel state based on resolved target ID
   const receptionistHotel = hotels.find(h => h.id === targetHotelId) || hotels[0];
 
+  const hotelRooms = rooms.filter(r => r.hotelId === targetHotelId);
+
+  const hotelIncidents = React.useMemo(() => {
+    return logs.filter(log => {
+      const actionLower = log.action.toLowerCase();
+      const detailsLower = log.detalles.toLowerCase();
+      
+      const isIncident = actionLower.includes('incidencia') || 
+                         detailsLower.includes('incidencia') || 
+                         (detailsLower.includes('mantenimiento') && detailsLower.includes('habitación'));
+      
+      if (!isIncident) return false;
+      
+      const matchesRoom = rooms.some(r => {
+        if (r.hotelId !== targetHotelId) return false;
+        return detailsLower.includes(`habitación n° ${r.numero}`) || 
+               detailsLower.includes(`habitación ${r.numero}`) || 
+               detailsLower.includes(`habit. ${r.numero}`) || 
+               detailsLower.includes(r.id.toLowerCase());
+      });
+      
+      return matchesRoom || detailsLower.includes(targetHotelId.toLowerCase()) || (receptionistHotel && detailsLower.includes(receptionistHotel.nombre.toLowerCase()));
+    });
+  }, [logs, rooms, targetHotelId, receptionistHotel]);
+
   // Presencial reservation states
   const [resType, setResType] = useState<'new' | 'existing'>('new');
   const [selectedGuestId, setSelectedGuestId] = useState('');
@@ -216,6 +256,7 @@ export default function ReceptionView({
     setBookCheckIn('');
     setBookCheckOut('');
   }, [bookRoomId, targetHotelId]);
+
   const [bookStatus, setBookStatus] = useState<'confirmada' | 'ocupada'>('confirmada');
   const [resSuccessMsg, setResSuccessMsg] = useState('');
 
@@ -247,7 +288,6 @@ export default function ReceptionView({
   }
 
   const getRoomPriceForDate = (room: Room, dateStr: string) => {
-    // Check if there is an exact date match in variations or an annual re-occurring one ("Always" - matching MM-DD)
     const exactMatch = roomPriceVariations.find(v => {
       if (v.roomId !== room.id) return false;
       if (v.isWeekend) return false;
@@ -332,12 +372,22 @@ export default function ReceptionView({
       return;
     }
 
-    if (bookCheckOut <= bookCheckIn) {
-      alert('La fecha de salida debe ser posterior a la de entrada.');
+    const dObj = new Date();
+    const year = dObj.getFullYear();
+    const month = String(dObj.getMonth() + 1).padStart(2, '0');
+    const day = String(dObj.getDate()).padStart(2, '0');
+    const localTodayStr = `${year}-${month}-${day}`;
+
+    if (bookCheckIn < localTodayStr) {
+      alert('La fecha de entrada no puede ser del pasado. Debe ser hoy o una fecha posterior.');
       return;
     }
 
-    // CHECK DATE OVERLAP:
+    if (bookCheckOut <= bookCheckIn) {
+      alert('La fecha de salida debe ser estrictamente posterior a la de entrada (mínimo 1 noche).');
+      return;
+    }
+
     const activeReservations = reservations.filter(res => 
       res.roomId === bookRoomId &&
       res.estado !== 'cancelada' &&
@@ -361,12 +411,10 @@ export default function ReceptionView({
         return;
       }
 
-      // Check if email already exists in system to prevent duplicate
       const matchedUser = users.find(u => u.email.toLowerCase() === walkInEmail.toLowerCase());
       if (matchedUser) {
         targetGuestId = matchedUser.id;
       } else {
-        // Create new user in the system
         const generatedId = 'usr-' + Date.now();
         const genPassword = 'RoomiaPass' + Math.floor(1000 + Math.random() * 9000);
         const newUser = {
@@ -396,7 +444,6 @@ export default function ReceptionView({
       targetGuestId = selectedGuestId;
     }
 
-    // Now construct the reservation
     const generatedResId = 'RES-' + Math.floor(10000 + Math.random() * 90000);
 
     const detailedList = receptionistHotel.serviciosDetallados || [];
@@ -422,7 +469,7 @@ export default function ReceptionView({
       impuestos: calculatedImpuestos,
       total: calculatedTotal,
       qrCode: 'PRESENTIAL-' + Date.now(),
-      estado: bookStatus, // confirmada or ocupada
+      estado: bookStatus,
       fechaRegistro: new Date().toISOString().split('T')[0],
       notas: bookNotas.trim() || 'Reserva ingresada presencialmente por Taquilla de recepción.',
       recepcionistaId: activeUser.id
@@ -431,7 +478,6 @@ export default function ReceptionView({
     if (onCreateReservation) {
       await onCreateReservation(newRes);
       
-      // If bookStatus is immediately 'ocupada' (instant checkin), trigger checkout/checkin logic or status update
       if (bookStatus === 'ocupada') {
         onUpdateRoomStatus(bookRoomId, 'ocupado');
       }
@@ -454,15 +500,6 @@ export default function ReceptionView({
       alert('Error en la integración de la base de datos al guardar la reserva.');
     }
   };
-
-  // Helper lists
-  const pendingCheckIns = reservations
-    .filter(r => r.hotelId === targetHotelId)
-    .filter(r => r.estado === 'confirmada' || r.estado === 'pendiente');
-  const activeOcupations = reservations
-    .filter(r => r.hotelId === targetHotelId)
-    .filter(r => r.estado === 'ocupada');
-  const hotelRooms = rooms.filter(r => r.hotelId === targetHotelId);
 
   // Simulate scanning QR Code
   const handleSimulateScan = (resId: string) => {
@@ -494,8 +531,7 @@ export default function ReceptionView({
         return;
       }
       setScannedResult(targetRes);
-      // Log event
-      onAddLog('Lectura QR', `Lectura QR de reserva "${targetRes.id}" exitoso. Información extraída.`);
+      onAddLog('Lectura QR', `Lectura QR de reserva "${targetRes.id}" exitoso.`);
     } else {
       setScanError('no se encuentra la reservacion');
     }
@@ -505,7 +541,6 @@ export default function ReceptionView({
   const handleCheckIn = (resId: string) => {
     const res = onPerformCheckIn(resId, activeUser.id);
     if (res.success) {
-      // Clear result
       setScannedResult(null);
       setScannedResId(null);
       alert('¡Check-In Procesado con éxito! La habitación ahora cuenta con estado OCUPADO.');
@@ -527,12 +562,10 @@ export default function ReceptionView({
   };
 
   // Manual code check-in lookup
-  const handleManualSearch = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleManualSearch = () => {
     if (!searchQuery) return;
     const cleanQuery = searchQuery.trim().toUpperCase();
     
-    // Look up by reservation id or QR content
     const res = reservations.find(r => r.id.toUpperCase() === cleanQuery || r.qrCode.toUpperCase() === cleanQuery);
     if (res) {
       if (activeUser.rol === 'recepcionista' && res.hotelId !== activeUser.hotelId) {
@@ -555,7 +588,6 @@ export default function ReceptionView({
     const target = rooms.find(r => r.id === incidentRoomId);
     if (!target) return;
 
-    // Send status to maintenance
     onUpdateRoomStatus(incidentRoomId, 'mantenimiento');
     onAddLog('Incidencia Registrada', `Habitación N° ${target.numero} puesta en mantenimiento por "${incidentText}"`);
 
@@ -568,810 +600,135 @@ export default function ReceptionView({
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <div className="max-w-7xl mx-auto px-4 py-6 space-y-8" id="reception-view-layout">
       
-      {/* LEFT COLUMN: QR SCANNING INTERACTIVE LAB & TODAY BOARD */}
-      <div className="lg:col-span-2 space-y-8">
-        
-        {/* RECEPTION BANNER */}
-        <div className="bg-white rounded-3xl p-6 border border-neutral-200 shadow-sm flex flex-col md:flex-row items-center gap-6 justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-teal-50 text-teal-600 flex items-center justify-center rounded-2xl border border-teal-100 shrink-0">
-              <Coffee className="w-6 h-6" />
-            </div>
-            <div>
-              <span className="text-[10px] uppercase font-bold text-teal-600 tracking-wider">MÓDULO DE RECEPCIÓN</span>
-              <div className="flex flex-col sm:flex-row sm:items-center gap-1.5">
-                <h3 className="text-xl font-bold text-neutral-800">Mostrador - {receptionistHotel?.nombre}</h3>
-                {activeUser.rol === 'super_admin' && (
-                  <select
-                    value={selectedHotelFilter}
-                    onChange={(e) => setSelectedHotelFilter(e.target.value)}
-                    className="sm:ml-2 border border-neutral-250 text-[11px] font-bold py-1 px-2 rounded-lg focus:outline-none bg-neutral-50 shadow-sm cursor-pointer text-teal-700 hover:border-teal-500 transition-colors"
-                  >
-                    {hotels.map(h => (
-                      <option key={h.id} value={h.id}>
-                        {h.nombre} ({h.tipoEstablecimiento === 'casa' || h.tipoEstablecimiento === 'departamento' ? 'Propiedad' : 'Hotel'})
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-              <p className="text-xs text-neutral-400">Atendido por {activeUser.nombre} {activeUser.apellido}</p>
-            </div>
+      {/* RECEPTION BANNER */}
+      <div className="bg-white rounded-3xl p-6 border border-neutral-200 shadow-sm flex flex-col md:flex-row items-center gap-6 justify-between">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 bg-teal-50 text-teal-600 flex items-center justify-center rounded-2xl border border-teal-100 shrink-0">
+            <Coffee className="w-6 h-6" />
           </div>
-          <div className="text-right">
-            <span className="px-2.5 py-0.5 rounded bg-emerald-50 text-emerald-800 text-[10px] font-bold border border-emerald-100 uppercase uppercase">Operativo</span>
-          </div>
-        </div>
-
-        {/* QR SCANNER EMULATOR LAB */}
-        <div className="bg-neutral-900 text-neutral-100 rounded-3xl p-6 shadow-md border border-neutral-800 space-y-6 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-teal-500/5 rounded-full blur-xl" />
-          
-          <div className="flex justify-between items-center border-b border-neutral-800 pb-3">
-            <div className="flex items-center gap-2">
-              <QrCode className="w-5 h-5 text-teal-400 animate-pulse" />
-              <h4 className="font-semibold text-sm">Escáner Sensor QR de Alta Fidelidad</h4>
-            </div>
-            <span className="text-[10px] font-mono text-neutral-500">EMULADOR SENSOR ÓPTICO</span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
-            
-            {/* Visual Screen of simulated scanner */}
-            <div className={`bg-neutral-950 border border-neutral-800 rounded-2xl h-56 relative overflow-hidden flex flex-col items-center justify-center ${useRealCamera ? 'p-0' : 'p-4'}`}>
-              
-              {useRealCamera ? (
-                // Real Live camera reader
-                <div className="w-full h-full p-0 relative flex flex-col justify-end bg-black">
-                  <div id="qr-camera-element" className="w-full h-full object-cover" />
-                  
-                  {/* Camera overlays & controls */}
-                  <div className="absolute top-2 left-2 text-[8px] bg-red-600 text-white font-mono font-bold uppercase tracking-widest px-1.5 py-0.5 rounded flex items-center gap-1 animate-pulse z-15">
-                    <span className="w-1.5 h-1.5 rounded-full bg-white" />
-                    <span>LENTE ACTIVO (CAPACITOR/WEB)</span>
-                  </div>
-                  
-                  {cameras.length > 1 && (
-                    <div className="absolute top-2 right-2 flex gap-1 z-15">
-                      <select 
-                        value={activeCamId}
-                        onChange={(e) => {
-                          setActiveCamId(e.target.value);
-                          startRealCamera(e.target.value);
-                        }}
-                        className="bg-neutral-900/90 hover:bg-neutral-800 text-[9px] text-white font-semibold font-mono rounded border border-neutral-750 px-1 py-0.5 focus:outline-none"
-                      >
-                        {cameras.map((c, idx) => (
-                          <option key={c.id} value={c.id}>Cámara {idx + 1}</option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-
-                  <button 
-                    onClick={stopRealCamera}
-                    type="button"
-                    className="absolute bottom-2 left-1/2 transform -translate-x-1/2 bg-neutral-900 hover:bg-neutral-850 text-red-400 text-[9px] font-bold tracking-wider px-3 py-1.5 rounded-lg border border-neutral-800 focus:outline-none transition-all duration-150 z-20 cursor-pointer flex items-center gap-1 shadow-md uppercase"
-                  >
-                    <span>Cerrar Cámara ✖</span>
-                  </button>
-                </div>
-              ) : isScanning ? (
-                // Scanning screen
-                <div className="text-center space-y-3 w-full">
-                  <div className="w-full h-1 bg-teal-500/10 rounded overflow-hidden relative">
-                    <div className="h-full bg-teal-400 transition-all duration-200" style={{ width: `${scanProgress}%` }} />
-                  </div>
-                  <div className="absolute inset-0 scanner-line opacity-40 z-10 pointers-events-none" />
-                  <Loader className="w-10 h-10 text-teal-400 animate-spin mx-auto" />
-                  <p className="text-xs font-mono text-teal-300">Descifrando haz óptico QR... {scanProgress}%</p>
-                </div>
-              ) : scannedResult ? (
-                // Match scanned screen
-                <div className="text-center space-y-2.5 animate-fade-in w-full text-xs">
-                  <ShieldCheck className="w-12 h-12 text-emerald-500 mx-auto" />
-                  <p className="font-bold text-neutral-200 font-mono text-sm">ID: {scannedResult.id}</p>
-                  <p className="text-emerald-400 text-[10px] font-bold uppercase tracking-widest bg-emerald-950/40 border border-emerald-900/30 py-0.5 rounded px-2 inline-block">
-                    Código de Reserva Auténtico
-                  </p>
-                  <div className="text-neutral-400 text-[10px] space-y-0.5">
-                    <p>Cliente: {users.find(u => u.id === scannedResult.guestId)?.nombre} {users.find(u => u.id === scannedResult.guestId)?.apellido}</p>
-                    <p>Entrada: {scannedResult.fechaEntrada} / Salida: {scannedResult.fechaExit || scannedResult.fechaSalida}</p>
-                  </div>
-                </div>
-              ) : scanError ? (
-                // Scanned error screen
-                <div className="text-center space-y-2.5 animate-fade-in p-4 text-xs">
-                  <AlertTriangle className="w-10 h-10 text-red-500 mx-auto animate-bounce" />
-                  <p className="font-semibold text-red-400">Error de Validación</p>
-                  <p className="text-[10px] text-neutral-500 leading-normal">{scanError}</p>
-                  <button
-                    onClick={() => setScanError(null)}
-                    type="button"
-                    className="px-2.5 py-1 bg-neutral-800 text-neutral-300 rounded hover:bg-neutral-700 cursor-pointer"
-                  >
-                    Reintentar
-                  </button>
-                </div>
-              ) : (
-                // Default IDLE scanner screen
-                <div className="text-center space-y-3 p-4">
-                  <div className="w-16 h-16 border-2 border-dashed border-neutral-700 rounded-xl flex items-center justify-center text-neutral-600 mx-auto">
-                    <QrCode className="w-8 h-8" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-neutral-400 font-bold">¡Lente sensor listo!</p>
-                    <p className="text-[9px] text-neutral-600 mt-1">Busque manual, use demostración o active cámara:</p>
-                  </div>
-                  <div className="pt-2">
-                    <button
-                      onClick={() => startRealCamera()}
-                      type="button"
-                      className="px-3.5 py-1.5 bg-teal-500 hover:bg-teal-450 text-neutral-950 font-extrabold text-[10px] rounded-lg shadow-md uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-1 mx-auto border border-teal-400"
-                    >
-                      <span>📸 Iniciar Cámara Real</span>
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Quick Actions / Manual input logic */}
-            <div className="space-y-4">
-              <form onSubmit={handleManualSearch} className="space-y-2">
-                <label className="text-xs font-semibold text-neutral-400 block">Búsqueda Manual (ID o QR):</label>
-                <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <input
-                      type="text"
-                      placeholder="Ej: RES-73829"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full text-xs bg-neutral-950 border border-neutral-800 rounded-lg py-2 pl-3 pr-8 text-white focus:outline-none focus:ring-1 focus:ring-teal-500 font-mono"
-                    />
-                    <Search className="w-3.5 h-3.5 text-neutral-600 absolute top-2.5 right-2.5" />
-                  </div>
-                  <button
-                    type="submit"
-                    className="px-3.5 py-2 bg-teal-600 hover:bg-teal-500 text-neutral-950 rounded-lg text-xs font-bold transition-colors cursor-pointer"
-                  >
-                    Buscar
-                  </button>
-                </div>
-              </form>
-
-              <button
-                type="button"
-                onClick={() => startRealCamera()}
-                className="w-full py-2 bg-neutral-800 hover:bg-neutral-700 hover:text-white text-neutral-300 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 border border-neutral-750"
-              >
-                📸 Escanear QR con Cámara
-              </button>
-
-              <div className="space-y-1.5 pt-2">
-                <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block">Reservas en Espera (QR Demostración)</span>
-                <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
-                  {reservations
-                    .filter(r => r.hotelId === receptionistHotel?.id && r.estado !== 'cancelada')
-                    .map(r => {
-                      const guest = users.find(u => u.id === r.guestId);
-                      return (
-                        <button
-                          key={r.id}
-                          onClick={() => handleSimulateScan(r.id)}
-                          className="w-full text-left p-1.5 rounded bg-neutral-800 hover:bg-neutral-750 border border-neutral-750 transition-colors cursor-pointer text-[11px] flex justify-between items-center text-neutral-300 font-mono"
-                        >
-                          <span className="truncate max-w-[120px] font-bold">{guest?.nombre} ({r.id})</span>
-                          <span className="text-[10px] capitalize bg-neutral-900 px-1 py-0.5 rounded text-teal-400">{r.estado}</span>
-                        </button>
-                      );
-                    })}
-                </div>
-              </div>
-            </div>
-
-          </div>
-
-          {/* ACTIVE SCANNED RESULT OPERATIONS DRAWER */}
-          {scannedResult && (
-            <div className="bg-white/5 border border-white/10 p-5 rounded-2xl animate-fade-in space-y-4">
-              <div className="flex flex-wrap justify-between items-start gap-4">
-                <div>
-                  <h5 className="text-teal-400 font-bold font-mono text-sm">RESERVA {scannedResult.id}</h5>
-                  <p className="text-xs text-neutral-400">Huésped: {users.find(u => u.id === scannedResult.guestId)?.nombre} {users.find(u => u.id === scannedResult.guestId)?.apellido}</p>
-                </div>
-                <div className="text-right">
-                  <span className="text-[10px] text-neutral-400 block font-normal">MONTO PRE-PAGADO</span>
-                  <span className="font-mono font-bold text-white text-base">${scannedResult.total.toFixed(2)} USD</span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 text-xs text-neutral-300 bg-neutral-950 p-3 rounded-lg border border-neutral-800">
-                <div>
-                  <p className="text-neutral-500 font-medium font-mono text-[10px]">CHECK-IN PLANIFICADO</p>
-                  <p className="font-semibold text-neutral-200 mt-0.5">{scannedResult.fechaEntrada}</p>
-                </div>
-                <div>
-                  <p className="text-neutral-500 font-medium font-mono text-[10px]">CHECK-OUT PLANIFICADO</p>
-                  <p className="font-semibold text-neutral-200 mt-0.5">{scannedResult.fechaSalida}</p>
-                </div>
-              </div>
-
-              <div className="flex gap-2 flex-wrap pb-1">
-                {scannedResult.estado === 'pendiente' && (
-                  <button
-                    onClick={async () => {
-                      if (onUpdateReservationStatus) {
-                        onUpdateReservationStatus(
-                          scannedResult.id,
-                          'confirmada',
-                          `${activeUser.nombre} ${activeUser.apellido}`,
-                          activeUser.rol,
-                          'Pago recibido presencialmente en recepción.'
-                        );
-                        setScannedResult({ ...scannedResult, estado: 'confirmada' });
-                        onAddLog(
-                          'Pago Registrado',
-                          `Se registró pago de $${scannedResult.total.toFixed(2)} USD para la reserva ${scannedResult.id} vía Recepcion.`
-                        );
-                      } else {
-                        alert("Error de enlace: la operación onUpdateReservationStatus no está disponible.");
-                      }
-                    }}
-                    className="flex-1 bg-amber-500 hover:bg-amber-400 text-neutral-950 font-extrabold py-2 px-4 rounded-xl text-xs transition-colors cursor-pointer flex items-center justify-center gap-1 shadow"
-                  >
-                    <CreditCard className="w-4 h-4" />
-                    <span>Cobrar y Confirmar Reserva</span>
-                  </button>
-                )}
-                {scannedResult.estado === 'confirmada' && (
-                  <button
-                    onClick={() => handleCheckIn(scannedResult.id)}
-                    className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold py-2 px-4 rounded-xl text-xs transition-colors cursor-pointer flex items-center justify-center gap-1 shadow-md"
-                  >
-                    <Check className="w-4 h-4" />
-                    <span>Confirmar Check-In</span>
-                  </button>
-                )}
-                {scannedResult.estado === 'ocupada' && (
-                  <button
-                    onClick={() => handleCheckOut(scannedResult.id)}
-                    className="flex-1 bg-[#3b82f6] hover:bg-[#60a5fa] text-white font-bold py-2 px-4 rounded-xl text-xs transition-colors cursor-pointer flex items-center justify-center gap-1 shadow-md"
-                  >
-                    <UserCheck className="w-4 h-4" />
-                    <span>Confirmar Check-Out</span>
-                  </button>
-                )}
-                <button
-                  onClick={() => { setScannedResult(null); setScannedResId(null); }}
-                  className="px-4 py-2 border border-neutral-700 hover:bg-neutral-800 text-neutral-400 rounded-xl text-xs transition-colors cursor-pointer text-center"
-                >
-                  Cerrar
-                </button>
-              </div>
-            </div>
-          )}
-
-        </div>
-
-        {/* RECENT RESERVATIONS BOARD */}
-        <div className="bg-white rounded-3xl p-6 border border-neutral-200 shadow-sm space-y-4">
-          <div className="flex justify-between items-center border-b border-neutral-100 pb-3">
-            <h4 className="font-semibold text-neutral-800 text-base">Planilla de Reservas del Establecimiento</h4>
-            <span className="text-xs bg-neutral-100 px-2 py-0.5 rounded text-neutral-600 font-mono">{reservations.filter(r => r.hotelId === receptionistHotel?.id).length} en total</span>
-          </div>
-
-          <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
-            {reservations
-              .filter(r => r.hotelId === receptionistHotel?.id)
-              .map(res => {
-                const guest = users.find(u => u.id === res.guestId);
-                const room = rooms.find(r => r.id === res.roomId);
-
-                return (
-                  <div key={res.id} className="p-3 bg-neutral-50 rounded-xl border border-neutral-100 flex justify-between items-center hover:bg-neutral-100 transition-colors">
-                    <div className="space-y-0.5">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs font-bold text-neutral-800 uppercase">{res.id}</span>
-                        <span className="text-[10px] font-mono text-neutral-400">Habit. {room?.numero}</span>
-                      </div>
-                      <p className="text-xs font-semibold text-neutral-750">{guest?.nombre} {guest?.apellido}</p>
-                      <p className="text-[10px] text-neutral-400">Ingreso: {res.fechaEntrada} a {res.fechaSalida}</p>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${
-                        res.estado === 'confirmada' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
-                        res.estado === 'pendiente' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
-                        res.estado === 'ocupada' ? 'bg-blue-50 text-blue-700' :
-                        res.estado === 'finalizada' ? 'bg-neutral-200 text-neutral-600' :
-                        'bg-red-50 text-red-700'
-                      }`}>
-                        {res.estado === 'pendiente' ? 'Pendiente Pago' :
-                         res.estado === 'confirmada' ? 'Reservada' :
-                         res.estado === 'ocupada' ? 'Ocupada' :
-                         res.estado === 'finalizada' ? 'Finalizada' :
-                         res.estado === 'cancelada' ? 'Cancelada' : res.estado}
-                      </span>
-                      
-                      <button
-                        onClick={() => handleSimulateScan(res.id)}
-                        className="p-1 px-2.5 bg-white border border-neutral-200 hover:bg-neutral-100 rounded text-[11px] font-semibold text-neutral-700 transition-colors cursor-pointer"
-                      >
-                        Operar
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-          </div>
-        </div>
-
-        {/* INTERACTIVE CALENDAR: arrivals & availability tracking */}
-        <div className="animate-fade-in duration-300">
-          <RoomReservationCalendar
-            hotels={hotels.filter(h => h.id === targetHotelId)}
-            rooms={rooms.filter(r => r.hotelId === targetHotelId)}
-            reservations={reservations.filter(r => r.hotelId === targetHotelId)}
-            users={users}
-            activeUser={activeUser}
-            onUpdateRoomStatus={onUpdateRoomStatus}
-            roomPriceVariations={roomPriceVariations}
-            checkInDate={bookCheckIn}
-            checkOutDate={bookCheckOut}
-            setCheckInDate={setBookCheckIn}
-            setCheckOutDate={setBookCheckOut}
-            isAlquiler={receptionistHotel && (receptionistHotel.tipoEstablecimiento === 'casa' || receptionistHotel.tipoEstablecimiento === 'departamento') && receptionistHotel.finalidad === 'alquiler'}
-            forceRoomId={bookRoomId || undefined}
-          />
-        </div>
-
-      </div>
-
-      {/* RIGHT COLUMN: OPERATIVE CLINIC & INCIDENCES */}
-      <div className="space-y-8">
-        
-        {/* ROOM STATE OPERATIVE GRID */}
-        <div className="bg-white rounded-3xl p-6 border border-neutral-200 shadow-sm space-y-4">
-          <div className="border-b border-neutral-100 pb-3 flex justify-between items-center">
-            <h4 className="font-semibold text-neutral-900 text-base">Operario de Habitaciones</h4>
-            {activeUser.rol === 'super_admin' && (
-              <select
-                value={selectedHotelFilter}
-                onChange={(e) => setSelectedHotelFilter(e.target.value)}
-                className="border border-neutral-250 text-[11px] font-bold p-1 rounded-md focus:outline-none text-teal-700 bg-white"
-              >
-                <option value="">Seleccionar Propiedad...</option>
-                {hotels.map(h => (
-                  <option key={h.id} value={h.id}>{h.nombre.replace('Aura ', '').replace('Roomia ', '')}</option>
-                ))}
-              </select>
-            )}
-          </div>
-
-          <div className="space-y-3.5">
-            <p className="text-xs text-neutral-500 leading-normal">
-              Como recepcionista o personal autorizado, configure manualmente los estados intermedios de vaciado y desinfección higiénica.
-            </p>
-
-            <div className="grid grid-cols-1 gap-2 max-h-96 overflow-y-auto pr-1">
-              {hotelRooms.map(room => {
-                return (
-                  <div key={room.id} className="p-3 bg-neutral-50 rounded-xl border border-neutral-100 space-y-2">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <span className="text-[10px] bg-white border border-neutral-200 text-neutral-600 px-1.5 py-0.5 rounded font-mono font-bold">
-                          N° {room.numero}
-                        </span>
-                        <h5 className="font-semibold text-neutral-800 text-xs mt-1 block truncate max-w-[150px]">{room.nombre}</h5>
-                      </div>
-
-                      {/* State switch selector pills */}
-                      <select
-                        value={room.estado}
-                        onChange={(e) => {
-                          const nextStatus = e.target.value as RoomStatus;
-                          if (room.estado === 'ocupado' && nextStatus !== 'ocupado') {
-                            setCheckoutWarningRoom(room);
-                          } else {
-                            onUpdateRoomStatus(room.id, nextStatus);
-                          }
-                        }}
-                        className={`text-[10px] font-bold p-1 rounded-lg border focus:outline-none cursor-pointer uppercase ${
-                          room.estado === 'disponible' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' :
-                          room.estado === 'reservado' ? 'bg-blue-50 text-blue-800 border-blue-200' :
-                          room.estado === 'ocupado' ? 'bg-amber-50 text-amber-850 border-amber-200' :
-                          'bg-red-50 text-red-800 border-red-200'
-                        }`}
-                      >
-                        <option value="disponible">Disponible</option>
-                        <option value="reservado">Reservado</option>
-                        <option value="ocupado">Ocupado</option>
-                        <option value="mantenimiento">Mantenimiento</option>
-                      </select>
-                    </div>
-
-                    <div className="flex justify-between items-center text-[10px] text-neutral-400">
-                      <span>Capacidad: {room.capacidad} personas</span>
-                      <span className="font-mono font-medium">${room.precio} USD</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* MODULO REGISTRO PRESENCIAL (WALK-IN) */}
-        <div className="bg-white rounded-3xl p-6 border border-neutral-200 shadow-sm space-y-4">
-          <div className="border-b border-neutral-100 pb-3 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-teal-600" />
-              <h4 className="font-semibold text-neutral-900 text-base">Reserva Presencial Walk-In</h4>
-            </div>
-            <span className="text-[10px] bg-teal-50 text-teal-700 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider font-mono">
-              Taquilla 🛎️
-            </span>
-          </div>
-
-          <form onSubmit={handleCreatePresencialRes} className="space-y-4 font-sans">
-            {resSuccessMsg && (
-              <div className="bg-emerald-50 border border-emerald-300 text-emerald-800 p-3 rounded-xl text-xs font-semibold animate-fade-in">
-                {resSuccessMsg}
-              </div>
-            )}
-
-            {/* Guest Selection Mode Toggle */}
-            <div className="grid grid-cols-2 gap-2 bg-neutral-50 p-1 rounded-xl border border-neutral-150">
-              <button
-                type="button"
-                onClick={() => setResType('new')}
-                className={`py-1.5 text-center text-xs font-semibold rounded-lg transition-all ${
-                  resType === 'new' 
-                    ? 'bg-[#344D67] text-[#6ECCAF] shadow-sm' 
-                    : 'text-neutral-500 hover:text-neutral-800'
-                }`}
-              >
-                Huésped Nuevo
-              </button>
-              <button
-                type="button"
-                onClick={() => setResType('existing')}
-                className={`py-1.5 text-center text-xs font-semibold rounded-lg transition-all ${
-                  resType === 'existing' 
-                    ? 'bg-[#344D67] text-[#6ECCAF] shadow-sm' 
-                    : 'text-neutral-500 hover:text-neutral-800'
-                }`}
-              >
-                Buscar Registrado
-              </button>
-            </div>
-
-            {/* New Guest Field Set */}
-            {resType === 'new' ? (
-              <div className="space-y-3.5 p-3.5 bg-slate-50/50 rounded-2xl border border-slate-100">
-                <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest leading-none">Datos del Cliente</p>
-                <div className="grid grid-cols-2 gap-2.5">
-                  <div>
-                    <label className="text-[10px] font-bold text-neutral-500 block mb-1">Nombre *</label>
-                    <input
-                      type="text"
-                      required={resType === 'new'}
-                      value={walkInNombre}
-                      onChange={(e) => setWalkInNombre(e.target.value)}
-                      placeholder="Juan"
-                      className="w-full text-xs border border-neutral-250 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 bg-white focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-neutral-500 block mb-1">Apellido *</label>
-                    <input
-                      type="text"
-                      required={resType === 'new'}
-                      value={walkInApellido}
-                      onChange={(e) => setWalkInApellido(e.target.value)}
-                      placeholder="Castro"
-                      className="w-full text-xs border border-neutral-250 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 bg-white focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-[10px] font-bold text-neutral-500 block mb-1">Correo Electrónico *</label>
-                  <input
-                    type="email"
-                    required={resType === 'new'}
-                    value={walkInEmail}
-                    onChange={(e) => setWalkInEmail(e.target.value)}
-                    placeholder="cliente@ejemplo.com"
-                    className="w-full text-xs border border-neutral-250 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 bg-white focus:outline-none"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-2.5">
-                  <div>
-                    <label className="text-[10px] font-bold text-neutral-500 block mb-1">Teléfono Móvil *</label>
-                    <input
-                      type="text"
-                      required={resType === 'new'}
-                      value={walkInTelefono}
-                      onChange={(e) => setWalkInTelefono(e.target.value)}
-                      placeholder="+593..."
-                      className="w-full text-xs border border-neutral-250 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 bg-white focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-neutral-500 block mb-1">Cédula / Documentado *</label>
-                    <input
-                      type="text"
-                      required={resType === 'new'}
-                      value={walkInDocumento}
-                      onChange={(e) => setWalkInDocumento(e.target.value)}
-                      placeholder="09..."
-                      className="w-full text-xs border border-neutral-250 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 bg-white focus:outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="p-3.5 bg-slate-50/50 rounded-2xl border border-slate-100">
-                <label className="text-[10px] font-bold text-neutral-500 block mb-1">Buscar Huésped Registrado *</label>
+          <div>
+            <span className="text-[10px] uppercase font-bold text-teal-600 tracking-wider">MÓDULO DE RECEPCIÓN</span>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-1.5">
+              <h3 className="text-xl font-bold text-neutral-800">Mostrador - {getTabLabel()}</h3>
+              {activeUser.rol === 'super_admin' && (
                 <select
-                  required={resType === 'existing'}
-                  value={selectedGuestId}
-                  onChange={(e) => setSelectedGuestId(e.target.value)}
-                  className="w-full text-xs border border-neutral-250 rounded-lg p-2.5 bg-white focus:ring-1 focus:ring-teal-500 focus:outline-none cursor-pointer text-neutral-800"
+                  value={selectedHotelFilter}
+                  onChange={(e) => setSelectedHotelFilter(e.target.value)}
+                  className="sm:ml-2 border border-neutral-250 text-[11px] font-bold py-1 px-2 rounded-lg focus:outline-none bg-neutral-50 shadow-sm cursor-pointer text-teal-700 hover:border-teal-500 transition-colors"
                 >
-                  <option value="">-- Elige un huésped registrado --</option>
-                  {users.filter(u => u.rol === 'cliente').map(u => (
-                    <option key={u.id} value={u.id}>
-                      {u.nombre} {u.apellido} ({u.documento} - {u.email})
+                  {hotels.map(h => (
+                    <option key={h.id} value={h.id}>
+                      {h.nombre} ({h.tipoEstablecimiento === 'casa' || h.tipoEstablecimiento === 'departamento' ? 'Propiedad' : 'Hotel'})
                     </option>
                   ))}
                 </select>
-              </div>
-            )}
-
-            {/* Booking Parameters */}
-            <div className="space-y-3 p-3.5 bg-indigo-50/30 rounded-2xl border border-indigo-100/40">
-              <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest leading-none">Habitación & Estadía</p>
-              
-              <div>
-                <label className="text-[10px] font-bold text-neutral-500 block mb-1">Seleccionar Habitación *</label>
-                <select
-                  required
-                  value={bookRoomId}
-                  onChange={(e) => setBookRoomId(e.target.value)}
-                  className="w-full text-xs border border-neutral-250 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 focus:outline-none bg-white cursor-pointer"
-                >
-                  <option value="">-- Elija Habitación disponible --</option>
-                  {rooms
-                    .filter(r => r.hotelId === receptionistHotel?.id)
-                    .map(r => (
-                      <option key={r.id} value={r.id}>
-                        Hab. {r.numero} - {r.nombre} ({r.estado.toUpperCase()} - ${r.precio}/Noche)
-                      </option>
-                    ))}
-                </select>
-                {selectedRoom && reservations.filter(res => 
-                  res.roomId === bookRoomId &&
-                  res.estado !== 'cancelada' &&
-                  res.estado !== 'finalizada'
-                ).some(res => bookCheckIn < res.fechaSalida && bookCheckOut > res.fechaEntrada) && (
-                  <p className="text-[10px] font-bold text-red-650 mt-1 flex items-center gap-1 bg-red-50 p-1.5 rounded border border-red-100">
-                    <span>❌ Conflicto de Fechas:</span>
-                    <span>El aposento está ocupado o reservado en este rango.</span>
-                  </p>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-2.5">
-                <div>
-                  <label className="text-[10px] font-bold text-neutral-500 block mb-1">Fecha Entrada *</label>
-                  <input
-                    type="date"
-                    required
-                    value={bookCheckIn}
-                    onChange={(e) => setBookCheckIn(e.target.value)}
-                    className="w-full text-xs border border-neutral-250 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 bg-white"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-neutral-500 block mb-1">Fecha Salida *</label>
-                  <input
-                    type="date"
-                    required
-                    value={bookCheckOut}
-                    onChange={(e) => setBookCheckOut(e.target.value)}
-                    className="w-full text-xs border border-neutral-250 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 bg-white"
-                  />
-                </div>
-              </div>
-
-              {/* WALK-IN SERVICES SELECTOR */}
-              <div className="space-y-1.5 pt-1">
-                <label className="text-[10px] font-bold text-neutral-500 block">Servicios del Hotel Consumidos (Opcional):</label>
-                {(!receptionistHotel || !receptionistHotel.serviciosDetallados || receptionistHotel.serviciosDetallados.filter(s => s.estado === 'activo').length === 0) ? (
-                  <p className="text-[10px] text-neutral-400 italic">No hay servicios específicos creados para este hotel.</p>
-                ) : (
-                  <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
-                    {receptionistHotel.serviciosDetallados.filter(s => s.estado === 'activo').map(srv => {
-                      const isChecked = walkInSelectedServices.includes(srv.id);
-                      return (
-                        <div
-                          key={srv.id}
-                          onClick={() => {
-                            setWalkInSelectedServices(prev => {
-                              const exists = prev.includes(srv.id);
-                              if (exists) {
-                                return prev.filter(id => id !== srv.id);
-                              } else {
-                                setWalkInServicePeopleCount(prevCounts => ({
-                                  ...prevCounts,
-                                  [srv.id]: 1
-                                }));
-                                return [...prev, srv.id];
-                              }
-                            });
-                          }}
-                          className={`p-2.5 rounded-lg border text-xs cursor-pointer transition-all flex flex-col gap-1.5 ${
-                            isChecked
-                              ? 'bg-teal-50/40 border-teal-300 shadow-sm'
-                              : 'bg-white hover:bg-neutral-50 border-neutral-200'
-                          }`}
-                        >
-                          <div className="flex justify-between items-start gap-4">
-                            <div className="min-w-0 flex-1">
-                              <p className="font-bold text-neutral-800 text-[10.5px]">{srv.nombre}</p>
-                              <p className="text-[9.5px] text-neutral-400 leading-tight">{srv.descripcion}</p>
-                            </div>
-                            <div className="shrink-0 text-right flex items-center gap-1.5">
-                              <span className="font-mono font-extrabold text-teal-805 text-[11px]">+${srv.precio} <span className="text-[8px] text-neutral-400 font-normal text-right block">/ pers</span></span>
-                              <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center transition-colors ${isChecked ? 'bg-[#344D67] border-[#344D67] text-white' : 'border-neutral-300 bg-white'}`}>
-                                {isChecked && <Check className="w-2.5 h-2.5 stroke-[3px]" />}
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Multiplier Quantity Picker for Selected Services */}
-                          {isChecked && (
-                            <div
-                              onClick={(e) => e.stopPropagation()}
-                              className="mt-1 pt-1.5 border-t border-teal-200/50 flex items-center justify-between gap-4"
-                            >
-                              <span className="text-[9px] text-teal-700 font-semibold">¿Para cuántas personas?</span>
-                              <div className="flex items-center gap-1 shrink-0 bg-white px-1.5 py-0.5 border border-teal-200 rounded">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const cur = walkInServicePeopleCount[srv.id] || 1;
-                                    if (cur > 1) {
-                                      setWalkInServicePeopleCount({ ...walkInServicePeopleCount, [srv.id]: cur - 1 });
-                                    }
-                                  }}
-                                  className="w-4 h-4 flex items-center justify-center rounded bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-bold text-[10px] select-none cursor-pointer border border-neutral-200"
-                                >
-                                  -
-                                </button>
-                                <span className="text-[10px] font-mono font-bold text-neutral-900 w-5 text-center">
-                                  {walkInServicePeopleCount[srv.id] || 1}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const cur = walkInServicePeopleCount[srv.id] || 1;
-                                    setWalkInServicePeopleCount({ ...walkInServicePeopleCount, [srv.id]: cur + 1 });
-                                  }}
-                                  className="w-4 h-4 flex items-center justify-center rounded bg-teal-600 hover:bg-teal-700 text-white font-bold text-[10px] select-none cursor-pointer border border-teal-750"
-                                >
-                                  +
-                                </button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-2.5">
-                <div>
-                  <label className="text-[10px] font-bold text-neutral-500 block mb-1">Estado Reserva</label>
-                  <select
-                    value={bookStatus}
-                    onChange={(e) => setBookStatus(e.target.value as 'confirmada' | 'ocupada')}
-                    className="w-full text-xs border border-neutral-250 rounded-lg p-1.5 focus:ring-1 focus:ring-teal-500 bg-white cursor-pointer text-neutral-800"
-                  >
-                    <option value="confirmada">Confirmada</option>
-                    <option value="ocupada">Ingreso Inmediato (Check-In)</option>
-                  </select>
-                </div>
-                <div className="bg-slate-900 rounded-xl p-2.5 text-right text-white space-y-0.5 shadow-inner">
-                  <span className="text-[9px] text-slate-400 font-medium block">Total Estimado ({nights} N):</span>
-                  <p className="text-[11px] text-[#6ECCAF] font-bold font-mono">
-                    ${calculatedTotal} USD 
-                    <span className="text-[8px] text-slate-400 font-sans block leading-none">
-                      {isIvaAddedForSelectedRoom ? '(Impuestos inc 12%)' : '(IVA Incluido)'}
-                    </span>
-                  </p>
-                </div>
-              </div>
-
-              <div>
-                <label className="text-[10px] font-bold text-neutral-500 block mb-1">Notas Internas:</label>
-                <textarea
-                  placeholder="Instrucciones especiales..."
-                  value={bookNotas}
-                  onChange={(e) => setBookNotas(e.target.value)}
-                  className="w-full text-xs border border-neutral-250 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 focus:outline-none h-12"
-                />
-              </div>
-
+              )}
             </div>
-
-            <button
-              type="submit"
-              className="w-full bg-[#344D67] hover:bg-[#1E2E3E] text-[#6ECCAF] font-bold py-2.5 rounded-xl text-xs transition-all tracking-wide cursor-pointer shadow-md select-none text-center active:scale-95"
-            >
-              Registrar Reserva Presencial 🛎️📝
-            </button>
-          </form>
-        </div>
-
-        {/* INCIDENCES REGISTER */}
-        <div className="bg-white rounded-3xl p-6 border border-neutral-200 shadow-sm space-y-4">
-          <div className="border-b border-neutral-100 pb-3 flex items-center gap-2">
-            <Hammer className="w-5 h-5 text-red-600" />
-            <h4 className="font-semibold text-neutral-900 text-base">Registrar Incidencia</h4>
+            <p className="text-xs text-neutral-400">Atendido por {activeUser.nombre} {activeUser.apellido} en {receptionistHotel?.nombre}</p>
           </div>
-
-          <form onSubmit={handleReportIncident} className="space-y-4">
-            {incidentSubmitted && (
-              <div className="bg-emerald-50 border border-emerald-300 text-emerald-800 p-3 rounded-xl text-xs font-medium">
-                Incidencia guardada con éxito. Habitación colocada en Mantenimiento.
-              </div>
-            )}
-
-            <div>
-              <label className="text-xs font-semibold text-neutral-500 block mb-1">Seleccionar Habitación:</label>
-              <select
-                required
-                value={incidentRoomId}
-                onChange={(e) => setIncidentRoomId(e.target.value)}
-                className="w-full text-xs border border-neutral-250 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 focus:outline-none bg-white cursor-pointer"
-              >
-                <option value="">Elegir número de cuarto...</option>
-                {rooms.filter(r => r.hotelId === receptionistHotel?.id).map(r => (
-                  <option key={r.id} value={r.id}>Cuarto {r.numero} ({r.nombre})</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="text-xs font-semibold text-neutral-500 block mb-1">Descripción del desperfecto:</label>
-              <textarea
-                required
-                placeholder="Ej: Fuga de agua en el lavabo del baño, persiana principal atascada, etc."
-                value={incidentText}
-                onChange={(e) => setIncidentText(e.target.value)}
-                className="w-full text-xs border border-neutral-250 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 focus:outline-none h-20"
-              />
-            </div>
-
-            <button
-              type="submit"
-              className="w-full bg-neutral-900 text-white font-bold py-2 rounded-xl text-xs hover:bg-neutral-800 transition-colors cursor-pointer"
-            >
-              Reportar Incidencia
-            </button>
-          </form>
         </div>
-
+        <div className="text-right">
+          <span className="px-2.5 py-0.5 rounded bg-emerald-50 text-emerald-800 text-[10px] font-bold border border-emerald-100 uppercase">Operativo</span>
+        </div>
       </div>
+
+      {/* RENDER ACTIVE MODULES CONDITIONALLY */}
+      {activeTab === 'checkin' && (
+        <ReceptionCheckInModule
+          rooms={rooms}
+          reservations={reservations}
+          users={users}
+          targetHotelId={targetHotelId}
+          receptionistHotel={receptionistHotel}
+          hotelRooms={hotelRooms}
+          isScanning={isScanning}
+          scanProgress={scanProgress}
+          scannedResult={scannedResult}
+          scanError={scanError}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          useRealCamera={useRealCamera}
+          cameras={cameras}
+          activeCamId={activeCamId}
+          handleManualSearch={handleManualSearch}
+          handleSimulateScan={handleSimulateScan}
+          startRealCamera={startRealCamera}
+          stopRealCamera={stopRealCamera}
+          switchCamera={stopRealCamera}
+          handleCheckIn={handleCheckIn}
+          handleCheckOut={handleCheckOut}
+          onUpdateReservationStatus={onUpdateReservationStatus}
+          onAddLog={onAddLog}
+          activeUser={activeUser}
+          onUpdateRoomStatus={onUpdateRoomStatus}
+          setCheckoutWarningRoom={setCheckoutWarningRoom}
+          setScannedResult={setScannedResult}
+        />
+      )}
+
+      {activeTab === 'registro' && (
+        <ReceptionRegistroModule
+          hotels={hotels}
+          rooms={rooms}
+          reservations={reservations}
+          users={users}
+          activeUser={activeUser}
+          targetHotelId={targetHotelId}
+          receptionistHotel={receptionistHotel}
+          roomPriceVariations={roomPriceVariations}
+          onUpdateRoomStatus={onUpdateRoomStatus}
+          resType={resType}
+          setResType={setResType}
+          walkInNombre={walkInNombre}
+          setWalkInNombre={setWalkInNombre}
+          walkInApellido={walkInApellido}
+          setWalkInApellido={setWalkInApellido}
+          walkInEmail={walkInEmail}
+          setWalkInEmail={setWalkInEmail}
+          walkInTelefono={walkInTelefono}
+          setWalkInTelefono={setWalkInTelefono}
+          walkInDocumento={walkInDocumento}
+          setWalkInDocumento={setWalkInDocumento}
+          selectedGuestId={selectedGuestId}
+          setSelectedGuestId={setSelectedGuestId}
+          bookRoomId={bookRoomId}
+          setBookRoomId={setBookRoomId}
+          bookCheckIn={bookCheckIn}
+          setBookCheckIn={setBookCheckIn}
+          bookCheckOut={bookCheckOut}
+          setBookCheckOut={setBookCheckOut}
+          walkInSelectedServices={walkInSelectedServices}
+          setWalkInSelectedServices={setWalkInSelectedServices}
+          walkInServicePeopleCount={walkInServicePeopleCount}
+          setWalkInServicePeopleCount={setWalkInServicePeopleCount}
+          bookStatus={bookStatus}
+          setBookStatus={setBookStatus}
+          bookNotas={bookNotas}
+          setBookNotas={setBookNotas}
+          nights={nights}
+          calculatedTotal={calculatedTotal}
+          isIvaAddedForSelectedRoom={isIvaAddedForSelectedRoom}
+          selectedRoom={selectedRoom}
+          resSuccessMsg={resSuccessMsg}
+          handleCreatePresencialRes={handleCreatePresencialRes}
+        />
+      )}
+
+      {activeTab === 'incidencias' && (
+        <ReceptionIncidenciasModule
+          rooms={rooms}
+          receptionistHotel={receptionistHotel}
+          incidentRoomId={incidentRoomId}
+          setIncidentRoomId={setIncidentRoomId}
+          incidentText={incidentText}
+          setIncidentText={setIncidentText}
+          incidentSubmitted={incidentSubmitted}
+          handleReportIncident={handleReportIncident}
+          hotelIncidents={hotelIncidents}
+        />
+      )}
 
       {/* CHECK-OUT MANDATORY WARNING MODAL */}
       {checkoutWarningRoom && (
@@ -1396,7 +753,7 @@ export default function ReceptionView({
             </p>
 
             <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-3 text-[10px] text-zinc-650 leading-normal font-mono">
-              💡 Por favor, diríjase a la columna de la izquierda para buscar al huésped y procesar la facturación de Check-Out.
+              💡 Por favor, diríjase a la sección de Check-In para buscar al huésped y procesar la facturación de Check-Out.
             </div>
 
             <div className="pt-2">

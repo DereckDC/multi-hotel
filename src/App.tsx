@@ -15,7 +15,7 @@ import LandingPageView from './components/LandingPageView';
 import LegalPageView, { LegalDocType } from './components/LegalPageView';
 import { InteractiveContainer } from './components/InteractiveContainer';
 import { BrandLogo } from './components/BrandLogo';
-import { LayoutDashboard, Users, User as UserIcon, CalendarDays, KeyRound, Star, Sparkles, Building2, ShieldAlert, LogOut, Edit3, Camera, Check, X, Shield, AlertCircle, Eye, EyeOff, Briefcase, LogIn, Key } from 'lucide-react';
+import { LayoutDashboard, Users, User as UserIcon, CalendarDays, KeyRound, Star, Sparkles, Building2, ShieldAlert, LogOut, Edit3, Camera, Check, X, Shield, AlertCircle, Eye, EyeOff, Briefcase, LogIn, Key, Menu, Home, Compass, DollarSign, ClipboardList, QrCode, Calendar } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function App() {
@@ -75,6 +75,13 @@ export default function App() {
   const [showFullLoginScreen, setShowFullLoginScreen] = useState(false);
   const [openHotelId, setOpenHotelId] = useState<string | null>(null);
   const [viewOverride, setViewOverride] = useState<'admin' | 'reception' | null>(null);
+
+  // Left Sidebar Menu navigation state variables
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarHovered, setSidebarHovered] = useState(false);
+  const [clientTab, setClientTab] = useState<'explore' | 'properties' | 'reservations'>('explore');
+  const [adminActiveTab, setAdminActiveTab] = useState<'dashboard' | 'hotels' | 'properties' | 'rooms' | 'users' | 'logs' | 'reservations' | 'refunds' | 'incidents'>('dashboard');
+  const [receptionActiveTab, setReceptionActiveTab] = useState<'checkin' | 'registro' | 'incidencias'>('checkin');
 
   const guestUser = {
     id: 'guest',
@@ -326,84 +333,19 @@ export default function App() {
         <header className="bg-[#0E2A47] border-b border-brand-cyan/25 shadow-md print:hidden">
           <div className="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between">
             
-            <div className="flex items-center gap-2.5 navbar-logo-container">
+            <div className="flex items-center gap-2 navbar-logo-container">
+              <button
+                type="button"
+                onClick={() => setSidebarOpen(prev => !prev)}
+                className="p-2 text-[#23B4E6] hover:text-white bg-[#071726]/40 hover:bg-[#071726]/80 rounded-xl transition-all cursor-pointer active:scale-95 flex items-center justify-center mr-1 shadow border border-brand-cyan/20"
+                title="Menú de Navegación"
+              >
+                <Menu className="w-5 h-5" />
+              </button>
               <BrandLogo size="lg" showText={true} lightText={true} />
             </div>
 
-            {/* Current Persona signature badge */}
-            {!isLoggedOut ? (
-              <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
-                {(activeUser.rol === 'hotel_admin' || activeUser.rol === 'super_admin') && (
-                  <button
-                    onClick={() => {
-                      setViewOverride(prev => prev === 'reception' ? 'admin' : 'reception');
-                    }}
-                    className="h-10 px-3 bg-[#071726] hover:bg-[#0c263d] text-brand-cyan border border-brand-cyan/25 hover:border-brand-cyan/50 rounded-xl transition-all cursor-pointer text-xs font-bold flex items-center gap-2 active:scale-95 shadow-sm font-sans"
-                    title="Alternar entre panel de control administrativo y panel de recepcionista operativo"
-                  >
-                    {viewOverride === 'reception' ? (
-                      <>
-                        <span>💼</span>
-                        <span className="hidden sm:inline">Módulo Admin</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>🛎️</span>
-                        <span className="hidden sm:inline">Recepción (Check-In)</span>
-                      </>
-                    )}
-                  </button>
-                )}
-                <button
-                  onClick={openProfileModal}
-                  className="h-10 px-3 bg-[#071726] hover:bg-[#0c263d] text-white border border-brand-cyan/25 hover:border-brand-cyan/50 rounded-xl transition-all cursor-pointer text-xs font-bold flex items-center gap-3 active:scale-95 shadow-sm font-sans group"
-                  title="Haga clic para editar sus datos personales y de contacto o cambiar la foto de su perfil"
-                >
-                  <div className="text-right hidden sm:block">
-                    <span className="font-semibold text-white text-xs block leading-none group-hover:text-brand-cyan transition-colors">{activeUser.nombre} {activeUser.apellido}</span>
-                  </div>
-                  <div className="relative">
-                     <img
-                      src={activeUser.avatar}
-                      alt={activeUser.nombre}
-                      className="w-7 h-7 rounded-full border border-brand-cyan/30 shrink-0 shadow group-hover:scale-105 transition-transform"
-                    />
-                    <div className="absolute -bottom-1 -right-1 bg-brand-cyan text-[#071726] rounded-full p-0.5 border border-[#0E2A47] shadow scale-90 group-hover:scale-100 transition-transform">
-                      <Edit3 className="w-2 h-2" />
-                    </div>
-                  </div>
-                </button>
-                <button
-                  onClick={handleLogout}
-                  title="Cerrar Sesión"
-                  className="h-10 px-3 bg-red-950/40 hover:bg-red-900/40 text-red-300 hover:text-red-250 border border-red-900/40 hover:border-red-800/50 rounded-xl transition-all cursor-pointer text-xs font-bold flex items-center gap-2 active:scale-95 shadow-sm font-sans"
-                >
-                  <LogOut className="w-3.5 h-3.5 text-red-300" />
-                  <span className="hidden sm:inline">Cerrar Sesión</span>
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowFullLoginScreen(true)}
-                  className="px-3.5 py-2.5 sm:px-4 bg-brand-cyan hover:bg-[#2fc4f7] text-[#071726] text-xs font-bold rounded-xl transition-all shadow-md shadow-brand-cyan/10 flex items-center gap-2 cursor-pointer hover:scale-[1.03] active:scale-95 shrink-0"
-                  title="Iniciar Sesión"
-                >
-                  <Key className="w-4 h-4 text-[#071726]" />
-                  <span className="hidden sm:inline">Iniciar Sesión</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowLandingPage(true)}
-                  className="px-3.5 py-2.5 sm:px-4 bg-[#0E2A47] hover:bg-[#133A62] border border-brand-cyan/30 text-white text-xs font-semibold rounded-xl transition-all shadow-md shadow-brand-cyan/5 flex items-center gap-2 cursor-pointer hover:scale-[1.03] active:scale-95 shrink-0"
-                  title="Ser Anfitrión"
-                >
-                  <span className="text-sm">💼</span>
-                  <span className="hidden sm:inline">Ser Anfitrión</span>
-                </button>
-              </div>
-            )}
+            {/* Current Persona signature badge removed as requested since they are in the menu */}
 
           </div>
         </header>
@@ -458,106 +400,431 @@ export default function App() {
           </AnimatePresence>
         </main>
       ) : (
-        <main className="flex-1 pb-16">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={isLoggedOut ? 'guest-view' : activeUser.id}
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -15 }}
-              transition={{ duration: 0.25, ease: 'easeInOut' }}
-            >
-              {isLoggedOut ? (
-                <ClientView
-                  hotels={hotels}
-                  rooms={rooms}
-                  reservations={reservations}
-                  users={users}
-                  activeUser={guestUser}
-                  onCreateReservation={createReservation}
-                  onCancelReservation={cancelReservation}
-                  onDeleteReservation={deleteReservation}
-                  transactions={transactions}
-                  onAddPaymentTransaction={addPaymentTransaction}
-                  onOpenHotelChange={setOpenHotelId}
-                  reviews={reviews}
-                  onSubmitReview={submitReview}
-                  roomPriceVariations={roomPriceVariations}
-                  onTriggerLogin={() => setShowFullLoginScreen(true)}
-                  onTriggerBookingAuth={() => setShowAuthModal(true)}
+        (() => {
+          const currentRole = isLoggedOut ? 'cliente' : activeUser.rol;
+          const menuItems: {
+            icon: any;
+            label: string;
+            active: boolean;
+            onClick: () => void;
+            colorClass?: string;
+          }[] = [];
+
+          if (currentRole === 'cliente') {
+            menuItems.push(
+              {
+                icon: Compass,
+                label: "Explorar Hoteles",
+                active: clientTab === 'explore',
+                onClick: () => { setClientTab('explore'); setSidebarOpen(false); }
+              },
+              {
+                icon: Home,
+                label: "Propiedades",
+                active: clientTab === 'properties',
+                onClick: () => { setClientTab('properties'); setSidebarOpen(false); }
+              },
+              {
+                icon: CalendarDays,
+                label: "Mis Reservas",
+                active: clientTab === 'reservations',
+                onClick: () => { setClientTab('reservations'); setSidebarOpen(false); }
+              }
+            );
+
+            if (!isLoggedOut) {
+              menuItems.push(
+                {
+                  icon: UserIcon,
+                  label: "Mi Perfil",
+                  active: false,
+                  onClick: () => { openProfileModal(); setSidebarOpen(false); }
+                },
+                {
+                  icon: LogOut,
+                  label: "Cerrar Sesión",
+                  active: false,
+                  onClick: () => { handleLogout(); setSidebarOpen(false); },
+                  colorClass: "text-red-400 hover:text-red-350 hover:bg-red-950/20"
+                }
+              );
+            } else {
+              menuItems.push(
+                {
+                  icon: LogIn,
+                  label: "Iniciar Sesión",
+                  active: false,
+                  onClick: () => { setShowFullLoginScreen(true); setSidebarOpen(false); }
+                },
+                {
+                  icon: Briefcase,
+                  label: "Ser Anfitrión",
+                  active: false,
+                  onClick: () => { setShowLandingPage(true); setSidebarOpen(false); }
+                }
+              );
+            }
+          } else if (currentRole === 'recepcionista' || ((currentRole === 'hotel_admin' || currentRole === 'super_admin') && viewOverride === 'reception')) {
+            if (currentRole === 'hotel_admin' || currentRole === 'super_admin') {
+              menuItems.push({
+                icon: Shield,
+                label: "Ir a Módulo Admin",
+                active: false,
+                onClick: () => { setViewOverride('admin'); setSidebarOpen(false); },
+                colorClass: "text-amber-400 hover:text-amber-300 hover:bg-amber-950/20"
+              });
+            }
+
+            menuItems.push(
+              {
+                icon: QrCode,
+                label: "Check-In / QR",
+                active: receptionActiveTab === 'checkin',
+                onClick: () => { setReceptionActiveTab('checkin'); setSidebarOpen(false); }
+              },
+              {
+                icon: Calendar,
+                label: "Registro / Walk-In",
+                active: receptionActiveTab === 'registro',
+                onClick: () => { setReceptionActiveTab('registro'); setSidebarOpen(false); }
+              },
+              {
+                icon: ShieldAlert,
+                label: "Incidencias",
+                active: receptionActiveTab === 'incidencias',
+                onClick: () => { setReceptionActiveTab('incidencias'); setSidebarOpen(false); }
+              },
+              {
+                icon: UserIcon,
+                label: "Mi Perfil",
+                active: false,
+                onClick: () => { openProfileModal(); setSidebarOpen(false); }
+              },
+              {
+                icon: LogOut,
+                label: "Cerrar Sesión",
+                active: false,
+                onClick: () => { handleLogout(); setSidebarOpen(false); },
+                colorClass: "text-red-400 hover:text-red-300 hover:bg-red-950/20"
+              }
+            );
+          } else {
+            // Admin views
+            menuItems.push({
+              icon: Key,
+              label: "Ir a Recepción",
+              active: false,
+              onClick: () => { setViewOverride('reception'); setSidebarOpen(false); },
+              colorClass: "text-teal-400 hover:text-teal-300 hover:bg-teal-950/20"
+            });
+
+            menuItems.push(
+              {
+                icon: LayoutDashboard,
+                label: "Dashboard",
+                active: adminActiveTab === 'dashboard',
+                onClick: () => { setAdminActiveTab('dashboard'); setSidebarOpen(false); }
+              },
+              {
+                icon: Building2,
+                label: "Hoteles",
+                active: adminActiveTab === 'hotels',
+                onClick: () => { setAdminActiveTab('hotels'); setSidebarOpen(false); }
+              },
+              {
+                icon: Home,
+                label: "Propiedades",
+                active: adminActiveTab === 'properties',
+                onClick: () => { setAdminActiveTab('properties'); setSidebarOpen(false); }
+              },
+              {
+                icon: KeyRound,
+                label: "Habitaciones",
+                active: adminActiveTab === 'rooms',
+                onClick: () => { setAdminActiveTab('rooms'); setSidebarOpen(false); }
+              },
+              {
+                icon: Users,
+                label: "Usuarios",
+                active: adminActiveTab === 'users',
+                onClick: () => { setAdminActiveTab('users'); setSidebarOpen(false); }
+              },
+              {
+                icon: CalendarDays,
+                label: "Reservas",
+                active: adminActiveTab === 'reservations',
+                onClick: () => { setAdminActiveTab('reservations'); setSidebarOpen(false); }
+              },
+              {
+                icon: DollarSign,
+                label: "Reembolsos",
+                active: adminActiveTab === 'refunds',
+                onClick: () => { setAdminActiveTab('refunds'); setSidebarOpen(false); }
+              },
+              {
+                icon: ShieldAlert,
+                label: "Incidencias",
+                active: adminActiveTab === 'incidents',
+                onClick: () => { setAdminActiveTab('incidents'); setSidebarOpen(false); }
+              },
+              {
+                icon: ClipboardList,
+                label: "Bitácora",
+                active: adminActiveTab === 'logs',
+                onClick: () => { setAdminActiveTab('logs'); setSidebarOpen(false); }
+              },
+              {
+                icon: UserIcon,
+                label: "Mi Perfil",
+                active: false,
+                onClick: () => { openProfileModal(); setSidebarOpen(false); }
+              },
+              {
+                icon: LogOut,
+                label: "Cerrar Sesión",
+                active: false,
+                onClick: () => { handleLogout(); setSidebarOpen(false); },
+                colorClass: "text-red-400 hover:text-red-300 hover:bg-red-950/20"
+              }
+            );
+          }
+
+          const renderMenuItems = (isExpanded: boolean) => {
+            return menuItems.map((item, index) => {
+              const IconComp = item.icon;
+              return (
+                <button
+                  key={index}
+                  type="button"
+                  onClick={item.onClick}
+                  className={`w-full h-11 flex items-center px-3 rounded-xl transition-all cursor-pointer text-xs font-semibold select-none group relative active:scale-95 ${
+                    item.active
+                      ? 'bg-[#23B4E6] text-[#071726] shadow-md shadow-brand-cyan/15'
+                      : item.colorClass || 'text-slate-300 hover:text-white hover:bg-[#071726]/50'
+                  }`}
+                  title={!isExpanded ? item.label : undefined}
+                  id={`sidebar-item-${index}`}
+                >
+                  <div className="flex items-center justify-center shrink-0 w-5 h-5">
+                    <IconComp className="w-5 h-5" />
+                  </div>
+                  
+                  <span
+                    className={`whitespace-nowrap transition-all duration-300 font-sans ${
+                      isExpanded 
+                        ? 'opacity-100 ml-3 block' 
+                        : 'opacity-0 hidden'
+                    }`}
+                  >
+                    {item.label}
+                  </span>
+
+                  {/* Compact Tooltip when collapsed */}
+                  {!isExpanded && (
+                    <div className="absolute left-16 bg-[#071726] text-white text-[10px] font-bold px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-200 whitespace-nowrap shadow-md border border-brand-cyan/10 z-50">
+                      {item.label}
+                    </div>
+                  )}
+                </button>
+              );
+            });
+          };
+
+          return (
+            <div className="flex-1 flex flex-row relative min-h-[calc(100vh-5rem)]">
+              {/* Back-drop for mobile view when sidebar is open */}
+              {sidebarOpen && (
+                <div 
+                  className="fixed inset-0 bg-neutral-950/50 backdrop-blur-xs z-30 md:hidden"
+                  onClick={() => setSidebarOpen(false)}
+                  id="sidebar-backdrop"
                 />
-              ) : (
-                <>
-                  {/* ROLE DISPATCHER ROUTING */}
-                  {activeUser.rol === 'cliente' && (
-                    <ClientView
-                      hotels={hotels}
-                      rooms={rooms}
-                      reservations={reservations}
-                      users={users}
-                      activeUser={activeUser}
-                      onCreateReservation={createReservation}
-                      onCancelReservation={cancelReservation}
-                      onDeleteReservation={deleteReservation}
-                      transactions={transactions}
-                      onAddPaymentTransaction={addPaymentTransaction}
-                      onOpenHotelChange={setOpenHotelId}
-                      reviews={reviews}
-                      onSubmitReview={submitReview}
-                      roomPriceVariations={roomPriceVariations}
-                    />
-                  )}
-
-                  {(activeUser.rol === 'recepcionista' || ((activeUser.rol === 'hotel_admin' || activeUser.rol === 'super_admin') && viewOverride === 'reception')) && (
-                    <ReceptionView
-                      hotels={hotels}
-                      rooms={rooms}
-                      reservations={reservations}
-                      activeUser={activeUser}
-                      onPerformCheckIn={store.performCheckIn}
-                      onPerformCheckOut={store.performCheckOut}
-                      onUpdateRoomStatus={updateRoomStatus}
-                      onUpdateReservationStatus={updateReservationStatus}
-                      users={users}
-                      onAddLog={handleAddLogSimulated}
-                      onCreateReservation={createReservation}
-                      onRegisterUser={registerUser}
-                      roomPriceVariations={roomPriceVariations}
-                    />
-                  )}
-
-                  {((activeUser.rol === 'hotel_admin' || activeUser.rol === 'super_admin') && viewOverride !== 'reception') && (
-                    <AdminView
-                      hotels={hotels}
-                      rooms={rooms}
-                      users={users}
-                      reservations={reservations}
-                      logs={logs}
-                      activeUser={activeUser}
-                      onSaveHotel={saveHotel}
-                      onDeleteHotel={deleteHotel}
-                      onSaveRoom={saveRoom}
-                      onDeleteRoom={deleteRoom}
-                      onUpdateUserRole={updateUserRole}
-                      onUpdateUserHotel={updateUserHotel}
-                      onUpdateUserHotels={updateUserHotels}
-                      onToggleUserStatus={toggleUserStatus}
-                      onChangeUserPassword={changeUserPassword}
-                      statistics={stats}
-                      onUpdateRoomStatus={updateRoomStatus}
-                      onUpdateReservationStatus={updateReservationStatus}
-                      onSyncAllToSupabase={store.syncAllToSupabase}
-                      reviews={reviews}
-                      roomPriceVariations={roomPriceVariations}
-                      onSaveRoomPriceVariation={saveRoomPriceVariation}
-                      onDeleteRoomPriceVariation={deleteRoomPriceVariation}
-                    />
-                  )}
-                </>
               )}
-            </motion.div>
-          </AnimatePresence>
-        </main>
+
+              {/* Mobile Menu Dropdown (Open: Slides down from top) */}
+              <AnimatePresence>
+                {sidebarOpen && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.3, ease: 'easeInOut' }}
+                    className="fixed md:hidden top-20 left-0 right-0 w-full bg-[#0E2A47] border-b border-brand-cyan/25 z-40 shadow-2xl overflow-hidden flex flex-col"
+                    id="mobile-dropdown-menu"
+                  >
+                    <div className="py-4 px-4 space-y-1.5 max-h-[70vh] overflow-y-auto">
+                      {renderMenuItems(true)}
+                    </div>
+                    {/* Mobile User Profile indicator at the bottom of dropdown */}
+                    <div className="p-4 border-t border-brand-cyan/10 bg-[#071726]/30">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-full bg-[#23B4E6]/10 flex items-center justify-center text-brand-cyan shrink-0">
+                          <span className="text-base">🛎️</span>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-white truncate">
+                            {isLoggedOut ? 'Invitado' : `${activeUser.nombre}`}
+                          </p>
+                          <p className="text-[10px] text-brand-cyan truncate font-mono mt-0.5 uppercase tracking-wider">
+                            {isLoggedOut ? 'cliente' : activeUser.rol}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+
+
+              {/* Desktop Sidebar (Always sticky on the left) */}
+              <aside
+                onMouseEnter={() => setSidebarHovered(true)}
+                onMouseLeave={() => setSidebarHovered(false)}
+                className={`bg-[#0E2A47] border-r border-brand-cyan/20 flex flex-col justify-between transition-all duration-300 shrink-0 z-40 h-[calc(100vh-5rem)] ${
+                  sidebarOpen || sidebarHovered 
+                    ? 'w-64' 
+                    : 'w-16'
+                } sticky top-20 overflow-hidden print:hidden hidden md:flex`}
+                id="sidebar-navigation-desktop"
+              >
+                <div className="flex-1 overflow-y-auto py-4 px-2 space-y-1">
+                  {renderMenuItems(sidebarOpen || sidebarHovered)}
+                </div>
+                <div className="p-4 border-t border-brand-cyan/10 bg-[#071726]/30">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full bg-[#23B4E6]/10 flex items-center justify-center text-brand-cyan shrink-0">
+                      <span className="text-sm">🛎️</span>
+                    </div>
+                    {(sidebarOpen || sidebarHovered) && (
+                      <div className="min-w-0 transition-opacity duration-300">
+                        <p className="text-[10px] font-bold text-[#FFFFFF] truncate leading-none">
+                          {isLoggedOut ? 'Invitado' : `${activeUser.nombre}`}
+                        </p>
+                        <p className="text-[8px] text-brand-cyan truncate font-mono mt-0.5 uppercase tracking-wider">
+                          {isLoggedOut ? 'cliente' : activeUser.rol}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </aside>
+
+              {/* Main workspace container */}
+              <div className="flex-1 min-w-0 flex flex-col">
+                <main className="flex-1 pb-16">
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key={isLoggedOut ? 'guest-view' : activeUser.id}
+                      initial={{ opacity: 0, y: 15 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -15 }}
+                      transition={{ duration: 0.25, ease: 'easeInOut' }}
+                    >
+                      {isLoggedOut ? (
+                        <ClientView
+                          hotels={hotels}
+                          rooms={rooms}
+                          reservations={reservations}
+                          users={users}
+                          activeUser={guestUser}
+                          onCreateReservation={createReservation}
+                          onCancelReservation={cancelReservation}
+                          onDeleteReservation={deleteReservation}
+                          transactions={transactions}
+                          onAddPaymentTransaction={addPaymentTransaction}
+                          onOpenHotelChange={setOpenHotelId}
+                          reviews={reviews}
+                          onSubmitReview={submitReview}
+                          roomPriceVariations={roomPriceVariations}
+                          onTriggerLogin={() => setShowFullLoginScreen(true)}
+                          onTriggerBookingAuth={() => setShowAuthModal(true)}
+                          activeTab={clientTab}
+                          onActiveTabChange={setClientTab}
+                        />
+                      ) : (
+                        <>
+                          {/* ROLE DISPATCHER ROUTING */}
+                          {activeUser.rol === 'cliente' && (
+                            <ClientView
+                              hotels={hotels}
+                              rooms={rooms}
+                              reservations={reservations}
+                              users={users}
+                              activeUser={activeUser}
+                              onCreateReservation={createReservation}
+                              onCancelReservation={cancelReservation}
+                              onDeleteReservation={deleteReservation}
+                              transactions={transactions}
+                              onAddPaymentTransaction={addPaymentTransaction}
+                              onOpenHotelChange={setOpenHotelId}
+                              reviews={reviews}
+                              onSubmitReview={submitReview}
+                              roomPriceVariations={roomPriceVariations}
+                              activeTab={clientTab}
+                              onActiveTabChange={setClientTab}
+                            />
+                          )}
+
+                          {(activeUser.rol === 'recepcionista' || ((activeUser.rol === 'hotel_admin' || activeUser.rol === 'super_admin') && viewOverride === 'reception')) && (
+                            <ReceptionView
+                              hotels={hotels}
+                              rooms={rooms}
+                              reservations={reservations}
+                              activeUser={activeUser}
+                              onPerformCheckIn={store.performCheckIn}
+                              onPerformCheckOut={store.performCheckOut}
+                              onUpdateRoomStatus={updateRoomStatus}
+                              onUpdateReservationStatus={updateReservationStatus}
+                              users={users}
+                              onAddLog={handleAddLogSimulated}
+                              onCreateReservation={createReservation}
+                              onRegisterUser={registerUser}
+                              roomPriceVariations={roomPriceVariations}
+                              activeTab={receptionActiveTab}
+                              logs={logs}
+                            />
+                          )}
+
+                          {((activeUser.rol === 'hotel_admin' || activeUser.rol === 'super_admin') && viewOverride !== 'reception') && (
+                            <AdminView
+                              hotels={hotels}
+                              rooms={rooms}
+                              users={users}
+                              reservations={reservations}
+                              logs={logs}
+                              activeUser={activeUser}
+                              onSaveHotel={saveHotel}
+                              onDeleteHotel={deleteHotel}
+                              onSaveRoom={saveRoom}
+                              onDeleteRoom={deleteRoom}
+                              onUpdateUserRole={updateUserRole}
+                              onUpdateUserHotel={updateUserHotel}
+                              onUpdateUserHotels={updateUserHotels}
+                              onToggleUserStatus={toggleUserStatus}
+                              onChangeUserPassword={changeUserPassword}
+                              statistics={stats}
+                              onUpdateRoomStatus={updateRoomStatus}
+                              onUpdateReservationStatus={updateReservationStatus}
+                              onSyncAllToSupabase={store.syncAllToSupabase}
+                              reviews={reviews}
+                              roomPriceVariations={roomPriceVariations}
+                              onSaveRoomPriceVariation={saveRoomPriceVariation}
+                              onDeleteRoomPriceVariation={deleteRoomPriceVariation}
+                              adminTab={adminActiveTab}
+                              onAdminTabChange={setAdminActiveTab}
+                            />
+                          )}
+                        </>
+                      )}
+                    </motion.div>
+                  </AnimatePresence>
+                </main>
+              </div>
+
+            </div>
+          );
+        })()
       )}
 
       {/* AUTHENTICATION OVERLAY MODAL FOR GUEST CHECKOUT/BOOKINGS */}

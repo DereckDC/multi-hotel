@@ -91,6 +91,8 @@ interface AdminViewProps {
   roomPriceVariations?: RoomPriceVariation[];
   onSaveRoomPriceVariation?: (v: RoomPriceVariation) => void;
   onDeleteRoomPriceVariation?: (id: string) => void;
+  adminTab?: 'dashboard' | 'hotels' | 'properties' | 'rooms' | 'users' | 'logs' | 'reservations' | 'refunds' | 'incidents';
+  onAdminTabChange?: (tab: 'dashboard' | 'hotels' | 'properties' | 'rooms' | 'users' | 'logs' | 'reservations' | 'refunds' | 'incidents') => void;
 }
 
 export default function AdminView({
@@ -116,10 +118,20 @@ export default function AdminView({
   reviews = [],
   roomPriceVariations = [],
   onSaveRoomPriceVariation,
-  onDeleteRoomPriceVariation
+  onDeleteRoomPriceVariation,
+  adminTab: propAdminTab,
+  onAdminTabChange
 }: AdminViewProps) {
   // Navigation tabs within Admin: 'dashboard' | 'hotels' | 'rooms' | 'users' | 'logs' | 'reservations' | 'refunds' | 'incidents'
-  const [adminTab, setAdminTab] = useState<'dashboard' | 'hotels' | 'properties' | 'rooms' | 'users' | 'logs' | 'reservations' | 'refunds' | 'incidents'>('dashboard');
+  const [localAdminTab, setLocalAdminTab] = useState<'dashboard' | 'hotels' | 'properties' | 'rooms' | 'users' | 'logs' | 'reservations' | 'refunds' | 'incidents'>('dashboard');
+  const adminTab = propAdminTab !== undefined ? propAdminTab : localAdminTab;
+  const setAdminTab = (tab: 'dashboard' | 'hotels' | 'properties' | 'rooms' | 'users' | 'logs' | 'reservations' | 'refunds' | 'incidents') => {
+    if (onAdminTabChange) {
+      onAdminTabChange(tab);
+    } else {
+      setLocalAdminTab(tab);
+    }
+  };
   const [superAdminSelectedHotelId, setSuperAdminSelectedHotelId] = useState<string>('all');
   const [frequentClientsTab, setFrequentClientsTab] = useState<'cards' | 'table'>('cards');
 
@@ -621,109 +633,47 @@ export default function AdminView({
     setShowRoomModal(true);
   };
 
+  const getTabLabel = () => {
+    switch (adminTab) {
+      case 'dashboard':
+        return 'Dashboard';
+      case 'hotels':
+        return 'Hoteles';
+      case 'properties':
+        return 'Propiedades';
+      case 'rooms':
+        return 'Habitaciones';
+      case 'users':
+        return 'Usuarios';
+      case 'logs':
+        return 'Auditoría / Bitácora';
+      case 'reservations':
+        return 'Reservas';
+      case 'refunds':
+        return 'Reembolsos';
+      case 'incidents':
+        return 'Incidencias';
+      default:
+        return 'General';
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-6">
 
-      {/* ADMIN CONTROL PANEL HEADER & TABS NAVIGATION */}
+      {/* ADMIN CONTROL PANEL HEADER */}
       <div className="bg-white rounded-3xl p-6 border border-neutral-200 shadow-sm mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
           <div className="flex items-center gap-2">
             <Shield className="w-5 h-5 text-red-600" />
-            <h3 className="text-xl font-bold text-neutral-800">Panel de Control General</h3>
+            <h3 className="text-xl font-bold text-neutral-800">Panel de Control - {getTabLabel()}</h3>
             {activeUser.rol === 'super_admin' ? (
-              <span className="text-[10px] bg-red-50 text-red-800 font-bold border border-red-200 px-2 py-0.5 rounded uppercase uppercase ml-2">SUPER-ADMINISTRADOR</span>
+              <span className="text-[10px] bg-red-50 text-red-800 font-bold border border-red-200 px-2 py-0.5 rounded uppercase ml-2">SUPER-ADMINISTRADOR</span>
             ) : (
-              <span className="text-[10px] bg-amber-50 text-amber-800 font-bold border border-amber-200 px-2 py-0.5 rounded uppercase uppercase ml-2">ADMIN-HOTEL</span>
+              <span className="text-[10px] bg-amber-50 text-amber-800 font-bold border border-amber-200 px-2 py-0.5 rounded uppercase ml-2">ADMIN-HOTEL</span>
             )}
           </div>
           <p className="text-xs text-neutral-400 mt-0.5">Gestión unificada de múltiples establecimientos, control operativo, estadísticas y auditoría del sistema.</p>
-        </div>
-
-        {/* TABS SELECTORS */}
-        <div className="flex flex-wrap gap-1.5 border border-[#0E2A47]/10 p-1 rounded-xl bg-neutral-50/50">
-          <button
-            onClick={() => setAdminTab('dashboard')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
-              adminTab === 'dashboard' ? 'bg-[#0E2A47] text-white shadow-md' : 'text-neutral-500 hover:bg-neutral-100'
-            }`}
-          >
-            <LayoutDashboard className="w-4 h-4" />
-            <span>Dashboard</span>
-          </button>
-          <button
-            onClick={() => setAdminTab('hotels')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
-              adminTab === 'hotels' ? 'bg-[#0E2A47] text-white shadow-md' : 'text-neutral-500 hover:bg-neutral-100'
-            }`}
-          >
-            <HotelIcon className="w-4 h-4" />
-            <span>Hoteles</span>
-          </button>
-          <button
-            onClick={() => setAdminTab('properties')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
-              adminTab === 'properties' ? 'bg-[#0E2A47] text-white shadow-md' : 'text-neutral-500 hover:bg-neutral-100'
-            }`}
-          >
-            <Building className="w-4 h-4" />
-            <span>Propiedades</span>
-          </button>
-          <button
-            onClick={() => setAdminTab('rooms')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
-              adminTab === 'rooms' ? 'bg-[#0E2A47] text-white shadow-md' : 'text-neutral-500 hover:bg-neutral-100'
-            }`}
-          >
-            <List className="w-4 h-4" />
-            <span>Habitaciones</span>
-          </button>
-          {isSuper && (
-            <button
-              onClick={() => setAdminTab('users')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
-                adminTab === 'users' ? 'bg-[#0E2A47] text-white shadow-md' : 'text-neutral-500 hover:bg-neutral-100'
-              }`}
-            >
-              <Users className="w-4 h-4" />
-              <span>Usuarios</span>
-            </button>
-          )}
-          <button
-            onClick={() => setAdminTab('logs')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
-              adminTab === 'logs' ? 'bg-[#0E2A47] text-white shadow-md' : 'text-neutral-500 hover:bg-neutral-100'
-            }`}
-          >
-            <ClipboardList className="w-4 h-4" />
-            <span>AuditoríaLogs</span>
-          </button>
-          <button
-            onClick={() => setAdminTab('reservations')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
-              adminTab === 'reservations' ? 'bg-[#0E2A47] text-white shadow-md' : 'text-neutral-500 hover:bg-neutral-100'
-            }`}
-          >
-            <Calendar className="w-4 h-4" />
-            <span>Reservas</span>
-          </button>
-          <button
-            onClick={() => setAdminTab('refunds')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
-              adminTab === 'refunds' ? 'bg-[#0E2A47] text-white shadow-md' : 'text-neutral-500 hover:bg-neutral-100'
-            }`}
-          >
-            <DollarSign className="w-4 h-4" />
-            <span>Reembolsos</span>
-          </button>
-          <button
-            onClick={() => setAdminTab('incidents')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
-              adminTab === 'incidents' ? 'bg-[#0E2A47] text-white shadow-md' : 'text-neutral-500 hover:bg-neutral-100'
-            }`}
-          >
-            <Wrench className="w-4 h-4" />
-            <span>Incidencias</span>
-          </button>
         </div>
       </div>
 
@@ -2040,78 +1990,41 @@ export default function AdminView({
             </div>
           </div>
 
-          {/* POLICIES CARDS & SIMULATION PANEL */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* POLICIES CARDS */}
+          <div className="bg-white p-5 rounded-2xl border border-neutral-200 shadow-sm space-y-4">
+            <div className="flex items-center gap-2 border-b border-neutral-100 pb-2">
+              <Percent className="w-4 h-4 text-teal-600" />
+              <h5 className="font-bold text-neutral-800 text-xs">Políticas de Cancelación Establecidas</h5>
+            </div>
             
-            {/* Cancellation policies breakdown card */}
-            <div className="lg:col-span-2 bg-white p-5 rounded-2xl border border-neutral-200 shadow-sm space-y-4">
-              <div className="flex items-center gap-2 border-b border-neutral-100 pb-2">
-                <Percent className="w-4 h-4 text-teal-600" />
-                <h5 className="font-bold text-neutral-800 text-xs">Políticas de Cancelación Establecidas</h5>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-[11px]">
+              <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-150">
+                <span className="font-bold text-emerald-700 block">🟢 &gt;= 15 días de anticipación:</span>
+                <span className="text-neutral-500 text-[10.5px]">Reembolso del <strong className="text-neutral-800 font-bold">100%</strong> de lo abonado. Cancelación temprana sin costo administrativo.</span>
               </div>
               
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-[11px]">
-                <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-150">
-                  <span className="font-bold text-emerald-700 block">🟢 &gt;= 15 días de anticipación:</span>
-                  <span className="text-neutral-500 text-[10.5px]">Reembolso del <strong className="text-neutral-800 font-bold">100%</strong> de lo abonado. Cancelación temprana sin costo administrativo.</span>
-                </div>
-                
-                <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-150">
-                  <span className="font-bold text-blue-700 block">🔵 7 a 14 días de anticipación:</span>
-                  <span className="text-neutral-500 text-[10.5px]">Reembolso del <strong className="text-neutral-800 font-bold">50%</strong> de lo abonado. Retención por bloqueo de habitación.</span>
-                </div>
-
-                <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-150">
-                  <span className="font-bold text-amber-700 block">🟡 3 a 6 días de anticipación:</span>
-                  <span className="text-neutral-500 text-[10.5px]">Reembolso del <strong className="text-neutral-800 font-bold">20%</strong> de lo abonado. Penalidad moderada por cancelación corta.</span>
-                </div>
-
-                <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-150">
-                  <span className="font-bold text-red-700 block">🔴 Menos de 3 días / No-Show:</span>
-                  <span className="text-neutral-500 text-[10.5px]">Reembolso del <strong className="text-neutral-800 font-bold">0%</strong>. No aplica devolución de dinero por cancelación tardía.</span>
-                </div>
+              <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-150">
+                <span className="font-bold text-blue-700 block">🔵 7 a 14 días de anticipación:</span>
+                <span className="text-neutral-500 text-[10.5px]">Reembolso del <strong className="text-neutral-800 font-bold">50%</strong> de lo abonado. Retención por bloqueo de habitación.</span>
               </div>
 
-              <div className="bg-amber-50 p-3 rounded-xl border border-amber-200 flex gap-2.5 text-amber-800 text-[11px] leading-relaxed">
-                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                <div>
-                  <strong className="font-bold">Regla Importante de Pago Pendiente:</strong> Si la reservación se encuentra en estado <strong className="font-bold uppercase">Pendiente de Pago</strong>, pasa únicamente a <strong className="font-bold uppercase">Cancelada</strong> y no aplica a ningún reembolso, ya que no se ha registrado abono ni pago al administrador.
-                </div>
+              <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-150">
+                <span className="font-bold text-amber-700 block">🟡 3 a 6 días de anticipación:</span>
+                <span className="text-neutral-500 text-[10.5px]">Reembolso del <strong className="text-neutral-800 font-bold">20%</strong> de lo abonado. Penalidad moderada por cancelación corta.</span>
+              </div>
+
+              <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-150">
+                <span className="font-bold text-red-700 block">🔴 Menos de 3 días / No-Show:</span>
+                <span className="text-neutral-500 text-[10.5px]">Reembolso del <strong className="text-neutral-800 font-bold">0%</strong>. No aplica devolución de dinero por cancelación tardía.</span>
               </div>
             </div>
 
-            {/* Simulation controls card */}
-            <div className="bg-white p-5 rounded-2xl border border-neutral-200 shadow-sm space-y-4">
-              <div className="flex items-center gap-2 border-b border-neutral-100 pb-2">
-                <Calendar className="w-4 h-4 text-blue-600" />
-                <h5 className="font-bold text-neutral-800 text-xs">Simulador de Fecha de Solicitud</h5>
-              </div>
-              <p className="text-[10.5px] text-neutral-400 leading-normal">
-                Modifique la fecha simulada en la que el cliente solicita el reembolso para auditar la regla y ver cómo cambian los reembolsos calculados:
-              </p>
-              
-              <div className="space-y-2">
-                <label className="text-[10px] font-bold text-neutral-500 uppercase block">Fecha de Simulación:</label>
-                <input
-                  type="date"
-                  value={simulatedRequestDate}
-                  onChange={(e) => setSimulatedRequestDate(e.target.value)}
-                  className="w-full text-xs border border-neutral-250 p-2.5 rounded-xl focus:outline-none focus:border-neutral-900 bg-white font-semibold"
-                />
-                <button
-                  type="button"
-                  onClick={() => setSimulatedRequestDate(new Date().toISOString().split('T')[0])}
-                  className="w-full py-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-bold rounded-lg transition-colors cursor-pointer text-[10.5px]"
-                >
-                  Restaurar a Fecha de Hoy
-                </button>
-              </div>
-              
-              <div className="text-[10px] text-neutral-400 bg-neutral-50 p-2 rounded-lg text-center font-mono">
-                Hoy es: {new Date().toISOString().split('T')[0]}
+            <div className="bg-amber-50 p-3 rounded-xl border border-amber-200 flex gap-2.5 text-amber-800 text-[11px] leading-relaxed">
+              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <strong className="font-bold">Regla Importante de Pago Pendiente:</strong> Si la reservación se encuentra en estado <strong className="font-bold uppercase">Pendiente de Pago</strong>, pasa únicamente a <strong className="font-bold uppercase">Cancelada</strong> y no aplica a ningún reembolso, ya que no se ha registrado abono ni pago al administrador.
               </div>
             </div>
-
           </div>
 
           {/* FILTER BAR & LIST */}
