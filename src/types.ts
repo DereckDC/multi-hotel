@@ -81,6 +81,7 @@ export interface HotelService {
   precio: number;
   descripcion: string;
   estado: 'activo' | 'inactivo';
+  emoji?: string;
 }
 
 export interface ReservationServiceSelection {

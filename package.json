@@ -24,6 +24,7 @@
     "@vis.gl/react-google-maps": "^1.8.3",
     "@vitejs/plugin-react": "^5.0.4",
     "dotenv": "^17.2.3",
+    "emoji-picker-react": "^4.19.1",
     "express": "^4.21.2",
     "html5-qrcode": "^2.3.8",
     "jspdf": "^4.2.1",

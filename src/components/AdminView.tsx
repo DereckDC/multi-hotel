@@ -9,6 +9,7 @@ import { RoomReservationCalendar } from './RoomReservationCalendar';
 import { fetchPropertyDetails } from '../supabase';
 import { compressImage } from '../store';
 import InvoicePDF from './InvoicePDF';
+import EmojiPicker from 'emoji-picker-react';
 
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, AreaChart, Area } from 'recharts';
 import { Plus, Edit3, Trash2, Shield, Users, HotelIcon, List, LayoutDashboard, Calendar, DollarSign, Percent, TrendingUp, AlertCircle, MapPin, EyeOff, ClipboardList, ToggleLeft, ToggleRight, Check, X, Upload, Database, Sparkles, Copy, Key, Building, Home, Star, Wrench, ChevronDown } from 'lucide-react';
@@ -213,7 +214,23 @@ export default function AdminView({
     precio: number;
     descripcion: string;
     estado: 'activo' | 'inactivo';
-  }>({ id: '', nombre: '', precio: 0, descripcion: '', estado: 'activo' });
+    emoji: string;
+  }>({ id: '', nombre: '', precio: 0, descripcion: '', estado: 'activo', emoji: '' });
+
+  const [showEmojiPickerHotel, setShowEmojiPickerHotel] = useState(false);
+  const [showEmojiPickerProperty, setShowEmojiPickerProperty] = useState(false);
+
+  const [generalServiceEmoji, setGeneralServiceEmoji] = useState('✨');
+  const [showEmojiPickerGeneral, setShowEmojiPickerGeneral] = useState(false);
+
+  const [hotelPolicyEmoji, setHotelPolicyEmoji] = useState('📋');
+  const [showEmojiPickerPolicy, setShowEmojiPickerPolicy] = useState(false);
+
+  const [propertyPolicyEmoji, setPropertyPolicyEmoji] = useState('📋');
+  const [showEmojiPickerPropertyPolicy, setShowEmojiPickerPropertyPolicy] = useState(false);
+
+  const [propertyServiceEmoji, setPropertyServiceEmoji] = useState('✨');
+  const [showEmojiPickerPropertyService, setShowEmojiPickerPropertyService] = useState(false);
 
   // CRUD Room State
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
@@ -529,6 +546,12 @@ export default function AdminView({
       redesSociales: {},
       estado: 'activo',
       tipoEstablecimiento: 'hotel',
+      serviciosDetallados: [
+        { id: 'breakfast', nombre: 'Desayuno Premium Orgánico', precio: 15, descripcion: 'Ingredientes de granja locales servidos a la habitación', estado: 'activo', emoji: '🍳' },
+        { id: 'spa', nombre: 'Pase de Acceso Completo al Spa', precio: 25, descripcion: 'Masajes hidrotermales, sauna de vapor seco y toallas aromatizadas', estado: 'activo', emoji: '💆' },
+        { id: 'airport', nombre: 'Traslado Terrestre Aeropuerto-Hotel', precio: 30, descripcion: 'Conductor bilingüe privado en sedán eléctrico de lujo', estado: 'activo', emoji: '🚕' },
+        { id: 'wifi', nombre: 'Pase de Oficina WiFi 6E Ultrawide', precio: 10, descripcion: 'Canales ilimitados dedicados para streaming y co-working', estado: 'activo', emoji: '📶' }
+      ],
       propietario: { nombre: '', telefono: '', email: '', documento: '' },
       detallesInmueble: { habitaciones: 1, banos: 1, metrosCuadrados: 40, amueblado: true, tieneEstacionamiento: false }
     });
@@ -3090,47 +3113,88 @@ export default function AdminView({
                 </div>
 
                 {/* Add Service Bar */}
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="Ej:- Internet Wi-Fi de alta velocidad, Desayuno Buffet, Parqueadero"
-                    value={newGeneralServiceText}
-                    onChange={(e) => setNewGeneralServiceText(e.target.value)}
-                    className="flex-1 text-xs bg-white border border-neutral-250 p-1.5 rounded-lg focus:outline-none focus:border-teal-500"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
+                <div className="space-y-2">
+                  <div className="flex gap-2 items-center">
+                    <div className="relative shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setShowEmojiPickerGeneral(!showEmojiPickerGeneral)}
+                        className="w-10 h-8 text-center text-sm border border-neutral-250 rounded-lg bg-white hover:bg-neutral-50 flex items-center justify-center cursor-pointer transition-colors"
+                        title="Seleccionar Emoji"
+                      >
+                        <span className="text-base">{generalServiceEmoji}</span>
+                      </button>
+                      {showEmojiPickerGeneral && (
+                        <div className="absolute z-50 left-0 top-9 bg-white rounded-xl shadow-2xl border border-neutral-200 p-1 w-[290px]">
+                          <div className="flex justify-between items-center mb-1 px-2 py-1 bg-neutral-50 rounded-t-lg">
+                            <span className="text-[10px] font-bold text-neutral-600 font-sans">Elegir Emoji</span>
+                            <button
+                              type="button"
+                              onClick={() => setShowEmojiPickerGeneral(false)}
+                              className="text-neutral-400 hover:text-neutral-600 text-[11px] font-bold"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                          <EmojiPicker
+                            onEmojiClick={(emojiData) => {
+                              setGeneralServiceEmoji(emojiData.emoji);
+                              setShowEmojiPickerGeneral(false);
+                            }}
+                            width={280}
+                            height={320}
+                            previewConfig={{ showPreview: false }}
+                            skinTonesDisabled
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    <input
+                      type="text"
+                      placeholder="Ej:- Internet Wi-Fi de alta velocidad, Desayuno Buffet, Parqueadero"
+                      value={newGeneralServiceText}
+                      onChange={(e) => setNewGeneralServiceText(e.target.value)}
+                      className="flex-1 text-xs bg-white border border-neutral-250 p-1.5 rounded-lg focus:outline-none focus:border-teal-500 h-8"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          if (newGeneralServiceText.trim()) {
+                            const fullText = `${generalServiceEmoji} ${newGeneralServiceText.trim()}`;
+                            const current = editingHotel.servicios || [];
+                            if (!current.includes(fullText)) {
+                              setEditingHotel({
+                                ...editingHotel,
+                                servicios: [...current, fullText]
+                              });
+                            }
+                            setNewGeneralServiceText('');
+                          }
+                        }
+                      }}
+                    />
+                  </div>
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => {
                         if (newGeneralServiceText.trim()) {
+                          const fullText = `${generalServiceEmoji} ${newGeneralServiceText.trim()}`;
                           const current = editingHotel.servicios || [];
-                          if (!current.includes(newGeneralServiceText.trim())) {
+                          if (!current.includes(fullText)) {
                             setEditingHotel({
                               ...editingHotel,
-                              servicios: [...current, newGeneralServiceText.trim()]
+                              servicios: [...current, fullText]
                             });
                           }
                           setNewGeneralServiceText('');
                         }
-                      }
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (newGeneralServiceText.trim()) {
-                        const current = editingHotel.servicios || [];
-                        if (!current.includes(newGeneralServiceText.trim())) {
-                          setEditingHotel({
-                            ...editingHotel,
-                            servicios: [...current, newGeneralServiceText.trim()]
-                          });
-                        }
-                        setNewGeneralServiceText('');
-                      }
-                    }}
-                    className="bg-emerald-650 hover:bg-emerald-705 text-white font-semibold text-xs px-3 rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
-                  >
-                    Agregar
-                  </button>
+                      }}
+                      className="bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs px-4 py-1.5 rounded-lg flex items-center justify-center gap-1 transition-colors cursor-pointer h-8 w-full sm:w-auto"
+                    >
+                      Agregar
+                    </button>
+                  </div>
                 </div>
 
                 {/* Existing general services */}
@@ -3182,7 +3246,10 @@ export default function AdminView({
                       <div key={service.id || sIndex} className="p-2.5 rounded-lg bg-white border border-neutral-200 flex justify-between items-start gap-4">
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-[11px] font-bold text-neutral-800">{service.nombre}</span>
+                            <span className="text-[11px] font-bold text-neutral-800 flex items-center gap-1">
+                              {service.emoji && <span className="text-sm shrink-0">{service.emoji}</span>}
+                              <span>{service.nombre}</span>
+                            </span>
                             <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded uppercase ${
                               service.estado === 'activo' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/50' : 'bg-neutral-150 text-neutral-500'
                             }`}>
@@ -3202,7 +3269,8 @@ export default function AdminView({
                                   nombre: service.nombre,
                                   precio: service.precio,
                                   descripcion: service.descripcion,
-                                  estado: service.estado
+                                  estado: service.estado,
+                                  emoji: service.emoji || ''
                                 });
                               }}
                               className="text-[9px] font-bold text-teal-600 hover:text-teal-700 cursor-pointer"
@@ -3232,26 +3300,69 @@ export default function AdminView({
                     {newServiceForm.id ? "✏️ Editar Servicio" : "➕ Agregar Nuevo Servicio"}
                   </p>
                   <div className="grid grid-cols-2 gap-2">
-                    <div className="col-span-2">
-                      <input
-                        type="text"
-                        placeholder="Nombre. Ej: 3 comidas del día"
-                        value={newServiceForm.nombre}
-                        onChange={(e) => setNewServiceForm({ ...newServiceForm, nombre: e.target.value })}
-                        className="w-full text-xs border border-neutral-250 p-1.5 rounded-lg focus:outline-none"
-                      />
+                    <div className="col-span-2 flex items-center gap-2">
+                      <div className="w-16 shrink-0 relative">
+                        <label className="text-[9px] text-neutral-450 block mb-0.5 font-bold uppercase">Emoji</label>
+                        <button
+                          type="button"
+                          onClick={() => setShowEmojiPickerHotel(!showEmojiPickerHotel)}
+                          className="w-full text-center text-sm border border-neutral-250 p-1 rounded-lg focus:outline-none bg-white hover:bg-neutral-50 flex items-center justify-center gap-1 cursor-pointer h-8 transition-colors"
+                        >
+                          <span className="text-base">{newServiceForm.emoji || '✨'}</span>
+                          <span className="text-[8px] text-neutral-400 font-bold">▼</span>
+                        </button>
+                        {showEmojiPickerHotel && (
+                          <div className="absolute z-50 left-0 top-11 bg-white rounded-xl shadow-2xl border border-neutral-200 p-1 w-[290px]">
+                            <div className="flex justify-between items-center mb-1 px-2 py-1 bg-neutral-50 rounded-t-lg">
+                              <span className="text-[10px] font-bold text-neutral-600">Elegir Emoji</span>
+                              <button
+                                type="button"
+                                onClick={() => setShowEmojiPickerHotel(false)}
+                                className="text-neutral-400 hover:text-neutral-600 text-[11px] font-bold"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                            <EmojiPicker
+                              onEmojiClick={(emojiData) => {
+                                setNewServiceForm(prev => ({ ...prev, emoji: emojiData.emoji }));
+                                setShowEmojiPickerHotel(false);
+                              }}
+                              width={280}
+                              height={320}
+                              previewConfig={{ showPreview: false }}
+                              skinTonesDisabled
+                            />
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <label className="text-[9px] text-neutral-450 block mb-0.5 font-bold uppercase">Nombre del Servicio</label>
+                        <input
+                          type="text"
+                          placeholder="Nombre. Ej: Desayuno Premium"
+                          value={newServiceForm.nombre}
+                          onChange={(e) => setNewServiceForm({ ...newServiceForm, nombre: e.target.value })}
+                          className="w-full text-xs border border-neutral-250 p-1.5 rounded-lg focus:outline-none"
+                        />
+                      </div>
                     </div>
+
+
+
                     <div>
+                      <label className="text-[9px] text-neutral-450 block mb-0.5 font-bold uppercase">Precio Unitario ($)</label>
                       <input
                         type="number"
                         min="1"
-                        placeholder="Precio unitario ($)"
+                        placeholder="Precio ($)"
                         value={newServiceForm.precio || ''}
                         onChange={(e) => setNewServiceForm({ ...newServiceForm, precio: parseFloat(e.target.value) || 0 })}
                         className="w-full text-xs border border-neutral-250 p-1.5 rounded-lg focus:outline-none font-mono"
                       />
                     </div>
                     <div>
+                      <label className="text-[9px] text-neutral-450 block mb-0.5 font-bold uppercase">Estado</label>
                       <select
                         value={newServiceForm.estado}
                         onChange={(e) => setNewServiceForm({ ...newServiceForm, estado: e.target.value as 'activo' | 'inactivo' })}
@@ -3262,6 +3373,7 @@ export default function AdminView({
                       </select>
                     </div>
                     <div className="col-span-2">
+                      <label className="text-[9px] text-neutral-450 block mb-0.5 font-bold uppercase">Descripción del Servicio</label>
                       <textarea
                         placeholder="Descripción del servicio y cobertura..."
                         value={newServiceForm.descripcion}
@@ -3275,7 +3387,7 @@ export default function AdminView({
                       <button
                         type="button"
                         onClick={() => {
-                          setNewServiceForm({ id: '', nombre: '', precio: 0, descripcion: '', estado: 'activo' });
+                          setNewServiceForm({ id: '', nombre: '', precio: 0, descripcion: '', estado: 'activo', emoji: '' });
                         }}
                         className="px-2.5 py-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-600 rounded-lg text-[10px] font-bold cursor-pointer"
                       >
@@ -3306,15 +3418,16 @@ export default function AdminView({
                             nombre: newServiceForm.nombre.trim(),
                             precio: newServiceForm.precio,
                             descripcion: newServiceForm.descripcion.trim(),
-                            estado: newServiceForm.estado as 'activo' | 'inactivo'
+                            estado: newServiceForm.estado as 'activo' | 'inactivo',
+                            emoji: newServiceForm.emoji.trim() || '✨'
                           };
                           nextList = [...currentList, newServiceObj];
                         }
 
                         setEditingHotel({ ...editingHotel, serviciosDetallados: nextList });
-                        setNewServiceForm({ id: '', nombre: '', precio: 0, descripcion: '', estado: 'activo' });
+                        setNewServiceForm({ id: '', nombre: '', precio: 0, descripcion: '', estado: 'activo', emoji: '' });
                       }}
-                      className="px-3 py-1 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-[10px] font-bold cursor-pointer shadow-sm"
+                      className="bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs px-4 py-1.5 rounded-lg flex items-center justify-center gap-1 transition-colors cursor-pointer h-8 w-full sm:w-auto"
                     >
                       {newServiceForm.id ? "Actualizar" : "Agregar"}
                     </button>
@@ -3331,47 +3444,88 @@ export default function AdminView({
                   <span className="text-[9px] text-neutral-400 font-medium">Políticas, normas de convivencia u horarios del establecimiento</span>
                 </div>
 
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="Ej: Prohibido fumar en interiores, Hora de silencio 22:00, Se aceptan mascotas pequeñas"
-                    value={newHotelPolicyText}
-                    onChange={(e) => setNewHotelPolicyText(e.target.value)}
-                    className="flex-1 text-xs bg-white border border-neutral-250 p-1.5 rounded-lg focus:outline-none focus:border-teal-500 font-sans"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
+                <div className="space-y-2">
+                  <div className="flex gap-2 items-center">
+                    <div className="relative shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setShowEmojiPickerPolicy(!showEmojiPickerPolicy)}
+                        className="w-10 h-8 text-center text-sm border border-neutral-250 rounded-lg bg-white hover:bg-neutral-50 flex items-center justify-center cursor-pointer transition-colors"
+                        title="Seleccionar Emoji"
+                      >
+                        <span className="text-base">{hotelPolicyEmoji}</span>
+                      </button>
+                      {showEmojiPickerPolicy && (
+                        <div className="absolute z-50 left-0 top-9 bg-white rounded-xl shadow-2xl border border-neutral-200 p-1 w-[290px]">
+                          <div className="flex justify-between items-center mb-1 px-2 py-1 bg-neutral-50 rounded-t-lg">
+                            <span className="text-[10px] font-bold text-neutral-600 font-sans">Elegir Emoji</span>
+                            <button
+                              type="button"
+                              onClick={() => setShowEmojiPickerPolicy(false)}
+                              className="text-neutral-400 hover:text-neutral-600 text-[11px] font-bold"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                          <EmojiPicker
+                            onEmojiClick={(emojiData) => {
+                              setHotelPolicyEmoji(emojiData.emoji);
+                              setShowEmojiPickerPolicy(false);
+                            }}
+                            width={280}
+                            height={320}
+                            previewConfig={{ showPreview: false }}
+                            skinTonesDisabled
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    <input
+                      type="text"
+                      placeholder="Ej: Prohibido fumar en interiores, Hora de silencio 22:00, Se aceptan mascotas pequeñas"
+                      value={newHotelPolicyText}
+                      onChange={(e) => setNewHotelPolicyText(e.target.value)}
+                      className="flex-1 text-xs bg-white border border-neutral-250 p-1.5 rounded-lg focus:outline-none focus:border-teal-500 font-sans h-8"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          if (newHotelPolicyText.trim()) {
+                            const fullText = `${hotelPolicyEmoji} ${newHotelPolicyText.trim()}`;
+                            const current = editingHotel.politicas || [];
+                            if (!current.includes(fullText)) {
+                              setEditingHotel({
+                                ...editingHotel,
+                                politicas: [...current, fullText]
+                              });
+                            }
+                            setNewHotelPolicyText('');
+                          }
+                        }
+                      }}
+                    />
+                  </div>
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => {
                         if (newHotelPolicyText.trim()) {
+                          const fullText = `${hotelPolicyEmoji} ${newHotelPolicyText.trim()}`;
                           const current = editingHotel.politicas || [];
-                          if (!current.includes(newHotelPolicyText.trim())) {
+                          if (!current.includes(fullText)) {
                             setEditingHotel({
                               ...editingHotel,
-                              politicas: [...current, newHotelPolicyText.trim()]
+                              politicas: [...current, fullText]
                             });
                           }
                           setNewHotelPolicyText('');
                         }
-                      }
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (newHotelPolicyText.trim()) {
-                        const current = editingHotel.politicas || [];
-                        if (!current.includes(newHotelPolicyText.trim())) {
-                          setEditingHotel({
-                            ...editingHotel,
-                            politicas: [...current, newHotelPolicyText.trim()]
-                          });
-                        }
-                        setNewHotelPolicyText('');
-                      }
-                    }}
-                    className="bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs px-3 rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
-                  >
-                    Agregar
-                  </button>
+                      }}
+                      className="bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs px-4 py-1.5 rounded-lg flex items-center justify-center gap-1 transition-colors cursor-pointer h-8 w-full sm:w-auto"
+                    >
+                      Agregar
+                    </button>
+                  </div>
                 </div>
 
                 <div className="flex flex-col gap-1.5 mt-2">
@@ -3898,47 +4052,88 @@ export default function AdminView({
                   <span className="text-[9px] text-neutral-400 font-medium font-sans">Servicios y comodidades que ya vienen incluidos gratis en la propiedad</span>
                 </div>
 
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="Ej / Wifi Fibra Óptica, Agua Caliente, Aire Acondicionado, Estacionamiento Gratis"
-                    value={newPropertyServiceText}
-                    onChange={(e) => setNewPropertyServiceText(e.target.value)}
-                    className="flex-1 text-xs bg-white border border-neutral-250 p-1.5 rounded-lg focus:outline-none focus:border-teal-500 font-sans font-semibold text-neutral-800"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
+                <div className="space-y-2">
+                  <div className="flex gap-2 items-center">
+                    <div className="relative shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setShowEmojiPickerPropertyService(!showEmojiPickerPropertyService)}
+                        className="w-10 h-8 text-center text-sm border border-neutral-250 rounded-lg bg-white hover:bg-neutral-50 flex items-center justify-center cursor-pointer transition-colors"
+                        title="Seleccionar Emoji"
+                      >
+                        <span className="text-base">{propertyServiceEmoji}</span>
+                      </button>
+                      {showEmojiPickerPropertyService && (
+                        <div className="absolute z-50 left-0 top-9 bg-white rounded-xl shadow-2xl border border-neutral-200 p-1 w-[290px]">
+                          <div className="flex justify-between items-center mb-1 px-2 py-1 bg-neutral-50 rounded-t-lg">
+                            <span className="text-[10px] font-bold text-neutral-600 font-sans">Elegir Emoji</span>
+                            <button
+                              type="button"
+                              onClick={() => setShowEmojiPickerPropertyService(false)}
+                              className="text-neutral-400 hover:text-neutral-600 text-[11px] font-bold"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                          <EmojiPicker
+                            onEmojiClick={(emojiData) => {
+                              setPropertyServiceEmoji(emojiData.emoji);
+                              setShowEmojiPickerPropertyService(false);
+                            }}
+                            width={280}
+                            height={320}
+                            previewConfig={{ showPreview: false }}
+                            skinTonesDisabled
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    <input
+                      type="text"
+                      placeholder="Ej / Wifi Fibra Óptica, Agua Caliente, Aire Acondicionado, Estacionamiento Gratis"
+                      value={newPropertyServiceText}
+                      onChange={(e) => setNewPropertyServiceText(e.target.value)}
+                      className="flex-1 text-xs bg-white border border-neutral-250 p-1.5 rounded-lg focus:outline-none focus:border-teal-500 font-sans font-semibold text-neutral-800 h-8"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          if (newPropertyServiceText.trim()) {
+                            const fullText = `${propertyServiceEmoji} ${newPropertyServiceText.trim()}`;
+                            const current = editingProperty.servicios || [];
+                            if (!current.includes(fullText)) {
+                              setEditingProperty({
+                                ...editingProperty,
+                                servicios: [...current, fullText]
+                              });
+                            }
+                            setNewPropertyServiceText('');
+                          }
+                        }
+                      }}
+                    />
+                  </div>
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => {
                         if (newPropertyServiceText.trim()) {
+                          const fullText = `${propertyServiceEmoji} ${newPropertyServiceText.trim()}`;
                           const current = editingProperty.servicios || [];
-                          if (!current.includes(newPropertyServiceText.trim())) {
+                          if (!current.includes(fullText)) {
                             setEditingProperty({
                               ...editingProperty,
-                              servicios: [...current, newPropertyServiceText.trim()]
+                              servicios: [...current, fullText]
                             });
                           }
                           setNewPropertyServiceText('');
                         }
-                      }
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (newPropertyServiceText.trim()) {
-                        const current = editingProperty.servicios || [];
-                        if (!current.includes(newPropertyServiceText.trim())) {
-                          setEditingProperty({
-                            ...editingProperty,
-                            servicios: [...current, newPropertyServiceText.trim()]
-                          });
-                        }
-                        setNewPropertyServiceText('');
-                      }
-                    }}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-3 rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
-                  >
-                    Agregar
-                  </button>
+                      }}
+                      className="bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs px-4 py-1.5 rounded-lg flex items-center justify-center gap-1 transition-colors cursor-pointer h-8 w-full sm:w-auto"
+                    >
+                      Agregar
+                    </button>
+                  </div>
                 </div>
 
                 <div className="flex flex-wrap gap-1.5 mt-2 font-semibold">
@@ -3979,47 +4174,88 @@ export default function AdminView({
                   <span className="text-[9px] text-neutral-400 font-medium font-sans">Normas de convivencia, políticas de cuidado o requisitos del propietario</span>
                 </div>
 
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="Ej: Cuidado obligatorio del jardín, No se permiten fiestas, Se solicita identificación"
-                    value={newPropertyPolicyText}
-                    onChange={(e) => setNewPropertyPolicyText(e.target.value)}
-                    className="flex-1 text-xs bg-white border border-neutral-250 p-1.5 rounded-lg focus:outline-none focus:border-teal-500 font-sans"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
+                <div className="space-y-2">
+                  <div className="flex gap-2 items-center">
+                    <div className="relative shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setShowEmojiPickerPropertyPolicy(!showEmojiPickerPropertyPolicy)}
+                        className="w-10 h-8 text-center text-sm border border-neutral-250 rounded-lg bg-white hover:bg-neutral-50 flex items-center justify-center cursor-pointer transition-colors"
+                        title="Seleccionar Emoji"
+                      >
+                        <span className="text-base">{propertyPolicyEmoji}</span>
+                      </button>
+                      {showEmojiPickerPropertyPolicy && (
+                        <div className="absolute z-50 left-0 top-9 bg-white rounded-xl shadow-2xl border border-neutral-200 p-1 w-[290px]">
+                          <div className="flex justify-between items-center mb-1 px-2 py-1 bg-neutral-50 rounded-t-lg">
+                            <span className="text-[10px] font-bold text-neutral-600 font-sans">Elegir Emoji</span>
+                            <button
+                              type="button"
+                              onClick={() => setShowEmojiPickerPropertyPolicy(false)}
+                              className="text-neutral-400 hover:text-neutral-600 text-[11px] font-bold"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                          <EmojiPicker
+                            onEmojiClick={(emojiData) => {
+                              setPropertyPolicyEmoji(emojiData.emoji);
+                              setShowEmojiPickerPropertyPolicy(false);
+                            }}
+                            width={280}
+                            height={320}
+                            previewConfig={{ showPreview: false }}
+                            skinTonesDisabled
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    <input
+                      type="text"
+                      placeholder="Ej: Cuidado obligatorio del jardín, No se permiten fiestas, Se solicita identificación"
+                      value={newPropertyPolicyText}
+                      onChange={(e) => setNewPropertyPolicyText(e.target.value)}
+                      className="flex-1 text-xs bg-white border border-neutral-250 p-1.5 rounded-lg focus:outline-none focus:border-teal-500 font-sans h-8"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          if (newPropertyPolicyText.trim()) {
+                            const fullText = `${propertyPolicyEmoji} ${newPropertyPolicyText.trim()}`;
+                            const current = editingProperty.politicas || [];
+                            if (!current.includes(fullText)) {
+                              setEditingProperty({
+                                ...editingProperty,
+                                politicas: [...current, fullText]
+                              });
+                            }
+                            setNewPropertyPolicyText('');
+                          }
+                        }
+                      }}
+                    />
+                  </div>
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => {
                         if (newPropertyPolicyText.trim()) {
+                          const fullText = `${propertyPolicyEmoji} ${newPropertyPolicyText.trim()}`;
                           const current = editingProperty.politicas || [];
-                          if (!current.includes(newPropertyPolicyText.trim())) {
+                          if (!current.includes(fullText)) {
                             setEditingProperty({
                               ...editingProperty,
-                              politicas: [...current, newPropertyPolicyText.trim()]
+                              politicas: [...current, fullText]
                             });
                           }
                           setNewPropertyPolicyText('');
                         }
-                      }
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (newPropertyPolicyText.trim()) {
-                        const current = editingProperty.politicas || [];
-                        if (!current.includes(newPropertyPolicyText.trim())) {
-                          setEditingProperty({
-                            ...editingProperty,
-                            politicas: [...current, newPropertyPolicyText.trim()]
-                          });
-                        }
-                        setNewPropertyPolicyText('');
-                      }
-                    }}
-                    className="bg-neutral-900 hover:bg-neutral-800 text-white font-semibold text-xs px-3 rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
-                  >
-                    Agregar
-                  </button>
+                      }}
+                      className="bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs px-4 py-1.5 rounded-lg flex items-center justify-center gap-1 transition-colors cursor-pointer h-8 w-full sm:w-auto"
+                    >
+                      Agregar
+                    </button>
+                  </div>
                 </div>
 
                 <div className="flex flex-col gap-1.5 mt-2">
@@ -4071,7 +4307,10 @@ export default function AdminView({
                         <div key={service.id || sIndex} className="p-2.5 rounded-lg bg-white border border-neutral-200 flex justify-between items-start gap-4">
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="text-[11px] font-bold text-neutral-800">{service.nombre}</span>
+                              <span className="text-[11px] font-bold text-neutral-800 flex items-center gap-1">
+                                {service.emoji && <span className="text-sm shrink-0">{service.emoji}</span>}
+                                <span>{service.nombre}</span>
+                              </span>
                               <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded uppercase ${
                                 service.estado === 'activo' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/50' : 'bg-neutral-150 text-neutral-500'
                               }`}>
@@ -4091,7 +4330,8 @@ export default function AdminView({
                                     nombre: service.nombre,
                                     precio: service.precio,
                                     descripcion: service.descripcion,
-                                    estado: service.estado
+                                    estado: service.estado,
+                                    emoji: service.emoji || ''
                                   });
                                 }}
                                 className="text-[9px] font-bold text-teal-600 hover:text-teal-700 cursor-pointer"
@@ -4121,7 +4361,44 @@ export default function AdminView({
                       {newServiceForm.id ? "✏️ Editar Servicio Adicional" : "➕ Agregar Servicio Adicional"}
                     </p>
                     <div className="grid grid-cols-2 gap-2">
-                      <div className="col-span-2">
+                    <div className="col-span-2 flex items-center gap-2">
+                      <div className="w-16 shrink-0 relative">
+                        <label className="text-[9px] text-neutral-450 block mb-0.5 font-bold uppercase">Emoji</label>
+                        <button
+                          type="button"
+                          onClick={() => setShowEmojiPickerProperty(!showEmojiPickerProperty)}
+                          className="w-full text-center text-sm border border-neutral-250 p-1 rounded-lg focus:outline-none bg-white hover:bg-neutral-50 flex items-center justify-center gap-1 cursor-pointer h-8 transition-colors"
+                        >
+                          <span className="text-base">{newServiceForm.emoji || '✨'}</span>
+                          <span className="text-[8px] text-neutral-400 font-bold">▼</span>
+                        </button>
+                        {showEmojiPickerProperty && (
+                          <div className="absolute z-50 left-0 top-11 bg-white rounded-xl shadow-2xl border border-neutral-200 p-1 w-[290px]">
+                            <div className="flex justify-between items-center mb-1 px-2 py-1 bg-neutral-50 rounded-t-lg">
+                              <span className="text-[10px] font-bold text-neutral-600">Elegir Emoji</span>
+                              <button
+                                type="button"
+                                onClick={() => setShowEmojiPickerProperty(false)}
+                                className="text-neutral-400 hover:text-neutral-600 text-[11px] font-bold"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                            <EmojiPicker
+                              onEmojiClick={(emojiData) => {
+                                setNewServiceForm(prev => ({ ...prev, emoji: emojiData.emoji }));
+                                setShowEmojiPickerProperty(false);
+                              }}
+                              width={280}
+                              height={320}
+                              previewConfig={{ showPreview: false }}
+                              skinTonesDisabled
+                            />
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <label className="text-[9px] text-neutral-450 block mb-0.5 font-bold uppercase">Nombre del Servicio</label>
                         <input
                           type="text"
                           placeholder="Nombre. Ej: Desayuno americano, Transfer al aeropuerto"
@@ -4130,17 +4407,23 @@ export default function AdminView({
                           className="w-full text-xs border border-neutral-250 p-1.5 rounded-lg focus:outline-none"
                         />
                       </div>
+                    </div>
+
+
+
                       <div>
+                        <label className="text-[9px] text-neutral-450 block mb-0.5 font-bold uppercase">Precio Unitario ($)</label>
                         <input
                           type="number"
                           min="1"
-                          placeholder="Precio unitario ($)"
+                          placeholder="Precio ($)"
                           value={newServiceForm.precio || ''}
                           onChange={(e) => setNewServiceForm({ ...newServiceForm, precio: parseFloat(e.target.value) || 0 })}
                           className="w-full text-xs border border-neutral-250 p-1.5 rounded-lg focus:outline-none font-mono"
                         />
                       </div>
                       <div>
+                        <label className="text-[9px] text-neutral-450 block mb-0.5 font-bold uppercase">Estado</label>
                         <select
                           value={newServiceForm.estado}
                           onChange={(e) => setNewServiceForm({ ...newServiceForm, estado: e.target.value as 'activo' | 'inactivo' })}
@@ -4151,6 +4434,7 @@ export default function AdminView({
                         </select>
                       </div>
                       <div className="col-span-2">
+                        <label className="text-[9px] text-neutral-450 block mb-0.5 font-bold uppercase">Descripción del Servicio</label>
                         <textarea
                           placeholder="Descripción del servicio..."
                           value={newServiceForm.descripcion}
@@ -4164,7 +4448,7 @@ export default function AdminView({
                         <button
                           type="button"
                           onClick={() => {
-                            setNewServiceForm({ id: '', nombre: '', precio: 0, descripcion: '', estado: 'activo' });
+                            setNewServiceForm({ id: '', nombre: '', precio: 0, descripcion: '', estado: 'activo', emoji: '' });
                           }}
                           className="px-2.5 py-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-600 rounded-lg text-[10px] font-bold cursor-pointer"
                         >
@@ -4195,15 +4479,16 @@ export default function AdminView({
                               nombre: newServiceForm.nombre.trim(),
                               precio: newServiceForm.precio,
                               descripcion: newServiceForm.descripcion.trim(),
-                              estado: newServiceForm.estado as 'activo' | 'inactivo'
+                              estado: newServiceForm.estado as 'activo' | 'inactivo',
+                              emoji: newServiceForm.emoji.trim() || '✨'
                             };
                             nextList = [...currentList, newServiceObj];
                           }
 
                           setEditingProperty({ ...editingProperty, serviciosDetallados: nextList });
-                          setNewServiceForm({ id: '', nombre: '', precio: 0, descripcion: '', estado: 'activo' });
+                          setNewServiceForm({ id: '', nombre: '', precio: 0, descripcion: '', estado: 'activo', emoji: '' });
                         }}
-                        className="px-3 py-1 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-[10px] font-bold cursor-pointer shadow-sm"
+                        className="bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs px-4 py-1.5 rounded-lg flex items-center justify-center gap-1 transition-colors cursor-pointer h-8 w-full sm:w-auto"
                       >
                         {newServiceForm.id ? "Actualizar" : "Agregar"}
                       </button>

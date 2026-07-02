@@ -390,7 +390,10 @@ export default function ReceptionRegistroModule({
                         >
                           <div className="flex justify-between items-start gap-4">
                             <div className="min-w-0 flex-1">
-                              <p className="font-bold text-neutral-800 text-[10.5px]">{srv.nombre}</p>
+                              <p className="font-bold text-neutral-800 text-[10.5px] flex items-center gap-1">
+                                {srv.emoji && <span className="text-sm shrink-0">{srv.emoji}</span>}
+                                <span>{srv.nombre}</span>
+                              </p>
                               <p className="text-[9.5px] text-neutral-400 leading-tight">{srv.descripcion}</p>
                             </div>
                             <div className="shrink-0 text-right flex items-center gap-1.5">
