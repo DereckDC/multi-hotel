@@ -457,7 +457,11 @@ export default function App() {
             {showFullLoginScreen && (
               <button
                 type="button"
-                onClick={() => setShowFullLoginScreen(false)}
+                onClick={() => {
+                  setShowFullLoginScreen(false);
+                  setClientTab('explore');
+                  setOpenHotelId(null);
+                }}
                 className="px-4 py-2 bg-[#0E2A47] hover:bg-[#133A62] border border-brand-cyan/30 text-white text-xs font-semibold rounded-xl transition-all shadow-md shadow-brand-cyan/5 flex items-center gap-2 cursor-pointer active:scale-95"
               >
                 <ArrowLeft className="w-4 h-4 text-brand-cyan" />
@@ -476,7 +480,11 @@ export default function App() {
         <main className="flex-1">
           <AnimatePresence mode="wait">
             <LandingPageView 
-              onClose={() => setShowLandingPage(false)} 
+              onClose={() => {
+                setShowLandingPage(false);
+                setClientTab('explore');
+                setOpenHotelId(null);
+              }} 
               onOpenLegal={(type) => {
                 window.history.pushState(null, '', type === 'terminos' ? '/terminos-y-condiciones' : type === 'privacidad' ? '/politica-de-privacidad' : '/politica-de-cancelaciones-y-reembolsos');
                 setActiveLegalDoc(type);
@@ -506,7 +514,11 @@ export default function App() {
                     window.location.reload();
                   }}
                   onRegisterUser={registerUser}
-                  onShowLanding={() => setShowFullLoginScreen(false)}
+                  onShowLanding={() => {
+                    setShowFullLoginScreen(false);
+                    setClientTab('explore');
+                    setOpenHotelId(null);
+                  }}
                 />
               </div>
             </motion.div>

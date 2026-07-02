@@ -46,13 +46,15 @@ export default function SupportChatDrawer({
   const isStaff = activeUser.rol !== 'cliente';
 
   // Get active and available hotels - restringe si es staff de hotel (no super admin)
-  const activeHotels = hotels.filter(h => {
-    if (h.estado !== 'activo') return false;
-    if (isStaff && activeUser.rol !== 'super_admin') {
-      return h.id === activeUser.hotelId;
-    }
-    return true;
-  });
+  const activeHotels = React.useMemo(() => {
+    return hotels.filter(h => {
+      if (h.estado !== 'activo') return false;
+      if (isStaff && activeUser.rol !== 'super_admin') {
+        return h.id === activeUser.hotelId;
+      }
+      return true;
+    });
+  }, [hotels, isStaff, activeUser.hotelId, activeUser.rol]);
 
   // If client, default and keep selectedHotelId in sync with the openHotelId
   useEffect(() => {
@@ -90,7 +92,7 @@ export default function SupportChatDrawer({
   const filteredMessages = getFilteredMessages();
 
   // Get unique clients who have started chats with the selected hotel (for staff selection)
-  const getActiveHotelClients = () => {
+  const hotelClients = React.useMemo(() => {
     const hotelFilterId = isStaff && activeUser.rol !== 'super_admin' ? activeUser.hotelId : selectedHotelId;
     if (!hotelFilterId) return [];
     const clientIds = new Set<string>();
@@ -106,9 +108,7 @@ export default function SupportChatDrawer({
       });
 
     return clients;
-  };
-
-  const hotelClients = getActiveHotelClients();
+  }, [messages, selectedHotelId, isStaff, activeUser.hotelId, activeUser.rol]);
 
   // If staff and no customer selected, default to the first client in list
   useEffect(() => {

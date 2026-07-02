@@ -82,10 +82,10 @@ interface ClientViewProps {
 }
 
 const ADDITIONAL_SERVICES = [
-  { id: 'breakfast', name: 'Desayuno Premium Orgánico', price: 15, desc: 'Ingredientes de granja locales servidos a la habitación' },
-  { id: 'spa', name: 'Pase de Acceso Completo al Spa', price: 25, desc: 'Masajes hidrotermales, sauna de vapor seco y toallas aromatizadas' },
-  { id: 'airport', name: 'Traslado Terrestre Aeropuerto-Hotel', price: 30, desc: 'Conductor bilingüe privado en sedán eléctrico de lujo' },
-  { id: 'wifi', name: 'Pase de Oficina WiFi 6E Ultrawide', price: 10, desc: 'Canales ilimitados dedicados para streaming y co-working' }
+  { id: 'breakfast', name: 'Desayuno Premium Orgánico', price: 15, desc: 'Ingredientes de granja locales servidos a la habitación', emoji: '🍳' },
+  { id: 'spa', name: 'Pase de Acceso Completo al Spa', price: 25, desc: 'Masajes hidrotermales, sauna de vapor seco y toallas aromatizadas', emoji: '💆' },
+  { id: 'airport', name: 'Traslado Terrestre Aeropuerto-Hotel', price: 30, desc: 'Conductor bilingüe privado en sedán eléctrico de lujo', emoji: '🚕' },
+  { id: 'wifi', name: 'Pase de Oficina WiFi 6E Ultrawide', price: 10, desc: 'Canales ilimitados dedicados para streaming y co-working', emoji: '📶' }
 ];
 
 export default function ClientView({
@@ -144,17 +144,13 @@ export default function ClientView({
     }
   }, [openHotelId]);
 
-  // Sync selected hotel with parent app to feed active hotel conversational chat
+  // Reset filters when changing/opening a hotel
   React.useEffect(() => {
-    if (onOpenHotelChange) {
-      onOpenHotelChange(selectedHotelId);
-    }
-    // Reset filters when changing/opening a hotel
     setRoomMaxPrice(1500);
     setRoomMaxPriceInput('1500');
     setRoomCapacity('');
     setRoomTypeFilter('');
-  }, [selectedHotelId, onOpenHotelChange]);
+  }, [selectedHotelId]);
   
   // Advanced Filter state
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
@@ -855,7 +851,10 @@ export default function ClientView({
                     return (
                       <motion.div
                         key={hotel.id}
-                        onClick={() => setSelectedHotelId(hotel.id)}
+                        onClick={() => {
+                          setSelectedHotelId(hotel.id);
+                          if (onOpenHotelChange) onOpenHotelChange(hotel.id);
+                        }}
                         initial={{ opacity: 0, y: 20 }}
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true }}
@@ -1241,7 +1240,10 @@ export default function ClientView({
                                   >
                                     <div className="flex justify-between items-start gap-4">
                                       <div className="min-w-0 flex-1">
-                                        <p className="font-semibold text-neutral-800">{srv.nombre}</p>
+                                        <p className="font-semibold text-neutral-800 flex items-center gap-1.5">
+                                          {srv.emoji && <span className="text-sm shrink-0">{srv.emoji}</span>}
+                                          <span>{srv.nombre}</span>
+                                        </p>
                                         <p className="text-[10px] text-neutral-450 mt-0.5 leading-relaxed">{srv.descripcion}</p>
                                       </div>
                                       <div className="shrink-0 text-right flex items-center gap-2">
@@ -1428,7 +1430,10 @@ export default function ClientView({
             // HOTEL DETAIL PAGE & AVAILABLE ROOMS
             <div className="space-y-8 animate-fade-in" key={selectedHotelId || 'none'}>
               <button
-                onClick={() => setSelectedHotelId(null)}
+                onClick={() => {
+                  setSelectedHotelId(null);
+                  if (onOpenHotelChange) onOpenHotelChange(null);
+                }}
                 className="inline-flex items-center gap-2 text-sm text-neutral-500 hover:text-neutral-800 transition-colors font-medium cursor-pointer"
               >
                 ← Volver al catálogo de hoteles
