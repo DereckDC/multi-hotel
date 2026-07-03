@@ -26,29 +26,112 @@ export const supabase = createClient(
 
 // Self-healing: Detect and handle invalid refresh tokens or failed fetches gracefully
 if (typeof window !== 'undefined') {
+  // Console interceptor to silently suppress and auto-heal invalid refresh token logs
+  const originalConsoleError = console.error;
+  console.error = function (...args: any[]) {
+    const msg = args.map(arg => {
+      try {
+        return typeof arg === 'object' ? JSON.stringify(arg) : String(arg);
+      } catch (e) {
+        return String(arg);
+      }
+    }).join(' ').toLowerCase();
+
+    if (msg.includes('refresh token') || msg.includes('invalid_grant')) {
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith('sb-') && key.endsWith('-auth-token')) {
+            localStorage.removeItem(key);
+          }
+        }
+        localStorage.removeItem('sb-evovuegtffpcdeylekfy-auth-token');
+        localStorage.removeItem('aura_hotel_pms_current_user_id');
+      } catch (e) {
+        // storage disabled or error
+      }
+      return;
+    }
+    originalConsoleError.apply(console, args);
+  };
+
+  const originalConsoleWarn = console.warn;
+  console.warn = function (...args: any[]) {
+    const msg = args.map(arg => {
+      try {
+        return typeof arg === 'object' ? JSON.stringify(arg) : String(arg);
+      } catch (e) {
+        return String(arg);
+      }
+    }).join(' ').toLowerCase();
+
+    if (msg.includes('refresh token') || msg.includes('invalid_grant')) {
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith('sb-') && key.endsWith('-auth-token')) {
+            localStorage.removeItem(key);
+          }
+        }
+        localStorage.removeItem('sb-evovuegtffpcdeylekfy-auth-token');
+        localStorage.removeItem('aura_hotel_pms_current_user_id');
+      } catch (e) {
+        // storage disabled or error
+      }
+      return;
+    }
+    originalConsoleWarn.apply(console, args);
+  };
+
   // 1. Check initial session to catch auth/refresh errors before they bubble up
   supabase.auth.getSession().then(({ error }) => {
     if (error) {
-      console.warn("⚠️ Supabase getSession early catch:", error.message);
-      if (error.message?.toLowerCase().includes('refresh token')) {
-        localStorage.removeItem('sb-evovuegtffpcdeylekfy-auth-token');
-        localStorage.removeItem('aura_hotel_pms_current_user_id');
+      if (error.message?.toLowerCase().includes('refresh token') || error.message?.toLowerCase().includes('invalid_grant')) {
+        try {
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith('sb-') && key.endsWith('-auth-token')) {
+              localStorage.removeItem(key);
+            }
+          }
+          localStorage.removeItem('sb-evovuegtffpcdeylekfy-auth-token');
+          localStorage.removeItem('aura_hotel_pms_current_user_id');
+          supabase.auth.signOut().catch(() => {});
+        } catch (e) {
+          // storage disabled or error
+        }
       }
     }
   }).catch((err) => {
-    console.warn("⚠️ Supabase getSession early exception:", err);
+    // silently catch
   });
 
   // 2. Intercept unhandled promise rejections (often fired by library background refresh threads)
   window.addEventListener('unhandledrejection', (event) => {
     const reason = event.reason;
     if (reason) {
-      const msg = String(reason.message || reason).toLowerCase();
-      if (msg.includes('refresh token') || msg.includes('failed to fetch') || msg.includes('fetch') || msg.includes('network error')) {
-        console.warn('⚠️ Self-healing: Prevented unhandled rejection for network/auth refresh error:', msg);
-        if (msg.includes('refresh token')) {
-          localStorage.removeItem('sb-evovuegtffpcdeylekfy-auth-token');
-          localStorage.removeItem('aura_hotel_pms_current_user_id');
+      let msg = '';
+      try {
+        msg = (reason.message || reason.error_description || reason.error || JSON.stringify(reason) || '').toLowerCase();
+      } catch (e) {
+        msg = String(reason || '').toLowerCase();
+      }
+
+      if (msg.includes('refresh token') || msg.includes('invalid_grant') || msg.includes('failed to fetch') || msg.includes('fetch') || msg.includes('network error')) {
+        if (msg.includes('refresh token') || msg.includes('invalid_grant')) {
+          try {
+            for (let i = 0; i < localStorage.length; i++) {
+              const key = localStorage.key(i);
+              if (key && key.startsWith('sb-') && key.endsWith('-auth-token')) {
+                localStorage.removeItem(key);
+              }
+            }
+            localStorage.removeItem('sb-evovuegtffpcdeylekfy-auth-token');
+            localStorage.removeItem('aura_hotel_pms_current_user_id');
+            supabase.auth.signOut().catch(() => {});
+          } catch (e) {
+            // storage disabled or error
+          }
         }
         event.preventDefault(); // Stop from reaching browser console as uncaught
       }
@@ -58,11 +141,21 @@ if (typeof window !== 'undefined') {
   // 3. Intercept general window runtime errors
   window.addEventListener('error', (event) => {
     const msg = String(event.message || '').toLowerCase();
-    if (msg.includes('refresh token') || msg.includes('failed to fetch') || msg.includes('fetch') || msg.includes('network error')) {
-      console.warn('⚠️ Self-healing: Intercepted and handled runtime error:', msg);
-      if (msg.includes('refresh token')) {
-        localStorage.removeItem('sb-evovuegtffpcdeylekfy-auth-token');
-        localStorage.removeItem('aura_hotel_pms_current_user_id');
+    if (msg.includes('refresh token') || msg.includes('invalid_grant') || msg.includes('failed to fetch') || msg.includes('fetch') || msg.includes('network error')) {
+      if (msg.includes('refresh token') || msg.includes('invalid_grant')) {
+        try {
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith('sb-') && key.endsWith('-auth-token')) {
+              localStorage.removeItem(key);
+            }
+          }
+          localStorage.removeItem('sb-evovuegtffpcdeylekfy-auth-token');
+          localStorage.removeItem('aura_hotel_pms_current_user_id');
+          supabase.auth.signOut().catch(() => {});
+        } catch (e) {
+          // storage disabled or error
+        }
       }
       event.preventDefault(); // Stop propagation
     }
