@@ -1317,6 +1317,149 @@ El Equipo de Hospitalidad de Roomia PMS.`;
     }
   };
 
+  // Helper to notify hotel administrators about a pending reservation
+  const sendPendingReservationAdminNotification = async (
+    resObj: Reservation,
+    hotelObj: Hotel | undefined,
+    roomObj: Room | undefined,
+    guestObj: User | undefined
+  ) => {
+    // 1. Gather all admin recipient emails
+    const recipientEmails: string[] = [];
+
+    // Find all users who are hotel administrators for this hotel
+    const admins = users.filter(u => 
+      u.rol === 'hotel_admin' && 
+      (u.hotelId === resObj.hotelId || u.hotelIds?.includes(resObj.hotelId))
+    );
+    admins.forEach(admin => {
+      if (admin.email && !recipientEmails.includes(admin.email)) {
+        recipientEmails.push(admin.email);
+      }
+    });
+
+    // Also include the hotel contact email
+    if (hotelObj?.contacto?.email && !recipientEmails.includes(hotelObj.contacto.email)) {
+      recipientEmails.push(hotelObj.contacto.email);
+    }
+
+    // Also include the property owner email (for vacation rentals / houses / apartments)
+    if (hotelObj?.propietario?.email && !recipientEmails.includes(hotelObj.propietario.email)) {
+      recipientEmails.push(hotelObj.propietario.email);
+    }
+
+    // If still no recipients found, fallback to system support
+    if (recipientEmails.length === 0) {
+      recipientEmails.push('soporte@roomia.com');
+    }
+
+    const guestName = guestObj ? `${guestObj.nombre} ${guestObj.apellido}` : 'Nuevo Cliente';
+    
+    const subject = `⏳ Acción Requerida: Nueva Reserva Pendiente - ${hotelObj?.nombre || 'Roomia PMS'}`;
+
+    const htmlBody = `
+      <div style="font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.05); color: #1e293b;">
+        <div style="background-color: #0f172a; padding: 30px; text-align: center; color: #ffffff;">
+          <span style="font-size: 10px; font-weight: bold; letter-spacing: 2px; color: #f59e0b; text-transform: uppercase;">NOTIFICACIÓN ADMINISTRATIVA</span>
+          <h1 style="margin: 10px 0 0 0; font-size: 22px; font-weight: 300; letter-spacing: -0.5px;">Reserva Pendiente de Gestión</h1>
+        </div>
+        
+        <div style="padding: 24px; line-height: 1.6;">
+          <p style="margin-top: 0; font-size: 14px;">Estimado Administrador,</p>
+          
+          <p style="font-size: 14px; color: #475569;">
+            Se ha registrado una nueva solicitud de reserva en <strong>${hotelObj?.nombre || 'tu propiedad'}</strong>. La reserva se encuentra actualmente en estado <strong>Pendiente de Pago</strong> esperando su revisión y validación en la plataforma.
+          </p>
+
+          <div style="margin: 20px 0; padding: 15px; background-color: #fffbeb; border-radius: 12px; border: 1px solid #fef3c7; text-align: center;">
+            <span style="font-size: 10px; text-transform: uppercase; font-weight: bold; letter-spacing: 1px; color: #92400e;">Estado de la reserva:</span>
+            <div style="font-size: 16px; font-weight: bold; color: #b45309; margin-top: 4px;">
+              ⏳ PENDIENTE DE REVISIÓN
+            </div>
+            <div style="font-size: 10px; color: #64748b; margin-top: 2px; font-family: monospace;">Ref: ${resObj.id}</div>
+          </div>
+
+          <h3 style="color: #0f172a; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; font-size: 14px; margin-top: 24px;">Detalles del Huésped:</h3>
+          <table style="width: 100%; font-size: 13px; color: #475569; border-collapse: collapse; margin-top: 8px;">
+            <tr>
+              <td style="padding: 5px 0; font-weight: 600; width: 130px; color: #0f172a;">Nombre:</td>
+              <td style="padding: 5px 0;">${guestName}</td>
+            </tr>
+            <tr>
+              <td style="padding: 5px 0; font-weight: 600; color: #0f172a;">Correo:</td>
+              <td style="padding: 5px 0;">${guestObj?.email || 'N/A'}</td>
+            </tr>
+            <tr>
+              <td style="padding: 5px 0; font-weight: 600; color: #0f172a;">Teléfono:</td>
+              <td style="padding: 5px 0;">${guestObj?.telefono || 'N/A'}</td>
+            </tr>
+          </table>
+
+          <h3 style="color: #0f172a; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; font-size: 14px; margin-top: 24px;">Detalles del Alojamiento:</h3>
+          <table style="width: 100%; font-size: 13px; color: #475569; border-collapse: collapse; margin-top: 8px;">
+            <tr>
+              <td style="padding: 5px 0; font-weight: 600; width: 130px; color: #0f172a;">Habitación:</td>
+              <td style="padding: 5px 0;">Habitación ${roomObj?.numero || 'N/A'} - ${roomObj?.nombre || 'Suite'} (${roomObj?.tipo || 'Suite'})</td>
+            </tr>
+            <tr>
+              <td style="padding: 5px 0; font-weight: 600; color: #0f172a;">Check-In:</td>
+              <td style="padding: 5px 0;">${resObj.fechaEntrada}</td>
+            </tr>
+            <tr>
+              <td style="padding: 5px 0; font-weight: 600; color: #0f172a;">Check-Out:</td>
+              <td style="padding: 5px 0;">${resObj.fechaSalida}</td>
+            </tr>
+            <tr>
+              <td style="padding: 5px 0; font-weight: 600; color: #0f172a;">Monto Total:</td>
+              <td style="padding: 5px 0; font-weight: bold; color: #0f172a;">$${resObj.total.toFixed(2)} USD</td>
+            </tr>
+            ${resObj.notas ? `
+            <tr>
+              <td style="padding: 5px 0; font-weight: 600; color: #0f172a;">Notas:</td>
+              <td style="padding: 5px 0; font-style: italic;">"${resObj.notas}"</td>
+            </tr>
+            ` : ''}
+          </table>
+
+          <div style="margin-top: 30px; text-align: center;">
+            <a href="https://ais-pre-x2bbmoykvbb2j2cvvu5ybf-300435593784.us-east5.run.app" style="display: inline-block; padding: 12px 24px; background-color: #2dd4bf; color: #0f172a; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 14px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+              Acceder al Panel de Gestión
+            </a>
+          </div>
+        </div>
+
+        <div style="background-color: #f8fafc; padding: 15px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 10px; color: #64748b;">
+          <p style="margin: 0;">Esta es una notificación automática enviada por el motor de reservas de Roomia PMS.</p>
+        </div>
+      </div>
+    `;
+
+    try {
+      const apiEndpoint = `${getApiBaseUrl()}/api/send-email`;
+      console.log(`[PENDING NOTIFICATION TRIGGER] Dispatching to: ${recipientEmails.join(', ')}`);
+      
+      // Dispatch emails in parallel for all recipients
+      await Promise.all(recipientEmails.map(async (email) => {
+        try {
+          await fetch(apiEndpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              to: email,
+              subject,
+              html: htmlBody,
+              text: `Roomia PMS Notificación Administrativa: Nueva reserva pendiente ${resObj.id} para ${hotelObj?.nombre || 'tu propiedad'} por parte del cliente ${guestName} ($${resObj.total.toFixed(2)} USD).`
+            })
+          });
+        } catch (singleErr) {
+          console.error(`[PENDING NOTIFICATION SINGLE ERR] Email to ${email} failed:`, singleErr);
+        }
+      }));
+    } catch (apiErr) {
+      console.error("[PENDING NOTIFICATION ADMIN EXCEPTION]:", apiErr);
+    }
+  };
+
   // --- FLOW RESERVATIONS ---
   const createReservation = async (newRes: Reservation) => {
     setReservations(prev => {
@@ -1354,6 +1497,11 @@ El Equipo de Hospitalidad de Roomia PMS.`;
     const wasPendingOrCreatedBrandNew = !oldResVal || oldResVal.estado === 'pendiente';
     if (newRes.estado === 'confirmada' && wasPendingOrCreatedBrandNew) {
       sendReservationEmailNotification(newRes, parentHotel, room, guestUser);
+    }
+
+    // Notificar al administrador del hotel sobre una nueva reserva pendiente
+    if (!oldResVal && newRes.estado === 'pendiente') {
+      sendPendingReservationAdminNotification(newRes, parentHotel, room, guestUser);
     }
   };
 
