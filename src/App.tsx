@@ -83,6 +83,8 @@ export default function App() {
   const [adminActiveTab, setAdminActiveTab] = useState<'dashboard' | 'hotels' | 'properties' | 'rooms' | 'users' | 'logs' | 'reservations' | 'refunds' | 'incidents'>('dashboard');
   const [receptionActiveTab, setReceptionActiveTab] = useState<'checkin' | 'registro' | 'incidencias'>('checkin');
 
+  const isSidebarActive = !showLandingPage && !showFullLoginScreen;
+
   const guestUser = {
     id: 'guest',
     nombre: 'Invitado',
@@ -437,15 +439,19 @@ export default function App() {
       
       {/* 2. Global application Header */}
       {!showLandingPage && (
-        <header className="bg-slate-950 border-b border-slate-900 shadow-md print:hidden">
-          <div className="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between">
+        <header className="bg-slate-950 border-b border-slate-900 shadow-md print:hidden w-full sticky top-0 z-40">
+          <div className={`w-full px-6 h-20 flex items-center justify-between transition-all duration-300 ${
+            isSidebarActive 
+              ? (sidebarOpen || sidebarHovered ? 'md:pl-[17rem]' : 'md:pl-[5rem]') 
+              : ''
+          }`}>
             
             <div className="flex items-center gap-2 navbar-logo-container">
               {!showFullLoginScreen && (
                 <button
                   type="button"
                   onClick={() => setSidebarOpen(prev => !prev)}
-                  className="p-2 text-[#23B4E6] hover:text-white bg-[#071726]/40 hover:bg-[#071726]/80 rounded-xl transition-all cursor-pointer active:scale-95 flex items-center justify-center mr-1 shadow border border-brand-cyan/20"
+                  className="p-2 text-[#23B4E6] hover:text-white bg-[#071726]/40 hover:bg-[#071726]/80 rounded-xl transition-all cursor-pointer active:scale-95 flex items-center justify-center mr-1 shadow border border-brand-cyan/20 md:hidden"
                   title="Menú de Navegación"
                 >
                   <Menu className="w-5 h-5" />
@@ -802,17 +808,47 @@ export default function App() {
 
 
 
-              {/* Desktop Sidebar (Always sticky on the left) */}
+              {/* Desktop Sidebar (Always overlaying on the left, full height top to bottom) */}
               <aside
                 onMouseEnter={() => setSidebarHovered(true)}
                 onMouseLeave={() => setSidebarHovered(false)}
-                className={`bg-slate-950 border-r border-slate-900 flex flex-col justify-between transition-all duration-300 shrink-0 z-40 h-[calc(100vh-5rem)] ${
+                className={`bg-slate-950 border-r border-slate-900 flex flex-col justify-between transition-all duration-300 shrink-0 z-50 h-screen ${
                   sidebarOpen || sidebarHovered 
                     ? 'w-64' 
                     : 'w-16'
-                } sticky top-20 overflow-hidden print:hidden hidden md:flex`}
+                } fixed top-0 bottom-0 left-0 overflow-hidden print:hidden hidden md:flex`}
                 id="sidebar-navigation-desktop"
               >
+                {/* Spacer to align beautifully with Header & house the Menu button */}
+                <div className={`h-20 flex items-center border-b border-slate-900 shrink-0 transition-all duration-300 ${
+                  sidebarOpen || sidebarHovered ? 'px-4' : 'justify-center px-1'
+                }`}>
+                  {(sidebarOpen || sidebarHovered) ? (
+                    <div className="flex items-center gap-3 w-full">
+                      <button
+                        type="button"
+                        onClick={() => setSidebarOpen(prev => !prev)}
+                        className="p-1.5 text-brand-cyan hover:text-white bg-[#071726]/40 hover:bg-[#071726]/80 rounded-lg transition-all cursor-pointer active:scale-95 flex items-center justify-center shadow border border-brand-cyan/20 shrink-0"
+                        title="Contraer Menú"
+                      >
+                        <Menu className="w-4 h-4" />
+                      </button>
+                      <span className="text-brand-cyan text-xs font-black tracking-widest font-mono animate-fade-in select-none">
+                        MENÚ
+                      </span>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setSidebarOpen(prev => !prev)}
+                      className="p-2 text-[#23B4E6] hover:text-white bg-[#071726]/40 hover:bg-[#071726]/80 rounded-xl transition-all cursor-pointer active:scale-95 flex items-center justify-center shadow border border-brand-cyan/20"
+                      title="Expandir Menú"
+                    >
+                      <Menu className="w-5 h-5" />
+                    </button>
+                  )}
+                </div>
+
                 <div className="flex-1 overflow-y-auto py-4 px-2 space-y-1">
                   {renderMenuItems(sidebarOpen || sidebarHovered)}
                 </div>
@@ -835,8 +871,10 @@ export default function App() {
                 </div>
               </aside>
 
-              {/* Main workspace container */}
-              <div className="flex-1 min-w-0 flex flex-col">
+              {/* Main workspace container with dynamic left padding to account for fixed sidebar */}
+              <div className={`flex-1 min-w-0 flex flex-col transition-all duration-300 ${
+                sidebarOpen || sidebarHovered ? 'md:pl-64' : 'md:pl-16'
+              }`}>
                 <main className="flex-1 pb-16">
                   <AnimatePresence mode="wait">
                     <motion.div
@@ -995,7 +1033,11 @@ export default function App() {
       )}
 
       {/* 4. Tiny visual footer */}
-      <footer className="py-12 border-t border-slate-900 text-center text-[11px] font-mono print:hidden space-y-4 bg-slate-950 text-[#A8B2BD]">
+      <footer className={`py-12 border-t border-slate-900 text-center text-[11px] font-mono print:hidden space-y-4 bg-slate-950 text-[#A8B2BD] transition-all duration-300 ${
+        isSidebarActive 
+          ? (sidebarOpen || sidebarHovered ? 'md:pl-64' : 'md:pl-16') 
+          : ''
+      }`}>
         <p className="text-white/80 font-semibold select-none">©2026 Roomia PMS — Maqyasoft</p>
         <p className="text-white/40 text-[10px]">Hora Ecuador (GMT-5): {ecuadorTime || 'Cargando...'}</p>
         <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs font-sans font-medium pt-2">
