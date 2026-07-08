@@ -348,9 +348,24 @@ export default function ReceptionView({
   };
 
   const isIvaAddedForSelectedRoom = selectedRoom ? (selectedRoom.adicionarIva !== false) : true;
-  const calculatedSubtotal = (selectedRoom ? getBookingSubtotal(selectedRoom) : 0) + getWalkInServicesTotal();
-  const calculatedImpuestos = isIvaAddedForSelectedRoom ? parseFloat((calculatedSubtotal * 0.12).toFixed(2)) : 0;
-  const calculatedTotal = parseFloat((calculatedSubtotal + calculatedImpuestos).toFixed(2));
+  const rawRoomSubtotal = selectedRoom ? getBookingSubtotal(selectedRoom) : 0;
+  const servicesSubtotal = getWalkInServicesTotal();
+
+  let calculatedSubtotal = 0;
+  let calculatedImpuestos = 0;
+  let calculatedTotal = 0;
+
+  if (!isIvaAddedForSelectedRoom) {
+    const roomIva = rawRoomSubtotal * 0.16;
+    const roomSubtotalExcludingIva = rawRoomSubtotal - roomIva;
+    calculatedSubtotal = parseFloat((roomSubtotalExcludingIva + servicesSubtotal).toFixed(2));
+    calculatedImpuestos = parseFloat(roomIva.toFixed(2));
+    calculatedTotal = parseFloat((rawRoomSubtotal + servicesSubtotal).toFixed(2));
+  } else {
+    calculatedSubtotal = parseFloat((rawRoomSubtotal + servicesSubtotal).toFixed(2));
+    calculatedImpuestos = parseFloat((calculatedSubtotal * 0.16).toFixed(2));
+    calculatedTotal = parseFloat((calculatedSubtotal + calculatedImpuestos).toFixed(2));
+  }
 
   const handleCreatePresencialRes = async (e: React.FormEvent) => {
     e.preventDefault();

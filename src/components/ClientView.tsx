@@ -539,31 +539,59 @@ export default function ClientView({
       const bHotel = hotels.find(h => h.id === bookingRoom.hotelId);
       const isAlquiler = bHotel && (bHotel.tipoEstablecimiento === 'casa' || bHotel.tipoEstablecimiento === 'departamento') && bHotel.finalidad === 'alquiler';
       if (isAlquiler) {
-        const rentOneMonth = roomPrice;
-        const garantia = roomPrice;
-        const sub = rentOneMonth + garantia;
         const isIvaAdded = bookingRoom.adicionarIva !== false;
-        const tax = isIvaAdded ? (rentOneMonth * 0.16) : 0;
-        return {
-          subtotal: sub,
-          tax: tax,
-          total: sub + tax,
-          isAlquiler: true,
-          garantia: garantia,
-          mensualidad: rentOneMonth
-        };
+        if (!isIvaAdded) {
+          const rentIva = roomPrice * 0.16;
+          const rentExcludingIva = roomPrice - rentIva;
+          const garantia = roomPrice;
+          return {
+            subtotal: rentExcludingIva + garantia,
+            tax: rentIva,
+            total: roomPrice + garantia,
+            isAlquiler: true,
+            garantia: garantia,
+            mensualidad: roomPrice
+          };
+        } else {
+          const rentOneMonth = roomPrice;
+          const garantia = roomPrice;
+          const sub = rentOneMonth + garantia;
+          const tax = rentOneMonth * 0.16;
+          return {
+            subtotal: sub,
+            tax: tax,
+            total: sub + tax,
+            isAlquiler: true,
+            garantia: garantia,
+            mensualidad: rentOneMonth
+          };
+        }
       }
     }
 
-    const sub = getBookingSubtotal(roomPrice) + getServicesTotal();
+    const rawSub = getBookingSubtotal(roomPrice);
+    const servicesSub = getServicesTotal();
     const isIvaAdded = bookingRoom ? (bookingRoom.adicionarIva !== false) : true;
-    const tax = isIvaAdded ? (sub * 0.16) : 0; // 16% VAT if added, otherwise 0 (included in the room rate)
-    return {
-      subtotal: sub,
-      tax: tax,
-      total: sub + tax,
-      isAlquiler: false
-    };
+
+    if (!isIvaAdded) {
+      const roomIva = rawSub * 0.16;
+      const roomSubtotalExcludingIva = rawSub - roomIva;
+      return {
+        subtotal: roomSubtotalExcludingIva + servicesSub,
+        tax: roomIva,
+        total: rawSub + servicesSub,
+        isAlquiler: false
+      };
+    } else {
+      const sub = rawSub + servicesSub;
+      const tax = sub * 0.16;
+      return {
+        subtotal: sub,
+        tax: tax,
+        total: sub + tax,
+        isAlquiler: false
+      };
+    }
   };
 
   const handleCreateBooking = (e: React.FormEvent) => {
@@ -1321,7 +1349,7 @@ export default function ClientView({
                                 </div>
                                 <div className="flex justify-between">
                                   <span>Valor Mensual de Renta:</span>
-                                  <span className="font-mono font-semibold text-neutral-800">${billing.mensualidad} USD / mes</span>
+                                  <span className="font-mono font-semibold text-neutral-800">${billing.mensualidad.toFixed(2)} USD / mes</span>
                                 </div>
                                 <div className="flex justify-between">
                                   <span>Depósito de Garantía:</span>
@@ -1330,7 +1358,10 @@ export default function ClientView({
                                 {billing.tax > 0 && (
                                   <div className="flex justify-between">
                                     <span>Impuestos (IVA 16% sobre renta):</span>
-                                    <span className="font-mono text-neutral-500">${billing.tax.toFixed(2)} USD</span>
+                                    <span className="font-mono text-neutral-500">
+                                      ${billing.tax.toFixed(2)} USD 
+                                      {bookingRoom.adicionarIva === false && <span className="text-[9px] text-amber-650 font-bold ml-1 font-sans">(Incluido)</span>}
+                                    </span>
                                   </div>
                                 )}
                                 <div className="p-2 border border-amber-100 rounded-lg bg-white/70 text-[10px] text-amber-900 leading-normal">
@@ -1354,8 +1385,32 @@ export default function ClientView({
                               </div>
                               <div className="flex justify-between">
                                 <span>Hospedaje ({bookingRoom.nombre}):</span>
-                                <span className="font-mono">${getBookingSubtotal(bookingRoom.precio)} USD</span>
+                                <span className="font-mono">
+                                  ${getBookingSubtotal(bookingRoom.precio).toFixed(2)} USD
+                                </span>
                               </div>
+                              {bookingRoom.adicionarIva === false && (
+                                <motion.div 
+                                  initial={{ opacity: 0, height: 0, y: -5 }}
+                                  animate={{ opacity: 1, height: 'auto', y: 0 }}
+                                  exit={{ opacity: 0, height: 0, y: -5 }}
+                                  transition={{ duration: 0.25, ease: 'easeOut' }}
+                                  className="text-[10px] overflow-hidden text-neutral-500 pl-3 border-l-2 border-teal-300 bg-teal-50/30 py-1.5 px-2.5 rounded-lg flex flex-col gap-0.5 font-sans"
+                                >
+                                  <div className="flex justify-between font-mono text-[9.5px]">
+                                    <span className="text-neutral-450">Base Gravable (Sin IVA):</span>
+                                    <span>${(getBookingSubtotal(bookingRoom.precio) * 0.84).toFixed(2)} USD</span>
+                                  </div>
+                                  <div className="flex justify-between font-mono text-[9.5px]">
+                                    <span className="text-neutral-450">Impuesto (IVA 16%):</span>
+                                    <span>${(getBookingSubtotal(bookingRoom.precio) * 0.16).toFixed(2)} USD</span>
+                                  </div>
+                                  <div className="flex justify-between font-bold text-teal-800 text-[9.5px] border-t border-teal-100/60 pt-0.5 mt-0.5">
+                                    <span>Total Desglosado:</span>
+                                    <span>${getBookingSubtotal(bookingRoom.precio).toFixed(2)} USD</span>
+                                  </div>
+                                </motion.div>
+                              )}
                               {bookingRoom && (() => {
                                 const groupedVariations = getGroupedVariableNights(bookingRoom, checkInDate, checkOutDate);
                                 if (groupedVariations.length > 0) {
@@ -1365,7 +1420,9 @@ export default function ClientView({
                                       {groupedVariations.map((group, idx) => (
                                         <div key={idx} className="flex justify-between font-mono">
                                           <span>• ({group.formattedDate}) <span className="bg-white px-1 py-0.5 rounded border border-neutral-100 text-[8px] font-sans font-medium text-teal-700">{group.motivo}</span></span>
-                                          <span className="font-semibold text-teal-850">${group.precio} USD</span>
+                                          <span className="font-semibold text-teal-850">
+                                            ${group.precio.toFixed(2)} USD
+                                          </span>
                                         </div>
                                       ))}
                                     </div>
@@ -1386,8 +1443,8 @@ export default function ClientView({
                               <div className="flex justify-between text-[11px]">
                                 <span>Impuestos (IVA 16%):</span>
                                 {bookingRoom.adicionarIva === false ? (
-                                  <span className="font-sans font-semibold text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-100 text-[9px]">
-                                    IVA Incluido
+                                  <span className="font-mono font-medium text-neutral-500">
+                                    ${billing.tax.toFixed(2)} USD <span className="text-[9px] text-teal-600 font-bold ml-1 font-sans bg-teal-50 px-1 py-0.5 rounded border border-teal-100">(Incluido)</span>
                                   </span>
                                 ) : (
                                   <span className="font-mono">${billing.tax.toFixed(2)} USD</span>
@@ -1686,6 +1743,12 @@ export default function ClientView({
                               href={`https://wa.me/${activeHotel.propietario.telefono.replace(/[^0-9]/g, '')}`} 
                               target="_blank" 
                               rel="noopener noreferrer" 
+                              onClick={(e) => {
+                                if (typeof window !== 'undefined' && (window as any).Capacitor) {
+                                  e.preventDefault();
+                                  window.open(`https://wa.me/${activeHotel.propietario.telefono.replace(/[^0-9]/g, '')}`, "_system");
+                                }
+                              }}
                               className="text-teal-600 hover:text-teal-750 font-extrabold text-sm flex items-center gap-1 mt-0.5 font-mono cursor-pointer"
                             >
                               📞 {activeHotel.propietario.telefono}
@@ -1701,6 +1764,12 @@ export default function ClientView({
                             <span className="text-neutral-400 block text-[9px] uppercase font-bold tracking-wider mb-0.5">Correo de Contacto</span>
                             <a 
                               href={`mailto:${activeHotel.propietario.email}`} 
+                              onClick={(e) => {
+                                if (typeof window !== 'undefined' && (window as any).Capacitor) {
+                                  e.preventDefault();
+                                  window.open(`mailto:${activeHotel.propietario.email}`, "_system");
+                                }
+                              }}
                               className="text-teal-650 hover:text-teal-700 font-mono text-[11px] block truncate text-center select-all cursor-pointer"
                             >
                               {activeHotel.propietario.email}

@@ -48,6 +48,7 @@ CREATE TABLE public.rooms (
   imagenes TEXT[],
   servicios TEXT[],
   estado TEXT NOT NULL DEFAULT 'disponible',
+  adicionar_iva BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

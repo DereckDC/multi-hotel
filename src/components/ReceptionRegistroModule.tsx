@@ -466,7 +466,7 @@ export default function ReceptionRegistroModule({
                 <p className="text-[11px] text-[#6ECCAF] font-bold font-mono">
                   ${calculatedTotal} USD 
                   <span className="text-[8px] text-slate-400 font-sans block leading-none">
-                    {isIvaAddedForSelectedRoom ? '(Impuestos inc 12%)' : '(IVA Incluido)'}
+                    {isIvaAddedForSelectedRoom ? '(Impuestos inc 16%)' : '(IVA Incluido)'}
                   </span>
                 </p>
               </div>

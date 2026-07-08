@@ -243,7 +243,8 @@ export function mapRoomToDb(room: Room): any {
     estado: room.estado,
     imagenes: room.imagenes || [],
     descripcion: room.descripcion || '',
-    servicios: room.servicios || []
+    servicios: room.servicios || [],
+    adicionar_iva: room.adicionarIva !== false
   };
 }
 
@@ -261,7 +262,8 @@ export function mapRoomFromDb(db: any): Room {
     estado: db.estado || 'disponible',
     imagenes: db.imagenes || [],
     descripcion: db.descripcion || '',
-    servicios: db.servicios || db.amenidades || []
+    servicios: db.servicios || db.amenidades || [],
+    adicionarIva: db.adicionar_iva !== undefined ? db.adicionar_iva : (db.adicionarIva !== false)
   };
 }
 

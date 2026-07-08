@@ -643,6 +643,12 @@ export default function LandingPageView({ onClose, onOpenLegal }: LandingPageVie
                 href="https://wa.me/593984056660?text=Hola,%20quisiera%20solicitar%20una%20demostración%20e%20información%20personalizada%20de%20Roomia%20PMS%20para%20mis%20propiedades."
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={(e) => {
+                  if (typeof window !== 'undefined' && (window as any).Capacitor) {
+                    e.preventDefault();
+                    window.open("https://wa.me/593984056660?text=Hola,%20quisiera%20solicitar%20una%20demostración%20e%20información%20personalizada%20de%20Roomia%20PMS%20para%20mis%20propiedades.", "_system");
+                  }
+                }}
                 className="w-full bg-teal-500 hover:bg-teal-400 text-slate-950 font-extrabold py-3 rounded-xl text-xs transition-all shadow-md active:scale-95 cursor-pointer text-center block decoration-none"
               >
                 Solicitar demo por WhatsApp 💬
@@ -671,6 +677,12 @@ export default function LandingPageView({ onClose, onOpenLegal }: LandingPageVie
             href="https://wa.me/593984056660" 
             target="_blank" 
             rel="noopener noreferrer"
+            onClick={(e) => {
+              if (typeof window !== 'undefined' && (window as any).Capacitor) {
+                e.preventDefault();
+                window.open("https://wa.me/593984056660", "_system");
+              }
+            }}
             className="bg-slate-905 hover:bg-slate-900 border border-slate-850 hover:border-teal-500/30 p-5 rounded-2xl transition-all group flex items-start gap-4 shadow-sm"
           >
             <div className="w-10 h-10 bg-teal-500/10 text-teal-400 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform duration-300 animate-pulse">
@@ -688,6 +700,12 @@ export default function LandingPageView({ onClose, onOpenLegal }: LandingPageVie
           {/* Card Email with direct link */}
           <a 
             href="mailto:roomia.admincontact@gmail.com"
+            onClick={(e) => {
+              if (typeof window !== 'undefined' && (window as any).Capacitor) {
+                e.preventDefault();
+                window.open("mailto:roomia.admincontact@gmail.com", "_system");
+              }
+            }}
             className="bg-slate-905 hover:bg-slate-900 border border-slate-850 hover:border-indigo-500/30 p-5 rounded-2xl transition-all group flex items-start gap-4 shadow-sm"
           >
             <div className="w-10 h-10 bg-indigo-500/10 text-indigo-400 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform duration-300">
@@ -707,6 +725,12 @@ export default function LandingPageView({ onClose, onOpenLegal }: LandingPageVie
             href="https://www.google.com/maps/place/Playa+de+San+Lorenzo/@-2.202538,-81.0186842,13z/data=!4m6!3m5!1s0x902e0e0e37032d23:0xaf778b30ad8848d1!8m2!3d-2.2025425!4d-80.9750194!16s%2Fg%2F1hc160w_p?entry=ttu&g_ep=EgoyMDI2MDYyMy4wIKXMDSoASAFQAw%3D%3D"
             target="_blank"
             rel="noopener noreferrer"
+            onClick={(e) => {
+              if (typeof window !== 'undefined' && (window as any).Capacitor) {
+                e.preventDefault();
+                window.open("https://www.google.com/maps/place/Playa+de+San+Lorenzo/@-2.202538,-81.0186842,13z/data=!4m6!3m5!1s0x902e0e0e37032d23:0xaf778b30ad8848d1!8m2!3d-2.2025425!4d-80.9750194!16s%2Fg%2F1hc160w_p?entry=ttu&g_ep=EgoyMDI2MDYyMy4wIKXMDSoASAFQAw%3D%3D", "_system");
+              }
+            }}
             className="bg-slate-905 hover:bg-slate-900 border border-slate-850 hover:border-emerald-500/30 p-5 rounded-2xl transition-all group flex items-start gap-4 shadow-sm"
           >
             <div className="w-10 h-10 bg-emerald-500/10 text-emerald-400 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform duration-300">
