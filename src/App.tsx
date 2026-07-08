@@ -76,6 +76,28 @@ export default function App() {
   const [openHotelId, setOpenHotelId] = useState<string | null>(null);
   const [viewOverride, setViewOverride] = useState<'admin' | 'reception' | null>(null);
 
+  // Track offline status in real time
+  const [isOffline, setIsOffline] = useState(() => typeof navigator !== 'undefined' ? !navigator.onLine : false);
+
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOffline(false);
+      window.dispatchEvent(new CustomEvent('aura-toast', { detail: { message: '✅ Conexión restablecida de forma automática' } }));
+    };
+    const handleOffline = () => {
+      setIsOffline(true);
+      window.dispatchEvent(new CustomEvent('aura-toast', { detail: { message: '⚠️ Se ha perdido la conexión a internet' } }));
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
   // Left Sidebar Menu navigation state variables
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarHovered, setSidebarHovered] = useState(false);
@@ -570,6 +592,12 @@ export default function App() {
                   label: "Mi Perfil",
                   active: false,
                   onClick: () => { openProfileModal(); setSidebarOpen(false); }
+                },
+                {
+                  icon: Briefcase,
+                  label: "Ser Anfitrión",
+                  active: false,
+                  onClick: () => { setShowLandingPage(true); setSidebarOpen(false); }
                 },
                 {
                   icon: LogOut,
@@ -1452,6 +1480,101 @@ export default function App() {
           ))}
         </AnimatePresence>
       </div>
+
+      {/* 🔴 OFFLINE UI WARNING SYSTEM */}
+      <AnimatePresence>
+        {isOffline && (
+          <>
+            {/* Banner superior flotante para vistas de usuario/cliente o Landing */}
+            {(isLoggedOut || !activeUser || activeUser.rol === 'cliente' || showLandingPage) ? (
+              <motion.div
+                initial={{ opacity: 0, y: -50 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -50 }}
+                transition={{ duration: 0.3 }}
+                className="fixed top-4 left-1/2 -translate-x-1/2 z-[1000] w-[90%] max-w-xl bg-amber-950/95 border-2 border-amber-600/80 backdrop-blur-md text-amber-100 p-4 rounded-2xl shadow-2xl flex items-center gap-3 justify-between font-sans shadow-amber-950/50"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 animate-pulse">
+                    <AlertCircle className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h5 className="font-extrabold text-xs text-white">Modo sin conexión activo</h5>
+                    <p className="text-[10px] text-amber-300 leading-tight">La app funciona con datos locales. Los registros y reservas se completarán cuando vuelva el internet.</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsOffline(!navigator.onLine)}
+                  className="px-3 py-1 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 text-[10px] font-black rounded-lg transition-all cursor-pointer shrink-0"
+                >
+                  Verificar
+                </button>
+              </motion.div>
+            ) : (
+              /* Fullscreen block screen for admin/staff views because writing offline creates database conflicts */
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-[9999] flex items-center justify-center p-4 font-sans"
+              >
+                <motion.div
+                  initial={{ scale: 0.95, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.95, opacity: 0 }}
+                  className="bg-slate-900 border border-slate-800 p-8 rounded-3xl max-w-md w-full shadow-2xl space-y-6 text-center"
+                >
+                  <div className="mx-auto w-16 h-16 bg-rose-500/10 border border-rose-500/20 rounded-2xl flex items-center justify-center text-rose-500 animate-pulse">
+                    <ShieldAlert className="w-8 h-8" />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <h3 className="text-xl font-black text-white">Sin Conexión a Internet</h3>
+                    <p className="text-xs text-slate-400 leading-relaxed">
+                      Para proteger la base de datos de Roomia y evitar duplicidad o conflictos de reservas en recepción, la interfaz administrativa ha sido suspendida temporalmente.
+                    </p>
+                  </div>
+
+                  <div className="bg-slate-950 border border-slate-850 p-4 rounded-xl text-left space-y-2">
+                    <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Sugerencias operativas:</h4>
+                    <ul className="text-[10px] text-slate-400 space-y-1.5 font-semibold">
+                      <li className="flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#23B4E6]" />
+                        <span>Verifique que el Wi-Fi o datos móviles estén encendidos</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#23B4E6]" />
+                        <span>Desactive y reactive el modo avión de su celular o tablet</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#23B4E6]" />
+                        <span>La plataforma se restablecerá sola en cuanto detecte señal</span>
+                      </li>
+                    </ul>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const online = navigator.onLine;
+                      setIsOffline(!online);
+                      if (online) {
+                        window.dispatchEvent(new CustomEvent('aura-toast', { detail: { message: '✅ Conexión restablecida con éxito' } }));
+                      } else {
+                        window.dispatchEvent(new CustomEvent('aura-toast', { detail: { message: '⚠️ Aún sin internet. Intente nuevamente.' } }));
+                      }
+                    }}
+                    className="w-full bg-[#23B4E6] hover:bg-[#3fc2f0] active:scale-[0.98] text-slate-950 font-extrabold py-3 rounded-xl text-xs transition-all shadow-lg shadow-brand-cyan/20 cursor-pointer"
+                  >
+                    Reintentar Conexión 🔄
+                  </button>
+                </motion.div>
+              </motion.div>
+            )}
+          </>
+        )}
+      </AnimatePresence>
 
     </div>
   );

@@ -8,8 +8,7 @@ const config: CapacitorConfig = {
     androidScheme: 'https',
     allowNavigation: [
       'https://ais-pre-x2bbmoykvbb2j2cvvu5ybf-300435593784.us-east5.run.app',
-      '*.supabase.co',
-      '*'
+      'https://ais-dev-x2bbmoykvbb2j2cvvu5ybf-300435593784.us-east5.run.app'
     ]
   },
   android: {
