@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, FormEvent } from 'react';
+import { useState, useEffect, FormEvent, useRef } from 'react';
 import { useHotelStore, compressImage } from './store';
 import { supabase } from './supabase';
 import ClientView from './components/ClientView';
@@ -17,6 +17,20 @@ import { InteractiveContainer } from './components/InteractiveContainer';
 import { BrandLogo } from './components/BrandLogo';
 import { LayoutDashboard, Users, User as UserIcon, CalendarDays, KeyRound, Star, Sparkles, Building2, ShieldAlert, LogOut, Edit3, Camera, Check, X, Shield, AlertCircle, Eye, EyeOff, Briefcase, LogIn, Key, Menu, Home, Compass, DollarSign, ClipboardList, QrCode, Calendar, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+
+// Slugify helper to convert hotel/property names to clean URL paths
+const slugify = (text: string): string => {
+  return text
+    .toString()
+    .toLowerCase()
+    .normalize('NFD') // remove accents
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, '-') // replace spaces with hyphens
+    .replace(/[^\w\-]+/g, '') // remove non-alphanumeric chars (except hyphens)
+    .replace(/\-\-+/g, '-') // collapse multiple hyphens
+    .replace(/^-+/, '') // trim leading hyphens
+    .replace(/-+$/, ''); // trim trailing hyphens
+};
 
 export default function App() {
   const store = useHotelStore();
@@ -75,7 +89,17 @@ export default function App() {
   });
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showFullLoginScreen, setShowFullLoginScreen] = useState(false);
-  const [openHotelId, setOpenHotelId] = useState<string | null>(null);
+  const [openHotelId, setOpenHotelId] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const path = window.location.pathname;
+    if (path === '/' || !path || path === '' || path === '/landingpage' || path === '/terminos-y-condiciones' || path === '/politica-de-privacidad' || path === '/politica-de-cancelaciones-y-reembolsos') {
+      return null;
+    }
+    const slug = path.substring(1);
+    const matchedHotel = hotels.find(h => slugify(h.nombre) === slug);
+    return matchedHotel ? matchedHotel.id : null;
+  });
+  const prevOpenHotelIdRef = useRef<string | null>(openHotelId);
   const [viewOverride, setViewOverride] = useState<'admin' | 'reception' | null>(null);
 
   // Track offline status in real time
@@ -103,7 +127,19 @@ export default function App() {
   // Left Sidebar Menu navigation state variables
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarHovered, setSidebarHovered] = useState(false);
-  const [clientTab, setClientTab] = useState<'explore' | 'properties' | 'reservations'>('explore');
+  const [clientTab, setClientTab] = useState<'explore' | 'properties' | 'reservations'>(() => {
+    if (typeof window === 'undefined') return 'explore';
+    const path = window.location.pathname;
+    if (path === '/' || !path || path === '' || path === '/landingpage' || path === '/terminos-y-condiciones' || path === '/politica-de-privacidad' || path === '/politica-de-cancelaciones-y-reembolsos') {
+      return 'explore';
+    }
+    const slug = path.substring(1);
+    const matchedHotel = hotels.find(h => slugify(h.nombre) === slug);
+    if (matchedHotel && matchedHotel.tipoEstablecimiento === 'propiedad') {
+      return 'properties';
+    }
+    return 'explore';
+  });
   const [adminActiveTab, setAdminActiveTab] = useState<'dashboard' | 'hotels' | 'properties' | 'rooms' | 'users' | 'logs' | 'reservations' | 'refunds' | 'incidents'>('dashboard');
   const [receptionActiveTab, setReceptionActiveTab] = useState<'checkin' | 'registro' | 'incidencias'>('checkin');
 
@@ -122,20 +158,6 @@ export default function App() {
     estado: 'activo' as const
   };
 
-  // Slugify helper to convert hotel/property names to clean URL paths
-  const slugify = (text: string): string => {
-    return text
-      .toString()
-      .toLowerCase()
-      .normalize('NFD') // remove accents
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/\s+/g, '-') // replace spaces with hyphens
-      .replace(/[^\w\-]+/g, '') // remove non-alphanumeric chars (except hyphens)
-      .replace(/\-\-+/g, '-') // collapse multiple hyphens
-      .replace(/^-+/, '') // trim leading hyphens
-      .replace(/-+$/, ''); // trim trailing hyphens
-  };
-
   // Legal documentation active routing state
   const [activeLegalDoc, setActiveLegalDoc] = useState<LegalDocType | null>(() => {
     const path = window.location.pathname;
@@ -150,6 +172,7 @@ export default function App() {
     const path = window.location.pathname;
     // Don't modify if we're on a legal document page or landing page
     if (path === '/terminos-y-condiciones' || path === '/politica-de-privacidad' || path === '/politica-de-cancelaciones-y-reembolsos' || path === '/landingpage') {
+      prevOpenHotelIdRef.current = openHotelId;
       return;
     }
 
@@ -162,13 +185,15 @@ export default function App() {
         }
       }
     } else {
-      // If no hotel is open, and we're not on a legal page, we should go back to '/'
-      // only if the current path matches one of the hotel slugs or is non-empty.
-      const isHotelPath = hotels.some(h => `/${slugify(h.nombre)}` === path);
-      if (path !== '/' && (isHotelPath || path.length > 1)) {
-        window.history.pushState(null, '', '/');
+      // Only redirect to '/' if we just closed a hotel (transitioned from some-id to null)
+      if (prevOpenHotelIdRef.current !== null) {
+        const isHotelPath = hotels.some(h => `/${slugify(h.nombre)}` === path);
+        if (path !== '/' && (isHotelPath || path.length > 1)) {
+          window.history.pushState(null, '', '/');
+        }
       }
     }
+    prevOpenHotelIdRef.current = openHotelId;
   }, [openHotelId, hotels]);
 
   // Synchronize browser URL with showLandingPage
