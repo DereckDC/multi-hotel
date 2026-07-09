@@ -70,7 +70,9 @@ export default function App() {
     }
   });
 
-  const [showLandingPage, setShowLandingPage] = useState(false);
+  const [showLandingPage, setShowLandingPage] = useState(() => {
+    return typeof window !== 'undefined' && window.location.pathname === '/landingpage';
+  });
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showFullLoginScreen, setShowFullLoginScreen] = useState(false);
   const [openHotelId, setOpenHotelId] = useState<string | null>(null);
@@ -146,8 +148,8 @@ export default function App() {
   // Synchronize browser URL with openHotelId
   useEffect(() => {
     const path = window.location.pathname;
-    // Don't modify if we're on a legal document page
-    if (path === '/terminos-y-condiciones' || path === '/politica-de-privacidad' || path === '/politica-de-cancelaciones-y-reembolsos') {
+    // Don't modify if we're on a legal document page or landing page
+    if (path === '/terminos-y-condiciones' || path === '/politica-de-privacidad' || path === '/politica-de-cancelaciones-y-reembolsos' || path === '/landingpage') {
       return;
     }
 
@@ -169,7 +171,21 @@ export default function App() {
     }
   }, [openHotelId, hotels]);
 
-  // Handle page load and popstate routing for legal documents and hotels
+  // Synchronize browser URL with showLandingPage
+  useEffect(() => {
+    const path = window.location.pathname;
+    if (showLandingPage) {
+      if (path !== '/landingpage') {
+        window.history.pushState(null, '', '/landingpage');
+      }
+    } else {
+      if (path === '/landingpage') {
+        window.history.pushState(null, '', '/');
+      }
+    }
+  }, [showLandingPage]);
+
+  // Handle page load and popstate routing for legal documents, landing page, and hotels
   useEffect(() => {
     const handleRouting = () => {
       const path = window.location.pathname;
@@ -179,8 +195,13 @@ export default function App() {
         setActiveLegalDoc('privacidad');
       } else if (path === '/politica-de-cancelaciones-y-reembolsos') {
         setActiveLegalDoc('cancelaciones');
+      } else if (path === '/landingpage') {
+        setActiveLegalDoc(null);
+        setShowLandingPage(true);
+        setOpenHotelId(null);
       } else {
         setActiveLegalDoc(null);
+        setShowLandingPage(false);
         if (path === '/' || !path || path === '') {
           setOpenHotelId(null);
         } else {
@@ -201,10 +222,8 @@ export default function App() {
       }
     };
 
-    // Run once when hotels are loaded/updated
-    if (hotels && hotels.length > 0) {
-      handleRouting();
-    }
+    // Run once on load and when hotels change
+    handleRouting();
 
     window.addEventListener('popstate', handleRouting);
     return () => window.removeEventListener('popstate', handleRouting);
