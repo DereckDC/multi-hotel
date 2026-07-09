@@ -2,7 +2,7 @@
   "cleanUrls": true,
   "rewrites": [
     {
-      "source": "/(.*)",
+      "source": "/((?!api/|supabase-env.js|assets/|.*\\..*).*)",
       "destination": "/index.html"
     }
   ]
