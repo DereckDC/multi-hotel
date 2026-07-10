@@ -99,6 +99,16 @@ export default function App() {
     const matchedHotel = hotels.find(h => slugify(h.nombre) === slug);
     return matchedHotel ? matchedHotel.id : null;
   });
+  const [invalidUrlError, setInvalidUrlError] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const path = window.location.pathname;
+    if (path === '/' || !path || path === '' || path === '/landingpage' || path === '/terminos-y-condiciones' || path === '/politica-de-privacidad' || path === '/politica-de-cancelaciones-y-reembolsos') {
+      return false;
+    }
+    const slug = path.substring(1);
+    const matchedHotel = hotels.find(h => slugify(h.nombre) === slug);
+    return !matchedHotel;
+  });
   const prevOpenHotelIdRef = useRef<string | null>(openHotelId);
   const [viewOverride, setViewOverride] = useState<'admin' | 'reception' | null>(null);
 
@@ -216,25 +226,31 @@ export default function App() {
       const path = window.location.pathname;
       if (path === '/terminos-y-condiciones') {
         setActiveLegalDoc('terminos');
+        setInvalidUrlError(false);
       } else if (path === '/politica-de-privacidad') {
         setActiveLegalDoc('privacidad');
+        setInvalidUrlError(false);
       } else if (path === '/politica-de-cancelaciones-y-reembolsos') {
         setActiveLegalDoc('cancelaciones');
+        setInvalidUrlError(false);
       } else if (path === '/landingpage') {
         setActiveLegalDoc(null);
         setShowLandingPage(true);
         setOpenHotelId(null);
+        setInvalidUrlError(false);
       } else {
         setActiveLegalDoc(null);
         setShowLandingPage(false);
         if (path === '/' || !path || path === '') {
           setOpenHotelId(null);
+          setInvalidUrlError(false);
         } else {
           const slug = path.substring(1);
           const matchedHotel = hotels.find(h => slugify(h.nombre) === slug);
           if (matchedHotel) {
             setShowLandingPage(false);
             setOpenHotelId(matchedHotel.id);
+            setInvalidUrlError(false);
             if (matchedHotel.tipoEstablecimiento === 'propiedad') {
               setClientTab('properties');
             } else {
@@ -242,6 +258,7 @@ export default function App() {
             }
           } else {
             setOpenHotelId(null);
+            setInvalidUrlError(true);
           }
         }
       }
@@ -1617,6 +1634,45 @@ export default function App() {
               </motion.div>
             )}
           </>
+        )}
+      </AnimatePresence>
+
+      {/* 🚫 INVALID HOTEL/PROPERTY SLUG MODAL OVERLAY */}
+      <AnimatePresence>
+        {invalidUrlError && (
+          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[10000] flex items-center justify-center p-4 font-sans">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-[#0E2A47] border-2 border-[#23B4E6]/20 p-8 rounded-3xl max-w-md w-full shadow-2xl text-center space-y-6"
+            >
+              <div className="mx-auto w-16 h-16 bg-rose-500/10 border border-rose-500/20 rounded-2xl flex items-center justify-center text-rose-500">
+                <ShieldAlert className="w-8 h-8 text-[#23B4E6]" />
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="text-xl font-extrabold text-white">Establecimiento No Encontrado</h3>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  El hotel o propiedad que estás intentando buscar no existe en nuestro sistema de reservas de Roomia PMS.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setInvalidUrlError(false);
+                  setOpenHotelId(null);
+                  setShowLandingPage(false);
+                  setClientTab('explore');
+                  window.history.pushState(null, '', '/');
+                }}
+                className="w-full bg-[#23B4E6] hover:bg-[#3fc2f0] active:scale-[0.98] text-slate-950 font-extrabold py-3 rounded-xl text-xs transition-all shadow-lg shadow-brand-cyan/20 cursor-pointer"
+              >
+                Aceptar
+              </button>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
 
