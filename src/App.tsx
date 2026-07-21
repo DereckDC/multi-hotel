@@ -135,6 +135,11 @@ export default function App() {
     };
   }, []);
 
+  const switchSessionUserRef = useRef(switchSessionUser);
+  useEffect(() => {
+    switchSessionUserRef.current = switchSessionUser;
+  }, [switchSessionUser]);
+
   // Listen to Supabase auth state changes to synchronize active user session and isLoggedOut status
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -142,12 +147,12 @@ export default function App() {
       if (session?.user) {
         // Authenticated
         localStorage.setItem('aura_hotel_pms_current_user_id', JSON.stringify(session.user.id));
-        switchSessionUser(session.user.id);
+        switchSessionUserRef.current(session.user.id);
         setIsLoggedOut(false);
       } else {
         // Logged out
         localStorage.removeItem('aura_hotel_pms_current_user_id');
-        switchSessionUser('');
+        switchSessionUserRef.current('');
         setIsLoggedOut(true);
       }
     });
@@ -155,7 +160,7 @@ export default function App() {
     return () => {
       subscription.unsubscribe();
     };
-  }, [switchSessionUser]);
+  }, []);
 
   // Left Sidebar Menu navigation state variables
   const [sidebarOpen, setSidebarOpen] = useState(false);

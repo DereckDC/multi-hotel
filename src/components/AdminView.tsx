@@ -10,6 +10,7 @@ import { fetchPropertyDetails } from '../supabase';
 import { compressImage } from '../store';
 import InvoicePDF from './InvoicePDF';
 import EmojiPicker from 'emoji-picker-react';
+import { ECUADOR_PROVINCES, getProvincesList, getCitiesForProvince } from '../data/ecuador';
 
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, AreaChart, Area } from 'recharts';
 import { Plus, Edit3, Trash2, Shield, Users, HotelIcon, List, LayoutDashboard, Calendar, DollarSign, Percent, TrendingUp, AlertCircle, MapPin, EyeOff, ClipboardList, ToggleLeft, ToggleRight, Check, X, Upload, Database, Sparkles, Copy, Key, Building, Home, Star, Wrench, ChevronDown } from 'lucide-react';
@@ -2799,12 +2800,62 @@ export default function AdminView({
                 </div>
 
                 <div className="col-span-2 space-y-1">
-                  <label className="text-[11px] font-semibold text-neutral-500 block">Ubicación Física (Dirección):</label>
+                  <label className="text-[11px] font-semibold text-neutral-500 block">Ubicación Geográfica en Ecuador:</label>
+                  <div className="grid grid-cols-2 gap-3 bg-teal-50/60 p-3 rounded-xl border border-teal-100">
+                    <div>
+                      <label className="text-[10px] font-bold text-teal-850 block mb-1">Provincia:</label>
+                      <select
+                        value={editingHotel.provincia || ''}
+                        onChange={(e) => {
+                          const newProv = e.target.value;
+                          const defaultCity = getCitiesForProvince(newProv)[0] || '';
+                          setEditingHotel({
+                            ...editingHotel,
+                            provincia: newProv,
+                            ciudad: defaultCity,
+                            ubicacion: editingHotel.ubicacion || (newProv ? `${defaultCity}, ${newProv}, Ecuador` : '')
+                          });
+                        }}
+                        className="w-full text-xs border border-teal-200 bg-white p-2 rounded-lg focus:outline-none focus:border-teal-500 font-medium text-neutral-800"
+                      >
+                        <option value="">-- Seleccionar Provincia --</option>
+                        {getProvincesList().map(p => (
+                          <option key={p} value={p}>{p}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-bold text-teal-850 block mb-1">Ciudad / Cantón:</label>
+                      <select
+                        value={editingHotel.ciudad || ''}
+                        onChange={(e) => {
+                          const newCity = e.target.value;
+                          setEditingHotel({
+                            ...editingHotel,
+                            ciudad: newCity,
+                            ubicacion: editingHotel.ubicacion || (editingHotel.provincia ? `${newCity}, ${editingHotel.provincia}, Ecuador` : '')
+                          });
+                        }}
+                        disabled={!editingHotel.provincia}
+                        className="w-full text-xs border border-teal-200 bg-white p-2 rounded-lg focus:outline-none focus:border-teal-500 font-medium text-neutral-800 disabled:bg-neutral-100 disabled:text-neutral-400"
+                      >
+                        <option value="">-- Seleccionar Ciudad --</option>
+                        {getCitiesForProvince(editingHotel.provincia || '').map(c => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="col-span-2 space-y-1">
+                  <label className="text-[11px] font-semibold text-neutral-500 block">Ubicación Física (Dirección Exacta):</label>
                   <input
                     type="text" required
                     value={editingHotel.ubicacion}
                     onChange={(e) => setEditingHotel({ ...editingHotel, ubicacion: e.target.value })}
-                    placeholder="Ej: Calle de Hortaleza 22, Madrid, España"
+                    placeholder="Ej: Av. Amazonas N24-01 y Cordero, Quito, Ecuador"
                     className="w-full text-xs border border-neutral-250 p-2 rounded-lg focus:outline-none focus:border-teal-500 font-medium"
                   />
                 </div>
@@ -3870,12 +3921,62 @@ export default function AdminView({
 
               {/* GEOLOCALIZACION */}
               <div className="space-y-3">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-neutral-500 block">Ubicación Geográfica en Ecuador:</label>
+                  <div className="grid grid-cols-2 gap-3 bg-teal-50/60 p-3 rounded-xl border border-teal-100">
+                    <div>
+                      <label className="text-[10px] font-bold text-teal-850 block mb-1">Provincia:</label>
+                      <select
+                        value={editingProperty.provincia || ''}
+                        onChange={(e) => {
+                          const newProv = e.target.value;
+                          const defaultCity = getCitiesForProvince(newProv)[0] || '';
+                          setEditingProperty({
+                            ...editingProperty,
+                            provincia: newProv,
+                            ciudad: defaultCity,
+                            ubicacion: editingProperty.ubicacion || (newProv ? `${defaultCity}, ${newProv}, Ecuador` : '')
+                          });
+                        }}
+                        className="w-full text-xs border border-teal-200 bg-white p-2 rounded-lg focus:outline-none focus:border-teal-500 font-medium text-neutral-800"
+                      >
+                        <option value="">-- Seleccionar Provincia --</option>
+                        {getProvincesList().map(p => (
+                          <option key={p} value={p}>{p}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-bold text-teal-850 block mb-1">Ciudad / Cantón:</label>
+                      <select
+                        value={editingProperty.ciudad || ''}
+                        onChange={(e) => {
+                          const newCity = e.target.value;
+                          setEditingProperty({
+                            ...editingProperty,
+                            ciudad: newCity,
+                            ubicacion: editingProperty.ubicacion || (editingProperty.provincia ? `${newCity}, ${editingProperty.provincia}, Ecuador` : '')
+                          });
+                        }}
+                        disabled={!editingProperty.provincia}
+                        className="w-full text-xs border border-teal-200 bg-white p-2 rounded-lg focus:outline-none focus:border-teal-500 font-medium text-neutral-800 disabled:bg-neutral-100 disabled:text-neutral-400"
+                      >
+                        <option value="">-- Seleccionar Ciudad --</option>
+                        {getCitiesForProvince(editingProperty.provincia || '').map(c => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
                 <div>
                   <label className="text-[11px] font-semibold text-neutral-500 block mb-1">Dirección Exacta (Ubicación):</label>
                   <input
                     type="text"
                     required
-                    placeholder="Ej: Calle 15 de Noviembre y Av. de los Granados, Quito"
+                    placeholder="Ej: Calle 15 de Noviembre y Av. de los Granados, Quito, Ecuador"
                     value={editingProperty.ubicacion}
                     onChange={(e) => setEditingProperty({ ...editingProperty, ubicacion: e.target.value })}
                     className="w-full text-xs border border-neutral-250 p-2 rounded-lg focus:outline-none font-semibold text-neutral-850"

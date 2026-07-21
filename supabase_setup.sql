@@ -57,7 +57,9 @@ CREATE TABLE IF NOT EXISTS hotels (
     tipo_establecimiento establishment_type NOT NULL DEFAULT 'hotel',
     finalidad purpose_type, -- NULL para hoteles, obligatorio para casas/departamentos
     propietario JSONB, -- Contiene nombre, teléfono, email, documento
-    detalles_inmueble JSONB -- Contiene habitaciones, banos, metrosCuadrados, amueblado, tieneEstacionamiento, precio
+    detalles_inmueble JSONB, -- Contiene habitaciones, banos, metrosCuadrados, amueblado, tieneEstacionamiento, precio
+    provincia VARCHAR(255),
+    ciudad VARCHAR(255)
 );
 
 -- Ahora ligar la clave foránea condicional de usuario a hotel

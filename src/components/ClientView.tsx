@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { Hotel, Room, Reservation, User, RoomStatus, Review, RoomPriceVariation } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
+import { getProvincesList, getCitiesForProvince } from '../data/ecuador';
 
 import { MapPin, Calendar, Compass, List, CreditCard, ChevronRight, Sparkles, Filter, Check, Star, AlertCircle, Eye, Trash2, CalendarCheck, FileText, X, Building2, ShieldCheck, Lock, Home, Search, User as UserIcon } from 'lucide-react';
 import QRView from './QRView';
@@ -155,6 +156,8 @@ export default function ClientView({
   // Advanced Filter state
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [bedsFilter, setBedsFilter] = useState<string>('todos');
+  const [provinciaFilter, setProvinciaFilter] = useState<string>('todas');
+  const [ciudadFilter, setCiudadFilter] = useState<string>('todas');
   const [showOnlyAvailableRooms, setShowOnlyAvailableRooms] = useState<boolean>(false); // By default, show all rooms and browse, as requested by user
   const [propertyTypeFilter, setPropertyTypeFilter] = useState<string>('todos');
 
@@ -320,6 +323,20 @@ export default function ClientView({
       // Explora Hoteles should only return hotels
       if (h.tipoEstablecimiento !== 'hotel') return false;
       
+      // Location filter (Provincia)
+      if (provinciaFilter !== 'todas') {
+        const prov = h.provincia || '';
+        const matchProv = prov.toLowerCase() === provinciaFilter.toLowerCase() || h.ubicacion.toLowerCase().includes(provinciaFilter.toLowerCase());
+        if (!matchProv) return false;
+      }
+
+      // Location filter (Ciudad)
+      if (ciudadFilter !== 'todas') {
+        const city = h.ciudad || '';
+        const matchCity = city.toLowerCase() === ciudadFilter.toLowerCase() || h.ubicacion.toLowerCase().includes(ciudadFilter.toLowerCase());
+        if (!matchCity) return false;
+      }
+
       // Beds filter
       if (bedsFilter !== 'todos') {
         const targetBeds = parseInt(bedsFilter, 10);
@@ -348,6 +365,20 @@ export default function ClientView({
       
       if (propertyTypeFilter !== 'todos' && h.tipoEstablecimiento !== propertyTypeFilter) return false;
       
+      // Location filter (Provincia)
+      if (provinciaFilter !== 'todas') {
+        const prov = h.provincia || '';
+        const matchProv = prov.toLowerCase() === provinciaFilter.toLowerCase() || h.ubicacion.toLowerCase().includes(provinciaFilter.toLowerCase());
+        if (!matchProv) return false;
+      }
+
+      // Location filter (Ciudad)
+      if (ciudadFilter !== 'todas') {
+        const city = h.ciudad || '';
+        const matchCity = city.toLowerCase() === ciudadFilter.toLowerCase() || h.ubicacion.toLowerCase().includes(ciudadFilter.toLowerCase());
+        if (!matchCity) return false;
+      }
+
       // Beds filter
       if (bedsFilter !== 'todos') {
         const targetBeds = parseInt(bedsFilter, 10);
@@ -818,17 +849,53 @@ export default function ClientView({
                 </div>
                 
                 {/* Visual Filters bar */}
-                <div className="flex flex-wrap items-center gap-4 text-xs font-medium">
+                <div className="flex flex-wrap items-center gap-3 text-xs font-medium">
+                  {/* ECUADOR PROVINCIA FILTER */}
+                  <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-lg border border-neutral-200 shadow-sm">
+                    <MapPin className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                    <span className="text-neutral-500 font-semibold">Provincia:</span>
+                    <select
+                      value={provinciaFilter}
+                      onChange={(e) => {
+                        setProvinciaFilter(e.target.value);
+                        setCiudadFilter('todas');
+                      }}
+                      className="border-none bg-transparent font-bold focus:ring-0 cursor-pointer text-teal-700 text-xs"
+                    >
+                      <option value="todas">Todas las Provincias</option>
+                      {getProvincesList().map(p => (
+                        <option key={p} value={p}>{p}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* ECUADOR CIUDAD FILTER */}
+                  {provinciaFilter !== 'todas' && (
+                    <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-lg border border-neutral-200 shadow-sm animate-fade-in">
+                      <span className="text-neutral-500 font-semibold">Ciudad:</span>
+                      <select
+                        value={ciudadFilter}
+                        onChange={(e) => setCiudadFilter(e.target.value)}
+                        className="border-none bg-transparent font-bold focus:ring-0 cursor-pointer text-teal-700 text-xs"
+                      >
+                        <option value="todas">Todas las Ciudades</option>
+                        {getCitiesForProvince(provinciaFilter).map(c => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
                   {activeTab === 'properties' && (
                     <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-lg border border-neutral-200 shadow-sm animate-fade-in">
                       <Home className="w-3.5 h-3.5 text-teal-600 shrink-0" />
-                      <span className="text-neutral-500 font-semibold">Tipo de Propiedad:</span>
+                      <span className="text-neutral-500 font-semibold">Tipo:</span>
                       <select
                         value={propertyTypeFilter}
                         onChange={(e) => setPropertyTypeFilter(e.target.value)}
                         className="border-none bg-transparent font-bold focus:ring-0 cursor-pointer text-teal-700"
                       >
-                        <option value="todos">Todas las Propiedades</option>
+                        <option value="todos">Todas</option>
                         <option value="casa">🏡 Casas</option>
                         <option value="departamento">🏢 Departamentos</option>
                       </select>
@@ -842,13 +909,13 @@ export default function ClientView({
                       onChange={(e) => setSortOrder(e.target.value as 'asc' | 'desc')}
                       className="border-none bg-transparent font-bold focus:ring-0 cursor-pointer text-teal-700 text-xs"
                     >
-                      <option value="asc">Precio: de menor a mayor ↗️</option>
-                      <option value="desc">Precio: de mayor a menor ↘️</option>
+                      <option value="asc">Precio: menor a mayor ↗️</option>
+                      <option value="desc">Precio: mayor a menor ↘️</option>
                     </select>
                   </div>
 
                   <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-lg border border-neutral-200 shadow-sm">
-                    <span className="text-neutral-500 font-semibold">Número de camas:</span>
+                    <span className="text-neutral-500 font-semibold">Camas:</span>
                     <select
                       value={bedsFilter}
                       onChange={(e) => setBedsFilter(e.target.value)}
@@ -858,7 +925,7 @@ export default function ClientView({
                       <option value="1">1 Cama</option>
                       <option value="2">2 Camas</option>
                       <option value="3">3 Camas</option>
-                      <option value="4">4 o más Camas</option>
+                      <option value="4">4+ Camas</option>
                     </select>
                   </div>
                 </div>

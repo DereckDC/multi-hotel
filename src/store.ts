@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Hotel, Room, User, Reservation, RoomStatus, ReservationStatus, UserRole, ChatMessage, PaymentTransaction, Review, RoomPriceVariation } from './types';
 import { INITIAL_HOTELS, INITIAL_ROOMS, INITIAL_USERS, INITIAL_RESERVATIONS } from './seedData';
 import {
@@ -276,15 +276,21 @@ export function useHotelStore() {
   useEffect(() => { saveToLocalStorage('roomPriceVariations', roomPriceVariations); }, [roomPriceVariations]);
 
   // Watchdog automático para expirar reservaciones pendientes que excedan 24 horas sin pago
+  const reservationsRef = useRef(reservations);
+  useEffect(() => { reservationsRef.current = reservations; }, [reservations]);
+  const roomsRef = useRef(rooms);
+  useEffect(() => { roomsRef.current = rooms; }, [rooms]);
+
   useEffect(() => {
     const sweepExpiredReservations = async () => {
-      if (!reservations || reservations.length === 0) return;
+      const currentReservations = reservationsRef.current;
+      if (!currentReservations || currentReservations.length === 0) return;
 
       const now = new Date();
       let hasChanges = false;
 
       const updatedReservations = await Promise.all(
-        reservations.map(async (res) => {
+        currentReservations.map(async (res) => {
           if (res.estado !== 'pendiente') return res;
 
           let createdTime: Date;
@@ -310,7 +316,7 @@ export function useHotelStore() {
 
             try {
               await syncReservationToSupabase(cancelledRes);
-              const targetRoom = rooms.find(r => r.id === res.roomId);
+              const targetRoom = roomsRef.current.find(r => r.id === res.roomId);
               if (targetRoom) {
                 await syncRoomToSupabase({ ...targetRoom, estado: 'disponible' });
               }
@@ -340,15 +346,15 @@ export function useHotelStore() {
       }
     };
 
-    // Ejecutar de forma diferida tras cargar datos, y re-evaluar cada 1 minuto
-    const timeout = setTimeout(sweepExpiredReservations, 5000);
-    const interval = setInterval(sweepExpiredReservations, 60000);
+    // Ejecutar de forma diferida tras cargar datos, y re-evaluar cada 5 minutos
+    const timeout = setTimeout(sweepExpiredReservations, 10000);
+    const interval = setInterval(sweepExpiredReservations, 300000);
 
     return () => {
       clearTimeout(timeout);
       clearInterval(interval);
     };
-  }, [reservations, rooms]);
+  }, []);
 
   // Synchronize with Supabase database on mount and listen to changes
   useEffect(() => {
@@ -724,12 +730,6 @@ export function useHotelStore() {
 
     fetchSupabaseData();
 
-    // Background sync polling interval to guarantee full real-time database sync across tabs and sessions
-    const pollInterval = setInterval(() => {
-      console.log("🔄 Background Syncing with Supabase database...");
-      fetchSupabaseData();
-    }, 10000);
-
     // Subscribe to real-time Postgres changes for real multi-tab / synchronized state
     const channel = supabase
       .channel('schema-db-changes')
@@ -782,7 +782,6 @@ export function useHotelStore() {
       .subscribe();
 
     return () => {
-      clearInterval(pollInterval);
       supabase.removeChannel(channel);
     };
   }, [currentUserId]);
@@ -933,6 +932,9 @@ export function useHotelStore() {
 
   // Switch active session on login
   const switchSessionUser = (userId: string, fetchedUser?: User) => {
+    if (userId === currentUserId && !fetchedUser) {
+      return;
+    }
     if (fetchedUser) {
       setUsers(prev => {
         const cleanPrev = (prev || []).filter(Boolean);
@@ -943,15 +945,18 @@ export function useHotelStore() {
         return [...cleanPrev, fetchedUser];
       });
     }
+    const isNewUser = userId !== currentUserId;
     setCurrentUserId(userId);
-    const targetUser = fetchedUser || (users && users.find(u => u && u.id === userId));
-    if (targetUser) {
-      addLog(
-        `${targetUser.nombre} ${targetUser.apellido}`,
-        targetUser.rol,
-        'Inicio de Sesión',
-        `Sesión iniciada correctamente en la plataforma.`
-      );
+    if (isNewUser) {
+      const targetUser = fetchedUser || (users && users.find(u => u && u.id === userId));
+      if (targetUser) {
+        addLog(
+          `${targetUser.nombre} ${targetUser.apellido}`,
+          targetUser.rol,
+          'Inicio de Sesión',
+          `Sesión iniciada correctamente en la plataforma.`
+        );
+      }
     }
   };
 
