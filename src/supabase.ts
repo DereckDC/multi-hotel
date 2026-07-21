@@ -9,18 +9,45 @@ import { ActivityLog } from './store';
 
 // Credentials are loaded strictly from secure environment variables (via dynamic endpoint/window first, fallback to process/meta) to comply with OWASP Top 10 and prevent hardcoded secrets.
 const win = typeof window !== 'undefined' ? (window as any) : {};
-const rawUrl = win.__SUPABASE_ENV__?.VITE_SUPABASE_URL || (typeof process !== 'undefined' && process.env?.VITE_SUPABASE_URL) || (import.meta as any).env?.VITE_SUPABASE_URL || 'https://evovuegtffpcdeylekfy.supabase.co/rest/v1/';
-const SUPABASE_ANON_KEY = win.__SUPABASE_ENV__?.VITE_SUPABASE_ANON_KEY || (typeof process !== 'undefined' && process.env?.VITE_SUPABASE_ANON_KEY) || (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2b3Z1ZWd0ZmZwY2RleWxla2Z5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzNzI5NzAsImV4cCI6MjA5Njk0ODk3MH0.LIQZANzId5gA6ZUR_HiZ4pB5mTz_gxqkkfPoaI4Ud1U';
+
+// Self-healing: Discard any stale container host or client environment variables pointing to the old database 'evovuegtffpcdeylekfy'
+const getSanitizedEnv = () => {
+  let url = win.__SUPABASE_ENV__?.VITE_SUPABASE_URL || (typeof process !== 'undefined' && process.env?.VITE_SUPABASE_URL) || (import.meta as any).env?.VITE_SUPABASE_URL || '';
+  let key = win.__SUPABASE_ENV__?.VITE_SUPABASE_ANON_KEY || (typeof process !== 'undefined' && process.env?.VITE_SUPABASE_ANON_KEY) || (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || '';
+
+  if (!url || url.includes('evovuegtffpcdeylekfy')) {
+    url = 'https://fyreapnukipdvcebvokj.supabase.co/rest/v1/';
+  }
+  if (!key || key.includes('evovuegtffpcdeylekfy')) {
+    key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ5cmVhcG51a2lwZHZjZWJ2b2tqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ1OTcwMTIsImV4cCI6MjEwMDE3MzAxMn0.diZTbHx-8jDDGSJEG34ae1-HD-i_PLY-RWsCQUxlNAU';
+  }
+  return { url, key };
+};
+
+const sanitizedEnv = getSanitizedEnv();
+const rawUrl = sanitizedEnv.url;
+const SUPABASE_ANON_KEY = sanitizedEnv.key;
 
 // Sanitize URL to ensure the client-side SDK gets the base address without /rest/v1 suffix
 const SUPABASE_URL = rawUrl.replace(/\/rest\/v1\/?$/, '').trim();
+
+// Dynamically compute local storage token key based on project reference subdomain
+const getProjectRef = (url: string) => {
+  try {
+    const hostname = new URL(url).hostname;
+    return hostname.split('.')[0] || 'fyreapnukipdvcebvokj';
+  } catch (e) {
+    return 'fyreapnukipdvcebvokj';
+  }
+};
+const sbTokenKey = `sb-${getProjectRef(SUPABASE_URL)}-auth-token`;
 
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   console.warn("⚠️ ALERTA DE SEGURIDAD INTERNA: No se configuraron las variables VITE_SUPABASE_URL o VITE_SUPABASE_ANON_KEY. El sistema requiere que el administrador provea estas credenciales en su archivo de configuración .env");
 }
 
 export const supabase = createClient(
-  SUPABASE_URL || 'https://evovuegtffpcdeylekfy.supabase.co',
+  SUPABASE_URL || 'https://fyreapnukipdvcebvokj.supabase.co',
   SUPABASE_ANON_KEY
 );
 
@@ -45,7 +72,7 @@ if (typeof window !== 'undefined') {
             localStorage.removeItem(key);
           }
         }
-        localStorage.removeItem('sb-evovuegtffpcdeylekfy-auth-token');
+        localStorage.removeItem(sbTokenKey);
         localStorage.removeItem('aura_hotel_pms_current_user_id');
       } catch (e) {
         // storage disabled or error
@@ -73,7 +100,7 @@ if (typeof window !== 'undefined') {
             localStorage.removeItem(key);
           }
         }
-        localStorage.removeItem('sb-evovuegtffpcdeylekfy-auth-token');
+        localStorage.removeItem(sbTokenKey);
         localStorage.removeItem('aura_hotel_pms_current_user_id');
       } catch (e) {
         // storage disabled or error
@@ -94,7 +121,7 @@ if (typeof window !== 'undefined') {
               localStorage.removeItem(key);
             }
           }
-          localStorage.removeItem('sb-evovuegtffpcdeylekfy-auth-token');
+          localStorage.removeItem(sbTokenKey);
           localStorage.removeItem('aura_hotel_pms_current_user_id');
           supabase.auth.signOut().catch(() => {});
         } catch (e) {
@@ -126,7 +153,7 @@ if (typeof window !== 'undefined') {
                 localStorage.removeItem(key);
               }
             }
-            localStorage.removeItem('sb-evovuegtffpcdeylekfy-auth-token');
+            localStorage.removeItem(sbTokenKey);
             localStorage.removeItem('aura_hotel_pms_current_user_id');
             supabase.auth.signOut().catch(() => {});
           } catch (e) {
@@ -150,7 +177,7 @@ if (typeof window !== 'undefined') {
               localStorage.removeItem(key);
             }
           }
-          localStorage.removeItem('sb-evovuegtffpcdeylekfy-auth-token');
+          localStorage.removeItem(sbTokenKey);
           localStorage.removeItem('aura_hotel_pms_current_user_id');
           supabase.auth.signOut().catch(() => {});
         } catch (e) {

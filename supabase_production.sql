@@ -1,17 +1,20 @@
 -- =========================================================================
---             ROOMIA PMS - MASTER PRODUCTION SETUP SCRIPT
+--             ROOMIA PMS - MASTER PRODUCTION SETUP SCRIPT (CON RLS SEGURO)
 -- =========================================================================
--- Versión: 2.0 (Listo para Producción Real, Seguro y Completo)
+-- Versión: 4.1 (Listo para Producción Real, Seguro, Completo y Optimizado)
 -- Compatibilidad: Supabase Postgres v15+
--- Directrices de Seguridad: OWASP Top 10, Row Level Security (RLS) Estricto,
+-- Directrices de Seguridad: OWASP Top 10 (Restricciones e Integridad de BD)
 -- Sincronización Automática de Auth y Sanitización de Datos.
+-- RLS Avanzado: Habilitado de forma segura, resolviendo recursividad
+--               y otorgando control total a administradores.
+-- SOLUCIÓN DE ERROR: Índices de fecha corregidos para evitar conversiones no immutables.
 -- =========================================================================
 
 -- 0. LIMPIEZA PREVIA DE TABLAS Y FUNCIONES (Para una instalación limpia)
--- Nota: En producción real, ejecute esto solo para restauraciones completas.
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 DROP FUNCTION IF EXISTS public.handle_new_user() CASCADE;
 DROP FUNCTION IF EXISTS public.get_user_role(TEXT) CASCADE;
+DROP FUNCTION IF EXISTS public.get_my_role() CASCADE;
 DROP FUNCTION IF EXISTS public.limpiar_datos_expirados() CASCADE;
 
 DROP TABLE IF EXISTS public.room_price_variations CASCADE;
@@ -38,7 +41,7 @@ CREATE TABLE public.hotels (
   imagenes TEXT[] DEFAULT '{}', -- Array de URLs de imágenes
   descripcion TEXT,
   ubicacion TEXT,
-  coordenadas JSONB DEFAULT '{"lat": -0.1807, "lng": -78.4678}'::jsonb, -- { "lat": Float, "lng": Float } (Por defecto Quito, EC)
+  coordenadas JSONB DEFAULT '{"lat": -0.1807, "lng": -78.4678}'::jsonb, -- { "lat": Float, "lng": Float }
   googleMapsUrl TEXT,
   servicios TEXT[] DEFAULT '{}',
   politicas TEXT[] DEFAULT '{}',
@@ -46,7 +49,7 @@ CREATE TABLE public.hotels (
   contacto JSONB DEFAULT '{"telefono": "", "email": "", "web": ""}'::jsonb,
   redesSociales JSONB DEFAULT '{"facebook": "", "instagram": "", "twitter": ""}'::jsonb,
   estado TEXT DEFAULT 'activo' CHECK (estado IN ('activo', 'inactivo', 'mantenimiento')),
-  tipoEstablecimiento TEXT DEFAULT 'hotel' CHECK (tipoEstablecimiento IN ('hotel', 'propiedad')), -- 'hotel' para hoteles grandes, 'propiedad' para casas/apartamentos individuales
+  tipoEstablecimiento TEXT DEFAULT 'hotel' CHECK (tipoEstablecimiento IN ('hotel', 'propiedad')),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -63,14 +66,14 @@ CREATE TABLE public.rooms (
   tipo TEXT NOT NULL CHECK (tipo IN ('Estándar', 'Doble', 'Triple', 'Suite', 'Suite Presidencial')),
   imagenes TEXT[] DEFAULT '{}',
   servicios TEXT[] DEFAULT '{}',
-  estado TEXT NOT NULL DEFAULT 'disponible' CHECK (estado IN ('disponible', 'ocupado', 'mantenimiento', 'limpieza', 'reservado')),
+  estado TEXT NOT NULL DEFAULT 'disponible' CHECK (estado IN ('disponible', 'ocupado', 'mantenimiento', 'limpieza')),
   adicionar_iva BOOLEAN NOT NULL DEFAULT TRUE, -- Aplica IVA al subtotal de la reserva
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 1.3 Tabla de Usuarios (Sincronizada con auth.users de Supabase)
 CREATE TABLE public.users (
-  id TEXT PRIMARY KEY, -- Mapeado al UUID de auth.users como TEXT para flexibilidad
+  id TEXT PRIMARY KEY, -- Mapeado al UUID de auth.users como TEXT
   nombre TEXT NOT NULL,
   apellido TEXT NOT NULL,
   email TEXT NOT NULL UNIQUE,
@@ -80,7 +83,7 @@ CREATE TABLE public.users (
   rol TEXT NOT NULL DEFAULT 'cliente' CHECK (rol IN ('super_admin', 'hotel_admin', 'recepcionista', 'cliente')),
   fechaRegistro TEXT NOT NULL DEFAULT to_char(now(), 'YYYY-MM-DD'),
   estado TEXT NOT NULL DEFAULT 'activo' CHECK (estado IN ('activo', 'inactivo', 'suspendido')),
-  hotelId TEXT REFERENCES public.hotels(id) ON DELETE SET NULL, -- Si es staff (hotel_admin, recepcionista), pertenece a este hotel
+  hotelId TEXT REFERENCES public.hotels(id) ON DELETE SET NULL, -- Si es staff, pertenece a este hotel
   debecambiarpassword BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -95,14 +98,14 @@ CREATE TABLE public.reservations (
   fechaSalida TEXT NOT NULL, -- Formato YYYY-MM-DD
   serviciosAdicionales TEXT[] DEFAULT '{}',
   subtotal NUMERIC NOT NULL DEFAULT 0 CHECK (subtotal >= 0),
-  impuestos NUMERIC NOT NULL DEFAULT 0 CHECK (impuestos >= 0), -- Representa el IVA u otros cargos calculados
+  impuestos NUMERIC NOT NULL DEFAULT 0 CHECK (impuestos >= 0), -- Representa el IVA u otros cargos
   total NUMERIC NOT NULL CHECK (total >= 0),
   noches INTEGER NOT NULL DEFAULT 1 CHECK (noches > 0),
   estado TEXT NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente', 'confirmada', 'ocupada', 'finalizada', 'cancelada')),
   qrCode TEXT, -- Enlace o Base64 del código QR de check-in rápido
   checkedInAt TEXT, -- Timestamp o fecha del check-in
   checkedOutAt TEXT, -- Timestamp o fecha del check-out
-  recepcionistaId TEXT REFERENCES public.users(id) ON DELETE SET NULL, -- Quién realizó el check-in/out
+  recepcionistaId TEXT REFERENCES public.users(id) ON DELETE SET NULL,
   notes TEXT, -- Notas del huésped o personal administrativo
   modificadoPor TEXT,
   mensajeCambio TEXT,
@@ -145,7 +148,7 @@ CREATE TABLE public.transactions (
   currency TEXT NOT NULL DEFAULT 'USD',
   paymentmethod TEXT NOT NULL CHECK (paymentmethod IN ('tarjeta_credito', 'transferencia', 'efectivo', 'paypal', 'stripe')),
   status TEXT NOT NULL DEFAULT 'pendiente' CHECK (status IN ('completado', 'fallido', 'pendiente', 'reembolsado')),
-  reference TEXT NOT NULL UNIQUE, -- Referencia única de transacción bancaria/pasarela
+  reference TEXT NOT NULL UNIQUE, -- Referencia única de transacción
   fecha TEXT NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -193,7 +196,6 @@ CREATE TABLE public.room_price_variations (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-
 -- =========================================================================
 -- 2. ÍNDICES DE RENDIMIENTO PARA ALTA VELOCIDAD DE CONSULTA
 -- =========================================================================
@@ -207,123 +209,46 @@ CREATE INDEX IF NOT EXISTS idx_transactions_reservationid ON public.transactions
 CREATE INDEX IF NOT EXISTS idx_reviews_hotelid ON public.reviews(hotel_id);
 CREATE INDEX IF NOT EXISTS idx_price_variations_room ON public.room_price_variations(room_id, fecha);
 
+-- Corrección de los índices de limpieza: usamos directamente el campo created_at que es TIMESTAMPTZ de forma nativa
+CREATE INDEX IF NOT EXISTS idx_messages_cleanup ON public.messages(created_at);
+CREATE INDEX IF NOT EXISTS idx_logs_cleanup ON public.logs(created_at);
 
 -- =========================================================================
--- 3. POLÍTICAS DE ACCESO SEGURO (ROW LEVEL SECURITY - RLS)
+-- 3. FUNCIONES AUXILIARES DE RLS CON ATRIBUTO SECURITY DEFINER
 -- =========================================================================
+-- SECURITY DEFINER ejecuta la función con los privilegios del creador (bypass RLS)
+-- Evita de forma elegante y robusta la recursión infinita al validar roles.
+-- SET search_path = public asegura protección contra inyecciones de esquema.
 
--- Función ayudante "get_user_role" configurada como SECURITY DEFINER para evitar la recursión infinita de políticas RLS
+CREATE OR REPLACE FUNCTION public.get_my_role()
+RETURNS TEXT AS $$
+DECLARE
+  v_role TEXT;
+BEGIN
+  -- Si el usuario no está autenticado en Supabase Auth, retorna 'anon'
+  IF auth.uid() IS NULL THEN
+    RETURN 'anon';
+  END IF;
+
+  SELECT rol INTO v_role 
+  FROM public.users 
+  WHERE id = auth.uid()::text 
+  LIMIT 1;
+
+  RETURN COALESCE(v_role, 'cliente');
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
 CREATE OR REPLACE FUNCTION public.get_user_role(u_id TEXT)
 RETURNS TEXT AS $$
 BEGIN
   RETURN (SELECT rol FROM public.users WHERE id = u_id LIMIT 1);
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- Habilitación Global de Row Level Security (RLS) en todas las tablas
-ALTER TABLE public.hotels ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.rooms ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.reservations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.logs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.property_details ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.room_price_variations ENABLE ROW LEVEL SECURITY;
-
--- 3.1 Políticas para public.hotels
-CREATE POLICY "Lectura publica de hoteles" ON public.hotels 
-  FOR SELECT USING (true);
-
-CREATE POLICY "Modificacion de hoteles solo para administradores" ON public.hotels 
-  FOR ALL USING (public.get_user_role(auth.uid()::text) IN ('super_admin', 'hotel_admin'));
-
--- 3.2 Políticas para public.rooms
-CREATE POLICY "Lectura publica de habitaciones" ON public.rooms 
-  FOR SELECT USING (true);
-
-CREATE POLICY "Gestion de habitaciones para administradores y personal" ON public.rooms 
-  FOR ALL USING (public.get_user_role(auth.uid()::text) IN ('super_admin', 'hotel_admin', 'recepcionista'));
-
--- 3.3 Políticas para public.users (Perfiles)
-CREATE POLICY "Lectura de perfil propio o por personal del hotel" ON public.users 
-  FOR SELECT USING (
-    auth.uid()::text = id 
-    OR public.get_user_role(auth.uid()::text) IN ('super_admin', 'hotel_admin', 'recepcionista')
-  );
-
-CREATE POLICY "Insercion de perfil propio (Auto-registro publico)" ON public.users 
-  FOR INSERT WITH CHECK (
-    auth.uid()::text = id 
-    OR auth.uid() IS NULL 
-    OR public.get_user_role(auth.uid()::text) IN ('super_admin', 'hotel_admin', 'recepcionista')
-  );
-
-CREATE POLICY "Actualizacion de perfil propio o administrativo" ON public.users 
-  FOR UPDATE USING (
-    auth.uid()::text = id 
-    OR public.get_user_role(auth.uid()::text) IN ('super_admin', 'hotel_admin', 'recepcionista')
-  );
-
-CREATE POLICY "Eliminacion de perfiles restringida a super_admin y hotel_admin" ON public.users 
-  FOR DELETE USING (public.get_user_role(auth.uid()::text) IN ('super_admin', 'hotel_admin'));
-
--- 3.4 Políticas para public.reservations
-CREATE POLICY "Lectura y Gestion de Reservaciones por Huesped Propietario o Staff" ON public.reservations 
-  FOR ALL USING (
-    auth.uid()::text = guestId 
-    OR public.get_user_role(auth.uid()::text) IN ('super_admin', 'hotel_admin', 'recepcionista')
-  );
-
--- 3.5 Políticas para public.logs (Auditoría segura, solo Super Administradores)
-CREATE POLICY "Acceso exclusivo de logs para Super_Admin" ON public.logs 
-  FOR ALL USING (public.get_user_role(auth.uid()::text) = 'super_admin');
-
--- 3.6 Políticas para public.messages (Chat)
-CREATE POLICY "Mensajeria segura propia o con personal de soporte" ON public.messages 
-  FOR ALL USING (
-    senderid = auth.uid()::text 
-    OR public.get_user_role(auth.uid()::text) IN ('super_admin', 'hotel_admin', 'recepcionista')
-  );
-
--- 3.7 Políticas para public.transactions
-CREATE POLICY "Transacciones visibles para Huesped titular o personal" ON public.transactions 
-  FOR ALL USING (
-    (SELECT guestId FROM public.reservations WHERE id = reservationid LIMIT 1) = auth.uid()::text
-    OR public.get_user_role(auth.uid()::text) IN ('super_admin', 'hotel_admin', 'recepcionista')
-  );
-
--- 3.8 Políticas para public.property_details
-CREATE POLICY "Lectura publica de detalles de propiedad" ON public.property_details 
-  FOR SELECT USING (true);
-
-CREATE POLICY "Gestion de detalles de propiedad para administradores" ON public.property_details 
-  FOR ALL USING (public.get_user_role(auth.uid()::text) IN ('super_admin', 'hotel_admin'));
-
--- 3.9 Políticas para public.reviews
-CREATE POLICY "Lectura publica de reviews" ON public.reviews 
-  FOR SELECT USING (true);
-
-CREATE POLICY "Gestion de reviews por el autor o administradores" ON public.reviews 
-  FOR ALL USING (
-    auth.uid()::text = guest_id 
-    OR public.get_user_role(auth.uid()::text) IN ('super_admin', 'hotel_admin')
-  );
-
--- 3.10 Políticas para public.room_price_variations
-CREATE POLICY "Lectura publica de tarifas variables" ON public.room_price_variations 
-  FOR SELECT USING (true);
-
-CREATE POLICY "Gestion de tarifas variables para administradores y recepcion" ON public.room_price_variations 
-  FOR ALL USING (public.get_user_role(auth.uid()::text) IN ('super_admin', 'hotel_admin', 'recepcionista'));
-
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- =========================================================================
 -- 4. TRÍGGER DE CREACIÓN AUTOMÁTICA DE PERFIL (auth.users -> public.users)
 -- =========================================================================
--- Sincroniza automáticamente los registros creados a través de Supabase Auth
--- con nuestra tabla pública de perfiles, conservando la consistencia e integridad.
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -359,18 +284,15 @@ BEGIN
     email = EXCLUDED.email;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
-
 -- =========================================================================
 -- 5. RUTINA DE AUTOLIMPIEZA INTELIGENTE DE LOGS Y CHATS EXPIRADOS
 -- =========================================================================
--- Optimiza el almacenamiento del ecosistema SaaS purgando el historial de chats de soporte
--- de más de 24 horas y los logs de auditoría general que superen los 30 días.
 CREATE OR REPLACE FUNCTION public.limpiar_datos_expirados()
 RETURNS void AS $$
 BEGIN
@@ -384,153 +306,194 @@ BEGIN
   WHERE (timestamp::timestamptz < (NOW() - INTERVAL '30 days'))
      OR (created_at < (NOW() - INTERVAL '30 days'));
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- =========================================================================
--- 6. SEMILLADO DE DATOS (INITIAL SEED DATA)
+-- 6. CONFIGURACIÓN Y ACTIVACIÓN DE ROW LEVEL SECURITY (RLS)
 -- =========================================================================
 
--- 6.1 Super Administrador Principal para Soporte
-INSERT INTO public.users (id, nombre, apellido, email, telefono, documento, avatar, rol, fechaRegistro, estado, hotelId) VALUES
-(
-  'user-superadmin',
-  'Dereck',
-  'Cisneros',
-  'destructordereck@gmail.com',
-  '0998596597',
-  '2450397340',
-  'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
-  'super_admin',
-  '2026-06-03',
-  'activo',
-  NULL
-)
+-- Activación de RLS para garantizar la advertencia de Supabase satisfecha
+ALTER TABLE public.hotels ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.rooms ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reservations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.property_details ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.room_price_variations ENABLE ROW LEVEL SECURITY;
+
+-- 6.1 Políticas para public.hotels
+CREATE POLICY "Permitir lectura publica de hoteles" ON public.hotels
+  FOR SELECT USING (true);
+
+CREATE POLICY "Permitir todo a administradores sobre hoteles" ON public.hotels
+  FOR ALL TO authenticated USING (public.get_my_role() IN ('super_admin', 'hotel_admin'));
+
+-- 6.2 Políticas para public.rooms
+CREATE POLICY "Permitir lectura publica de habitaciones" ON public.rooms
+  FOR SELECT USING (true);
+
+CREATE POLICY "Permitir todo a administradores sobre habitaciones" ON public.rooms
+  FOR ALL TO authenticated USING (public.get_my_role() IN ('super_admin', 'hotel_admin'));
+
+-- 6.3 Políticas para public.users
+CREATE POLICY "Permitir lectura de perfiles a usuarios autenticados" ON public.users
+  FOR SELECT TO authenticated USING (true);
+
+CREATE POLICY "Permitir registro de perfil propio" ON public.users
+  FOR INSERT TO authenticated WITH CHECK (id = auth.uid()::text);
+
+CREATE POLICY "Permitir actualizacion de perfil propio o por administradores" ON public.users
+  FOR UPDATE TO authenticated 
+  USING (id = auth.uid()::text OR public.get_my_role() IN ('super_admin', 'hotel_admin'))
+  WITH CHECK (id = auth.uid()::text OR public.get_my_role() IN ('super_admin', 'hotel_admin'));
+
+CREATE POLICY "Permitir eliminacion de perfiles solo a administradores" ON public.users
+  FOR DELETE TO authenticated USING (public.get_my_role() IN ('super_admin', 'hotel_admin'));
+
+-- 6.4 Políticas para public.reservations
+CREATE POLICY "Permitir lectura de reservaciones a dueno o personal" ON public.reservations
+  FOR SELECT TO authenticated 
+  USING (guestId = auth.uid()::text OR public.get_my_role() IN ('super_admin', 'hotel_admin', 'recepcionista'));
+
+CREATE POLICY "Permitir crear reservaciones a clientes o personal" ON public.reservations
+  FOR INSERT TO authenticated 
+  WITH CHECK (guestId = auth.uid()::text OR public.get_my_role() IN ('super_admin', 'hotel_admin', 'recepcionista'));
+
+CREATE POLICY "Permitir actualizar reservaciones a dueno o personal" ON public.reservations
+  FOR UPDATE TO authenticated 
+  USING (guestId = auth.uid()::text OR public.get_my_role() IN ('super_admin', 'hotel_admin', 'recepcionista'));
+
+CREATE POLICY "Permitir eliminar reservaciones solo a administradores" ON public.reservations
+  FOR DELETE TO authenticated 
+  USING (public.get_my_role() IN ('super_admin', 'hotel_admin'));
+
+-- 6.5 Políticas para public.logs
+CREATE POLICY "Permitir lectura de logs solo a super_admin" ON public.logs
+  FOR SELECT TO authenticated USING (public.get_my_role() = 'super_admin');
+
+CREATE POLICY "Permitir insertar logs a cualquier usuario autenticado" ON public.logs
+  FOR INSERT TO authenticated WITH CHECK (true);
+
+-- 6.6 Políticas para public.messages
+CREATE POLICY "Permitir ver mensajes propios o al personal" ON public.messages
+  FOR SELECT TO authenticated 
+  USING (senderid = auth.uid()::text OR public.get_my_role() IN ('super_admin', 'hotel_admin', 'recepcionista'));
+
+CREATE POLICY "Permitir enviar mensajes a cualquier usuario autenticado" ON public.messages
+  FOR INSERT TO authenticated 
+  WITH CHECK (senderid = auth.uid()::text OR public.get_my_role() IN ('super_admin', 'hotel_admin', 'recepcionista'));
+
+-- 6.7 Políticas para public.transactions
+CREATE POLICY "Permitir ver transacciones de reservacion propia o a personal" ON public.transactions
+  FOR SELECT TO authenticated 
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.reservations r 
+      WHERE r.id = reservationid 
+        AND (r.guestId = auth.uid()::text OR public.get_my_role() IN ('super_admin', 'hotel_admin', 'recepcionista'))
+    )
+  );
+
+CREATE POLICY "Permitir gestionar transacciones al personal" ON public.transactions
+  FOR ALL TO authenticated USING (public.get_my_role() IN ('super_admin', 'hotel_admin', 'recepcionista'));
+
+-- 6.8 Políticas para public.property_details
+CREATE POLICY "Permitir lectura publica de detalles de propiedad" ON public.property_details
+  FOR SELECT USING (true);
+
+CREATE POLICY "Permitir gestionar detalles de propiedad a administradores" ON public.property_details
+  FOR ALL TO authenticated USING (public.get_my_role() IN ('super_admin', 'hotel_admin'));
+
+-- 6.9 Políticas para public.reviews
+CREATE POLICY "Permitir lectura publica de reseñas" ON public.reviews
+  FOR SELECT USING (true);
+
+CREATE POLICY "Permitir crear reseñas a huespedes" ON public.reviews
+  FOR INSERT TO authenticated WITH CHECK (guest_id = auth.uid()::text);
+
+CREATE POLICY "Permitir gestionar reseñas al autor o administradores" ON public.reviews
+  FOR ALL TO authenticated USING (guest_id = auth.uid()::text OR public.get_my_role() IN ('super_admin', 'hotel_admin'));
+
+-- 6.10 Políticas para public.room_price_variations
+CREATE POLICY "Permitir lectura publica de tarifas dinamicas" ON public.room_price_variations
+  FOR SELECT USING (true);
+
+CREATE POLICY "Permitir gestionar tarifas dinamicas a administradores" ON public.room_price_variations
+  FOR ALL TO authenticated USING (public.get_my_role() IN ('super_admin', 'hotel_admin'));
+
+-- =========================================================================
+-- 7. REGISTROS DE SEMILLA INICIALES (SEED DATA - Listo para Producción)
+-- =========================================================================
+
+-- 7.1 Insertar Hoteles de Demostración de Aura / Roomia PMS
+INSERT INTO public.hotels (id, nombre, logo, portada, imagenes, descripcion, ubicacion, coordenadas, googleMapsUrl, servicios, politicas, horarios, contacto, redesSociales, estado, tipoEstablecimiento)
+VALUES 
+('hotel-1', 'Aura Boutique Hotel & Spa', 
+ 'https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?w=150', 
+ 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1200', 
+ ARRAY['https://images.unsplash.com/photo-1582719508461-905c673771fd?w=800', 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=800'], 
+ 'Establecimiento de lujo enfocado en el bienestar físico y mental, ubicado frente al mar. Ofrece experiencias culinarias premium, tratamientos de spa holísticos y un entorno de desconexión absoluta.', 
+ 'Av. Del Mar 450, Playas de Salinas', 
+ '{"lat": -2.1961, "lng": -80.9583}'::jsonb, 
+ 'https://maps.google.com/?q=-2.1961,-80.9583', 
+ ARRAY['WiFi de Alta Velocidad', 'Spa de Lujo & Termas', 'Piscina de Borde Infinito', 'Restaurante de Autor', 'Gimnasio Clínico', 'Servicio a la Habitación 24/7'], 
+ ARRAY['No se permiten mascotas', 'Prohibido fumar en áreas interiores', 'Check-in requiere documento de identidad original', 'Cancelación gratuita hasta 48 horas antes'], 
+ '{"checkIn": "15:00", "checkOut": "12:00"}'::jsonb, 
+ '{"telefono": "+593 4 277 1234", "email": "recepcion.salinas@aurahotels.com", "web": "www.aurahotels.com"}'::jsonb, 
+ '{"facebook": "aura.boutique.spa", "instagram": "aura.boutique.spa", "twitter": "aurahotels"}'::jsonb, 
+ 'activo', 'hotel'),
+
+('hotel-2', 'Roomia City Business & Coworking', 
+ 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150', 
+ 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=1200', 
+ ARRAY['https://images.unsplash.com/photo-1497366216548-37526070297c?w=800', 'https://images.unsplash.com/photo-1497366811353-6870744d04b2?w=800'], 
+ 'Hotel corporativo moderno y tecnológico en el corazón financiero. Cuenta con salas de reuniones de alta tecnología, cabinas insonorizadas para llamadas y café de especialidad gratuito para huéspedes en coworking.', 
+ 'Av. Amazonas N32-150 y La Niña, Quito', 
+ '{"lat": -0.1807, "lng": -78.4678}'::jsonb, 
+ 'https://maps.google.com/?q=-0.1807,-78.4678', 
+ ARRAY['WiFi Fibra Óptica 300 Mbps', 'Espacio de Coworking Ilimitado', 'Estación de Café de Especialidad', 'Parqueo Subterráneo Gratuito', 'Gimnasio Express 24h', 'Salas de Reuniones Zoom-ready'], 
+ ARRAY['Mascotas permitidas con recargo', 'Prohibido fumar en todo el establecimiento', 'Check-in exprés digital disponible', 'Late Check-out sujeto a disponibilidad'], 
+ '{"checkIn": "14:00", "checkOut": "11:00"}'::jsonb, 
+ '{"telefono": "+593 2 398 5600", "email": "business.quito@roomia.com", "web": "www.roomiapms.com"}'::jsonb, 
+ '{"facebook": "roomia.quito", "instagram": "roomia.quito", "twitter": "roomiapms"}'::jsonb, 
+ 'activo', 'hotel'),
+
+('hotel-3', 'Cabañas Selva Verde Ecolodge', 
+ 'https://images.unsplash.com/photo-1544644181-1484b3fdfc62?w=150', 
+ 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1200', 
+ ARRAY['https://images.unsplash.com/photo-1508193638397-1c4234db14d8?w=800', 'https://images.unsplash.com/photo-1448375240586-882707db888b?w=800'], 
+ 'Cabañas ecológicas inmersas en la selva tropical, diseñadas con materiales locales sustentables. Ofrece senderismo guiado, avistamiento de aves exóticas y cenas temáticas frente a la fogata del río.', 
+ 'Km 12 Vía al Tena, Archidona - Napo', 
+ '{"lat": -0.9083, "lng": -77.8167}'::jsonb, 
+ 'https://maps.google.com/?q=-0.9083,-77.8167', 
+ ARRAY['WiFi Satelital de Cortesía', 'Senderos Ecológicos Guiados', 'Restaurante Orgánico de la Granja', 'Área de Fogata Nocturna', 'Acceso Directo al Río', 'Piscina Ecológica de Agua de Vertiente'], 
+ ARRAY['Mascotas bienvenidas en cabañas privadas', 'Uso obligatorio de repelente biodegradable', 'Check-in hasta las 20:00 por seguridad vial', 'Políticas de bajo impacto acústico nocturno'], 
+ '{"checkIn": "14:00", "checkOut": "12:00"}'::jsonb, 
+ '{"telefono": "+593 6 288 9450", "email": "reservas@selvaverde.ec", "web": "www.selvaverde.ec"}'::jsonb, 
+ '{"facebook": "selvaverde.ecolodge", "instagram": "selvaverde.ecolodge", "twitter": "selvaverdeeco"}'::jsonb, 
+ 'activo', 'hotel')
 ON CONFLICT (id) DO NOTHING;
 
--- 6.2 Hoteles y Propiedades de Demostración Inicial
-INSERT INTO public.hotels (id, nombre, logo, portada, imagenes, descripcion, ubicacion, coordenadas, googleMapsUrl, servicios, politicas, horarios, contacto, redesSociales, estado, tipoEstablecimiento) VALUES
-(
-  'hotel-quito',
-  'Roomia Plaza Hotel',
-  'https://images.unsplash.com/photo-1542038784456-1ea8e935640e?w=120&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1200&auto=format&fit=crop&q=80',
-  ARRAY[
-    'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800',
-    'https://images.unsplash.com/photo-1582719508461-905c673771fd?w=800'
-  ],
-  'Elegante hotel corporativo y familiar en el centro financiero y cultural de Quito, Ecuador. Ofrece una experiencia premium de hospitalidad y descanso.',
-  'Av. de los Shyris N34-12 y Naciones Unidas, Quito, Ecuador',
-  '{"lat": -0.1807, "lng": -78.4678}'::jsonb,
-  'https://maps.google.com/?q=-0.1807,-78.4678',
-  ARRAY['WiFi de alta velocidad gratis', 'Gimnasio equipado', 'Restaurante Gourmet', 'Estacionamiento cubierto gratuito', 'Centro de Negocios'],
-  ARRAY['No se permiten mascotas', 'Check-in obligatorio con documento oficial', 'Cancelaciones gratuitas con 24 horas de anticipación'],
-  '{"checkIn": "15:00", "checkOut": "12:00"}'::jsonb,
-  '{"telefono": "+593 2-2999-999", "email": "quito@roomia-pms.com", "web": "www.roomia-pms.com"}'::jsonb,
-  '{"facebook": "roomia.quito", "instagram": "roomia.quito", "twitter": "roomia_quito"}'::jsonb,
-  'activo',
-  'hotel'
-),
-(
-  'propiedad-manta',
-  'Manta Beachfront Luxury House',
-  'https://images.unsplash.com/photo-1484154218962-a197022b5858?w=120&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1499793983690-e29da59ef1c2?w=1200&auto=format&fit=crop&q=80',
-  ARRAY[
-    'https://images.unsplash.com/photo-1499793983690-e29da59ef1c2?w=800',
-    'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=800'
-  ],
-  'Hermosa casa vacacional con salida directa al mar en la playa más exclusiva de Manta. Diseñada para hospedar a familias enteras y grupos que buscan total privacidad.',
-  'Vía Barbasquillo, Manta, Ecuador',
-  '{"lat": -0.9525, "lng": -80.7423}'::jsonb,
-  'https://maps.google.com/?q=-0.9525,-80.7423',
-  ARRAY['Piscina privada', 'Acceso directo a playa', 'Zona de barbacoa (BBQ)', 'Aire acondicionado central', 'Estacionamiento privado para 3 autos'],
-  ARRAY['Se permiten mascotas previa notificación', 'No se permiten eventos ruidosos después de las 22:00', 'Depósito de seguridad obligatorio'],
-  '{"checkIn": "14:00", "checkOut": "11:00"}'::jsonb,
-  '{"telefono": "+593 5-2666-888", "email": "manta.house@roomia-pms.com", "web": "www.roomia-pms.com"}'::jsonb,
-  '{"facebook": "roomia.manta", "instagram": "roomia.manta", "twitter": "roomia_manta"}'::jsonb,
-  'activo',
-  'propiedad'
-)
+-- 7.2 Insertar Habitaciones de Demostración
+INSERT INTO public.rooms (id, hotelId, numero, nombre, descripcion, precio, capacidad, camas, tipo, imagenes, servicios, estado, adicionar_iva)
+VALUES
+('room-101', 'hotel-1', '101', 'Suite Vista al Mar Standard', 'Hermosa suite equipada con cama King size, terraza privada y vista directa al océano Pacífico.', 110.00, 2, 1, 'Suite', ARRAY['https://images.unsplash.com/photo-1505691938895-1758d7feb511?w=800'], ARRAY['TV Cable 55"', 'Frigobar Equipado', 'Aire Acondicionado', 'Cafetera Nespresso', 'Bata y Zapatillas de Baño'], 'disponible', true),
+('room-102', 'hotel-1', '102', 'Habitación Doble Premium', 'Amplia habitación ideal para familias, con dos camas Queen size y balcón lateral.', 135.00, 4, 2, 'Doble', ARRAY['https://images.unsplash.com/photo-1566665797739-1674de7a421a?w=800'], ARRAY['TV Cable 50"', 'Frigobar', 'Aire Acondicionado', 'Caja Fuerte', 'Escritorio Funcional'], 'disponible', true),
+('room-201', 'hotel-1', '201', 'Presidential Wellness Suite', 'La suite más exclusiva del hotel. Cama Imperial King, jacuzzi exterior en terraza de 40m2 y bar de infusiones orgánicas gratis.', 250.00, 2, 1, 'Suite Presidencial', ARRAY['https://images.unsplash.com/photo-1578683010236-d716f9a3f461?w=800'], ARRAY['Jacuzzi Privado', 'Terraza de Lujo', 'Smart TV 70" 4K', 'Home Theater', 'Bar Premium de Cortesía', 'Servicio de Mayordomo'], 'disponible', true),
+
+('room-202', 'hotel-2', '201', 'Business Loft Individual', 'Loft optimizado para viajeros de negocios con escritorio ergonómico Herman Miller y pantalla ultra-wide para conectar laptops.', 85.00, 1, 1, 'Estándar', ARRAY['https://images.unsplash.com/photo-1598928506311-c55ded91a20c?w=800'], ARRAY['Escritorio Ergonómico', 'Pantalla Curva de 34"', 'Cafetera Italiana', 'Conectividad USB-C', 'Asistente Alexa Integrado'], 'disponible', true),
+('room-203', 'hotel-2', '202', 'Doble Business Exec', 'Espacio versátil con dos camas matrimoniales de alta densidad y área de reuniones express integrada en la habitación.', 115.00, 3, 2, 'Doble', ARRAY['https://images.unsplash.com/photo-1591088398332-8a7791972843?w=800'], ARRAY['Mesa de Trabajo Directivo', 'Frigobar Silencioso', 'Pizarra Magnética', 'Smart TV 55"'], 'disponible', true),
+
+('room-301', 'hotel-3', 'C-1', 'Cabaña Eco-Familiar Río', 'Cabaña construida de bambú y madera fina. Deck privado suspendido sobre el río con hamacas artesanales.', 95.00, 4, 3, 'Triple', ARRAY['https://images.unsplash.com/photo-1470770841072-f978cf4d019e?w=800'], ARRAY['Hamacas Exteriores', 'Mosquiteros de Diseño', 'Ventilador Silencioso', 'Balcón con Vista al Río', 'Luz Solar Autónoma'], 'disponible', true),
+('room-302', 'hotel-3', 'C-2', 'Cabaña Nido de Amor', 'Diseño íntimo de domo rústico rodeado de orquídeas salvajes, con claraboya para observar las estrellas por la noche.', 80.00, 2, 1, 'Estándar', ARRAY['https://images.unsplash.com/photo-1432318629947-4c2725a058c3?w=800'], ARRAY['Claraboya Astronómica', 'Ducha Abierta Ecológica', 'Cama King de Bambú', 'Terraza Privada'], 'disponible', true)
 ON CONFLICT (id) DO NOTHING;
 
--- 6.3 Habitaciones y Unidades Iniciales
-INSERT INTO public.rooms (id, hotelId, numero, nombre, precio, capacidad, camas, tipo, imagenes, servicios, estado, adicionar_iva) VALUES
-(
-  'room-101',
-  'hotel-quito',
-  '101',
-  'Habitación King Superior',
-  85.00,
-  2,
-  1,
-  'Estándar',
-  ARRAY['https://images.unsplash.com/photo-1618773928121-c32242e63f39?w=800'],
-  ARRAY['Cama King Size', 'Smart TV 55"', 'Escritorio de trabajo', 'Cafetera cápsulas', 'Caja fuerte'],
-  'disponible',
-  TRUE
-),
-(
-  'room-202',
-  'hotel-quito',
-  '202',
-  'Doble Twin Ejecutiva',
-  110.00,
-  4,
-  2,
-  'Doble',
-  ARRAY['https://images.unsplash.com/photo-1590490360182-c33d57733427?w=800'],
-  ARRAY['Dos camas Queen', 'Smart TV 55"', 'Frigobar surtido', 'Escritorio ejecutivo', 'Vista a la ciudad'],
-  'disponible',
-  TRUE
-),
-(
-  'room-suite-executive',
-  'hotel-quito',
-  '501',
-  'Suite Presidencial Roomia',
-  250.00,
-  2,
-  1,
-  'Suite Presidencial',
-  ARRAY['https://images.unsplash.com/photo-1591088398332-8a7791972843?w=800'],
-  ARRAY['Cama King Imperial', 'Jacuzzi privado', 'Sala de estar integrada', 'Bar premium', 'Sistema de sonido Bose'],
-  'disponible',
-  TRUE
-),
--- Propiedad de Manta: Una unidad que representa la casa entera
-(
-  'room-propiedad-entera',
-  'propiedad-manta',
-  'UNICA',
-  'Villa Manta Beach Completa',
-  350.00,
-  8,
-  5,
-  'Suite',
-  ARRAY['https://images.unsplash.com/photo-1499793983690-e29da59ef1c2?w=800'],
-  ARRAY['5 Dormitorios', 'Piscina infinity', 'Acceso directo a playa', 'Cancha de volleyball', 'Servicio de mayordomo opcional'],
-  'disponible',
-  TRUE
-)
-ON CONFLICT (id) DO NOTHING;
-
--- 6.4 Detalles Extra de Propiedades para Casas & Departamentos
-INSERT INTO public.property_details (id, hotel_id, property_type, listing_type, bedrooms, bathrooms, square_meters, furnished, parking, owner_name, owner_phone, owner_email, owner_document, price) VALUES
-(
-  'prop-detail-manta',
-  'propiedad-manta',
-  'casa',
-  'alquiler',
-  5,
-  6,
-  420.50,
-  TRUE,
-  TRUE,
-  'Andrés Mendoza',
-  '+593 99-888-7777',
-  'andres.mendoza@propietario.com',
-  '1308493721',
-  350.00
-)
+-- 7.3 Insertar Usuario Super Admin Inicial (Dereck Cisneros)
+INSERT INTO public.users (id, nombre, apellido, email, telefono, documento, avatar, rol, fecharegistro, estado, debecambiarpassword)
+VALUES 
+('user-superadmin', 'Dereck', 'Cisneros', 'destructordereck@gmail.com', '0998596597', '2450397340', 
+ 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150', 'super_admin', '2026-06-03', 'activo', false)
 ON CONFLICT (id) DO NOTHING;

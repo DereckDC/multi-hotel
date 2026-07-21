@@ -16,9 +16,21 @@ async function startServer() {
   // Dynamic Supabase Configuration endpoint to bypass static bundler caching and ensure the frontend always uses the current database configuration from host environment variables.
   app.get("/supabase-env.js", (req, res) => {
     res.setHeader("Content-Type", "application/javascript");
+    
+    // Self-healing check: Discard any stale container host variables pointing to the old database 'evovuegtffpcdeylekfy'
+    let supabaseUrl = process.env.VITE_SUPABASE_URL || "";
+    let supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || "";
+
+    if (!supabaseUrl || supabaseUrl.includes("evovuegtffpcdeylekfy")) {
+      supabaseUrl = "https://fyreapnukipdvcebvokj.supabase.co/rest/v1/";
+    }
+    if (!supabaseKey || supabaseKey.includes("evovuegtffpcdeylekfy")) {
+      supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ5cmVhcG51a2lwZHZjZWJ2b2tqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ1OTcwMTIsImV4cCI6MjEwMDE3MzAxMn0.diZTbHx-8jDDGSJEG34ae1-HD-i_PLY-RWsCQUxlNAU";
+    }
+
     const config = {
-      VITE_SUPABASE_URL: process.env.VITE_SUPABASE_URL || "https://evovuegtffpcdeylekfy.supabase.co/rest/v1/",
-      VITE_SUPABASE_ANON_KEY: process.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2b3Z1ZWd0ZmZwY2RleWxla2Z5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzNzI5NzAsImV4cCI6MjA5Njk0ODk3MH0.LIQZANzId5gA6ZUR_HiZ4pB5mTz_gxqkkfPoaI4Ud1U"
+      VITE_SUPABASE_URL: supabaseUrl,
+      VITE_SUPABASE_ANON_KEY: supabaseKey
     };
     res.send(`window.__SUPABASE_ENV__ = ${JSON.stringify(config)};`);
   });
