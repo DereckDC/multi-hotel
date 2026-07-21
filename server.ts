@@ -23,6 +23,9 @@ async function startServer() {
       if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
         s = s.slice(1, -1).trim();
       }
+      if (s === 'undefined' || s === 'null' || s === '' || s.toLowerCase() === 'undefined' || s.toLowerCase() === 'null') {
+        return "";
+      }
       return s;
     };
 

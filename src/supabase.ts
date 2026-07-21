@@ -17,6 +17,10 @@ const cleanEnvValue = (val: string): string => {
   if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
     s = s.slice(1, -1).trim();
   }
+  // Sanitize literal string "undefined" or "null" which may be injected by static host bundlers
+  if (s === 'undefined' || s === 'null' || s === '' || s.toLowerCase() === 'undefined' || s.toLowerCase() === 'null') {
+    return '';
+  }
   return s;
 };
 
