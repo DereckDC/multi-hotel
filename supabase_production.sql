@@ -338,17 +338,23 @@ CREATE POLICY "Permitir lectura publica de habitaciones" ON public.rooms
 CREATE POLICY "Permitir todo a administradores sobre habitaciones" ON public.rooms
   FOR ALL TO authenticated USING (public.get_my_role() IN ('super_admin', 'hotel_admin'));
 
+CREATE POLICY "Permitir actualizacion de habitaciones a recepcionistas" ON public.rooms
+  FOR UPDATE TO authenticated 
+  USING (public.get_my_role() = 'recepcionista')
+  WITH CHECK (public.get_my_role() = 'recepcionista');
+
 -- 6.3 Políticas para public.users
 CREATE POLICY "Permitir lectura de perfiles a usuarios autenticados" ON public.users
   FOR SELECT TO authenticated USING (true);
 
-CREATE POLICY "Permitir registro de perfil propio" ON public.users
-  FOR INSERT TO authenticated WITH CHECK (id = auth.uid()::text);
+CREATE POLICY "Permitir registro de perfil propio o por personal" ON public.users
+  FOR INSERT TO authenticated 
+  WITH CHECK (id = auth.uid()::text OR public.get_my_role() IN ('super_admin', 'hotel_admin', 'recepcionista'));
 
-CREATE POLICY "Permitir actualizacion de perfil propio o por administradores" ON public.users
+CREATE POLICY "Permitir actualizacion de perfil propio o por personal autorizado" ON public.users
   FOR UPDATE TO authenticated 
-  USING (id = auth.uid()::text OR public.get_my_role() IN ('super_admin', 'hotel_admin'))
-  WITH CHECK (id = auth.uid()::text OR public.get_my_role() IN ('super_admin', 'hotel_admin'));
+  USING (id = auth.uid()::text OR public.get_my_role() IN ('super_admin', 'hotel_admin', 'recepcionista'))
+  WITH CHECK (id = auth.uid()::text OR public.get_my_role() IN ('super_admin', 'hotel_admin', 'recepcionista'));
 
 CREATE POLICY "Permitir eliminacion de perfiles solo a administradores" ON public.users
   FOR DELETE TO authenticated USING (public.get_my_role() IN ('super_admin', 'hotel_admin'));
