@@ -15,7 +15,7 @@ import LandingPageView from './components/LandingPageView';
 import LegalPageView, { LegalDocType } from './components/LegalPageView';
 import { InteractiveContainer } from './components/InteractiveContainer';
 import { BrandLogo } from './components/BrandLogo';
-import { LayoutDashboard, Users, User as UserIcon, CalendarDays, KeyRound, Star, Sparkles, Building2, ShieldAlert, LogOut, Edit3, Camera, Check, X, Shield, AlertCircle, Eye, EyeOff, Briefcase, LogIn, Key, Menu, Home, Compass, DollarSign, ClipboardList, QrCode, Calendar, ArrowLeft } from 'lucide-react';
+import { LayoutDashboard, Users, User as UserIcon, CalendarDays, KeyRound, Star, Sparkles, Building2, ShieldAlert, LogOut, Edit3, Camera, Check, X, Shield, AlertCircle, Eye, EyeOff, Briefcase, LogIn, Key, Menu, Home, Compass, DollarSign, ClipboardList, QrCode, Calendar, ArrowLeft, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 // Slugify helper to convert hotel/property names to clean URL paths
@@ -69,7 +69,8 @@ export default function App() {
     submitReview,
     roomPriceVariations = [],
     saveRoomPriceVariation,
-    deleteRoomPriceVariation
+    deleteRoomPriceVariation,
+    isInitialSyncing
   } = store;
 
   // Track if user explicitly logged out or lacks active session to show login screen
@@ -524,6 +525,32 @@ export default function App() {
       detalles: details
     });
   };
+
+  if (isInitialSyncing) {
+    return (
+      <div className="min-h-screen bg-[#071726] flex flex-col items-center justify-center p-6 text-white relative overflow-hidden select-none">
+        {/* Ambient background glows */}
+        <div className="absolute -top-40 -left-40 w-96 h-96 rounded-full bg-[#23B4E6]/5 blur-[120px] pointer-events-none" />
+        <div className="absolute -bottom-40 -right-40 w-96 h-96 rounded-full bg-[#23B4E6]/5 blur-[120px] pointer-events-none" />
+
+        <div className="flex flex-col items-center gap-6 max-w-sm text-center relative z-10">
+          <div className="p-4 bg-[#071726]/80 border border-[#23B4E6]/20 rounded-2xl shadow-xl shadow-[#23B4E6]/5 flex items-center justify-center animate-pulse">
+            <BrandLogo size="lg" showText={false} lightText={true} />
+          </div>
+
+          <div className="space-y-2 mt-4">
+            <h2 className="text-lg font-semibold text-white tracking-wide flex items-center justify-center gap-2">
+              <Loader2 className="w-5 h-5 text-[#23B4E6] animate-spin" />
+              <span>Estableciendo Conexión</span>
+            </h2>
+            <p className="text-xs text-slate-400">
+              Sincronizando base de datos en tiempo real con Supabase...
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (activeLegalDoc !== null) {
     return (
