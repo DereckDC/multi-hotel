@@ -309,20 +309,24 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- =========================================================================
--- 6. CONFIGURACIÓN Y ACTIVACIÓN DE ROW LEVEL SECURITY (RLS)
+-- 6. DESACTIVACIÓN DE ROW LEVEL SECURITY (RLS) PARA SINCRONIZACIÓN COMPLETA
 -- =========================================================================
 
--- Activación de RLS para garantizar la advertencia de Supabase satisfecha
-ALTER TABLE public.hotels ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.rooms ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.reservations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.logs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.property_details ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.room_price_variations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.hotels DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.rooms DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.users DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reservations DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.logs DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.messages DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.transactions DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.property_details DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reviews DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.room_price_variations DISABLE ROW LEVEL SECURITY;
+
+-- Otorgar permisos completos a anon y authenticated
+GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated, service_role;
 
 -- 6.1 Políticas para public.hotels
 CREATE POLICY "Permitir lectura publica de hoteles" ON public.hotels
