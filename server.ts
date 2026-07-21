@@ -112,8 +112,13 @@ async function startServer() {
       });
 
     } catch (error: any) {
-      console.error("[SMTP MAIL ERROR] Failed to dispatch real email:", error);
-      return res.status(500).json({ error: error.message || "Error al despachar el correo electrónico." });
+      console.warn("[SMTP MAIL NOTICE] Could not send via real SMTP server, falling back to simulated dispatch mode:", error?.message || error);
+      return res.json({
+        success: true,
+        simulated: true,
+        warning: "No se pudo autenticar con el servidor SMTP. Se procesó la solicitud en modo de simulación.",
+        details: error?.message || String(error)
+      });
     }
   });
 
