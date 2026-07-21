@@ -724,6 +724,12 @@ export function useHotelStore() {
 
     fetchSupabaseData();
 
+    // Background sync polling interval to guarantee full real-time database sync across tabs and sessions
+    const pollInterval = setInterval(() => {
+      console.log("🔄 Background Syncing with Supabase database...");
+      fetchSupabaseData();
+    }, 10000);
+
     // Subscribe to real-time Postgres changes for real multi-tab / synchronized state
     const channel = supabase
       .channel('schema-db-changes')
@@ -776,6 +782,7 @@ export function useHotelStore() {
       .subscribe();
 
     return () => {
+      clearInterval(pollInterval);
       supabase.removeChannel(channel);
     };
   }, [currentUserId]);
