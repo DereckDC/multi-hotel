@@ -402,9 +402,7 @@ export function useHotelStore() {
           }
         } else if (dbHotels) {
           console.log(`✅ Loaded ${dbHotels.length} hotels from Supabase.`);
-          if (dbHotels.length > 0) {
-            setHotels(sanitizeHotels(dbHotels.map(mapHotelFromDb).filter(Boolean) as Hotel[]));
-          }
+          setHotels(sanitizeHotels(dbHotels.map(mapHotelFromDb).filter(Boolean) as Hotel[]));
         }
       } catch (err: any) {
         if (isConnectionError(err)) {
@@ -426,9 +424,7 @@ export function useHotelStore() {
           }
         } else if (dbRooms) {
           console.log(`✅ Loaded ${dbRooms.length} rooms from Supabase.`);
-          if (dbRooms.length > 0) {
-            setRooms(dbRooms.map(mapRoomFromDb).filter(Boolean) as Room[]);
-          }
+          setRooms(dbRooms.map(mapRoomFromDb).filter(Boolean) as Room[]);
         }
       } catch (err: any) {
         if (isConnectionError(err)) {
@@ -438,19 +434,33 @@ export function useHotelStore() {
         }
       }
 
-      // 3. Fetch users from Supabase
+      // Get current authenticated user session from Supabase to align active user ID state
+      let isAuthenticated = false;
       try {
-        console.log("👥 Fetching users from Supabase...");
-        const { data: dbUsers, error: uErr } = await supabase.from('users').select('*');
-        if (uErr) {
-          if (isConnectionError(uErr)) {
-            console.warn("⚠️ Conectividad limitada o modo offline (Usuarios):", uErr.message);
-          } else {
-            console.error("❌ Error fetching users from Supabase:", uErr.message, uErr.details, uErr.hint);
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          isAuthenticated = true;
+          if (currentUserId !== session.user.id) {
+            setCurrentUserId(session.user.id);
           }
-        } else if (dbUsers) {
-          console.log(`✅ Loaded ${dbUsers.length} users from Supabase.`);
-          if (dbUsers.length > 0) {
+        }
+      } catch (err) {
+        console.warn("Could not check active session on fetch:", err);
+      }
+
+      if (isAuthenticated) {
+        // 3. Fetch users from Supabase
+        try {
+          console.log("👥 Fetching users from Supabase...");
+          const { data: dbUsers, error: uErr } = await supabase.from('users').select('*');
+          if (uErr) {
+            if (isConnectionError(uErr)) {
+              console.warn("⚠️ Conectividad limitada o modo offline (Usuarios):", uErr.message);
+            } else {
+              console.error("❌ Error fetching users from Supabase:", uErr.message, uErr.details, uErr.hint);
+            }
+          } else if (dbUsers) {
+            console.log(`✅ Loaded ${dbUsers.length} users from Supabase.`);
             const mappedUsers = dbUsers.map(mapUserFromDb).filter(Boolean) as User[];
             const hasSuperAdmin = mappedUsers.some(u => u && u.rol === 'super_admin');
             if (!hasSuperAdmin) {
@@ -459,62 +469,62 @@ export function useHotelStore() {
               setUsers(mappedUsers);
             }
           }
-        }
-      } catch (err: any) {
-        if (isConnectionError(err)) {
-          console.warn("⚠️ Excepción de red en usuarios:", err.message || err);
-        } else {
-          console.error("💥 Unhandled exception fetching users from Supabase:", err);
-        }
-      }
-
-      // 4. Fetch reservations from Supabase
-      try {
-        console.log("📅 Fetching reservations from Supabase...");
-        const { data: dbRes, error: resErr } = await supabase.from('reservations').select('*');
-        if (resErr) {
-          if (isConnectionError(resErr)) {
-            console.warn("⚠️ Conectividad limitada o modo offline (Reservas):", resErr.message);
+        } catch (err: any) {
+          if (isConnectionError(err)) {
+            console.warn("⚠️ Excepción de red en usuarios:", err.message || err);
           } else {
-            console.error("❌ Error fetching reservations from Supabase:", resErr.message, resErr.details, resErr.hint);
+            console.error("💥 Unhandled exception fetching users from Supabase:", err);
           }
-        } else if (dbRes) {
-          console.log(`✅ Loaded ${dbRes.length} reservations from Supabase.`);
-          if (dbRes.length > 0) {
+        }
+
+        // 4. Fetch reservations from Supabase
+        try {
+          console.log("📅 Fetching reservations from Supabase...");
+          const { data: dbRes, error: resErr } = await supabase.from('reservations').select('*');
+          if (resErr) {
+            if (isConnectionError(resErr)) {
+              console.warn("⚠️ Conectividad limitada o modo offline (Reservas):", resErr.message);
+            } else {
+              console.error("❌ Error fetching reservations from Supabase:", resErr.message, resErr.details, resErr.hint);
+            }
+          } else if (dbRes) {
+            console.log(`✅ Loaded ${dbRes.length} reservations from Supabase.`);
             setReservations(dbRes.map(mapReservationFromDb).filter(Boolean) as Reservation[]);
           }
-        }
-      } catch (err: any) {
-        if (isConnectionError(err)) {
-          console.warn("⚠️ Excepción de red en reservas:", err.message || err);
-        } else {
-          console.error("💥 Unhandled exception fetching reservations from Supabase:", err);
-        }
-      }
-
-      // 5. Fetch logs from Supabase
-      try {
-        console.log("📋 Fetching logs from Supabase...");
-        const { data: dbLogs, error: logErr } = await supabase.from('logs').select('*');
-        if (logErr) {
-          if (isConnectionError(logErr)) {
-            console.warn("⚠️ Conectividad limitada o modo offline (Logs):", logErr.message);
+        } catch (err: any) {
+          if (isConnectionError(err)) {
+            console.warn("⚠️ Excepción de red en reservas:", err.message || err);
           } else {
-            console.error("❌ Error fetching logs from Supabase:", logErr.message, logErr.details, logErr.hint);
+            console.error("💥 Unhandled exception fetching reservations from Supabase:", err);
           }
-        } else if (dbLogs) {
-          console.log(`✅ Loaded ${dbLogs.length} logs from Supabase.`);
-          const cutoff30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-          const filteredLogs = (dbLogs as ActivityLog[]).filter(log => log.timestamp >= cutoff30d);
-          const sorted = filteredLogs.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
-          setLogs(sorted);
         }
-      } catch (err: any) {
-        if (isConnectionError(err)) {
-          console.warn("⚠️ Excepción de red en logs:", err.message || err);
-        } else {
-          console.error("💥 Unhandled exception fetching logs from Supabase:", err);
+
+        // 5. Fetch logs from Supabase
+        try {
+          console.log("📋 Fetching logs from Supabase...");
+          const { data: dbLogs, error: logErr } = await supabase.from('logs').select('*');
+          if (logErr) {
+            if (isConnectionError(logErr)) {
+              console.warn("⚠️ Conectividad limitada o modo offline (Logs):", logErr.message);
+            } else {
+              console.error("❌ Error fetching logs from Supabase:", logErr.message, logErr.details, logErr.hint);
+            }
+          } else if (dbLogs) {
+            console.log(`✅ Loaded ${dbLogs.length} logs from Supabase.`);
+            const cutoff30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+            const filteredLogs = (dbLogs as ActivityLog[]).filter(log => log.timestamp >= cutoff30d);
+            const sorted = filteredLogs.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+            setLogs(sorted);
+          }
+        } catch (err: any) {
+          if (isConnectionError(err)) {
+            console.warn("⚠️ Excepción de red en logs:", err.message || err);
+          } else {
+            console.error("💥 Unhandled exception fetching logs from Supabase:", err);
+          }
         }
+      } else {
+        console.log("🔒 Skipping authenticated-only fetches (users, reservations, logs) as no active session exists.");
       }
 
       // 6. Fetch messages from Supabase
@@ -676,7 +686,7 @@ export function useHotelStore() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [currentUserId]);
 
   // Trigger auto-initialization bootstrap check of Supabase database on startup
   useEffect(() => {
