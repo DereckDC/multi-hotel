@@ -499,10 +499,20 @@ export async function syncRoomToSupabase(room: Room): Promise<{ success: boolean
  */
 export async function syncUserToSupabase(user: User): Promise<{ success: boolean; error?: string }> {
   try {
+    // Check if there is an active session on the client side.
+    // If there is no session (e.g. anonymous user signing up with email confirmation required),
+    // we cannot write to public.users via the client anyway (RLS will block it).
+    // The Postgres SECURITY DEFINER trigger handle_new_user() automatically inserts the profile on signup.
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      console.log('Skipping manual user sync: no active session (will be handled by Postgres trigger).');
+      return { success: true };
+    }
+
     const payload = mapUserToDb(user);
     
     // Check if the user already exists in the database.
-    // If the active client is anonymous or has no select permissions on this user, maybeSingle() returns null data safely.
+    // If the active client has no select permissions on this user, maybeSingle() returns null data safely.
     const { data: existingUser, error: checkError } = await supabase
       .from('users')
       .select('id')
