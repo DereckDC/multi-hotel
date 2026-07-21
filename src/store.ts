@@ -251,10 +251,10 @@ export const sanitizeHotels = (list: Hotel[]): Hotel[] => {
 };
 
 export function useHotelStore() {
-  const [hotels, setHotels] = useState<Hotel[]>([]);
-  const [rooms, setRooms] = useState<Room[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
-  const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [hotels, setHotels] = useState<Hotel[]>(() => sanitizeHotels(loadFromLocalStorage(KEYS.HOTELS, INITIAL_HOTELS)));
+  const [rooms, setRooms] = useState<Room[]>(() => loadFromLocalStorage(KEYS.ROOMS, INITIAL_ROOMS));
+  const [users, setUsers] = useState<User[]>(() => loadFromLocalStorage(KEYS.USERS, INITIAL_USERS));
+  const [reservations, setReservations] = useState<Reservation[]>(() => loadFromLocalStorage(KEYS.RESERVATIONS, INITIAL_RESERVATIONS));
   const [currentUserId, setCurrentUserId] = useState<string>('');
   const [isInitialSyncing, setIsInitialSyncing] = useState<boolean>(true);
   const [logs, setLogs] = useState<ActivityLog[]>([]);
@@ -359,373 +359,89 @@ export function useHotelStore() {
   // Synchronize with Supabase database on mount and listen to changes
   useEffect(() => {
     const fetchSupabaseData = async () => {
-      console.log("🔌 Initiating initial connection sync with Supabase database...");
-      try {
-        // Helper to classify if an error object is a standard connection/fetch error
-        const isConnectionError = (err: any): boolean => {
-          if (!err) return false;
-          const msg = String(err.message || err).toLowerCase();
-          return msg.includes('failed to fetch') || msg.includes('fetch') || msg.includes('network') || msg.includes('lock') || msg.includes('quota');
-        };
+      console.log("🔌 Initiating optimized initial connection sync with database...");
+      
+      const timeoutPromise = new Promise(resolve => setTimeout(resolve, 2500));
 
-        // 1. Fetch hotels from Supabase
-        let hotelsFetched = false;
+      const performSync = async () => {
         try {
-          console.log("🏨 Fetching hotels from Supabase...");
-          const { data: dbHotels, error: hErr } = await supabase.from('hotels').select('*');
-          if (hErr) {
-            if (isConnectionError(hErr)) {
-              console.warn("⚠️ Conectividad limitada o modo offline (Hoteles):", hErr.message);
-              setHotels(sanitizeHotels(loadFromLocalStorage(KEYS.HOTELS, INITIAL_HOTELS)));
-              hotelsFetched = true;
-            } else {
-              console.error("❌ Error fetching hotels from Supabase:", hErr.message, hErr.details, hErr.hint);
-            }
-          } else if (dbHotels) {
-            console.log(`✅ Loaded ${dbHotels.length} hotels from Supabase.`);
-            setHotels(sanitizeHotels(dbHotels.map(mapHotelFromDb).filter(Boolean) as Hotel[]));
-            hotelsFetched = true;
-          }
-        } catch (err: any) {
-          if (isConnectionError(err)) {
-            console.warn("⚠️ Excepción de red en hoteles:", err.message || err);
-            setHotels(sanitizeHotels(loadFromLocalStorage(KEYS.HOTELS, INITIAL_HOTELS)));
-            hotelsFetched = true;
-          } else {
-            console.error("💥 Unhandled exception fetching hotels from Supabase:", err);
-          }
-        }
-        if (!hotelsFetched) {
-          setHotels([]);
-        }
+          // 1. Fetch public catalog in parallel
+          const [hotelsRes, roomsRes, reviewsRes, variationsRes] = await Promise.allSettled([
+            supabase.from('hotels').select('*'),
+            supabase.from('rooms').select('*'),
+            supabase.from('reviews').select('*'),
+            supabase.from('room_price_variations').select('*')
+          ]);
 
-        // 2. Fetch rooms from Supabase
-        let roomsFetched = false;
-        try {
-          console.log("🛏️ Fetching rooms from Supabase...");
-          const { data: dbRooms, error: rErr } = await supabase.from('rooms').select('*');
-          if (rErr) {
-            if (isConnectionError(rErr)) {
-              console.warn("⚠️ Conectividad limitada o modo offline (Habitaciones):", rErr.message);
-              setRooms(loadFromLocalStorage(KEYS.ROOMS, INITIAL_ROOMS));
-              roomsFetched = true;
-            } else {
-              console.error("❌ Error fetching rooms from Supabase:", rErr.message, rErr.details, rErr.hint);
-            }
-          } else if (dbRooms) {
-            console.log(`✅ Loaded ${dbRooms.length} rooms from Supabase.`);
-            setRooms(dbRooms.map(mapRoomFromDb).filter(Boolean) as Room[]);
-            roomsFetched = true;
+          if (hotelsRes.status === 'fulfilled' && hotelsRes.value.data && hotelsRes.value.data.length > 0) {
+            setHotels(sanitizeHotels(hotelsRes.value.data.map(mapHotelFromDb).filter(Boolean) as Hotel[]));
           }
-        } catch (err: any) {
-          if (isConnectionError(err)) {
-            console.warn("⚠️ Excepción de red en habitaciones:", err.message || err);
-            setRooms(loadFromLocalStorage(KEYS.ROOMS, INITIAL_ROOMS));
-            roomsFetched = true;
-          } else {
-            console.error("💥 Unhandled exception fetching rooms from Supabase:", err);
+          if (roomsRes.status === 'fulfilled' && roomsRes.value.data && roomsRes.value.data.length > 0) {
+            setRooms(roomsRes.value.data.map(mapRoomFromDb).filter(Boolean) as Room[]);
           }
-        }
-        if (!roomsFetched) {
-          setRooms([]);
-        }
+          if (reviewsRes.status === 'fulfilled' && reviewsRes.value.data) {
+            setReviews(reviewsRes.value.data.map(mapReviewFromDb).filter(Boolean) as Review[]);
+          }
+          if (variationsRes.status === 'fulfilled' && variationsRes.value.data) {
+            setRoomPriceVariations(variationsRes.value.data.map(mapRoomPriceVariationFromDb).filter(Boolean) as RoomPriceVariation[]);
+          }
 
-        // Get current authenticated user session from Supabase to align active user ID state
-        let isAuthenticated = false;
-        try {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session?.user) {
-            isAuthenticated = true;
-            if (currentUserId !== session.user.id) {
+          // 2. Check auth session
+          let isAuthenticated = false;
+          try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session?.user) {
+              isAuthenticated = true;
               setCurrentUserId(session.user.id);
+            } else {
+              setCurrentUserId('');
+            }
+          } catch (e) {
+            console.warn("Session check exception:", e);
+          }
+
+          // 3. Fetch authenticated/user data
+          if (isAuthenticated) {
+            const [usersRes, resRes, logsRes, msgRes, txRes] = await Promise.allSettled([
+              supabase.from('users').select('*'),
+              supabase.from('reservations').select('*'),
+              supabase.from('logs').select('*'),
+              supabase.from('messages').select('*'),
+              supabase.from('transactions').select('*')
+            ]);
+
+            if (usersRes.status === 'fulfilled' && usersRes.value.data && usersRes.value.data.length > 0) {
+              const mappedUsers = usersRes.value.data.map(mapUserFromDb).filter(Boolean) as User[];
+              const hasSuperAdmin = mappedUsers.some(u => u && u.rol === 'super_admin');
+              setUsers(hasSuperAdmin ? mappedUsers : [INITIAL_USERS[0], ...mappedUsers]);
+            }
+            if (resRes.status === 'fulfilled' && resRes.value.data) {
+              setReservations(resRes.value.data.map(mapReservationFromDb).filter(Boolean) as Reservation[]);
+            }
+            if (logsRes.status === 'fulfilled' && logsRes.value.data) {
+              const cutoff30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+              const filteredLogs = (logsRes.value.data as ActivityLog[]).filter(log => log.timestamp >= cutoff30d);
+              setLogs(filteredLogs.sort((a, b) => b.timestamp.localeCompare(a.timestamp)));
+            }
+            if (msgRes.status === 'fulfilled' && msgRes.value.data) {
+              const cutoff24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+              const mappedMsgs = msgRes.value.data.map(mapChatMessageFromDb).filter(Boolean) as ChatMessage[];
+              setMessages(mappedMsgs.filter(msg => msg.timestamp >= cutoff24h));
+            }
+            if (txRes.status === 'fulfilled' && txRes.value.data) {
+              setTransactions(txRes.value.data.map(mapPaymentTransactionFromDb).filter(Boolean) as PaymentTransaction[]);
             }
           } else {
-            // No active session. Purge any leftover authenticated data from local state and storage
-            setCurrentUserId('');
-            localStorage.removeItem('aura_hotel_pms_current_user_id');
+            // Preserve local / default users so login flow functions offline or during latency
+            setUsers(prev => prev.length > 0 ? prev : INITIAL_USERS);
           }
         } catch (err) {
-          console.warn("Could not check active session on fetch:", err);
+          console.warn("Fast parallel fetch exception:", err);
         }
+      };
 
-        if (isAuthenticated) {
-          // 3. Fetch users from Supabase
-          let usersFetched = false;
-          try {
-            console.log("👥 Fetching users from Supabase...");
-            const { data: dbUsers, error: uErr } = await supabase.from('users').select('*');
-            if (uErr) {
-              if (isConnectionError(uErr)) {
-                console.warn("⚠️ Conectividad limitada o modo offline (Usuarios):", uErr.message);
-                setUsers(loadFromLocalStorage(KEYS.USERS, INITIAL_USERS));
-                usersFetched = true;
-              } else {
-                console.error("❌ Error fetching users from Supabase:", uErr.message, uErr.details, uErr.hint);
-              }
-            } else if (dbUsers) {
-              console.log(`✅ Loaded ${dbUsers.length} users from Supabase.`);
-              const mappedUsers = dbUsers.map(mapUserFromDb).filter(Boolean) as User[];
-              const hasSuperAdmin = mappedUsers.some(u => u && u.rol === 'super_admin');
-              if (!hasSuperAdmin) {
-                setUsers([INITIAL_USERS[0], ...mappedUsers]);
-              } else {
-                setUsers(mappedUsers);
-              }
-              usersFetched = true;
-            }
-          } catch (err: any) {
-            if (isConnectionError(err)) {
-              console.warn("⚠️ Excepción de red en usuarios:", err.message || err);
-              setUsers(loadFromLocalStorage(KEYS.USERS, INITIAL_USERS));
-              usersFetched = true;
-            } else {
-              console.error("💥 Unhandled exception fetching users from Supabase:", err);
-            }
-          }
-          if (!usersFetched) {
-            setUsers([]);
-          }
-
-          // 4. Fetch reservations from Supabase
-          let resFetched = false;
-          try {
-            console.log("📅 Fetching reservations from Supabase...");
-            const { data: dbRes, error: resErr } = await supabase.from('reservations').select('*');
-            if (resErr) {
-              if (isConnectionError(resErr)) {
-                console.warn("⚠️ Conectividad limitada o modo offline (Reservas):", resErr.message);
-                setReservations(loadFromLocalStorage(KEYS.RESERVATIONS, []));
-                resFetched = true;
-              } else {
-                console.error("❌ Error fetching reservations from Supabase:", resErr.message, resErr.details, resErr.hint);
-              }
-            } else if (dbRes) {
-              console.log(`✅ Loaded ${dbRes.length} reservations from Supabase.`);
-              setReservations(dbRes.map(mapReservationFromDb).filter(Boolean) as Reservation[]);
-              resFetched = true;
-            }
-          } catch (err: any) {
-            if (isConnectionError(err)) {
-              console.warn("⚠️ Excepción de red en reservas:", err.message || err);
-              setReservations(loadFromLocalStorage(KEYS.RESERVATIONS, []));
-              resFetched = true;
-            } else {
-              console.error("💥 Unhandled exception fetching reservations from Supabase:", err);
-            }
-          }
-          if (!resFetched) {
-            setReservations([]);
-          }
-
-          // 5. Fetch logs from Supabase
-          let logsFetched = false;
-          try {
-            console.log("📋 Fetching logs from Supabase...");
-            const { data: dbLogs, error: logErr } = await supabase.from('logs').select('*');
-            if (logErr) {
-              if (isConnectionError(logErr)) {
-                console.warn("⚠️ Conectividad limitada o modo offline (Logs):", logErr.message);
-                setLogs(loadFromLocalStorage(KEYS.LOGS, []));
-                logsFetched = true;
-              } else {
-                console.error("❌ Error fetching logs from Supabase:", logErr.message, logErr.details, logErr.hint);
-              }
-            } else if (dbLogs) {
-              console.log(`✅ Loaded ${dbLogs.length} logs from Supabase.`);
-              const cutoff30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-              const filteredLogs = (dbLogs as ActivityLog[]).filter(log => log.timestamp >= cutoff30d);
-              const sorted = filteredLogs.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
-              setLogs(sorted);
-              logsFetched = true;
-            }
-          } catch (err: any) {
-            if (isConnectionError(err)) {
-              console.warn("⚠️ Excepción de red en logs:", err.message || err);
-              setLogs(loadFromLocalStorage(KEYS.LOGS, []));
-              logsFetched = true;
-            } else {
-              console.error("💥 Unhandled exception fetching logs from Supabase:", err);
-            }
-          }
-          if (!logsFetched) {
-            setLogs([]);
-          }
-        } else {
-          console.log("🔒 Skipping authenticated-only fetches (users, reservations, logs) as no active session exists.");
-          // Clear all authenticated-only cache to avoid leaking or displaying stale user data
-          setReservations([]);
-          setLogs([
-            {
-              id: 'log-initial',
-              timestamp: new Date().toISOString(),
-              user: 'Sistema',
-              role: 'super_admin',
-              action: 'Inicialización',
-              detalles: 'Base de datos del Sistema Multi-Hotel cargada.'
-            }
-          ]);
-          setUsers([]);
-          setMessages([]);
-          setTransactions([]);
-          
-          // Remove from localStorage
-          localStorage.removeItem(`${STORAGE_PREFIX}reservations`);
-          localStorage.removeItem(`${STORAGE_PREFIX}logs`);
-          localStorage.removeItem(`${STORAGE_PREFIX}users`);
-          localStorage.removeItem('messages');
-          localStorage.removeItem('transactions');
-        }
-
-        // 6. Fetch messages from Supabase
-        let messagesFetched = false;
-        try {
-          console.log("💬 Fetching messages from Supabase...");
-          const { data: dbMsg, error: msgErr } = await supabase.from('messages').select('*');
-          if (msgErr) {
-            if (isConnectionError(msgErr)) {
-              setMessages(loadFromLocalStorage('messages', []));
-              messagesFetched = true;
-            } else {
-              console.warn("Could not load messages table yet:", msgErr.message);
-            }
-          } else if (dbMsg) {
-            console.log(`✅ Loaded ${dbMsg.length} messages from Supabase.`);
-            const cutoff24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-            const mappedMsgs = dbMsg.map(mapChatMessageFromDb).filter(Boolean) as ChatMessage[];
-            const filteredMsgs = mappedMsgs.filter(msg => msg.timestamp >= cutoff24h);
-            setMessages(filteredMsgs);
-            messagesFetched = true;
-          }
-        } catch (err: any) {
-          if (isConnectionError(err)) {
-            setMessages(loadFromLocalStorage('messages', []));
-            messagesFetched = true;
-          } else {
-            console.error("Unhandled messages exception:", err);
-          }
-        }
-        if (!messagesFetched) {
-          setMessages([]);
-        }
-
-        // 7. Fetch transactions from Supabase
-        let txFetched = false;
-        try {
-          console.log("💳 Fetching transactions from Supabase...");
-          const { data: dbTx, error: txErr } = await supabase.from('transactions').select('*');
-          if (txErr) {
-            if (isConnectionError(txErr)) {
-              setTransactions(loadFromLocalStorage('transactions', []));
-              txFetched = true;
-            } else {
-              console.warn("Could not load transactions table yet:", txErr.message);
-            }
-          } else if (dbTx) {
-            console.log(`✅ Loaded ${dbTx.length} transactions from Supabase.`);
-            setTransactions(dbTx.map(mapPaymentTransactionFromDb).filter(Boolean) as PaymentTransaction[]);
-            txFetched = true;
-          }
-        } catch (err: any) {
-          if (isConnectionError(err)) {
-            setTransactions(loadFromLocalStorage('transactions', []));
-            txFetched = true;
-          } else {
-            console.error("Unhandled transactions exception:", err);
-          }
-        }
-        if (!txFetched) {
-          setTransactions([]);
-        }
-
-        // 8. Fetch reviews from Supabase
-        let reviewsFetched = false;
-        try {
-          console.log("⭐ Fetching reviews from Supabase...");
-          const { data: dbReviews, error: revErr } = await supabase.from('reviews').select('*');
-          if (revErr) {
-            if (isConnectionError(revErr)) {
-              setReviews(loadFromLocalStorage('reviews', []));
-              reviewsFetched = true;
-            } else {
-              console.warn("Could not load reviews table yet:", revErr.message);
-            }
-          } else if (dbReviews) {
-            console.log(`✅ Loaded ${dbReviews.length} reviews from Supabase.`);
-            setReviews(dbReviews.map(mapReviewFromDb).filter(Boolean) as Review[]);
-            reviewsFetched = true;
-          }
-        } catch (err: any) {
-          if (isConnectionError(err)) {
-            setReviews(loadFromLocalStorage('reviews', []));
-            reviewsFetched = true;
-          } else {
-            console.error("Unhandled reviews exception:", err);
-          }
-        }
-        if (!reviewsFetched) {
-          setReviews([]);
-        }
-
-        // 9. Fetch room price variations from Supabase
-        let variationsFetched = false;
-        try {
-          console.log("📈 Fetching room price variations from Supabase...");
-          const { data: dbVar, error: varErr } = await supabase.from('room_price_variations').select('*');
-          if (varErr) {
-            if (isConnectionError(varErr)) {
-              setRoomPriceVariations(loadFromLocalStorage('roomPriceVariations', []));
-              variationsFetched = true;
-            } else {
-              console.warn("Could not load room_price_variations table yet:", varErr.message);
-            }
-          } else if (dbVar) {
-            console.log(`✅ Loaded ${dbVar.length} room price variations from Supabase.`);
-            setRoomPriceVariations(dbVar.map(mapRoomPriceVariationFromDb).filter(Boolean) as RoomPriceVariation[]);
-            variationsFetched = true;
-          }
-        } catch (err: any) {
-          if (isConnectionError(err)) {
-            setRoomPriceVariations(loadFromLocalStorage('roomPriceVariations', []));
-            variationsFetched = true;
-          } else {
-            console.error("Unhandled price variations exception:", err);
-          }
-        }
-        if (!variationsFetched) {
-          setRoomPriceVariations([]);
-        }
-
-        // 10. Auto-clean expired live chat messages (>24h) and audit logs (>30 days) on Supabase
-        try {
-          console.log("🧹 Running active database auto-pruning cleanups on Supabase...");
-          const cutoff24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-          const cutoff30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-
-          // Delete chats older than 24h asynchronously
-          supabase.from('messages')
-            .delete()
-            .lt('timestamp', cutoff24h)
-            .then(({ error }) => {
-              if (error) console.warn("Silent Supabase live chat clean-up error:", error.message);
-              else console.log("🧼 Executed live chat 24-hour cleanup query successfully on Supabase.");
-            });
-
-          // Delete audit logs older than 30 days asynchronously
-          supabase.from('logs')
-            .delete()
-            .lt('timestamp', cutoff30d)
-            .then(({ error }) => {
-              if (error) console.warn("Silent Supabase audit logs clean-up error:", error.message);
-              else console.log("🧼 Executed audit logs 30-day cleanup query successfully on Supabase.");
-            });
-        } catch (cleanUpErr) {
-          console.warn("⚠️ Database auto-pruning task failed/skipped on client-side:", cleanUpErr);
-        }
-      } catch (err) {
-        console.error("Critical error during initial sync:", err);
-      } finally {
-        setIsInitialSyncing(false);
-      }
+      await Promise.race([performSync(), timeoutPromise]);
+      setIsInitialSyncing(false);
     };
 
     fetchSupabaseData();
@@ -786,52 +502,43 @@ export function useHotelStore() {
     };
   }, [currentUserId]);
 
-  // Trigger auto-initialization bootstrap check of Supabase database on startup
+  // Trigger auto-initialization bootstrap check of database on startup
   useEffect(() => {
     const bootstrapSupabaseData = async () => {
       try {
         const { data: hCountData, error: hErr } = await supabase.from('hotels').select('id');
         if (hErr) {
-          console.warn("Could not interface with Supabase 'hotels' table, maybe it need schema creation:", hErr);
+          console.warn("Could not interface with 'hotels' table:", hErr);
           return;
         }
 
         if (!hCountData || hCountData.length === 0) {
-          console.log("Supabase is empty. Initiating automatic seeding of initial rooms, hotels, users, and reservations...");
-          
-          // Seed hotels
-          for (const h of INITIAL_HOTELS) {
-            await syncHotelToSupabase(h);
+          console.log("Database is empty. Initiating bulk seeding...");
+          try {
+            await Promise.allSettled([
+              supabase.from('hotels').upsert(INITIAL_HOTELS.map(mapHotelToDb)),
+              supabase.from('rooms').upsert(INITIAL_ROOMS.map(mapRoomToDb)),
+              supabase.from('users').upsert(INITIAL_USERS.map(mapUserToDb)),
+              supabase.from('reservations').upsert(INITIAL_RESERVATIONS.map(mapReservationToDb))
+            ]);
+            console.log("Bulk seeding successfully completed!");
+            
+            // Refresh state
+            const [hRes, rRes] = await Promise.allSettled([
+              supabase.from('hotels').select('*'),
+              supabase.from('rooms').select('*')
+            ]);
+            if (hRes.status === 'fulfilled' && hRes.value.data && hRes.value.data.length > 0) {
+              setHotels(sanitizeHotels(hRes.value.data.map(mapHotelFromDb).filter(Boolean) as Hotel[]));
+            }
+            if (rRes.status === 'fulfilled' && rRes.value.data && rRes.value.data.length > 0) {
+              setRooms(rRes.value.data.map(mapRoomFromDb).filter(Boolean) as Room[]);
+            }
+          } catch (seedErr) {
+            console.warn("Seeding exception:", seedErr);
           }
-          // Seed rooms
-          for (const r of INITIAL_ROOMS) {
-            await syncRoomToSupabase(r);
-          }
-          // Seed users
-          for (const u of INITIAL_USERS) {
-            await syncUserToSupabase(u);
-          }
-          // Seed reservations
-          for (const res of INITIAL_RESERVATIONS) {
-            await syncReservationToSupabase(res);
-          }
-
-          console.log("Supabase seeding successfully completed!");
-          
-          // Refresh state from freshly seeded tables
-          const { data: dbHotels } = await supabase.from('hotels').select('*');
-          if (dbHotels) setHotels(sanitizeHotels(dbHotels.map(mapHotelFromDb).filter(Boolean) as Hotel[]));
-
-          const { data: dbRooms } = await supabase.from('rooms').select('*');
-          if (dbRooms) setRooms(dbRooms.map(mapRoomFromDb).filter(Boolean) as Room[]);
-
-          const { data: dbUsers } = await supabase.from('users').select('*');
-          if (dbUsers) setUsers(dbUsers.map(mapUserFromDb).filter(Boolean) as User[]);
-
-          const { data: dbRes } = await supabase.from('reservations').select('*');
-          if (dbRes) setReservations(dbRes.map(mapReservationFromDb).filter(Boolean) as Reservation[]);
         } else {
-          // Double check that a Super Admin resides in the Supabase users database
+          // Double check super admin
           const { data: matchedAdmin, error: adminErr } = await supabase
             .from('users')
             .select('*')
@@ -840,29 +547,13 @@ export function useHotelStore() {
             .maybeSingle();
 
           if (adminErr || !matchedAdmin) {
-            console.log("Super Admin not found in Supabase. Inserting seed admin...");
+            console.log("Super Admin not found in DB. Inserting seed admin...");
             const superAdminObj = INITIAL_USERS[0];
             await syncUserToSupabase(superAdminObj);
-            
-            const { data: refUsers } = await supabase.from('users').select('*');
-            if (refUsers) setUsers(refUsers.map(mapUserFromDb).filter(Boolean) as User[]);
-          } else {
-            const mappedAdmin = mapUserFromDb(matchedAdmin);
-            if (mappedAdmin.rol !== 'super_admin' || mappedAdmin.estado !== 'activo') {
-              const correctedAdmin: User = {
-                ...mappedAdmin,
-                rol: 'super_admin' as UserRole,
-                estado: 'activo' as const
-              };
-              await syncUserToSupabase(correctedAdmin);
-              
-              const { data: refUsers } = await supabase.from('users').select('*');
-              if (refUsers) setUsers(refUsers.map(mapUserFromDb).filter(Boolean) as User[]);
-            }
           }
         }
       } catch (err) {
-        console.warn("Supabase automatic bootstrapping error:", err);
+        console.warn("Automatic bootstrapping error:", err);
       }
     };
 
