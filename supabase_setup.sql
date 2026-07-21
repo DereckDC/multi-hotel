@@ -190,17 +190,20 @@ CREATE INDEX idx_chat_hotel ON chat_messages(hotel_id);
 CREATE INDEX idx_price_variations_room ON room_price_variations(room_id);
 
 -- ============================================================================
--- 4. SEGURIDAD OWASP: ROW LEVEL SECURITY (RLS) & POLITICAS DE ACCESO
+-- 4. DESACTIVACIÓN DE ROW LEVEL SECURITY (RLS) PARA SINCRONIZACIÓN LIBRE
 -- ============================================================================
 
--- Activar RLS en todas las tablas sensibles
-ALTER TABLE users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE hotels ENABLE ROW LEVEL SECURITY;
-ALTER TABLE rooms ENABLE ROW LEVEL SECURITY;
-ALTER TABLE reservations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE payment_transactions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE reviews ENABLE ROW LEVEL SECURITY;
-ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE users DISABLE ROW LEVEL SECURITY;
+ALTER TABLE hotels DISABLE ROW LEVEL SECURITY;
+ALTER TABLE rooms DISABLE ROW LEVEL SECURITY;
+ALTER TABLE reservations DISABLE ROW LEVEL SECURITY;
+ALTER TABLE payment_transactions DISABLE ROW LEVEL SECURITY;
+ALTER TABLE reviews DISABLE ROW LEVEL SECURITY;
+ALTER TABLE chat_messages DISABLE ROW LEVEL SECURITY;
+
+-- Permisos directos
+GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
 
 -- POLÍTICAS PARA HOTELS (Visibles por todos si están activos, modificados solo por administradores)
 CREATE POLICY "Hoteles visibles para todos" ON hotels

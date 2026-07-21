@@ -29,16 +29,9 @@ async function startServer() {
       return s;
     };
 
-    // Self-healing check: Discard any stale container host variables pointing to the old database 'evovuegtffpcdeylekfy'
-    let supabaseUrl = cleanValue(process.env.VITE_SUPABASE_URL || "");
-    let supabaseKey = cleanValue(process.env.VITE_SUPABASE_ANON_KEY || "");
-
-    if (!supabaseUrl || supabaseUrl.includes("evovuegtffpcdeylekfy")) {
-      supabaseUrl = "https://fyreapnukipdvcebvokj.supabase.co/rest/v1/";
-    }
-    if (!supabaseKey || supabaseKey.includes("evovuegtffpcdeylekfy")) {
-      supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ5cmVhcG51a2lwZHZjZWJ2b2tqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ1OTcwMTIsImV4cCI6MjEwMDE3MzAxMn0.diZTbHx-8jDDGSJEG34ae1-HD-i_PLY-RWsCQUxlNAU";
-    }
+    // Read credentials strictly from host process environment variables loaded via .env
+    const supabaseUrl = cleanValue(process.env.VITE_SUPABASE_URL || "");
+    const supabaseKey = cleanValue(process.env.VITE_SUPABASE_ANON_KEY || "");
 
     const config = {
       VITE_SUPABASE_URL: supabaseUrl,

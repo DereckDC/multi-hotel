@@ -24,7 +24,7 @@ const cleanEnvValue = (val: string): string => {
   return s;
 };
 
-// Self-healing: Discard any stale container host or client environment variables pointing to the old database 'evovuegtffpcdeylekfy'
+// Environment credentials loaded strictly from .env variables via win.__SUPABASE_ENV__, process.env, or import.meta.env
 const getSanitizedEnv = () => {
   let url = win.__SUPABASE_ENV__?.VITE_SUPABASE_URL || (typeof process !== 'undefined' && process.env?.VITE_SUPABASE_URL) || (import.meta as any).env?.VITE_SUPABASE_URL || '';
   let key = win.__SUPABASE_ENV__?.VITE_SUPABASE_ANON_KEY || (typeof process !== 'undefined' && process.env?.VITE_SUPABASE_ANON_KEY) || (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || '';
@@ -32,12 +32,6 @@ const getSanitizedEnv = () => {
   url = cleanEnvValue(url);
   key = cleanEnvValue(key);
 
-  if (!url || url.includes('evovuegtffpcdeylekfy')) {
-    url = 'https://fyreapnukipdvcebvokj.supabase.co/rest/v1/';
-  }
-  if (!key || key.includes('evovuegtffpcdeylekfy')) {
-    key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ5cmVhcG51a2lwZHZjZWJ2b2tqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ1OTcwMTIsImV4cCI6MjEwMDE3MzAxMn0.diZTbHx-8jDDGSJEG34ae1-HD-i_PLY-RWsCQUxlNAU';
-  }
   return { url, key };
 };
 
@@ -46,25 +40,26 @@ const rawUrl = sanitizedEnv.url;
 const SUPABASE_ANON_KEY = sanitizedEnv.key;
 
 // Sanitize URL to ensure the client-side SDK gets the base address without /rest/v1 suffix and without trailing slash
-const SUPABASE_URL = rawUrl.replace(/\/rest\/v1\/?$/, '').replace(/\/$/, '').trim();
+const SUPABASE_URL = rawUrl ? rawUrl.replace(/\/rest\/v1\/?$/, '').replace(/\/$/, '').trim() : '';
 
 // Dynamically compute local storage token key based on project reference subdomain
 const getProjectRef = (url: string) => {
   try {
+    if (!url) return 'supabase';
     const hostname = new URL(url).hostname;
-    return hostname.split('.')[0] || 'fyreapnukipdvcebvokj';
+    return hostname.split('.')[0] || 'supabase';
   } catch (e) {
-    return 'fyreapnukipdvcebvokj';
+    return 'supabase';
   }
 };
 const sbTokenKey = `sb-${getProjectRef(SUPABASE_URL)}-auth-token`;
 
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-  console.warn("⚠️ ALERTA DE SEGURIDAD INTERNA: No se configuraron las variables VITE_SUPABASE_URL o VITE_SUPABASE_ANON_KEY. El sistema requiere que el administrador provea estas credenciales en su archivo de configuración .env");
+  console.warn("⚠️ ALERTA DE CONFIGURACIÓN: No se encontraron las variables VITE_SUPABASE_URL o VITE_SUPABASE_ANON_KEY en el archivo .env.");
 }
 
 export const supabase = createClient(
-  SUPABASE_URL || 'https://fyreapnukipdvcebvokj.supabase.co',
+  SUPABASE_URL,
   SUPABASE_ANON_KEY
 );
 
