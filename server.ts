@@ -17,9 +17,18 @@ async function startServer() {
   app.get("/supabase-env.js", (req, res) => {
     res.setHeader("Content-Type", "application/javascript");
     
+    const cleanValue = (val: string) => {
+      if (!val) return "";
+      let s = val.trim();
+      if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
+        s = s.slice(1, -1).trim();
+      }
+      return s;
+    };
+
     // Self-healing check: Discard any stale container host variables pointing to the old database 'evovuegtffpcdeylekfy'
-    let supabaseUrl = process.env.VITE_SUPABASE_URL || "";
-    let supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || "";
+    let supabaseUrl = cleanValue(process.env.VITE_SUPABASE_URL || "");
+    let supabaseKey = cleanValue(process.env.VITE_SUPABASE_ANON_KEY || "");
 
     if (!supabaseUrl || supabaseUrl.includes("evovuegtffpcdeylekfy")) {
       supabaseUrl = "https://fyreapnukipdvcebvokj.supabase.co/rest/v1/";

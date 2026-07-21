@@ -10,10 +10,23 @@ import { ActivityLog } from './store';
 // Credentials are loaded strictly from secure environment variables (via dynamic endpoint/window first, fallback to process/meta) to comply with OWASP Top 10 and prevent hardcoded secrets.
 const win = typeof window !== 'undefined' ? (window as any) : {};
 
+const cleanEnvValue = (val: string): string => {
+  if (!val) return '';
+  let s = val.trim();
+  // Strip outer quotes if any (both single and double)
+  if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
+    s = s.slice(1, -1).trim();
+  }
+  return s;
+};
+
 // Self-healing: Discard any stale container host or client environment variables pointing to the old database 'evovuegtffpcdeylekfy'
 const getSanitizedEnv = () => {
   let url = win.__SUPABASE_ENV__?.VITE_SUPABASE_URL || (typeof process !== 'undefined' && process.env?.VITE_SUPABASE_URL) || (import.meta as any).env?.VITE_SUPABASE_URL || '';
   let key = win.__SUPABASE_ENV__?.VITE_SUPABASE_ANON_KEY || (typeof process !== 'undefined' && process.env?.VITE_SUPABASE_ANON_KEY) || (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || '';
+
+  url = cleanEnvValue(url);
+  key = cleanEnvValue(key);
 
   if (!url || url.includes('evovuegtffpcdeylekfy')) {
     url = 'https://fyreapnukipdvcebvokj.supabase.co/rest/v1/';
@@ -28,8 +41,8 @@ const sanitizedEnv = getSanitizedEnv();
 const rawUrl = sanitizedEnv.url;
 const SUPABASE_ANON_KEY = sanitizedEnv.key;
 
-// Sanitize URL to ensure the client-side SDK gets the base address without /rest/v1 suffix
-const SUPABASE_URL = rawUrl.replace(/\/rest\/v1\/?$/, '').trim();
+// Sanitize URL to ensure the client-side SDK gets the base address without /rest/v1 suffix and without trailing slash
+const SUPABASE_URL = rawUrl.replace(/\/rest\/v1\/?$/, '').replace(/\/$/, '').trim();
 
 // Dynamically compute local storage token key based on project reference subdomain
 const getProjectRef = (url: string) => {

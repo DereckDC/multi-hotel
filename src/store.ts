@@ -251,46 +251,17 @@ export const sanitizeHotels = (list: Hotel[]): Hotel[] => {
 };
 
 export function useHotelStore() {
-  const [hotels, setHotels] = useState<Hotel[]>(() => sanitizeHotels(loadFromLocalStorage(KEYS.HOTELS, INITIAL_HOTELS)));
-  const [rooms, setRooms] = useState<Room[]>(() => loadFromLocalStorage(KEYS.ROOMS, INITIAL_ROOMS));
-  const [users, setUsers] = useState<User[]>(() => {
-    const loaded = loadFromLocalStorage<User[]>(KEYS.USERS, INITIAL_USERS) || [];
-    // Ensure all obsolete legacy demo users are cleanly purged, preserving only Gonzalo and custom registered ones
-    const purged = loaded.filter(u => {
-      if (!u || !u.email) return false;
-      const emailLower = u.email.trim().toLowerCase();
-      if (u.rol === 'super_admin') return true;
-      // Filter out standard roomia demo accounts to ensure maximum security
-      if (emailLower.includes('roomia') && (emailLower.includes('admin') || emailLower.includes('recepcionista') || emailLower.includes('cliente'))) {
-        return false;
-      }
-      return true;
-    });
-
-    const superAdmin = purged.find(u => u.rol === 'super_admin');
-    if (!superAdmin) {
-      return [INITIAL_USERS[0], ...purged];
-    }
-
-    return purged;
-  });
-  const [reservations, setReservations] = useState<Reservation[]>(() => []);
-  const [currentUserId, setCurrentUserId] = useState<string>(() => loadFromLocalStorage(KEYS.CURRENT_USER_ID, ''));
+  const [hotels, setHotels] = useState<Hotel[]>([]);
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<string>('');
   const [isInitialSyncing, setIsInitialSyncing] = useState<boolean>(true);
-  const [logs, setLogs] = useState<ActivityLog[]>(() => loadFromLocalStorage(KEYS.LOGS, [
-    {
-      id: 'log-initial',
-      timestamp: new Date().toISOString(),
-      user: 'Sistema',
-      role: 'super_admin',
-      action: 'Inicialización',
-      detalles: 'Base de datos del Sistema Multi-Hotel cargada con datos de demostración.'
-    }
-  ]));
-  const [messages, setMessages] = useState<ChatMessage[]>(() => loadFromLocalStorage('messages', []));
-  const [transactions, setTransactions] = useState<PaymentTransaction[]>(() => loadFromLocalStorage('transactions', []));
-  const [reviews, setReviews] = useState<Review[]>(() => loadFromLocalStorage('reviews', []));
-  const [roomPriceVariations, setRoomPriceVariations] = useState<RoomPriceVariation[]>(() => loadFromLocalStorage('roomPriceVariations', []));
+  const [logs, setLogs] = useState<ActivityLog[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [transactions, setTransactions] = useState<PaymentTransaction[]>([]);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [roomPriceVariations, setRoomPriceVariations] = useState<RoomPriceVariation[]>([]);
 
   // Sync to local storage
   useEffect(() => { saveToLocalStorage(KEYS.HOTELS, hotels); }, [hotels]);
@@ -392,47 +363,65 @@ export function useHotelStore() {
         };
 
         // 1. Fetch hotels from Supabase
+        let hotelsFetched = false;
         try {
           console.log("🏨 Fetching hotels from Supabase...");
           const { data: dbHotels, error: hErr } = await supabase.from('hotels').select('*');
           if (hErr) {
             if (isConnectionError(hErr)) {
               console.warn("⚠️ Conectividad limitada o modo offline (Hoteles):", hErr.message);
+              setHotels(sanitizeHotels(loadFromLocalStorage(KEYS.HOTELS, INITIAL_HOTELS)));
+              hotelsFetched = true;
             } else {
               console.error("❌ Error fetching hotels from Supabase:", hErr.message, hErr.details, hErr.hint);
             }
           } else if (dbHotels) {
             console.log(`✅ Loaded ${dbHotels.length} hotels from Supabase.`);
             setHotels(sanitizeHotels(dbHotels.map(mapHotelFromDb).filter(Boolean) as Hotel[]));
+            hotelsFetched = true;
           }
         } catch (err: any) {
           if (isConnectionError(err)) {
             console.warn("⚠️ Excepción de red en hoteles:", err.message || err);
+            setHotels(sanitizeHotels(loadFromLocalStorage(KEYS.HOTELS, INITIAL_HOTELS)));
+            hotelsFetched = true;
           } else {
             console.error("💥 Unhandled exception fetching hotels from Supabase:", err);
           }
         }
+        if (!hotelsFetched) {
+          setHotels([]);
+        }
 
         // 2. Fetch rooms from Supabase
+        let roomsFetched = false;
         try {
           console.log("🛏️ Fetching rooms from Supabase...");
           const { data: dbRooms, error: rErr } = await supabase.from('rooms').select('*');
           if (rErr) {
             if (isConnectionError(rErr)) {
               console.warn("⚠️ Conectividad limitada o modo offline (Habitaciones):", rErr.message);
+              setRooms(loadFromLocalStorage(KEYS.ROOMS, INITIAL_ROOMS));
+              roomsFetched = true;
             } else {
               console.error("❌ Error fetching rooms from Supabase:", rErr.message, rErr.details, rErr.hint);
             }
           } else if (dbRooms) {
             console.log(`✅ Loaded ${dbRooms.length} rooms from Supabase.`);
             setRooms(dbRooms.map(mapRoomFromDb).filter(Boolean) as Room[]);
+            roomsFetched = true;
           }
         } catch (err: any) {
           if (isConnectionError(err)) {
             console.warn("⚠️ Excepción de red en habitaciones:", err.message || err);
+            setRooms(loadFromLocalStorage(KEYS.ROOMS, INITIAL_ROOMS));
+            roomsFetched = true;
           } else {
             console.error("💥 Unhandled exception fetching rooms from Supabase:", err);
           }
+        }
+        if (!roomsFetched) {
+          setRooms([]);
         }
 
         // Get current authenticated user session from Supabase to align active user ID state
@@ -455,12 +444,15 @@ export function useHotelStore() {
 
         if (isAuthenticated) {
           // 3. Fetch users from Supabase
+          let usersFetched = false;
           try {
             console.log("👥 Fetching users from Supabase...");
             const { data: dbUsers, error: uErr } = await supabase.from('users').select('*');
             if (uErr) {
               if (isConnectionError(uErr)) {
                 console.warn("⚠️ Conectividad limitada o modo offline (Usuarios):", uErr.message);
+                setUsers(loadFromLocalStorage(KEYS.USERS, INITIAL_USERS));
+                usersFetched = true;
               } else {
                 console.error("❌ Error fetching users from Supabase:", uErr.message, uErr.details, uErr.hint);
               }
@@ -473,44 +465,62 @@ export function useHotelStore() {
               } else {
                 setUsers(mappedUsers);
               }
+              usersFetched = true;
             }
           } catch (err: any) {
             if (isConnectionError(err)) {
               console.warn("⚠️ Excepción de red en usuarios:", err.message || err);
+              setUsers(loadFromLocalStorage(KEYS.USERS, INITIAL_USERS));
+              usersFetched = true;
             } else {
               console.error("💥 Unhandled exception fetching users from Supabase:", err);
             }
           }
+          if (!usersFetched) {
+            setUsers([]);
+          }
 
           // 4. Fetch reservations from Supabase
+          let resFetched = false;
           try {
             console.log("📅 Fetching reservations from Supabase...");
             const { data: dbRes, error: resErr } = await supabase.from('reservations').select('*');
             if (resErr) {
               if (isConnectionError(resErr)) {
                 console.warn("⚠️ Conectividad limitada o modo offline (Reservas):", resErr.message);
+                setReservations(loadFromLocalStorage(KEYS.RESERVATIONS, []));
+                resFetched = true;
               } else {
                 console.error("❌ Error fetching reservations from Supabase:", resErr.message, resErr.details, resErr.hint);
               }
             } else if (dbRes) {
               console.log(`✅ Loaded ${dbRes.length} reservations from Supabase.`);
               setReservations(dbRes.map(mapReservationFromDb).filter(Boolean) as Reservation[]);
+              resFetched = true;
             }
           } catch (err: any) {
             if (isConnectionError(err)) {
               console.warn("⚠️ Excepción de red en reservas:", err.message || err);
+              setReservations(loadFromLocalStorage(KEYS.RESERVATIONS, []));
+              resFetched = true;
             } else {
               console.error("💥 Unhandled exception fetching reservations from Supabase:", err);
             }
           }
+          if (!resFetched) {
+            setReservations([]);
+          }
 
           // 5. Fetch logs from Supabase
+          let logsFetched = false;
           try {
             console.log("📋 Fetching logs from Supabase...");
             const { data: dbLogs, error: logErr } = await supabase.from('logs').select('*');
             if (logErr) {
               if (isConnectionError(logErr)) {
                 console.warn("⚠️ Conectividad limitada o modo offline (Logs):", logErr.message);
+                setLogs(loadFromLocalStorage(KEYS.LOGS, []));
+                logsFetched = true;
               } else {
                 console.error("❌ Error fetching logs from Supabase:", logErr.message, logErr.details, logErr.hint);
               }
@@ -520,13 +530,19 @@ export function useHotelStore() {
               const filteredLogs = (dbLogs as ActivityLog[]).filter(log => log.timestamp >= cutoff30d);
               const sorted = filteredLogs.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
               setLogs(sorted);
+              logsFetched = true;
             }
           } catch (err: any) {
             if (isConnectionError(err)) {
               console.warn("⚠️ Excepción de red en logs:", err.message || err);
+              setLogs(loadFromLocalStorage(KEYS.LOGS, []));
+              logsFetched = true;
             } else {
               console.error("💥 Unhandled exception fetching logs from Supabase:", err);
             }
+          }
+          if (!logsFetched) {
+            setLogs([]);
           }
         } else {
           console.log("🔒 Skipping authenticated-only fetches (users, reservations, logs) as no active session exists.");
@@ -542,7 +558,7 @@ export function useHotelStore() {
               detalles: 'Base de datos del Sistema Multi-Hotel cargada.'
             }
           ]);
-          setUsers(INITIAL_USERS);
+          setUsers([]);
           setMessages([]);
           setTransactions([]);
           
@@ -555,78 +571,122 @@ export function useHotelStore() {
         }
 
         // 6. Fetch messages from Supabase
+        let messagesFetched = false;
         try {
           console.log("💬 Fetching messages from Supabase...");
           const { data: dbMsg, error: msgErr } = await supabase.from('messages').select('*');
           if (msgErr) {
-            console.warn("Could not load messages table yet:", msgErr.message);
+            if (isConnectionError(msgErr)) {
+              setMessages(loadFromLocalStorage('messages', []));
+              messagesFetched = true;
+            } else {
+              console.warn("Could not load messages table yet:", msgErr.message);
+            }
           } else if (dbMsg) {
             console.log(`✅ Loaded ${dbMsg.length} messages from Supabase.`);
             const cutoff24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
             const mappedMsgs = dbMsg.map(mapChatMessageFromDb).filter(Boolean) as ChatMessage[];
             const filteredMsgs = mappedMsgs.filter(msg => msg.timestamp >= cutoff24h);
             setMessages(filteredMsgs);
+            messagesFetched = true;
           }
         } catch (err: any) {
           if (isConnectionError(err)) {
-            console.warn("⚠️ Excepción de red en mensajes:", err.message || err);
+            setMessages(loadFromLocalStorage('messages', []));
+            messagesFetched = true;
           } else {
             console.error("Unhandled messages exception:", err);
           }
         }
+        if (!messagesFetched) {
+          setMessages([]);
+        }
 
         // 7. Fetch transactions from Supabase
+        let txFetched = false;
         try {
           console.log("💳 Fetching transactions from Supabase...");
           const { data: dbTx, error: txErr } = await supabase.from('transactions').select('*');
           if (txErr) {
-            console.warn("Could not load transactions table yet:", txErr.message);
+            if (isConnectionError(txErr)) {
+              setTransactions(loadFromLocalStorage('transactions', []));
+              txFetched = true;
+            } else {
+              console.warn("Could not load transactions table yet:", txErr.message);
+            }
           } else if (dbTx) {
             console.log(`✅ Loaded ${dbTx.length} transactions from Supabase.`);
             setTransactions(dbTx.map(mapPaymentTransactionFromDb).filter(Boolean) as PaymentTransaction[]);
+            txFetched = true;
           }
         } catch (err: any) {
           if (isConnectionError(err)) {
-            console.warn("⚠️ Excepción de red en transacciones:", err.message || err);
+            setTransactions(loadFromLocalStorage('transactions', []));
+            txFetched = true;
           } else {
             console.error("Unhandled transactions exception:", err);
           }
         }
+        if (!txFetched) {
+          setTransactions([]);
+        }
 
         // 8. Fetch reviews from Supabase
+        let reviewsFetched = false;
         try {
           console.log("⭐ Fetching reviews from Supabase...");
           const { data: dbReviews, error: revErr } = await supabase.from('reviews').select('*');
           if (revErr) {
-            console.warn("Could not load reviews table yet:", revErr.message);
+            if (isConnectionError(revErr)) {
+              setReviews(loadFromLocalStorage('reviews', []));
+              reviewsFetched = true;
+            } else {
+              console.warn("Could not load reviews table yet:", revErr.message);
+            }
           } else if (dbReviews) {
             console.log(`✅ Loaded ${dbReviews.length} reviews from Supabase.`);
             setReviews(dbReviews.map(mapReviewFromDb).filter(Boolean) as Review[]);
+            reviewsFetched = true;
           }
         } catch (err: any) {
           if (isConnectionError(err)) {
-            console.warn("⚠️ Excepción de red en opiniones:", err.message || err);
+            setReviews(loadFromLocalStorage('reviews', []));
+            reviewsFetched = true;
           } else {
             console.error("Unhandled reviews exception:", err);
           }
         }
+        if (!reviewsFetched) {
+          setReviews([]);
+        }
 
         // 9. Fetch room price variations from Supabase
+        let variationsFetched = false;
         try {
           console.log("📈 Fetching room price variations from Supabase...");
           const { data: dbVar, error: varErr } = await supabase.from('room_price_variations').select('*');
           if (varErr) {
-            console.warn("Could not load room_price_variations table yet:", varErr.message);
+            if (isConnectionError(varErr)) {
+              setRoomPriceVariations(loadFromLocalStorage('roomPriceVariations', []));
+              variationsFetched = true;
+            } else {
+              console.warn("Could not load room_price_variations table yet:", varErr.message);
+            }
           } else if (dbVar) {
             console.log(`✅ Loaded ${dbVar.length} room price variations from Supabase.`);
             setRoomPriceVariations(dbVar.map(mapRoomPriceVariationFromDb).filter(Boolean) as RoomPriceVariation[]);
+            variationsFetched = true;
           }
         } catch (err: any) {
           if (isConnectionError(err)) {
-            console.warn("⚠️ Excepción de red en variaciones de precio:", err.message || err);
+            setRoomPriceVariations(loadFromLocalStorage('roomPriceVariations', []));
+            variationsFetched = true;
           } else {
             console.error("Unhandled price variations exception:", err);
           }
+        }
+        if (!variationsFetched) {
+          setRoomPriceVariations([]);
         }
 
         // 10. Auto-clean expired live chat messages (>24h) and audit logs (>30 days) on Supabase
