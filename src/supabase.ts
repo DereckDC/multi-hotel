@@ -216,7 +216,9 @@ export function mapHotelToDb(hotel: Hotel): any {
     tipoEstablecimiento: hotel.tipoEstablecimiento || 'hotel',
     finalidad: hotel.finalidad || null,
     propietario: hotel.propietario || null,
-    detallesInmueble: hotel.detallesInmueble || null
+    detallesInmueble: hotel.detallesInmueble || null,
+    provincia: hotel.provincia || null,
+    ciudad: hotel.ciudad || null
   };
   return {
     id: hotel.id,
@@ -233,7 +235,9 @@ export function mapHotelToDb(hotel: Hotel): any {
     horarios: hotel.horarios || { checkIn: "15:00", checkOut: "12:00" },
     contacto: contactoDb,
     redessociales: hotel.redesSociales || {},
-    estado: hotel.estado || 'activo'
+    estado: hotel.estado || 'activo',
+    provincia: hotel.provincia || null,
+    ciudad: hotel.ciudad || null
   };
 }
 
@@ -245,6 +249,8 @@ export function mapHotelFromDb(db: any): Hotel {
   const finalidad = contacto.finalidad || db.finalidad || null;
   const propietario = contacto.propietario || db.propietario || null;
   const detallesInmueble = contacto.detallesInmueble || db.detallesInmueble || null;
+  const provincia = db.provincia || contacto.provincia || '';
+  const ciudad = db.ciudad || contacto.ciudad || '';
   return {
     id: db.id,
     nombre: db.nombre,
@@ -265,7 +271,9 @@ export function mapHotelFromDb(db: any): Hotel {
     tipoEstablecimiento: tipoEstablecimiento,
     finalidad: finalidad,
     propietario: propietario,
-    detallesInmueble: detallesInmueble
+    detallesInmueble: detallesInmueble,
+    provincia: provincia,
+    ciudad: ciudad
   };
 }
 

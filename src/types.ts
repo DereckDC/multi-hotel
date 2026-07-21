@@ -45,6 +45,8 @@ export interface Hotel {
     checkIn: string;
     checkOut: string;
   };
+  provincia?: string;
+  ciudad?: string;
   contacto: {
     telefono: string;
     email: string;

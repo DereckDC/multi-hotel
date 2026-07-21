@@ -50,6 +50,8 @@ CREATE TABLE public.hotels (
   redesSociales JSONB DEFAULT '{"facebook": "", "instagram": "", "twitter": ""}'::jsonb,
   estado TEXT DEFAULT 'activo' CHECK (estado IN ('activo', 'inactivo', 'mantenimiento')),
   tipoEstablecimiento TEXT DEFAULT 'hotel' CHECK (tipoEstablecimiento IN ('hotel', 'propiedad')),
+  provincia VARCHAR(255),
+  ciudad VARCHAR(255),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -499,11 +501,4 @@ VALUES
 
 ('room-301', 'hotel-3', 'C-1', 'Cabaña Eco-Familiar Río', 'Cabaña construida de bambú y madera fina. Deck privado suspendido sobre el río con hamacas artesanales.', 95.00, 4, 3, 'Triple', ARRAY['https://images.unsplash.com/photo-1470770841072-f978cf4d019e?w=800'], ARRAY['Hamacas Exteriores', 'Mosquiteros de Diseño', 'Ventilador Silencioso', 'Balcón con Vista al Río', 'Luz Solar Autónoma'], 'disponible', true),
 ('room-302', 'hotel-3', 'C-2', 'Cabaña Nido de Amor', 'Diseño íntimo de domo rústico rodeado de orquídeas salvajes, con claraboya para observar las estrellas por la noche.', 80.00, 2, 1, 'Estándar', ARRAY['https://images.unsplash.com/photo-1432318629947-4c2725a058c3?w=800'], ARRAY['Claraboya Astronómica', 'Ducha Abierta Ecológica', 'Cama King de Bambú', 'Terraza Privada'], 'disponible', true)
-ON CONFLICT (id) DO NOTHING;
-
--- 7.3 Insertar Usuario Super Admin Inicial (Dereck Cisneros)
-INSERT INTO public.users (id, nombre, apellido, email, telefono, documento, avatar, rol, fecharegistro, estado, debecambiarpassword)
-VALUES 
-('user-superadmin', 'Dereck', 'Cisneros', 'destructordereck@gmail.com', '0998596597', '2450397340', 
- 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150', 'super_admin', '2026-06-03', 'activo', false)
 ON CONFLICT (id) DO NOTHING;

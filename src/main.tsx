@@ -12,20 +12,32 @@ if (typeof window !== 'undefined') {
     console.log("Captured blocking alert and converted to custom safe event:", message);
   };
 
+  const isIgnoredError = (msg: string, stack: string) => {
+    const lowerMsg = (msg || '').toLowerCase();
+    const lowerStack = (stack || '').toLowerCase();
+    return (
+      lowerMsg.includes('metamask') || 
+      lowerMsg.includes('ethereum') || 
+      lowerMsg.includes('web3') || 
+      lowerMsg.includes('failed to fetch') || 
+      lowerMsg.includes('failed to connect') ||
+      lowerStack.includes('metamask') || 
+      lowerStack.includes('ethereum') ||
+      lowerStack.includes('web3') ||
+      lowerStack.includes('failed to fetch')
+    );
+  };
+
   window.addEventListener('error', (event) => {
-    const errorMsg = event.message || '';
+    const errorMsg = event.message || event.error?.message || '';
     const errorStack = event.error?.stack || '';
-    if (
-      errorMsg.includes('MetaMask') || 
-      errorMsg.includes('ethereum') || 
-      errorMsg.includes('Failed to fetch') || 
-      errorStack.includes('MetaMask') || 
-      errorStack.includes('ethereum') ||
-      errorStack.includes('Failed to fetch')
-    ) {
-      console.warn('⚠️ Injected background connection issue caught & handled gracefully by Roomia PMS framework:', errorMsg);
+    if (isIgnoredError(errorMsg, errorStack)) {
+      console.warn('⚠️ Extension / background connection issue handled gracefully:', errorMsg);
       event.preventDefault();
       event.stopPropagation();
+      if (typeof event.stopImmediatePropagation === 'function') {
+        event.stopImmediatePropagation();
+      }
     }
   }, true);
 
@@ -33,17 +45,13 @@ if (typeof window !== 'undefined') {
     const reason = event.reason;
     const errorMsg = reason?.message || String(reason || '');
     const errorStack = reason?.stack || '';
-    if (
-      errorMsg.includes('MetaMask') || 
-      errorMsg.includes('ethereum') || 
-      errorMsg.includes('Failed to fetch') || 
-      errorStack.includes('MetaMask') || 
-      errorStack.includes('ethereum') ||
-      errorStack.includes('Failed to fetch')
-    ) {
-      console.warn('⚠️ Under-the-hood background network or mock wallet rejection handled gracefully:', errorMsg);
+    if (isIgnoredError(errorMsg, errorStack)) {
+      console.warn('⚠️ Background network or extension rejection handled gracefully:', errorMsg);
       event.preventDefault();
       event.stopPropagation();
+      if (typeof event.stopImmediatePropagation === 'function') {
+        event.stopImmediatePropagation();
+      }
     }
   }, true);
 }
