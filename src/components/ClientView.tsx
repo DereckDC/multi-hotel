@@ -319,9 +319,10 @@ export default function ClientView({
 
   const filteredHotels = hotels
     .filter(h => {
-      if (h.estado !== 'activo') return false;
-      // Explora Hoteles should only return hotels
-      if (h.tipoEstablecimiento !== 'hotel') return false;
+      if (h.estado && h.estado !== 'activo') return false;
+      // Explora Hoteles should only return hotels (defaulting to hotel if not specified)
+      const type = h.tipoEstablecimiento || 'hotel';
+      if (type !== 'hotel') return false;
       
       // Location filter (Provincia)
       if (provinciaFilter !== 'todas') {
@@ -359,7 +360,7 @@ export default function ClientView({
 
   const filteredProperties = hotels
     .filter(h => {
-      if (h.estado !== 'activo') return false;
+      if (h.estado && h.estado !== 'activo') return false;
       // Explora Propiedades should return casas & departamentos
       if (h.tipoEstablecimiento !== 'casa' && h.tipoEstablecimiento !== 'departamento') return false;
       

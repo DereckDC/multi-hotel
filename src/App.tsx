@@ -549,7 +549,7 @@ export default function App() {
               <span>Estableciendo Conexión</span>
             </h2>
             <p className="text-xs text-slate-400">
-              Sincronizando base de datos en tiempo real con Supabase...
+              Sincronizando base de datos en tiempo real...
             </p>
           </div>
         </div>
