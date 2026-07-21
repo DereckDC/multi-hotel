@@ -134,6 +134,28 @@ export default function App() {
     };
   }, []);
 
+  // Listen to Supabase auth state changes to synchronize active user session and isLoggedOut status
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log(`🔑 Supabase Auth Event: ${event}`);
+      if (session?.user) {
+        // Authenticated
+        localStorage.setItem('aura_hotel_pms_current_user_id', JSON.stringify(session.user.id));
+        switchSessionUser(session.user.id);
+        setIsLoggedOut(false);
+      } else {
+        // Logged out
+        localStorage.removeItem('aura_hotel_pms_current_user_id');
+        switchSessionUser('');
+        setIsLoggedOut(true);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [switchSessionUser]);
+
   // Left Sidebar Menu navigation state variables
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarHovered, setSidebarHovered] = useState(false);
