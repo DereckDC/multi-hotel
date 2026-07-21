@@ -513,13 +513,24 @@ export default function AdminView({
   const handleRoomSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingRoom) return;
-    
-    // If room status changed, call the dedicated hook to alert active guests and create logs
-    if (originalRoomStatus && editingRoom.estado !== originalRoomStatus && onUpdateRoomStatus) {
-      onUpdateRoomStatus(editingRoom.id, editingRoom.estado, activeUser.nombre, activeUser.rol, roomStatusChangeReason);
+
+    const targetHotelId = editingRoom.hotelId || allowedOnlyHotels[0]?.id || hotels[0]?.id || '';
+    if (!targetHotelId) {
+      alert("Debes seleccionar o crear primero un hotel/establecimiento antes de agregar habitaciones.");
+      return;
     }
 
-    onSaveRoom(editingRoom);
+    const roomToSave = {
+      ...editingRoom,
+      hotelId: targetHotelId
+    };
+
+    // If room status changed, call the dedicated hook to alert active guests and create logs
+    if (originalRoomStatus && roomToSave.estado !== originalRoomStatus && onUpdateRoomStatus) {
+      onUpdateRoomStatus(roomToSave.id, roomToSave.estado, activeUser.nombre, activeUser.rol, roomStatusChangeReason);
+    }
+
+    onSaveRoom(roomToSave);
     setShowRoomModal(false);
     setEditingRoom(null);
   };
@@ -640,7 +651,7 @@ export default function AdminView({
   const startCreateRoom = () => {
     setEditingRoom({
       id: `room-${Date.now()}`,
-      hotelId: allowedOnlyHotels[0]?.id || '',
+      hotelId: allowedOnlyHotels[0]?.id || hotels[0]?.id || '',
       numero: '',
       nombre: '',
       descripcion: '',

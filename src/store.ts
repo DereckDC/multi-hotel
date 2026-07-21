@@ -1076,27 +1076,37 @@ export function useHotelStore() {
 
   // --- CRUD ROOMS ---
   const saveRoom = async (room: Room) => {
+    let validatedRoom = { ...room };
+    if (!validatedRoom.hotelId && hotels.length > 0) {
+      validatedRoom.hotelId = hotels[0].id;
+    }
+
     setRooms(prev => {
-      const exists = prev.some(r => r.id === room.id);
+      const exists = prev.some(r => r.id === validatedRoom.id);
       if (exists) {
-        return prev.map(r => r.id === room.id ? room : r);
+        return prev.map(r => r.id === validatedRoom.id ? validatedRoom : r);
       } else {
-        return [...prev, room];
+        return [...prev, validatedRoom];
       }
     });
 
     try {
-      await syncRoomToSupabase(room);
+      const result = await syncRoomToSupabase(validatedRoom);
+      if (!result.success) {
+        console.error("❌ Error al guardar habitación en Supabase:", result.error);
+      } else {
+        console.log("✅ Habitación guardada exitosamente en Supabase:", validatedRoom.id);
+      }
     } catch (err) {
       console.warn("Supabase saveRoom sync error:", err);
     }
 
-    const parentHotel = hotels.find(h => h.id === room.hotelId);
+    const parentHotel = hotels.find(h => h.id === validatedRoom.hotelId);
     addLog(
       `${activeUser.nombre} ${activeUser.apellido}`,
       activeUser.rol,
       'Guardar Habitación',
-      `Habitación N° ${room.numero} (${room.nombre}) en ${parentHotel?.nombre || 'hotel'} guardada.`
+      `Habitación N° ${validatedRoom.numero} (${validatedRoom.nombre}) en ${parentHotel?.nombre || 'hotel'} guardada.`
     );
   };
 

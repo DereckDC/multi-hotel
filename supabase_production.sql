@@ -65,10 +65,10 @@ CREATE TABLE public.rooms (
   precio NUMERIC NOT NULL CHECK (precio >= 0),
   capacidad INTEGER NOT NULL CHECK (capacidad > 0),
   camas INTEGER NOT NULL DEFAULT 1 CHECK (camas > 0),
-  tipo TEXT NOT NULL CHECK (tipo IN ('Estándar', 'Doble', 'Triple', 'Suite', 'Suite Presidencial')),
+  tipo TEXT NOT NULL DEFAULT 'Estándar',
   imagenes TEXT[] DEFAULT '{}',
   servicios TEXT[] DEFAULT '{}',
-  estado TEXT NOT NULL DEFAULT 'disponible' CHECK (estado IN ('disponible', 'ocupado', 'mantenimiento', 'limpieza')),
+  estado TEXT NOT NULL DEFAULT 'disponible' CHECK (estado IN ('disponible', 'reservado', 'ocupado', 'mantenimiento', 'limpieza')),
   adicionar_iva BOOLEAN NOT NULL DEFAULT TRUE, -- Aplica IVA al subtotal de la reserva
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
