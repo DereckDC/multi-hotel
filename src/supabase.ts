@@ -32,6 +32,13 @@ const getSanitizedEnv = () => {
   url = cleanEnvValue(url);
   key = cleanEnvValue(key);
 
+  if (!url) {
+    url = 'https://fyreapnukipdvcebvokj.supabase.co';
+  }
+  if (!key) {
+    key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ5cmVhcG51a2lwZHZjZWJ2b2tqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ1OTcwMTIsImV4cCI6MjEwMDE3MzAxMn0.diZTbHx-8jDDGSJEG34ae1-HD-i_PLY-RWsCQUxlNAU';
+  }
+
   return { url, key };
 };
 
@@ -500,16 +507,38 @@ export async function syncHotelToSupabase(hotel: Hotel): Promise<{ success: bool
  */
 export async function syncRoomToSupabase(room: Room): Promise<{ success: boolean; error?: string }> {
   try {
+    if (!room.id || !room.hotelId) {
+      const msg = `Identificador de habitación o de hotel faltante (Room ID: ${room.id}, Hotel ID: ${room.hotelId})`;
+      console.warn('syncRoomToSupabase validation error:', msg);
+      return { success: false, error: msg };
+    }
+
+    const payload = mapRoomToDb(room);
     const { error } = await supabase
       .from('rooms')
-      .upsert(mapRoomToDb(room));
+      .upsert(payload);
 
     if (error) {
       console.warn('Supabase syncRoom error:', error);
+      // Fallback for column casing differences (e.g. hotelid vs hotelId)
+      if (error.code === '42703') {
+        const altPayload = { ...payload };
+        if (altPayload.hotelid !== undefined) {
+          altPayload.hotelId = altPayload.hotelid;
+          delete altPayload.hotelid;
+        } else if (altPayload.hotelId !== undefined) {
+          altPayload.hotelid = altPayload.hotelId;
+          delete altPayload.hotelId;
+        }
+        const { error: retryError } = await supabase.from('rooms').upsert(altPayload);
+        if (!retryError) return { success: true };
+        return { success: false, error: retryError.message };
+      }
       return { success: false, error: error.message };
     }
     return { success: true };
   } catch (err: any) {
+    console.error('Exception in syncRoomToSupabase:', err);
     return { success: false, error: err.message || String(err) };
   }
 }
