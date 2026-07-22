@@ -149,11 +149,29 @@ export default function App() {
         localStorage.setItem('aura_hotel_pms_current_user_id', JSON.stringify(session.user.id));
         switchSessionUserRef.current(session.user.id);
         setIsLoggedOut(false);
-      } else {
-        // Logged out
+      } else if (event === 'SIGNED_OUT') {
+        // Explicitly logged out
         localStorage.removeItem('aura_hotel_pms_current_user_id');
         switchSessionUserRef.current('');
         setIsLoggedOut(true);
+      } else {
+        // Initial session or token event without session: check saved local session
+        try {
+          const saved = localStorage.getItem('aura_hotel_pms_current_user_id');
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            if (parsed) {
+              switchSessionUserRef.current(parsed);
+              setIsLoggedOut(false);
+            } else {
+              setIsLoggedOut(true);
+            }
+          } else {
+            setIsLoggedOut(true);
+          }
+        } catch {
+          setIsLoggedOut(true);
+        }
       }
     });
 

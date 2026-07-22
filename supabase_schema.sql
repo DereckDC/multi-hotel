@@ -311,84 +311,38 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- =========================================================================
--- 6. HABILITACIÓN DE ROW LEVEL SECURITY (RLS) SEGURO
+-- 6. DESACTIVACIÓN DE ROW LEVEL SECURITY (RLS) PARA SINCRONIZACIÓN COMPLETA
 -- =========================================================================
 
--- Limpieza preventiva de políticas existentes
-DROP POLICY IF EXISTS "Permitir lectura publica de hoteles" ON public.hotels;
-DROP POLICY IF EXISTS "Permitir todo a administradores sobre hoteles" ON public.hotels;
+ALTER TABLE public.hotels DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.rooms DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.users DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reservations DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.logs DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.messages DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.transactions DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.property_details DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reviews DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.room_price_variations DISABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "Permitir lectura publica de habitaciones" ON public.rooms;
-DROP POLICY IF EXISTS "Permitir todo a administradores sobre habitaciones" ON public.rooms;
-DROP POLICY IF EXISTS "Permitir actualizacion de habitaciones a recepcionistas" ON public.rooms;
-
-DROP POLICY IF EXISTS "Permitir lectura de perfiles a usuarios autenticados" ON public.users;
-DROP POLICY IF EXISTS "Permitir registro de perfil propio o por personal" ON public.users;
-DROP POLICY IF EXISTS "Permitir actualizacion de perfil propio o por personal autorizado" ON public.users;
-DROP POLICY IF EXISTS "Permitir eliminacion de perfiles solo a administradores" ON public.users;
-
-DROP POLICY IF EXISTS "Permitir lectura de reservaciones a dueno o personal" ON public.reservations;
-DROP POLICY IF EXISTS "Permitir crear reservaciones a clientes o personal" ON public.reservations;
-DROP POLICY IF EXISTS "Permitir actualizar reservaciones a dueno o personal" ON public.reservations;
-DROP POLICY IF EXISTS "Permitir eliminar reservaciones solo a administradores" ON public.reservations;
-
-DROP POLICY IF EXISTS "Permitir lectura de logs solo a super_admin" ON public.logs;
-DROP POLICY IF EXISTS "Permitir insertar logs a cualquier usuario autenticado" ON public.logs;
-
-DROP POLICY IF EXISTS "Permitir ver mensajes propios o al personal" ON public.messages;
-DROP POLICY IF EXISTS "Permitir enviar mensajes a cualquier usuario autenticado" ON public.messages;
-
-DROP POLICY IF EXISTS "Permitir ver transacciones de reservacion propia o a personal" ON public.transactions;
-DROP POLICY IF EXISTS "Permitir gestionar transacciones al personal" ON public.transactions;
-
-DROP POLICY IF EXISTS "Permitir lectura publica de detalles de propiedad" ON public.property_details;
-DROP POLICY IF EXISTS "Permitir gestionar detalles de propiedad a administradores" ON public.property_details;
-
-DROP POLICY IF EXISTS "Permitir lectura publica de reseñas" ON public.reviews;
-DROP POLICY IF EXISTS "Permitir crear reseñas a huespedes" ON public.reviews;
-DROP POLICY IF EXISTS "Permitir gestionar reseñas al autor o administradores" ON public.reviews;
-
-DROP POLICY IF EXISTS "Permitir lectura publica de tarifas dinamicas" ON public.room_price_variations;
-DROP POLICY IF EXISTS "Permitir gestionar tarifas dinamicas a administradores" ON public.room_price_variations;
-
--- Habilitación estricta de Row Level Security
-ALTER TABLE public.hotels ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.rooms ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.reservations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.logs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.property_details ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.room_price_variations ENABLE ROW LEVEL SECURITY;
-
--- Otorgar permisos de esquema y tablas a todos los roles de Supabase para evitar errores de CORS / PostgREST
-GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+-- Otorgar permisos completos a anon y authenticated
 GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
 GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated, service_role;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO anon, authenticated, service_role;
 
 -- 6.1 Políticas para public.hotels
 CREATE POLICY "Permitir lectura publica de hoteles" ON public.hotels
   FOR SELECT USING (true);
 
 CREATE POLICY "Permitir todo a administradores sobre hoteles" ON public.hotels
-  FOR ALL TO authenticated 
-  USING (public.get_my_role() IN ('super_admin', 'hotel_admin'))
-  WITH CHECK (public.get_my_role() IN ('super_admin', 'hotel_admin'));
+  FOR ALL TO authenticated USING (public.get_my_role() IN ('super_admin', 'hotel_admin'));
 
 -- 6.2 Políticas para public.rooms
 CREATE POLICY "Permitir lectura publica de habitaciones" ON public.rooms
   FOR SELECT USING (true);
 
 CREATE POLICY "Permitir todo a administradores sobre habitaciones" ON public.rooms
-  FOR ALL TO authenticated 
-  USING (public.get_my_role() IN ('super_admin', 'hotel_admin'))
-  WITH CHECK (public.get_my_role() IN ('super_admin', 'hotel_admin'));
+  FOR ALL TO authenticated USING (public.get_my_role() IN ('super_admin', 'hotel_admin'));
 
 CREATE POLICY "Permitir actualizacion de habitaciones a recepcionistas" ON public.rooms
   FOR UPDATE TO authenticated 
@@ -422,8 +376,7 @@ CREATE POLICY "Permitir crear reservaciones a clientes o personal" ON public.res
 
 CREATE POLICY "Permitir actualizar reservaciones a dueno o personal" ON public.reservations
   FOR UPDATE TO authenticated 
-  USING (guestId = auth.uid()::text OR public.get_my_role() IN ('super_admin', 'hotel_admin', 'recepcionista'))
-  WITH CHECK (guestId = auth.uid()::text OR public.get_my_role() IN ('super_admin', 'hotel_admin', 'recepcionista'));
+  USING (guestId = auth.uid()::text OR public.get_my_role() IN ('super_admin', 'hotel_admin', 'recepcionista'));
 
 CREATE POLICY "Permitir eliminar reservaciones solo a administradores" ON public.reservations
   FOR DELETE TO authenticated 
@@ -457,44 +410,28 @@ CREATE POLICY "Permitir ver transacciones de reservacion propia o a personal" ON
   );
 
 CREATE POLICY "Permitir gestionar transacciones al personal" ON public.transactions
-  FOR ALL TO authenticated 
-  USING (public.get_my_role() IN ('super_admin', 'hotel_admin', 'recepcionista'))
-  WITH CHECK (public.get_my_role() IN ('super_admin', 'hotel_admin', 'recepcionista'));
+  FOR ALL TO authenticated USING (public.get_my_role() IN ('super_admin', 'hotel_admin', 'recepcionista'));
 
 -- 6.8 Políticas para public.property_details
 CREATE POLICY "Permitir lectura publica de detalles de propiedad" ON public.property_details
   FOR SELECT USING (true);
 
 CREATE POLICY "Permitir gestionar detalles de propiedad a administradores" ON public.property_details
-  FOR ALL TO authenticated 
-  USING (public.get_my_role() IN ('super_admin', 'hotel_admin'))
-  WITH CHECK (public.get_my_role() IN ('super_admin', 'hotel_admin'));
+  FOR ALL TO authenticated USING (public.get_my_role() IN ('super_admin', 'hotel_admin'));
 
 -- 6.9 Políticas para public.reviews
 CREATE POLICY "Permitir lectura publica de reseñas" ON public.reviews
   FOR SELECT USING (true);
 
 CREATE POLICY "Permitir crear reseñas a huespedes" ON public.reviews
-  FOR INSERT TO authenticated WITH CHECK (guest_id = auth.uid()::text OR public.get_my_role() IN ('super_admin', 'hotel_admin'));
+  FOR INSERT TO authenticated WITH CHECK (guest_id = auth.uid()::text);
 
 CREATE POLICY "Permitir gestionar reseñas al autor o administradores" ON public.reviews
-  FOR ALL TO authenticated 
-  USING (guest_id = auth.uid()::text OR public.get_my_role() IN ('super_admin', 'hotel_admin'))
-  WITH CHECK (guest_id = auth.uid()::text OR public.get_my_role() IN ('super_admin', 'hotel_admin'));
+  FOR ALL TO authenticated USING (guest_id = auth.uid()::text OR public.get_my_role() IN ('super_admin', 'hotel_admin'));
 
 -- 6.10 Políticas para public.room_price_variations
 CREATE POLICY "Permitir lectura publica de tarifas dinamicas" ON public.room_price_variations
   FOR SELECT USING (true);
 
 CREATE POLICY "Permitir gestionar tarifas dinamicas a administradores" ON public.room_price_variations
-  FOR ALL TO authenticated 
-  USING (public.get_my_role() IN ('super_admin', 'hotel_admin'))
-  WITH CHECK (public.get_my_role() IN ('super_admin', 'hotel_admin'));
-
--- =========================================================================
--- 7. NOTA DE REGISTROS DE SEMILLA (PRODUCCIÓN REAL)
--- =========================================================================
--- Los datos iniciales de demostración han sido omitidos para producción real,
--- garantizando que la base de datos contenga únicamente los establecimientos,
--- habitaciones y usuarios creados legítimamente por los administradores.
-
+  FOR ALL TO authenticated USING (public.get_my_role() IN ('super_admin', 'hotel_admin'));
