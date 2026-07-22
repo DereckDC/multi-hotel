@@ -363,10 +363,14 @@ ALTER TABLE public.property_details ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.room_price_variations ENABLE ROW LEVEL SECURITY;
 
--- Otorgar permisos de esquema a roles de Supabase
+-- Otorgar permisos de esquema y tablas a todos los roles de Supabase para evitar errores de CORS / PostgREST
+GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
 GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
 GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO anon, authenticated, service_role;
 
 -- 6.1 Políticas para public.hotels
 CREATE POLICY "Permitir lectura publica de hoteles" ON public.hotels
