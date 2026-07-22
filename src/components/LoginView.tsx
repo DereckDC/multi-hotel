@@ -8,6 +8,7 @@ import { User } from '../types';
 import { Mail, Sparkles, Check, Chrome, ShieldAlert, KeyRound, Loader2, ArrowRight, Inbox, RefreshCw, LogOut, Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase, syncUserToSupabase, mapUserFromDb } from '../supabase';
+import { INITIAL_USERS } from '../seedData';
 import { getApiBaseUrl } from '../store';
 import { BrandLogo } from './BrandLogo';
 

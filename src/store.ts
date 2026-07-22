@@ -131,12 +131,8 @@ export function compressImage(base64: string, maxWidth = 1000, maxHeight = 1000,
 export function loadFromLocalStorage<T>(key: string, defaultValue: T): T {
   try {
     const item = localStorage.getItem(key);
-    if (!item) return defaultValue;
-    const parsed = JSON.parse(item);
-    if (Array.isArray(defaultValue) && defaultValue.length > 0 && Array.isArray(parsed) && parsed.length === 0) {
-      return defaultValue;
-    }
-    return parsed;
+    if (item === null || item === undefined) return defaultValue;
+    return JSON.parse(item);
   } catch (error) {
     console.error('Error loading key: ', key, error);
     return defaultValue;
@@ -378,18 +374,17 @@ export function useHotelStore() {
             supabase.from('room_price_variations').select('*')
           ]);
 
-          if (hotelsRes.status === 'fulfilled' && hotelsRes.value.data && hotelsRes.value.data.length > 0) {
+          if (hotelsRes.status === 'fulfilled' && hotelsRes.value.data) {
             const mappedHotels = hotelsRes.value.data.map(mapHotelFromDb).filter(Boolean) as Hotel[];
-            setHotels(mappedHotels.length > 0 ? sanitizeHotels(mappedHotels) : sanitizeHotels(INITIAL_HOTELS));
-          } else {
-            setHotels(prev => (prev && prev.length > 0 ? prev : sanitizeHotels(INITIAL_HOTELS)));
+            const sanitized = sanitizeHotels(mappedHotels);
+            setHotels(sanitized);
+            try { localStorage.setItem(KEYS.HOTELS, JSON.stringify(sanitized)); } catch (e) {}
           }
 
-          if (roomsRes.status === 'fulfilled' && roomsRes.value.data && roomsRes.value.data.length > 0) {
+          if (roomsRes.status === 'fulfilled' && roomsRes.value.data) {
             const mappedRooms = roomsRes.value.data.map(mapRoomFromDb).filter(Boolean) as Room[];
-            setRooms(mappedRooms.length > 0 ? mappedRooms : INITIAL_ROOMS);
-          } else {
-            setRooms(prev => (prev && prev.length > 0 ? prev : INITIAL_ROOMS));
+            setRooms(mappedRooms);
+            try { localStorage.setItem(KEYS.ROOMS, JSON.stringify(mappedRooms)); } catch (e) {}
           }
           if (reviewsRes.status === 'fulfilled' && reviewsRes.value.data) {
             setReviews(reviewsRes.value.data.map(mapReviewFromDb).filter(Boolean) as Review[]);
@@ -463,20 +458,19 @@ export function useHotelStore() {
       .channel('schema-db-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'hotels' }, async () => {
         const { data } = await supabase.from('hotels').select('*');
-        if (data && data.length > 0) {
+        if (data) {
           const mapped = data.map(mapHotelFromDb).filter(Boolean) as Hotel[];
-          setHotels(mapped.length > 0 ? sanitizeHotels(mapped) : sanitizeHotels(INITIAL_HOTELS));
-        } else if (data && data.length === 0) {
-          setHotels(sanitizeHotels(INITIAL_HOTELS));
+          const sanitized = sanitizeHotels(mapped);
+          setHotels(sanitized);
+          try { localStorage.setItem(KEYS.HOTELS, JSON.stringify(sanitized)); } catch (e) {}
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms' }, async () => {
         const { data } = await supabase.from('rooms').select('*');
-        if (data && data.length > 0) {
+        if (data) {
           const mapped = data.map(mapRoomFromDb).filter(Boolean) as Room[];
-          setRooms(mapped.length > 0 ? mapped : INITIAL_ROOMS);
-        } else if (data && data.length === 0) {
-          setRooms(INITIAL_ROOMS);
+          setRooms(mapped);
+          try { localStorage.setItem(KEYS.ROOMS, JSON.stringify(mapped)); } catch (e) {}
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, async () => {
@@ -524,53 +518,21 @@ export function useHotelStore() {
     };
   }, [currentUserId]);
 
-  // Trigger auto-initialization bootstrap check of database on startup
+  // Trigger auto-initialization bootstrap check of super admin on startup
   useEffect(() => {
     const bootstrapSupabaseData = async () => {
       try {
-        const { data: hCountData, error: hErr } = await supabase.from('hotels').select('id');
-        if (hErr) {
-          console.warn("Could not interface with 'hotels' table:", hErr);
-          return;
-        }
+        const { data: matchedAdmin, error: adminErr } = await supabase
+          .from('users')
+          .select('*')
+          .eq('rol', 'super_admin')
+          .limit(1)
+          .maybeSingle();
 
-        if (!hCountData || hCountData.length === 0) {
-          console.log("Database is empty. Initiating bulk seeding...");
-          try {
-            await Promise.allSettled([
-              supabase.from('hotels').upsert(INITIAL_HOTELS.map(mapHotelToDb)),
-              supabase.from('rooms').upsert(INITIAL_ROOMS.map(mapRoomToDb)),
-              supabase.from('users').upsert(INITIAL_USERS.map(mapUserToDb)),
-              supabase.from('reservations').upsert(INITIAL_RESERVATIONS.map(mapReservationToDb))
-            ]);
-            console.log("Bulk seeding successfully completed!");
-            
-            // Refresh state
-            const [hRes, rRes] = await Promise.allSettled([
-              supabase.from('hotels').select('*'),
-              supabase.from('rooms').select('*')
-            ]);
-            if (hRes.status === 'fulfilled' && hRes.value.data && hRes.value.data.length > 0) {
-              setHotels(sanitizeHotels(hRes.value.data.map(mapHotelFromDb).filter(Boolean) as Hotel[]));
-            }
-            if (rRes.status === 'fulfilled' && rRes.value.data && rRes.value.data.length > 0) {
-              setRooms(rRes.value.data.map(mapRoomFromDb).filter(Boolean) as Room[]);
-            }
-          } catch (seedErr) {
-            console.warn("Seeding exception:", seedErr);
-          }
-        } else {
-          // Double check super admin
-          const { data: matchedAdmin, error: adminErr } = await supabase
-            .from('users')
-            .select('*')
-            .eq('rol', 'super_admin')
-            .limit(1)
-            .maybeSingle();
-
-          if (adminErr || !matchedAdmin) {
-            console.log("Super Admin not found in DB. Inserting seed admin...");
-            const superAdminObj = INITIAL_USERS[0];
+        if (adminErr || !matchedAdmin) {
+          console.log("Super Admin not found in DB. Inserting seed admin...");
+          const superAdminObj = INITIAL_USERS[0];
+          if (superAdminObj) {
             await syncUserToSupabase(superAdminObj);
           }
         }
@@ -597,33 +559,7 @@ export function useHotelStore() {
 
   const activeUser = currentUserId
     ? (users && users.find(u => u.id === currentUserId)) || activeUserFallback
-    : null;
-
-  // Self-healing database mechanism: when a Super Admin session is active,
-  // we automatically detect if any seed hotels are missing from Supabase while there are active rooms
-  // that belong to them, and write them back securely to ensure consistency.
-  useEffect(() => {
-    if (activeUser && activeUser.rol === 'super_admin' && hotels.length > 0 && rooms.length > 0) {
-      const healDatabase = async () => {
-        try {
-          const inconsistentHotelIds = Array.from(new Set(rooms.map(r => r.hotelId))).filter(id => !hotels.some(h => h.id === id));
-          if (inconsistentHotelIds.length > 0) {
-            console.log("Super Admin active: Self-healing missing seed hotels in Supabase: ", inconsistentHotelIds);
-            const hotelsToHeal = INITIAL_HOTELS.filter(h => inconsistentHotelIds.includes(h.id));
-            if (hotelsToHeal.length > 0) {
-              for (const h of hotelsToHeal) {
-                await syncHotelToSupabase(h);
-              }
-              console.log("Successfully restored missing seed hotels from super_admin authority on Supabase.");
-            }
-          }
-        } catch (error) {
-          console.warn("Self-healing database routine skipped/failed on Supabase: ", error);
-        }
-      };
-      healDatabase();
-    }
-  }, [activeUser, hotels, rooms]);
+    : activeUserFallback;
 
   const addLog = async (user: string, role: string, action: string, detalles: string) => {
     const newLog: ActivityLog = {
@@ -1299,6 +1235,16 @@ El Equipo de Hospitalidad de Roomia PMS.`;
 
   // --- FLOW RESERVATIONS ---
   const createReservation = async (newRes: Reservation) => {
+    const parentHotel = hotels.find(h => h.id === newRes.hotelId);
+    const room = rooms.find(r => r.id === newRes.roomId);
+
+    if (!parentHotel) {
+      throw new Error("El establecimiento o propiedad seleccionada no existe o ha sido eliminada de la base de datos.");
+    }
+    if (!room) {
+      throw new Error("La habitación o unidad seleccionada no existe o ha sido eliminada de la base de datos.");
+    }
+
     setReservations(prev => {
       const exists = prev.some(r => r.id === newRes.id);
       if (exists) {
@@ -1318,8 +1264,6 @@ El Equipo de Hospitalidad de Roomia PMS.`;
       console.warn("Supabase createReservation sync error:", err);
     }
 
-    const parentHotel = hotels.find(h => h.id === newRes.hotelId);
-    const room = rooms.find(r => r.id === newRes.roomId);
     const guestUser = users.find(u => u.id === newRes.guestId);
 
     addLog(

@@ -414,7 +414,10 @@ export default function ClientView({
     return true;
   });
 
-  const myReservations = reservations.filter(r => r.guestId === activeUser.id && !r.eliminadaPorCliente);
+  const myReservations = reservations.filter(r => {
+    if (r.guestId !== activeUser.id || r.eliminadaPorCliente) return false;
+    return hotels.some(h => h.id === r.hotelId);
+  });
 
   // Calculate booking cost
   const getNightsCount = () => {
