@@ -1066,6 +1066,7 @@ export default function App() {
                           onTriggerBookingAuth={() => setShowAuthModal(true)}
                           activeTab={clientTab}
                           onActiveTabChange={setClientTab}
+                          onRefreshCatalog={store.refreshCatalogFromSupabase}
                         />
                       ) : (
                         <>
@@ -1089,6 +1090,7 @@ export default function App() {
                               roomPriceVariations={roomPriceVariations}
                               activeTab={clientTab}
                               onActiveTabChange={setClientTab}
+                              onRefreshCatalog={store.refreshCatalogFromSupabase}
                             />
                           )}
 
