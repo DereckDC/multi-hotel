@@ -5,7 +5,6 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Hotel, Room, User, Reservation, RoomStatus, ReservationStatus, UserRole, ChatMessage, PaymentTransaction, Review, RoomPriceVariation } from './types';
-import { INITIAL_HOTELS, INITIAL_ROOMS, INITIAL_USERS, INITIAL_RESERVATIONS } from './seedData';
 import {
   supabase,
   syncHotelToSupabase,
@@ -15,9 +14,13 @@ import {
   syncLogToSupabase,
   deleteRowFromSupabase,
   mapHotelFromDb,
+  mapHotelToDb,
   mapRoomFromDb,
+  mapRoomToDb,
   mapUserFromDb,
+  mapUserToDb,
   mapReservationFromDb,
+  mapReservationToDb,
   syncChatMessageToSupabase,
   syncPaymentTransactionToSupabase,
   mapChatMessageFromDb,
@@ -131,7 +134,7 @@ export function compressImage(base64: string, maxWidth = 1000, maxHeight = 1000,
 export function loadFromLocalStorage<T>(key: string, defaultValue: T): T {
   try {
     const item = localStorage.getItem(key);
-    if (item === null || item === undefined) return defaultValue;
+    if (!item) return defaultValue;
     return JSON.parse(item);
   } catch (error) {
     console.error('Error loading key: ', key, error);
@@ -221,41 +224,18 @@ export function saveToLocalStorage<T>(key: string, value: T): void {
   }
 }
 
-export const DEFAULT_DETAILED_SERVICES_MAP: Record<string, any[]> = {
-  'hotel-1': [
-    { id: 'srv-1-1', nombre: 'Alimentación Completa (3 comidas/día)', precio: 15, descripcion: 'Incluye desayuno buffet premium, almuerzo a la carta y cena gourmet de 3 tiempos.', estado: 'activo' },
-    { id: 'srv-1-2', nombre: 'Pase de Spa de Lujo & Masaje', precio: 40, descripcion: 'Acceso a baños turcos, tinajas temperadas y un masaje descontracturante de 45 minutos.', estado: 'activo' },
-    { id: 'srv-1-3', nombre: 'Tour Histórico de la Ciudad', precio: 20, descripcion: 'Recorrido privado de medio día a pie guiado por expertos locales.', estado: 'activo' }
-  ],
-  'hotel-2': [
-    { id: 'srv-2-1', nombre: 'Pensión Gourmet de Trabajo (3 comidas)', precio: 12, descripcion: 'Comidas de especialidad preparadas por nutricionistas en el coworking café.', estado: 'activo' },
-    { id: 'srv-2-2', nombre: 'Alquiler Diario de Bicicleta Eléctrica', precio: 10, descripcion: 'Unidades premium con batería de alto rendimiento e indicador de ruta inteligente.', estado: 'activo' },
-    { id: 'srv-2-3', nombre: 'Pase Sunset Yoga & Meditación', precio: 8, descripcion: 'Sesión relajante al atardecer en nuestra terraza tropical con bebida de cortesía.', estado: 'activo' }
-  ],
-  'hotel-3': [
-    { id: 'srv-3-1', nombre: 'Cesta Gastronómica de Campo (3 comidas)', precio: 18, descripcion: 'Deliciosas preparaciones campestres traídas calientes directamente a tu cabaña.', estado: 'activo' },
-    { id: 'srv-3-2', nombre: 'Navegación Guiada en Lago Glaciar', precio: 35, descripcion: 'Paseo exclusivo en velero por la costa norte con tablas de fiambres y vinos.', estado: 'activo' },
-    { id: 'srv-3-3', nombre: 'Reserva de Tinaja Ecológica Privada', precio: 25, descripcion: 'Tina exterior temperada a leña con hierbas aromáticas y velas por 1 hora.', estado: 'activo' }
-  ]
-};
-
 export const sanitizeHotels = (list: Hotel[]): Hotel[] => {
-  return list.map(h => {
-    const defaultServices = DEFAULT_DETAILED_SERVICES_MAP[h.id] || [];
-    return {
-      ...h,
-      serviciosDetallados: h.serviciosDetallados && h.serviciosDetallados.length > 0 
-        ? h.serviciosDetallados 
-        : defaultServices
-    };
-  });
+  return (list || []).map(h => ({
+    ...h,
+    serviciosDetallados: h.serviciosDetallados || []
+  }));
 };
 
 export function useHotelStore() {
-  const [hotels, setHotels] = useState<Hotel[]>(() => sanitizeHotels(loadFromLocalStorage(KEYS.HOTELS, INITIAL_HOTELS)));
-  const [rooms, setRooms] = useState<Room[]>(() => loadFromLocalStorage(KEYS.ROOMS, INITIAL_ROOMS));
-  const [users, setUsers] = useState<User[]>(() => loadFromLocalStorage(KEYS.USERS, INITIAL_USERS));
-  const [reservations, setReservations] = useState<Reservation[]>(() => loadFromLocalStorage(KEYS.RESERVATIONS, INITIAL_RESERVATIONS));
+  const [hotels, setHotels] = useState<Hotel[]>(() => sanitizeHotels(loadFromLocalStorage(KEYS.HOTELS, [])));
+  const [rooms, setRooms] = useState<Room[]>(() => loadFromLocalStorage(KEYS.ROOMS, []));
+  const [users, setUsers] = useState<User[]>(() => loadFromLocalStorage(KEYS.USERS, []));
+  const [reservations, setReservations] = useState<Reservation[]>(() => loadFromLocalStorage(KEYS.RESERVATIONS, []));
   const [currentUserId, setCurrentUserId] = useState<string>('');
   const [isInitialSyncing, setIsInitialSyncing] = useState<boolean>(true);
   const [logs, setLogs] = useState<ActivityLog[]>([]);
@@ -376,15 +356,12 @@ export function useHotelStore() {
 
           if (hotelsRes.status === 'fulfilled' && hotelsRes.value.data) {
             const mappedHotels = hotelsRes.value.data.map(mapHotelFromDb).filter(Boolean) as Hotel[];
-            const sanitized = sanitizeHotels(mappedHotels);
-            setHotels(sanitized);
-            try { localStorage.setItem(KEYS.HOTELS, JSON.stringify(sanitized)); } catch (e) {}
+            setHotels(sanitizeHotels(mappedHotels));
           }
 
           if (roomsRes.status === 'fulfilled' && roomsRes.value.data) {
             const mappedRooms = roomsRes.value.data.map(mapRoomFromDb).filter(Boolean) as Room[];
             setRooms(mappedRooms);
-            try { localStorage.setItem(KEYS.ROOMS, JSON.stringify(mappedRooms)); } catch (e) {}
           }
           if (reviewsRes.status === 'fulfilled' && reviewsRes.value.data) {
             setReviews(reviewsRes.value.data.map(mapReviewFromDb).filter(Boolean) as Review[]);
@@ -393,54 +370,54 @@ export function useHotelStore() {
             setRoomPriceVariations(variationsRes.value.data.map(mapRoomPriceVariationFromDb).filter(Boolean) as RoomPriceVariation[]);
           }
 
-          // 2. Check auth session
-          let isAuthenticated = false;
+          // 2. Check auth session and saved user state
           try {
             const { data: { session } } = await supabase.auth.getSession();
             if (session?.user) {
-              isAuthenticated = true;
               setCurrentUserId(session.user.id);
             } else {
-              setCurrentUserId('');
+              const savedId = loadFromLocalStorage(KEYS.CURRENT_USER_ID, '');
+              if (savedId) {
+                setCurrentUserId(savedId);
+              }
             }
           } catch (e) {
             console.warn("Session check exception:", e);
           }
 
-          // 3. Fetch authenticated/user data
-          if (isAuthenticated) {
-            const [usersRes, resRes, logsRes, msgRes, txRes] = await Promise.allSettled([
-              supabase.from('users').select('*'),
-              supabase.from('reservations').select('*'),
-              supabase.from('logs').select('*'),
-              supabase.from('messages').select('*'),
-              supabase.from('transactions').select('*')
-            ]);
+          // 3. Fetch user profiles, reservations, logs, messages, and transactions from Supabase DB
+          const [usersRes, resRes, logsRes, msgRes, txRes] = await Promise.allSettled([
+            supabase.from('users').select('*'),
+            supabase.from('reservations').select('*'),
+            supabase.from('logs').select('*'),
+            supabase.from('messages').select('*'),
+            supabase.from('transactions').select('*')
+          ]);
 
-            if (usersRes.status === 'fulfilled' && usersRes.value.data && usersRes.value.data.length > 0) {
-              const mappedUsers = usersRes.value.data.map(mapUserFromDb).filter(Boolean) as User[];
-              const hasSuperAdmin = mappedUsers.some(u => u && u.rol === 'super_admin');
-              setUsers(hasSuperAdmin ? mappedUsers : [INITIAL_USERS[0], ...mappedUsers]);
-            }
-            if (resRes.status === 'fulfilled' && resRes.value.data) {
-              setReservations(resRes.value.data.map(mapReservationFromDb).filter(Boolean) as Reservation[]);
-            }
-            if (logsRes.status === 'fulfilled' && logsRes.value.data) {
-              const cutoff30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-              const filteredLogs = (logsRes.value.data as ActivityLog[]).filter(log => log.timestamp >= cutoff30d);
-              setLogs(filteredLogs.sort((a, b) => b.timestamp.localeCompare(a.timestamp)));
-            }
-            if (msgRes.status === 'fulfilled' && msgRes.value.data) {
-              const cutoff24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-              const mappedMsgs = msgRes.value.data.map(mapChatMessageFromDb).filter(Boolean) as ChatMessage[];
-              setMessages(mappedMsgs.filter(msg => msg.timestamp >= cutoff24h));
-            }
-            if (txRes.status === 'fulfilled' && txRes.value.data) {
-              setTransactions(txRes.value.data.map(mapPaymentTransactionFromDb).filter(Boolean) as PaymentTransaction[]);
-            }
-          } else {
-            // Preserve local / default users so login flow functions offline or during latency
-            setUsers(prev => prev.length > 0 ? prev : INITIAL_USERS);
+          if (usersRes.status === 'fulfilled' && usersRes.value.data) {
+            const mappedUsers = usersRes.value.data.map(mapUserFromDb).filter(Boolean) as User[];
+            setUsers(mappedUsers);
+          }
+
+          if (resRes.status === 'fulfilled' && resRes.value.data) {
+            const mappedRes = resRes.value.data.map(mapReservationFromDb).filter(Boolean) as Reservation[];
+            setReservations(mappedRes);
+          }
+
+          if (logsRes.status === 'fulfilled' && logsRes.value.data) {
+            const cutoff30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+            const filteredLogs = (logsRes.value.data as ActivityLog[]).filter(log => log.timestamp >= cutoff30d);
+            setLogs(filteredLogs.sort((a, b) => b.timestamp.localeCompare(a.timestamp)));
+          }
+
+          if (msgRes.status === 'fulfilled' && msgRes.value.data) {
+            const cutoff24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+            const mappedMsgs = msgRes.value.data.map(mapChatMessageFromDb).filter(Boolean) as ChatMessage[];
+            setMessages(mappedMsgs.filter(msg => msg.timestamp >= cutoff24h));
+          }
+
+          if (txRes.status === 'fulfilled' && txRes.value.data) {
+            setTransactions(txRes.value.data.map(mapPaymentTransactionFromDb).filter(Boolean) as PaymentTransaction[]);
           }
         } catch (err) {
           console.warn("Fast parallel fetch exception:", err);
@@ -458,20 +435,11 @@ export function useHotelStore() {
       .channel('schema-db-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'hotels' }, async () => {
         const { data } = await supabase.from('hotels').select('*');
-        if (data) {
-          const mapped = data.map(mapHotelFromDb).filter(Boolean) as Hotel[];
-          const sanitized = sanitizeHotels(mapped);
-          setHotels(sanitized);
-          try { localStorage.setItem(KEYS.HOTELS, JSON.stringify(sanitized)); } catch (e) {}
-        }
+        if (data) setHotels(sanitizeHotels(data.map(mapHotelFromDb).filter(Boolean) as Hotel[]));
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms' }, async () => {
         const { data } = await supabase.from('rooms').select('*');
-        if (data) {
-          const mapped = data.map(mapRoomFromDb).filter(Boolean) as Room[];
-          setRooms(mapped);
-          try { localStorage.setItem(KEYS.ROOMS, JSON.stringify(mapped)); } catch (e) {}
-        }
+        if (data) setRooms(data.map(mapRoomFromDb).filter(Boolean) as Room[]);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, async () => {
         const { data } = await supabase.from('users').select('*');
@@ -518,48 +486,9 @@ export function useHotelStore() {
     };
   }, [currentUserId]);
 
-  // Trigger auto-initialization bootstrap check of super admin on startup
-  useEffect(() => {
-    const bootstrapSupabaseData = async () => {
-      try {
-        const { data: matchedAdmin, error: adminErr } = await supabase
-          .from('users')
-          .select('*')
-          .eq('rol', 'super_admin')
-          .limit(1)
-          .maybeSingle();
-
-        if (adminErr || !matchedAdmin) {
-          console.log("Super Admin not found in DB. Inserting seed admin...");
-          const superAdminObj = INITIAL_USERS[0];
-          if (superAdminObj) {
-            await syncUserToSupabase(superAdminObj);
-          }
-        }
-      } catch (err) {
-        console.warn("Automatic bootstrapping error:", err);
-      }
-    };
-
-    bootstrapSupabaseData();
-  }, []);
-
-  const activeUserFallback: User = INITIAL_USERS[0] || {
-    id: 'user-superadmin',
-    nombre: 'Dereck',
-    apellido: 'Cisneros',
-    email: 'destructordereck@gmail.com',
-    telefono: '0998596597',
-    documento: '2450397340',
-    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
-    rol: 'super_admin',
-    fechaRegistro: '2026-06-03',
-    estado: 'activo'
-  };
-
   const activeUser = currentUserId
-    ? (users && users.find(u => u.id === currentUserId)) || activeUserFallback
-    : activeUserFallback;
+    ? (users && users.find(u => u && u.id === currentUserId)) || null
+    : null;
 
   const addLog = async (user: string, role: string, action: string, detalles: string) => {
     const newLog: ActivityLog = {
@@ -609,44 +538,22 @@ export function useHotelStore() {
     }
   };
 
-  // Restore factory seed states and wipe/override Supabase definitions
+  // Clear local session state
   const factoryResetAll = async () => {
     try {
       localStorage.removeItem(`${STORAGE_PREFIX}deleted_res_ids`);
+      localStorage.removeItem(KEYS.HOTELS);
+      localStorage.removeItem(KEYS.ROOMS);
+      localStorage.removeItem(KEYS.USERS);
+      localStorage.removeItem(KEYS.RESERVATIONS);
+      localStorage.removeItem(KEYS.CURRENT_USER_ID);
+      localStorage.removeItem(KEYS.LOGS);
     } catch (e) {}
-    setHotels(INITIAL_HOTELS);
-    setRooms(INITIAL_ROOMS);
-    setUsers(INITIAL_USERS);
-    setReservations(INITIAL_RESERVATIONS);
-    setCurrentUserId('user-client');
-    const resetLog = {
-      id: `log-${Date.now()}`,
-      timestamp: new Date().toISOString(),
-      user: 'Sistema',
-      role: 'super_admin' as const,
-      action: 'Reset de Fábrica',
-      detalles: 'Se han restaurado todos los valores semilla iniciales de demostración.'
-    };
-    setLogs([resetLog]);
-
-    try {
-      for (const h of INITIAL_HOTELS) {
-        await syncHotelToSupabase(h);
-      }
-      for (const r of INITIAL_ROOMS) {
-        await syncRoomToSupabase(r);
-      }
-      for (const u of INITIAL_USERS) {
-        await syncUserToSupabase(u);
-      }
-      for (const res of INITIAL_RESERVATIONS) {
-        await syncReservationToSupabase(res);
-      }
-      await syncLogToSupabase(resetLog);
-      console.log("Supabase reset/reseed completed.");
-    } catch (error) {
-      console.warn("Reset request failed to sync on Supabase:", error);
-    }
+    setHotels([]);
+    setRooms([]);
+    setUsers([]);
+    setReservations([]);
+    setCurrentUserId('');
   };
 
   // --- CRUD HOTELS ---
@@ -1235,16 +1142,6 @@ El Equipo de Hospitalidad de Roomia PMS.`;
 
   // --- FLOW RESERVATIONS ---
   const createReservation = async (newRes: Reservation) => {
-    const parentHotel = hotels.find(h => h.id === newRes.hotelId);
-    const room = rooms.find(r => r.id === newRes.roomId);
-
-    if (!parentHotel) {
-      throw new Error("El establecimiento o propiedad seleccionada no existe o ha sido eliminada de la base de datos.");
-    }
-    if (!room) {
-      throw new Error("La habitación o unidad seleccionada no existe o ha sido eliminada de la base de datos.");
-    }
-
     setReservations(prev => {
       const exists = prev.some(r => r.id === newRes.id);
       if (exists) {
@@ -1264,6 +1161,8 @@ El Equipo de Hospitalidad de Roomia PMS.`;
       console.warn("Supabase createReservation sync error:", err);
     }
 
+    const parentHotel = hotels.find(h => h.id === newRes.hotelId);
+    const room = rooms.find(r => r.id === newRes.roomId);
     const guestUser = users.find(u => u.id === newRes.guestId);
 
     addLog(

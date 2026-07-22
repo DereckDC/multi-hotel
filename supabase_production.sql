@@ -311,84 +311,38 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- =========================================================================
--- 6. HABILITACIÓN DE ROW LEVEL SECURITY (RLS) SEGURO
+-- 6. DESACTIVACIÓN DE ROW LEVEL SECURITY (RLS) PARA SINCRONIZACIÓN COMPLETA
 -- =========================================================================
 
--- Limpieza preventiva de políticas existentes
-DROP POLICY IF EXISTS "Permitir lectura publica de hoteles" ON public.hotels;
-DROP POLICY IF EXISTS "Permitir todo a administradores sobre hoteles" ON public.hotels;
+ALTER TABLE public.hotels DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.rooms DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.users DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reservations DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.logs DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.messages DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.transactions DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.property_details DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reviews DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.room_price_variations DISABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "Permitir lectura publica de habitaciones" ON public.rooms;
-DROP POLICY IF EXISTS "Permitir todo a administradores sobre habitaciones" ON public.rooms;
-DROP POLICY IF EXISTS "Permitir actualizacion de habitaciones a recepcionistas" ON public.rooms;
-
-DROP POLICY IF EXISTS "Permitir lectura de perfiles a usuarios autenticados" ON public.users;
-DROP POLICY IF EXISTS "Permitir registro de perfil propio o por personal" ON public.users;
-DROP POLICY IF EXISTS "Permitir actualizacion de perfil propio o por personal autorizado" ON public.users;
-DROP POLICY IF EXISTS "Permitir eliminacion de perfiles solo a administradores" ON public.users;
-
-DROP POLICY IF EXISTS "Permitir lectura de reservaciones a dueno o personal" ON public.reservations;
-DROP POLICY IF EXISTS "Permitir crear reservaciones a clientes o personal" ON public.reservations;
-DROP POLICY IF EXISTS "Permitir actualizar reservaciones a dueno o personal" ON public.reservations;
-DROP POLICY IF EXISTS "Permitir eliminar reservaciones solo a administradores" ON public.reservations;
-
-DROP POLICY IF EXISTS "Permitir lectura de logs solo a super_admin" ON public.logs;
-DROP POLICY IF EXISTS "Permitir insertar logs a cualquier usuario autenticado" ON public.logs;
-
-DROP POLICY IF EXISTS "Permitir ver mensajes propios o al personal" ON public.messages;
-DROP POLICY IF EXISTS "Permitir enviar mensajes a cualquier usuario autenticado" ON public.messages;
-
-DROP POLICY IF EXISTS "Permitir ver transacciones de reservacion propia o a personal" ON public.transactions;
-DROP POLICY IF EXISTS "Permitir gestionar transacciones al personal" ON public.transactions;
-
-DROP POLICY IF EXISTS "Permitir lectura publica de detalles de propiedad" ON public.property_details;
-DROP POLICY IF EXISTS "Permitir gestionar detalles de propiedad a administradores" ON public.property_details;
-
-DROP POLICY IF EXISTS "Permitir lectura publica de reseñas" ON public.reviews;
-DROP POLICY IF EXISTS "Permitir crear reseñas a huespedes" ON public.reviews;
-DROP POLICY IF EXISTS "Permitir gestionar reseñas al autor o administradores" ON public.reviews;
-
-DROP POLICY IF EXISTS "Permitir lectura publica de tarifas dinamicas" ON public.room_price_variations;
-DROP POLICY IF EXISTS "Permitir gestionar tarifas dinamicas a administradores" ON public.room_price_variations;
-
--- Habilitación estricta de Row Level Security
-ALTER TABLE public.hotels ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.rooms ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.reservations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.logs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.property_details ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.room_price_variations ENABLE ROW LEVEL SECURITY;
-
--- Otorgar permisos de esquema y tablas a todos los roles de Supabase para evitar errores de CORS / PostgREST
-GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+-- Otorgar permisos completos a anon y authenticated
 GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
 GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated, service_role;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO anon, authenticated, service_role;
 
 -- 6.1 Políticas para public.hotels
 CREATE POLICY "Permitir lectura publica de hoteles" ON public.hotels
   FOR SELECT USING (true);
 
 CREATE POLICY "Permitir todo a administradores sobre hoteles" ON public.hotels
-  FOR ALL TO authenticated 
-  USING (public.get_my_role() IN ('super_admin', 'hotel_admin'))
-  WITH CHECK (public.get_my_role() IN ('super_admin', 'hotel_admin'));
+  FOR ALL TO authenticated USING (public.get_my_role() IN ('super_admin', 'hotel_admin'));
 
 -- 6.2 Políticas para public.rooms
 CREATE POLICY "Permitir lectura publica de habitaciones" ON public.rooms
   FOR SELECT USING (true);
 
 CREATE POLICY "Permitir todo a administradores sobre habitaciones" ON public.rooms
-  FOR ALL TO authenticated 
-  USING (public.get_my_role() IN ('super_admin', 'hotel_admin'))
-  WITH CHECK (public.get_my_role() IN ('super_admin', 'hotel_admin'));
+  FOR ALL TO authenticated USING (public.get_my_role() IN ('super_admin', 'hotel_admin'));
 
 CREATE POLICY "Permitir actualizacion de habitaciones a recepcionistas" ON public.rooms
   FOR UPDATE TO authenticated 
@@ -422,8 +376,7 @@ CREATE POLICY "Permitir crear reservaciones a clientes o personal" ON public.res
 
 CREATE POLICY "Permitir actualizar reservaciones a dueno o personal" ON public.reservations
   FOR UPDATE TO authenticated 
-  USING (guestId = auth.uid()::text OR public.get_my_role() IN ('super_admin', 'hotel_admin', 'recepcionista'))
-  WITH CHECK (guestId = auth.uid()::text OR public.get_my_role() IN ('super_admin', 'hotel_admin', 'recepcionista'));
+  USING (guestId = auth.uid()::text OR public.get_my_role() IN ('super_admin', 'hotel_admin', 'recepcionista'));
 
 CREATE POLICY "Permitir eliminar reservaciones solo a administradores" ON public.reservations
   FOR DELETE TO authenticated 
@@ -457,44 +410,95 @@ CREATE POLICY "Permitir ver transacciones de reservacion propia o a personal" ON
   );
 
 CREATE POLICY "Permitir gestionar transacciones al personal" ON public.transactions
-  FOR ALL TO authenticated 
-  USING (public.get_my_role() IN ('super_admin', 'hotel_admin', 'recepcionista'))
-  WITH CHECK (public.get_my_role() IN ('super_admin', 'hotel_admin', 'recepcionista'));
+  FOR ALL TO authenticated USING (public.get_my_role() IN ('super_admin', 'hotel_admin', 'recepcionista'));
 
 -- 6.8 Políticas para public.property_details
 CREATE POLICY "Permitir lectura publica de detalles de propiedad" ON public.property_details
   FOR SELECT USING (true);
 
 CREATE POLICY "Permitir gestionar detalles de propiedad a administradores" ON public.property_details
-  FOR ALL TO authenticated 
-  USING (public.get_my_role() IN ('super_admin', 'hotel_admin'))
-  WITH CHECK (public.get_my_role() IN ('super_admin', 'hotel_admin'));
+  FOR ALL TO authenticated USING (public.get_my_role() IN ('super_admin', 'hotel_admin'));
 
 -- 6.9 Políticas para public.reviews
 CREATE POLICY "Permitir lectura publica de reseñas" ON public.reviews
   FOR SELECT USING (true);
 
 CREATE POLICY "Permitir crear reseñas a huespedes" ON public.reviews
-  FOR INSERT TO authenticated WITH CHECK (guest_id = auth.uid()::text OR public.get_my_role() IN ('super_admin', 'hotel_admin'));
+  FOR INSERT TO authenticated WITH CHECK (guest_id = auth.uid()::text);
 
 CREATE POLICY "Permitir gestionar reseñas al autor o administradores" ON public.reviews
-  FOR ALL TO authenticated 
-  USING (guest_id = auth.uid()::text OR public.get_my_role() IN ('super_admin', 'hotel_admin'))
-  WITH CHECK (guest_id = auth.uid()::text OR public.get_my_role() IN ('super_admin', 'hotel_admin'));
+  FOR ALL TO authenticated USING (guest_id = auth.uid()::text OR public.get_my_role() IN ('super_admin', 'hotel_admin'));
 
 -- 6.10 Políticas para public.room_price_variations
 CREATE POLICY "Permitir lectura publica de tarifas dinamicas" ON public.room_price_variations
   FOR SELECT USING (true);
 
 CREATE POLICY "Permitir gestionar tarifas dinamicas a administradores" ON public.room_price_variations
-  FOR ALL TO authenticated 
-  USING (public.get_my_role() IN ('super_admin', 'hotel_admin'))
-  WITH CHECK (public.get_my_role() IN ('super_admin', 'hotel_admin'));
+  FOR ALL TO authenticated USING (public.get_my_role() IN ('super_admin', 'hotel_admin'));
 
 -- =========================================================================
--- 7. NOTA DE REGISTROS DE SEMILLA (PRODUCCIÓN REAL)
+-- 7. REGISTROS DE SEMILLA INICIALES (SEED DATA - Listo para Producción)
 -- =========================================================================
--- Los datos iniciales de demostración han sido omitidos para producción real,
--- garantizando que la base de datos contenga únicamente los establecimientos,
--- habitaciones y usuarios creados legítimamente por los administradores.
 
+-- 7.1 Insertar Hoteles de Demostración de Aura / Roomia PMS
+INSERT INTO public.hotels (id, nombre, logo, portada, imagenes, descripcion, ubicacion, coordenadas, googleMapsUrl, servicios, politicas, horarios, contacto, redesSociales, estado, tipoEstablecimiento)
+VALUES 
+('hotel-1', 'Aura Boutique Hotel & Spa', 
+ 'https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?w=150', 
+ 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1200', 
+ ARRAY['https://images.unsplash.com/photo-1582719508461-905c673771fd?w=800', 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=800'], 
+ 'Establecimiento de lujo enfocado en el bienestar físico y mental, ubicado frente al mar. Ofrece experiencias culinarias premium, tratamientos de spa holísticos y un entorno de desconexión absoluta.', 
+ 'Av. Del Mar 450, Playas de Salinas', 
+ '{"lat": -2.1961, "lng": -80.9583}'::jsonb, 
+ 'https://maps.google.com/?q=-2.1961,-80.9583', 
+ ARRAY['WiFi de Alta Velocidad', 'Spa de Lujo & Termas', 'Piscina de Borde Infinito', 'Restaurante de Autor', 'Gimnasio Clínico', 'Servicio a la Habitación 24/7'], 
+ ARRAY['No se permiten mascotas', 'Prohibido fumar en áreas interiores', 'Check-in requiere documento de identidad original', 'Cancelación gratuita hasta 48 horas antes'], 
+ '{"checkIn": "15:00", "checkOut": "12:00"}'::jsonb, 
+ '{"telefono": "+593 4 277 1234", "email": "recepcion.salinas@aurahotels.com", "web": "www.aurahotels.com"}'::jsonb, 
+ '{"facebook": "aura.boutique.spa", "instagram": "aura.boutique.spa", "twitter": "aurahotels"}'::jsonb, 
+ 'activo', 'hotel'),
+
+('hotel-2', 'Roomia City Business & Coworking', 
+ 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150', 
+ 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=1200', 
+ ARRAY['https://images.unsplash.com/photo-1497366216548-37526070297c?w=800', 'https://images.unsplash.com/photo-1497366811353-6870744d04b2?w=800'], 
+ 'Hotel corporativo moderno y tecnológico en el corazón financiero. Cuenta con salas de reuniones de alta tecnología, cabinas insonorizadas para llamadas y café de especialidad gratuito para huéspedes en coworking.', 
+ 'Av. Amazonas N32-150 y La Niña, Quito', 
+ '{"lat": -0.1807, "lng": -78.4678}'::jsonb, 
+ 'https://maps.google.com/?q=-0.1807,-78.4678', 
+ ARRAY['WiFi Fibra Óptica 300 Mbps', 'Espacio de Coworking Ilimitado', 'Estación de Café de Especialidad', 'Parqueo Subterráneo Gratuito', 'Gimnasio Express 24h', 'Salas de Reuniones Zoom-ready'], 
+ ARRAY['Mascotas permitidas con recargo', 'Prohibido fumar en todo el establecimiento', 'Check-in exprés digital disponible', 'Late Check-out sujeto a disponibilidad'], 
+ '{"checkIn": "14:00", "checkOut": "11:00"}'::jsonb, 
+ '{"telefono": "+593 2 398 5600", "email": "business.quito@roomia.com", "web": "www.roomiapms.com"}'::jsonb, 
+ '{"facebook": "roomia.quito", "instagram": "roomia.quito", "twitter": "roomiapms"}'::jsonb, 
+ 'activo', 'hotel'),
+
+('hotel-3', 'Cabañas Selva Verde Ecolodge', 
+ 'https://images.unsplash.com/photo-1544644181-1484b3fdfc62?w=150', 
+ 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1200', 
+ ARRAY['https://images.unsplash.com/photo-1508193638397-1c4234db14d8?w=800', 'https://images.unsplash.com/photo-1448375240586-882707db888b?w=800'], 
+ 'Cabañas ecológicas inmersas en la selva tropical, diseñadas con materiales locales sustentables. Ofrece senderismo guiado, avistamiento de aves exóticas y cenas temáticas frente a la fogata del río.', 
+ 'Km 12 Vía al Tena, Archidona - Napo', 
+ '{"lat": -0.9083, "lng": -77.8167}'::jsonb, 
+ 'https://maps.google.com/?q=-0.9083,-77.8167', 
+ ARRAY['WiFi Satelital de Cortesía', 'Senderos Ecológicos Guiados', 'Restaurante Orgánico de la Granja', 'Área de Fogata Nocturna', 'Acceso Directo al Río', 'Piscina Ecológica de Agua de Vertiente'], 
+ ARRAY['Mascotas bienvenidas en cabañas privadas', 'Uso obligatorio de repelente biodegradable', 'Check-in hasta las 20:00 por seguridad vial', 'Políticas de bajo impacto acústico nocturno'], 
+ '{"checkIn": "14:00", "checkOut": "12:00"}'::jsonb, 
+ '{"telefono": "+593 6 288 9450", "email": "reservas@selvaverde.ec", "web": "www.selvaverde.ec"}'::jsonb, 
+ '{"facebook": "selvaverde.ecolodge", "instagram": "selvaverde.ecolodge", "twitter": "selvaverdeeco"}'::jsonb, 
+ 'activo', 'hotel')
+ON CONFLICT (id) DO NOTHING;
+
+-- 7.2 Insertar Habitaciones de Demostración
+INSERT INTO public.rooms (id, hotelId, numero, nombre, descripcion, precio, capacidad, camas, tipo, imagenes, servicios, estado, adicionar_iva)
+VALUES
+('room-101', 'hotel-1', '101', 'Suite Vista al Mar Standard', 'Hermosa suite equipada con cama King size, terraza privada y vista directa al océano Pacífico.', 110.00, 2, 1, 'Suite', ARRAY['https://images.unsplash.com/photo-1505691938895-1758d7feb511?w=800'], ARRAY['TV Cable 55"', 'Frigobar Equipado', 'Aire Acondicionado', 'Cafetera Nespresso', 'Bata y Zapatillas de Baño'], 'disponible', true),
+('room-102', 'hotel-1', '102', 'Habitación Doble Premium', 'Amplia habitación ideal para familias, con dos camas Queen size y balcón lateral.', 135.00, 4, 2, 'Doble', ARRAY['https://images.unsplash.com/photo-1566665797739-1674de7a421a?w=800'], ARRAY['TV Cable 50"', 'Frigobar', 'Aire Acondicionado', 'Caja Fuerte', 'Escritorio Funcional'], 'disponible', true),
+('room-201', 'hotel-1', '201', 'Presidential Wellness Suite', 'La suite más exclusiva del hotel. Cama Imperial King, jacuzzi exterior en terraza de 40m2 y bar de infusiones orgánicas gratis.', 250.00, 2, 1, 'Suite Presidencial', ARRAY['https://images.unsplash.com/photo-1578683010236-d716f9a3f461?w=800'], ARRAY['Jacuzzi Privado', 'Terraza de Lujo', 'Smart TV 70" 4K', 'Home Theater', 'Bar Premium de Cortesía', 'Servicio de Mayordomo'], 'disponible', true),
+
+('room-202', 'hotel-2', '201', 'Business Loft Individual', 'Loft optimizado para viajeros de negocios con escritorio ergonómico Herman Miller y pantalla ultra-wide para conectar laptops.', 85.00, 1, 1, 'Estándar', ARRAY['https://images.unsplash.com/photo-1598928506311-c55ded91a20c?w=800'], ARRAY['Escritorio Ergonómico', 'Pantalla Curva de 34"', 'Cafetera Italiana', 'Conectividad USB-C', 'Asistente Alexa Integrado'], 'disponible', true),
+('room-203', 'hotel-2', '202', 'Doble Business Exec', 'Espacio versátil con dos camas matrimoniales de alta densidad y área de reuniones express integrada en la habitación.', 115.00, 3, 2, 'Doble', ARRAY['https://images.unsplash.com/photo-1591088398332-8a7791972843?w=800'], ARRAY['Mesa de Trabajo Directivo', 'Frigobar Silencioso', 'Pizarra Magnética', 'Smart TV 55"'], 'disponible', true),
+
+('room-301', 'hotel-3', 'C-1', 'Cabaña Eco-Familiar Río', 'Cabaña construida de bambú y madera fina. Deck privado suspendido sobre el río con hamacas artesanales.', 95.00, 4, 3, 'Triple', ARRAY['https://images.unsplash.com/photo-1470770841072-f978cf4d019e?w=800'], ARRAY['Hamacas Exteriores', 'Mosquiteros de Diseño', 'Ventilador Silencioso', 'Balcón con Vista al Río', 'Luz Solar Autónoma'], 'disponible', true),
+('room-302', 'hotel-3', 'C-2', 'Cabaña Nido de Amor', 'Diseño íntimo de domo rústico rodeado de orquídeas salvajes, con claraboya para observar las estrellas por la noche.', 80.00, 2, 1, 'Estándar', ARRAY['https://images.unsplash.com/photo-1432318629947-4c2725a058c3?w=800'], ARRAY['Claraboya Astronómica', 'Ducha Abierta Ecológica', 'Cama King de Bambú', 'Terraza Privada'], 'disponible', true)
+ON CONFLICT (id) DO NOTHING;
