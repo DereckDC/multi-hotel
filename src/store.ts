@@ -131,22 +131,60 @@ export function compressImage(base64: string, maxWidth = 1000, maxHeight = 1000,
   });
 }
 
+export function getCookie(name: string): string | null {
+  try {
+    const nameEQ = encodeURIComponent(name) + "=";
+    const ca = document.cookie.split(';');
+    for (let i = 0; i < ca.length; i++) {
+      let c = ca[i].trim();
+      if (c.indexOf(nameEQ) === 0) return decodeURIComponent(c.substring(nameEQ.length));
+    }
+  } catch (e) {
+    console.warn('Cookie get error:', e);
+  }
+  return null;
+}
+
+export function setCookie(name: string, value: string, days = 7): void {
+  try {
+    const expires = new Date(Date.now() + days * 864e5).toUTCString();
+    document.cookie = `${encodeURIComponent(name)}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax`;
+  } catch (e) {
+    console.warn('Cookie set error:', e);
+  }
+}
+
 export function loadFromLocalStorage<T>(key: string, defaultValue: T): T {
+  // 1. Try LocalStorage
   try {
     const item = localStorage.getItem(key);
-    if (!item) return defaultValue;
-    return JSON.parse(item);
+    if (item) {
+      const parsed = JSON.parse(item);
+      if (parsed !== null && parsed !== undefined) return parsed;
+    }
   } catch (error) {
-    console.error('Error loading key: ', key, error);
-    return defaultValue;
+    console.warn('LocalStorage load warning for key:', key, error);
   }
+
+  // 2. Fallback to Cookie storage
+  try {
+    const cookieVal = getCookie(key);
+    if (cookieVal) {
+      const parsed = JSON.parse(cookieVal);
+      if (parsed !== null && parsed !== undefined) return parsed;
+    }
+  } catch (cookieErr) {
+    console.warn('Cookie load warning for key:', key, cookieErr);
+  }
+
+  return defaultValue;
 }
 
 export function saveToLocalStorage<T>(key: string, value: T): void {
   try {
     let processedValue: any = value;
     
-    // Aggressively thin out any massive base64 strings in rooms or hotels before saving to localStorage
+    // Aggressively thin out any massive base64 strings in rooms or hotels before saving to localStorage / cookies
     if (key === KEYS.ROOMS && Array.isArray(value)) {
       processedValue = (value as any[]).map(room => {
         if (room.imagenes && room.imagenes.length > 0) {
@@ -155,7 +193,6 @@ export function saveToLocalStorage<T>(key: string, value: T): void {
             // Keep at most 1 image, and strip it or truncate it if it's way too big
             imagenes: room.imagenes.slice(0, 1).map((img: string) => {
               if (img && img.startsWith('data:image') && img.length > 20000) {
-                // Return a heavily truncated or subset to avoid localStorage bloat
                 return img.slice(0, 20000) + '...'; 
               }
               return img;
@@ -181,46 +218,69 @@ export function saveToLocalStorage<T>(key: string, value: T): void {
     }
 
     const payload = JSON.stringify(processedValue);
-    localStorage.setItem(key, payload);
-  } catch (error: any) {
-    // Use console.warn to avoid triggering test-runner failure alerts
-    console.warn('LocalStorage caught block for key:', key, error.message || error);
-    
-    if (error.name === 'QuotaExceededError' || error.name === 'NS_ERROR_DOM_QUOTA_REACHED' || error.code === 1014 || (error.message && error.message.includes('quota'))) {
-      try {
-        // Clear all high volume and non-essential logs, deleted_res_ids, messages etc.
-        const keysToRemove = [
-          `${STORAGE_PREFIX}logs`,
-          `${STORAGE_PREFIX}deleted_res_ids`,
-          'messages',
-          'transactions',
-          'reviews',
-          'roomPriceVariations',
-          'roomia_api_origin'
-        ];
-        for (const k of keysToRemove) {
-          try {
-            localStorage.removeItem(k);
-          } catch (e) {}
-        }
 
-        // Try stripping images COMPLETELY and then saving
-        let bareValue = value;
-        if (key === KEYS.ROOMS && Array.isArray(value)) {
-          bareValue = (value as any[]).map(room => ({ ...room, imagenes: [] })) as unknown as T;
-        } else if (key === KEYS.HOTELS && Array.isArray(value)) {
-          bareValue = (value as any[]).map(hotel => ({ ...hotel, imagenes: [], logo: '', portada: '' })) as unknown as T;
-        }
-        
-        localStorage.setItem(key, JSON.stringify(bareValue));
-        console.warn(`Successfully wrote trimmed fallback version for key: ${key}`);
-      } catch (finalError) {
-        console.warn('LocalStorage completely locked, clearing all to prevent browser locking:', finalError);
+    // Primary: Write to LocalStorage
+    try {
+      localStorage.setItem(key, payload);
+    } catch (error: any) {
+      console.warn('LocalStorage caught block for key:', key, error.message || error);
+      
+      if (error.name === 'QuotaExceededError' || error.name === 'NS_ERROR_DOM_QUOTA_REACHED' || error.code === 1014 || (error.message && error.message.includes('quota'))) {
         try {
-          localStorage.clear();
-        } catch (e) {}
+          const keysToRemove = [
+            `${STORAGE_PREFIX}logs`,
+            `${STORAGE_PREFIX}deleted_res_ids`,
+            'messages',
+            'transactions',
+            'reviews',
+            'roomPriceVariations',
+            'roomia_api_origin'
+          ];
+          for (const k of keysToRemove) {
+            try { localStorage.removeItem(k); } catch (e) {}
+          }
+
+          let bareValue = value;
+          if (key === KEYS.ROOMS && Array.isArray(value)) {
+            bareValue = (value as any[]).map(room => ({ ...room, imagenes: [] })) as unknown as T;
+          } else if (key === KEYS.HOTELS && Array.isArray(value)) {
+            bareValue = (value as any[]).map(hotel => ({ ...hotel, imagenes: [], logo: '', portada: '' })) as unknown as T;
+          }
+          
+          localStorage.setItem(key, JSON.stringify(bareValue));
+        } catch (finalError) {
+          console.warn('LocalStorage completely locked, clearing non-essentials:', finalError);
+        }
       }
     }
+
+    // Secondary / Fallback: Keep Cookie synchronized
+    try {
+      if (payload.length < 3500) {
+        setCookie(key, payload, 7);
+      } else {
+        let condensed = processedValue;
+        if (Array.isArray(processedValue)) {
+          condensed = processedValue.map((item: any) => ({
+            id: item.id,
+            nombre: item.nombre,
+            precio: item.precio || item.detallesInmueble?.precio,
+            ciudad: item.ciudad || item.contacto?.ciudad,
+            estado: item.estado,
+            hotelId: item.hotelId
+          }));
+        }
+        const condensedPayload = JSON.stringify(condensed);
+        if (condensedPayload.length < 3800) {
+          setCookie(key, condensedPayload, 7);
+        }
+      }
+    } catch (cookieErr) {
+      console.warn('Cookie sync warning for key:', key, cookieErr);
+    }
+
+  } catch (error: any) {
+    console.warn('Storage save exception for key:', key, error);
   }
 }
 
@@ -232,17 +292,17 @@ export const sanitizeHotels = (list: Hotel[]): Hotel[] => {
 };
 
 export function useHotelStore() {
-  const [hotels, setHotels] = useState<Hotel[]>([]);
-  const [rooms, setRooms] = useState<Room[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
-  const [reservations, setReservations] = useState<Reservation[]>([]);
-  const [currentUserId, setCurrentUserId] = useState<string>('');
+  const [hotels, setHotels] = useState<Hotel[]>(() => sanitizeHotels(loadFromLocalStorage(KEYS.HOTELS, [])));
+  const [rooms, setRooms] = useState<Room[]>(() => loadFromLocalStorage(KEYS.ROOMS, []));
+  const [users, setUsers] = useState<User[]>(() => loadFromLocalStorage(KEYS.USERS, []));
+  const [reservations, setReservations] = useState<Reservation[]>(() => loadFromLocalStorage(KEYS.RESERVATIONS, []));
+  const [currentUserId, setCurrentUserId] = useState<string>(() => loadFromLocalStorage(KEYS.CURRENT_USER_ID, ''));
   const [isInitialSyncing, setIsInitialSyncing] = useState<boolean>(true);
-  const [logs, setLogs] = useState<ActivityLog[]>([]);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [transactions, setTransactions] = useState<PaymentTransaction[]>([]);
-  const [reviews, setReviews] = useState<Review[]>([]);
-  const [roomPriceVariations, setRoomPriceVariations] = useState<RoomPriceVariation[]>([]);
+  const [logs, setLogs] = useState<ActivityLog[]>(() => loadFromLocalStorage(KEYS.LOGS, []));
+  const [messages, setMessages] = useState<ChatMessage[]>(() => loadFromLocalStorage('messages', []));
+  const [transactions, setTransactions] = useState<PaymentTransaction[]>(() => loadFromLocalStorage('transactions', []));
+  const [reviews, setReviews] = useState<Review[]>(() => loadFromLocalStorage('reviews', []));
+  const [roomPriceVariations, setRoomPriceVariations] = useState<RoomPriceVariation[]>(() => loadFromLocalStorage('roomPriceVariations', []));
 
   // Sync to local storage
   useEffect(() => { saveToLocalStorage(KEYS.HOTELS, hotels); }, [hotels]);
@@ -1850,6 +1910,47 @@ El Equipo de Hospitalidad de Roomia PMS.`;
     }
   };
 
+  const refreshCatalogFromSupabase = async () => {
+    try {
+      console.log("🔄 Sincronizando catálogo directamente de Supabase DB...");
+      const [hotelsRes, roomsRes, reviewsRes, variationsRes] = await Promise.allSettled([
+        supabase.from('hotels').select('*'),
+        supabase.from('rooms').select('*'),
+        supabase.from('reviews').select('*'),
+        supabase.from('room_price_variations').select('*')
+      ]);
+
+      if (hotelsRes.status === 'fulfilled' && hotelsRes.value.data) {
+        const mappedHotels = hotelsRes.value.data.map(mapHotelFromDb).filter(Boolean) as Hotel[];
+        const sanitized = sanitizeHotels(mappedHotels);
+        setHotels(sanitized);
+        saveToLocalStorage(KEYS.HOTELS, sanitized);
+      }
+
+      if (roomsRes.status === 'fulfilled' && roomsRes.value.data) {
+        const mappedRooms = roomsRes.value.data.map(mapRoomFromDb).filter(Boolean) as Room[];
+        setRooms(mappedRooms);
+        saveToLocalStorage(KEYS.ROOMS, mappedRooms);
+      }
+
+      if (reviewsRes.status === 'fulfilled' && reviewsRes.value.data) {
+        const mappedReviews = reviewsRes.value.data.map(mapReviewFromDb).filter(Boolean) as Review[];
+        setReviews(mappedReviews);
+        saveToLocalStorage('reviews', mappedReviews);
+      }
+
+      if (variationsRes.status === 'fulfilled' && variationsRes.value.data) {
+        const mappedVariations = variationsRes.value.data.map(mapRoomPriceVariationFromDb).filter(Boolean) as RoomPriceVariation[];
+        setRoomPriceVariations(mappedVariations);
+        saveToLocalStorage('roomPriceVariations', mappedVariations);
+      }
+      return true;
+    } catch (err) {
+      console.warn("Error re-sincronizando catálogo desde Supabase:", err);
+      return false;
+    }
+  };
+
   return {
     hotels,
     rooms,
@@ -1885,6 +1986,7 @@ El Equipo de Hospitalidad de Roomia PMS.`;
     performCheckOut,
     getStatistics,
     syncAllToSupabase,
+    refreshCatalogFromSupabase,
     sendChatMessage,
     markMessagesAsRead,
     addPaymentTransaction,

@@ -80,6 +80,7 @@ interface ClientViewProps {
   activeTab?: 'explore' | 'properties' | 'reservations';
   onActiveTabChange?: (tab: 'explore' | 'properties' | 'reservations') => void;
   openHotelId?: string | null;
+  onRefreshCatalog?: () => Promise<boolean>;
 }
 
 const ADDITIONAL_SERVICES = [
