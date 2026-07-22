@@ -131,7 +131,12 @@ export function compressImage(base64: string, maxWidth = 1000, maxHeight = 1000,
 export function loadFromLocalStorage<T>(key: string, defaultValue: T): T {
   try {
     const item = localStorage.getItem(key);
-    return item ? JSON.parse(item) : defaultValue;
+    if (!item) return defaultValue;
+    const parsed = JSON.parse(item);
+    if (Array.isArray(defaultValue) && defaultValue.length > 0 && Array.isArray(parsed) && parsed.length === 0) {
+      return defaultValue;
+    }
+    return parsed;
   } catch (error) {
     console.error('Error loading key: ', key, error);
     return defaultValue;
@@ -374,10 +379,17 @@ export function useHotelStore() {
           ]);
 
           if (hotelsRes.status === 'fulfilled' && hotelsRes.value.data && hotelsRes.value.data.length > 0) {
-            setHotels(sanitizeHotels(hotelsRes.value.data.map(mapHotelFromDb).filter(Boolean) as Hotel[]));
+            const mappedHotels = hotelsRes.value.data.map(mapHotelFromDb).filter(Boolean) as Hotel[];
+            setHotels(mappedHotels.length > 0 ? sanitizeHotels(mappedHotels) : sanitizeHotels(INITIAL_HOTELS));
+          } else {
+            setHotels(prev => (prev && prev.length > 0 ? prev : sanitizeHotels(INITIAL_HOTELS)));
           }
+
           if (roomsRes.status === 'fulfilled' && roomsRes.value.data && roomsRes.value.data.length > 0) {
-            setRooms(roomsRes.value.data.map(mapRoomFromDb).filter(Boolean) as Room[]);
+            const mappedRooms = roomsRes.value.data.map(mapRoomFromDb).filter(Boolean) as Room[];
+            setRooms(mappedRooms.length > 0 ? mappedRooms : INITIAL_ROOMS);
+          } else {
+            setRooms(prev => (prev && prev.length > 0 ? prev : INITIAL_ROOMS));
           }
           if (reviewsRes.status === 'fulfilled' && reviewsRes.value.data) {
             setReviews(reviewsRes.value.data.map(mapReviewFromDb).filter(Boolean) as Review[]);
@@ -451,11 +463,21 @@ export function useHotelStore() {
       .channel('schema-db-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'hotels' }, async () => {
         const { data } = await supabase.from('hotels').select('*');
-        if (data) setHotels(sanitizeHotels(data.map(mapHotelFromDb).filter(Boolean) as Hotel[]));
+        if (data && data.length > 0) {
+          const mapped = data.map(mapHotelFromDb).filter(Boolean) as Hotel[];
+          setHotels(mapped.length > 0 ? sanitizeHotels(mapped) : sanitizeHotels(INITIAL_HOTELS));
+        } else if (data && data.length === 0) {
+          setHotels(sanitizeHotels(INITIAL_HOTELS));
+        }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms' }, async () => {
         const { data } = await supabase.from('rooms').select('*');
-        if (data) setRooms(data.map(mapRoomFromDb).filter(Boolean) as Room[]);
+        if (data && data.length > 0) {
+          const mapped = data.map(mapRoomFromDb).filter(Boolean) as Room[];
+          setRooms(mapped.length > 0 ? mapped : INITIAL_ROOMS);
+        } else if (data && data.length === 0) {
+          setRooms(INITIAL_ROOMS);
+        }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, async () => {
         const { data } = await supabase.from('users').select('*');
