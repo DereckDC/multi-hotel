@@ -43,18 +43,18 @@ export default function SupportChatDrawer({
   const [inputText, setInputText] = useState('');
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
-  const isStaff = activeUser.rol !== 'cliente';
+  const isStaff = activeUser?.rol ? activeUser.rol !== 'cliente' : false;
 
   // Get active and available hotels - restringe si es staff de hotel (no super admin)
   const activeHotels = React.useMemo(() => {
     return hotels.filter(h => {
       if (h.estado !== 'activo') return false;
-      if (isStaff && activeUser.rol !== 'super_admin') {
-        return h.id === activeUser.hotelId;
+      if (isStaff && activeUser?.rol !== 'super_admin') {
+        return h.id === activeUser?.hotelId;
       }
       return true;
     });
-  }, [hotels, isStaff, activeUser.hotelId, activeUser.rol]);
+  }, [hotels, isStaff, activeUser?.hotelId, activeUser?.rol]);
 
   // If client, default and keep selectedHotelId in sync with the openHotelId
   useEffect(() => {
@@ -167,8 +167,8 @@ export default function SupportChatDrawer({
       // Staff unread count: messages sent by clients to their assigned hotel (or any hotel if super admin)
       return messages.filter(m => {
         if (m.senderRole !== 'cliente' || m.read) return false;
-        if (activeUser.rol === 'super_admin') return true;
-        return m.hotelId === activeUser.hotelId;
+        if (activeUser?.rol === 'super_admin') return true;
+        return m.hotelId === activeUser?.hotelId;
       }).length;
     }
   };
@@ -179,14 +179,14 @@ export default function SupportChatDrawer({
     e.preventDefault();
     if (!inputText.trim()) return;
 
-    const messageHotelId = selectedHotelId || (isStaff && activeUser.hotelId) || activeHotels[0]?.id;
+    const messageHotelId = selectedHotelId || (isStaff && activeUser?.hotelId) || activeHotels[0]?.id;
     if (!messageHotelId) return;
 
     const newMsg: ChatMessage = {
       id: `MSG-${Math.floor(10000 + Math.random() * 90000)}`,
-      senderId: activeUser.id,
-      senderName: `${activeUser.nombre} ${activeUser.apellido}`,
-      senderRole: activeUser.rol,
+      senderId: activeUser?.id || 'guest',
+      senderName: activeUser ? `${activeUser.nombre} ${activeUser.apellido}` : 'Invitado',
+      senderRole: activeUser?.rol || 'cliente',
       hotelId: messageHotelId,
       text: inputText.trim(),
       timestamp: new Date().toISOString(),
@@ -263,7 +263,7 @@ export default function SupportChatDrawer({
                 <span className="text-[10px] text-slate-400 font-medium">Hotel:</span>
                 <select
                   value={selectedHotelId}
-                  disabled={isStaff && activeUser.rol !== 'super_admin'}
+                  disabled={isStaff && activeUser?.rol !== 'super_admin'}
                   onChange={(e) => {
                     setSelectedHotelId(e.target.value);
                     setSelectedCustomerId(''); // Reset customer on hotel change

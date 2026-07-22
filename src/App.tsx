@@ -687,7 +687,7 @@ export default function App() {
         </main>
       ) : (
         (() => {
-          const currentRole = isLoggedOut ? 'cliente' : activeUser.rol;
+          const currentRole = isLoggedOut || !activeUser ? 'cliente' : activeUser.rol;
           const menuItems: {
             icon: any;
             label: string;
@@ -955,10 +955,10 @@ export default function App() {
                         </div>
                         <div className="min-w-0">
                           <p className="text-xs font-bold text-white truncate">
-                            {isLoggedOut ? 'Invitado' : `${activeUser.nombre}`}
+                            {isLoggedOut || !activeUser ? 'Invitado' : `${activeUser.nombre}`}
                           </p>
                           <p className="text-[10px] text-brand-cyan truncate font-mono mt-0.5 uppercase tracking-wider">
-                            {isLoggedOut ? 'cliente' : activeUser.rol}
+                            {isLoggedOut || !activeUser ? 'cliente' : activeUser.rol}
                           </p>
                         </div>
                       </div>
@@ -1021,10 +1021,10 @@ export default function App() {
                     {(sidebarOpen || sidebarHovered) && (
                       <div className="min-w-0 transition-opacity duration-300">
                         <p className="text-[10px] font-bold text-[#FFFFFF] truncate leading-none">
-                          {isLoggedOut ? 'Invitado' : `${activeUser.nombre}`}
+                          {isLoggedOut || !activeUser ? 'Invitado' : `${activeUser.nombre}`}
                         </p>
                         <p className="text-[8px] text-brand-cyan truncate font-mono mt-0.5 uppercase tracking-wider">
-                          {isLoggedOut ? 'cliente' : activeUser.rol}
+                          {isLoggedOut || !activeUser ? 'cliente' : activeUser.rol}
                         </p>
                       </div>
                     )}
@@ -1039,13 +1039,13 @@ export default function App() {
                 <main className="flex-1 pb-16">
                   <AnimatePresence mode="wait">
                     <motion.div
-                      key={isLoggedOut ? 'guest-view' : activeUser.id}
+                      key={isLoggedOut || !activeUser ? 'guest-view' : activeUser.id}
                       initial={{ opacity: 0, y: 15 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -15 }}
                       transition={{ duration: 0.25, ease: 'easeInOut' }}
                     >
-                      {isLoggedOut ? (
+                      {isLoggedOut || !activeUser ? (
                         <ClientView
                           hotels={hotels}
                           rooms={rooms}
@@ -1070,7 +1070,7 @@ export default function App() {
                       ) : (
                         <>
                           {/* ROLE DISPATCHER ROUTING */}
-                          {activeUser.rol === 'cliente' && (
+                          {activeUser?.rol === 'cliente' && (
                             <ClientView
                               hotels={hotels}
                               rooms={rooms}
@@ -1092,7 +1092,7 @@ export default function App() {
                             />
                           )}
 
-                          {(activeUser.rol === 'recepcionista' || ((activeUser.rol === 'hotel_admin' || activeUser.rol === 'super_admin') && viewOverride === 'reception')) && (
+                          {(activeUser?.rol === 'recepcionista' || ((activeUser?.rol === 'hotel_admin' || activeUser?.rol === 'super_admin') && viewOverride === 'reception')) && (
                             <ReceptionView
                               hotels={hotels}
                               rooms={rooms}
@@ -1112,7 +1112,7 @@ export default function App() {
                             />
                           )}
 
-                          {((activeUser.rol === 'hotel_admin' || activeUser.rol === 'super_admin') && viewOverride !== 'reception') && (
+                          {((activeUser?.rol === 'hotel_admin' || activeUser?.rol === 'super_admin') && viewOverride !== 'reception') && (
                             <AdminView
                               hotels={hotels}
                               rooms={rooms}
@@ -1252,7 +1252,7 @@ export default function App() {
                   <UserIcon className="w-5 h-5 text-teal-600" />
                   Actualizar Datos de Perfil
                 </h4>
-                <p className="text-[10px] text-neutral-400 mt-0.5 uppercase tracking-wide font-mono">Rol actual: {activeUser.rol.replace('_', ' ')}</p>
+                <p className="text-[10px] text-neutral-400 mt-0.5 uppercase tracking-wide font-mono">Rol actual: {activeUser?.rol ? activeUser.rol.replace('_', ' ') : 'Cliente'}</p>
               </div>
               <button 
                 onClick={() => setShowProfileModal(false)} 

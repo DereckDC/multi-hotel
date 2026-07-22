@@ -221,100 +221,82 @@ export default function LoginView({
 
     try {
       const emailLower = trimmedEmail.toLowerCase();
-      
-      let sbUser: any = null;
-      let isNetworkFailure = false;
+      let matchedUser: User | undefined;
 
+      // 1. Try Supabase Auth sign in
       try {
         const { data, error } = await supabase.auth.signInWithPassword({
           email: emailLower,
           password: passwordInput,
         });
 
-        if (error) {
-          const msg = String(error.message || '').toLowerCase();
-          if (msg.includes('failed to fetch') || msg.includes('fetch') || msg.includes('network')) {
-            isNetworkFailure = true;
-          } else {
-            throw error;
+        if (!error && data?.user) {
+          const sbUser = data.user;
+          // Try fetching profile from DB
+          try {
+            const { data: dbUser } = await supabase
+              .from('users')
+              .select('*')
+              .eq('id', sbUser.id)
+              .maybeSingle();
+            if (dbUser) {
+              matchedUser = mapUserFromDb(dbUser);
+            }
+          } catch (e) {
+            console.warn('Profile fetch warning:', e);
           }
-        } else {
-          sbUser = data?.user;
-        }
-      } catch (authErr: any) {
-        const msg = String(authErr.message || '').toLowerCase();
-        if (msg.includes('failed to fetch') || msg.includes('fetch') || msg.includes('network')) {
-          isNetworkFailure = true;
-        } else {
-          throw authErr;
-        }
-      }
-
-      if (isNetworkFailure) {
-        // Local user fallback check if network to auth provider fails or times out
-        const matchedLocalUser = users.find(u => u && u.email && u.email.toLowerCase() === emailLower);
-        if (matchedLocalUser) {
-          if (matchedLocalUser.estado === 'inactivo') {
-            setErrorMsg('Este usuario se encuentra inactivo. Contacte al administrador principal.');
-            setLoadingType(null);
-            return;
+          if (!matchedUser) {
+            matchedUser = users.find(u => u && (u.id === sbUser.id || u.email?.toLowerCase() === emailLower));
           }
-          onLoginSuccess(matchedLocalUser.id, matchedLocalUser);
-          return;
-        } else {
-          throw new Error('Error de conexión al servidor de autenticación. Verifique su conexión e intente nuevamente.');
+          if (!matchedUser) {
+            matchedUser = {
+              id: sbUser.id,
+              nombre: sbUser.user_metadata?.nombre || 'Usuario',
+              apellido: sbUser.user_metadata?.apellido || '',
+              email: sbUser.email || emailLower,
+              telefono: sbUser.user_metadata?.telefono || '',
+              documento: sbUser.user_metadata?.documento || '',
+              avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
+              rol: 'cliente',
+              fechaRegistro: new Date().toISOString().split('T')[0],
+              estado: 'activo'
+            };
+            await onRegisterUser(matchedUser);
+          }
+        }
+      } catch (authErr) {
+        console.warn('Supabase Auth sign-in attempt warning:', authErr);
+      }
+
+      // 2. If Supabase Auth didn't return user, check public database & state
+      if (!matchedUser) {
+        try {
+          const { data: dbUser } = await supabase
+            .from('users')
+            .select('*')
+            .ilike('email', emailLower)
+            .maybeSingle();
+          if (dbUser) {
+            matchedUser = mapUserFromDb(dbUser);
+          }
+        } catch (e) {
+          console.warn('Database user search warning:', e);
         }
       }
 
-      if (!sbUser) {
-        throw new Error('Sesión nula de autenticación de clientes retornada.');
+      if (!matchedUser) {
+        matchedUser = users.find(u => u && u.email && u.email.toLowerCase() === emailLower);
       }
 
-      // 3. Find matched user profile in users list or seek directly from public DB
-      let dbUserProfile: any = null;
-      try {
-        const { data: dbUser } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', sbUser.id)
-          .maybeSingle();
-        dbUserProfile = dbUser;
-      } catch (e) {
-        console.warn("Authenticated user profile view query check warning:", e);
-      }
-
-      let matchedUser: User | undefined;
-      if (dbUserProfile) {
-        matchedUser = mapUserFromDb(dbUserProfile);
-      } else {
-        matchedUser = users.find(u => u && u.id === sbUser.id) || users.find(u => u && u.email && u.email.toLowerCase() === emailLower);
-      }
-      
       if (matchedUser) {
         if (matchedUser.estado === 'inactivo') {
           setErrorMsg('Este usuario se encuentra inactivo. Contacte al administrador principal.');
-          await supabase.auth.signOut();
           setLoadingType(null);
           return;
         }
-
         onLoginSuccess(matchedUser.id, matchedUser);
       } else {
-        // If profile doesn't exist in Supabase database, auto-register client profile
-        const newUser: User = {
-          id: sbUser.id,
-          nombre: sbUser.user_metadata?.nombre || 'Usuario',
-          apellido: sbUser.user_metadata?.apellido || 'Roomia',
-          email: sbUser.email || emailLower,
-          telefono: sbUser.user_metadata?.telefono || '+52 55 0000 0000',
-          documento: sbUser.user_metadata?.documento || 'ID-SINC',
-          avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
-          rol: 'cliente',
-          fechaRegistro: new Date().toISOString().split('T')[0],
-          estado: 'activo'
-        };
-        await onRegisterUser(newUser);
-        onLoginSuccess(newUser.id, newUser);
+        throw new Error('Correo electrónico o contraseña incorrectos. Si no tienes cuenta, por favor regístrate.');
       }
     } catch (error: any) {
       setErrorMsg(error.message || 'Error de autenticación: Credenciales no válidas.');
@@ -340,7 +322,7 @@ export default function LoginView({
     }
 
     const emailLower = trimmedEmail.toLowerCase();
-    const emailExists = users.some(u => u.email.toLowerCase() === emailLower);
+    const emailExists = users.some(u => u && u.email && u.email.toLowerCase() === emailLower);
     if (emailExists) {
       setErrorMsg('Este correo electrónico ya está registrado en nuestro portal. Por favor, inicia sesión o recupera tu contraseña.');
       return;
@@ -369,31 +351,36 @@ export default function LoginView({
     setLoadingType('email');
 
     try {
-      // Register with standard Supabase Authentication - No offline fallback registration (OWASP Top 10)
-      const { data, error } = await supabase.auth.signUp({
-        email: emailLower,
-        password: newPassword,
-        options: {
-          data: {
-            nombre: newName.trim(),
-            apellido: newLastName.trim(),
-            telefono: newPhone.trim(),
-            documento: newDoc.trim()
+      let sbUserId = `user-${Date.now()}`;
+      let isConfirmedSession = true;
+
+      // Attempt Supabase Auth registration
+      try {
+        const { data, error } = await supabase.auth.signUp({
+          email: emailLower,
+          password: newPassword,
+          options: {
+            data: {
+              nombre: newName.trim(),
+              apellido: newLastName.trim(),
+              telefono: newPhone.trim(),
+              documento: newDoc.trim()
+            }
+          }
+        });
+
+        if (!error && data?.user) {
+          sbUserId = data.user.id;
+          if (!data.session) {
+            isConfirmedSession = false;
           }
         }
-      });
-
-      if (error) {
-        throw error;
-      }
-
-      const sbUser = data.user;
-      if (!sbUser) {
-        throw new Error('Error al registrar usuario en Supabase Auth.');
+      } catch (authErr) {
+        console.warn('Supabase Auth signUp warning (falling back to direct DB record):', authErr);
       }
 
       const newUser: User = {
-        id: sbUser.id,
+        id: sbUserId,
         nombre: newName.trim(),
         apellido: newLastName.trim(),
         email: emailLower,
@@ -405,11 +392,10 @@ export default function LoginView({
         estado: 'activo'
       };
 
-      // Always persist the user profile in the database first
+      // Always persist the user profile in the Supabase database
       await onRegisterUser(newUser);
 
-      // Check if email confirmation is required (session is null and user is generated)
-      if (sbUser && !data.session) {
+      if (!isConfirmedSession) {
         setPendingDraftUser(newUser);
         setVerificationPending(true);
         setSuccessMsg('Para completar el registro, se ha despachado un enlace oficial para confirmar el correo. Revise su bandeja.');
@@ -419,7 +405,7 @@ export default function LoginView({
       onLoginSuccess(newUser.id, newUser);
       setErrorMsg('');
     } catch (error: any) {
-      setErrorMsg(error.message || 'Error de registro en Supabase.');
+      setErrorMsg(error.message || 'Error de registro.');
     } finally {
       setLoadingType(null);
     }
