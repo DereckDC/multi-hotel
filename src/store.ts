@@ -232,10 +232,10 @@ export const sanitizeHotels = (list: Hotel[]): Hotel[] => {
 };
 
 export function useHotelStore() {
-  const [hotels, setHotels] = useState<Hotel[]>(() => sanitizeHotels(loadFromLocalStorage(KEYS.HOTELS, [])));
-  const [rooms, setRooms] = useState<Room[]>(() => loadFromLocalStorage(KEYS.ROOMS, []));
-  const [users, setUsers] = useState<User[]>(() => loadFromLocalStorage(KEYS.USERS, []));
-  const [reservations, setReservations] = useState<Reservation[]>(() => loadFromLocalStorage(KEYS.RESERVATIONS, []));
+  const [hotels, setHotels] = useState<Hotel[]>([]);
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [reservations, setReservations] = useState<Reservation[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string>('');
   const [isInitialSyncing, setIsInitialSyncing] = useState<boolean>(true);
   const [logs, setLogs] = useState<ActivityLog[]>([]);
