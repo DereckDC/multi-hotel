@@ -10,51 +10,45 @@ import { fetchPropertyDetails } from '../supabase';
 import { compressImage } from '../store';
 import InvoicePDF from './InvoicePDF';
 import EmojiPicker from 'emoji-picker-react';
-import { ECUADOR_PROVINCES, getProvincesList, getCitiesForProvince } from '../data/ecuador';
+import { ECUADOR_PROVINCES, getProvincesList, getCitiesForProvince, getParroquiasForCity } from '../data/ecuador';
 
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, AreaChart, Area } from 'recharts';
 import { Plus, Edit3, Trash2, Shield, Users, HotelIcon, List, LayoutDashboard, Calendar, DollarSign, Percent, TrendingUp, AlertCircle, MapPin, EyeOff, ClipboardList, ToggleLeft, ToggleRight, Check, X, Upload, Database, Sparkles, Copy, Key, Building, Home, Star, Wrench, ChevronDown } from 'lucide-react';
 
 export function getMapEmbedUrl(ubicacion: string, googleMapsUrl?: string): string {
-  if (!ubicacion && !googleMapsUrl) return '';
+  const cleanUrl = googleMapsUrl ? googleMapsUrl.trim() : '';
+  const cleanUbicacion = ubicacion ? ubicacion.trim() : '';
 
-  // 1. If we have a full iframe code block, extract the src URL
-  if (googleMapsUrl && googleMapsUrl.includes('<iframe')) {
-    const match = googleMapsUrl.match(/src="([^"]+)"/);
-    if (match && match[1]) {
-      return match[1];
+  if (!cleanUrl && !cleanUbicacion) return '';
+
+  // 1. If googleMapsUrl was provided in the creation form, prioritize it directly
+  if (cleanUrl) {
+    // A. Full iframe snippet <iframe src="...">
+    if (cleanUrl.includes('<iframe')) {
+      const match = cleanUrl.match(/src=["']([^"']+)["']/i);
+      if (match && match[1]) {
+        return match[1];
+      }
     }
-  }
 
-  // 2. If it is already a direct Google Maps Embed URL
-  if (googleMapsUrl && (googleMapsUrl.includes('google.com/maps/embed') || googleMapsUrl.includes('google.com/maps/p/'))) {
-    return googleMapsUrl;
-  }
+    // B. Direct Google Maps Embed URL
+    if (cleanUrl.includes('google.com/maps/embed') || cleanUrl.includes('google.com/maps/p/')) {
+      return cleanUrl;
+    }
 
-  // 3. Try to extract coordinates from Google Maps URL (e.g. @19.4273,-99.1676)
-  if (googleMapsUrl) {
-    const coordsMatch = googleMapsUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+    // C. Coordinates inside the URL (e.g. @-0.18065,-78.46783 or ?q=-0.18065,-78.4678)
+    const coordsMatch = cleanUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) || cleanUrl.match(/[?&](?:q|ll)=(-?\d+\.\d+),(-?\d+\.\d+)/);
     if (coordsMatch && coordsMatch[1] && coordsMatch[2]) {
       return `https://maps.google.com/maps?q=${coordsMatch[1]},${coordsMatch[2]}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
     }
+
+    // D. Any other Google Maps URL/shortlink (maps.app.goo.gl, goo.gl/maps, place link)
+    return `https://maps.google.com/maps?q=${encodeURIComponent(cleanUrl)}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
   }
 
-  // 4. If we have a maps link like maps.app.goo.gl, prefer using physical address for embedded iframe compatibility
-  if (googleMapsUrl && (googleMapsUrl.includes('maps.app.goo.gl') || googleMapsUrl.includes('goo.gl/maps') || googleMapsUrl.includes('maps.google.com'))) {
-    if (ubicacion) {
-      return `https://maps.google.com/maps?q=${encodeURIComponent(ubicacion)}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
-    }
-    return `https://maps.google.com/maps?q=${encodeURIComponent(googleMapsUrl)}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
-  }
-
-  // 5. Fallback to physical address query if it exists
-  if (ubicacion) {
-    return `https://maps.google.com/maps?q=${encodeURIComponent(ubicacion)}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
-  }
-
-  // 6. Absolute fallback: use the URL itself as draft search query
-  if (googleMapsUrl) {
-    return `https://maps.google.com/maps?q=${encodeURIComponent(googleMapsUrl)}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
+  // 2. Fallback to physical address query if no googleMapsUrl was uploaded
+  if (cleanUbicacion) {
+    return `https://maps.google.com/maps?q=${encodeURIComponent(cleanUbicacion)}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
   }
 
   return '';
@@ -2812,7 +2806,7 @@ export default function AdminView({
 
                 <div className="col-span-2 space-y-1">
                   <label className="text-[11px] font-semibold text-neutral-500 block">Ubicación Geográfica en Ecuador:</label>
-                  <div className="grid grid-cols-2 gap-3 bg-teal-50/60 p-3 rounded-xl border border-teal-100">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 bg-teal-50/60 p-3 rounded-xl border border-teal-100">
                     <div>
                       <label className="text-[10px] font-bold text-teal-850 block mb-1">Provincia:</label>
                       <select
@@ -2820,11 +2814,13 @@ export default function AdminView({
                         onChange={(e) => {
                           const newProv = e.target.value;
                           const defaultCity = getCitiesForProvince(newProv)[0] || '';
+                          const defaultParroquia = getParroquiasForCity(newProv, defaultCity)[0] || '';
                           setEditingHotel({
                             ...editingHotel,
                             provincia: newProv,
                             ciudad: defaultCity,
-                            ubicacion: editingHotel.ubicacion || (newProv ? `${defaultCity}, ${newProv}, Ecuador` : '')
+                            parroquia: defaultParroquia,
+                            ubicacion: editingHotel.ubicacion || (newProv ? `${defaultParroquia ? defaultParroquia + ', ' : ''}${defaultCity}, ${newProv}, Ecuador` : '')
                           });
                         }}
                         className="w-full text-xs border border-teal-200 bg-white p-2 rounded-lg focus:outline-none focus:border-teal-500 font-medium text-neutral-800"
@@ -2842,10 +2838,12 @@ export default function AdminView({
                         value={editingHotel.ciudad || ''}
                         onChange={(e) => {
                           const newCity = e.target.value;
+                          const defaultParroquia = getParroquiasForCity(editingHotel.provincia || '', newCity)[0] || '';
                           setEditingHotel({
                             ...editingHotel,
                             ciudad: newCity,
-                            ubicacion: editingHotel.ubicacion || (editingHotel.provincia ? `${newCity}, ${editingHotel.provincia}, Ecuador` : '')
+                            parroquia: defaultParroquia,
+                            ubicacion: editingHotel.ubicacion || (editingHotel.provincia ? `${defaultParroquia ? defaultParroquia + ', ' : ''}${newCity}, ${editingHotel.provincia}, Ecuador` : '')
                           });
                         }}
                         disabled={!editingHotel.provincia}
@@ -2854,6 +2852,27 @@ export default function AdminView({
                         <option value="">-- Seleccionar Ciudad --</option>
                         {getCitiesForProvince(editingHotel.provincia || '').map(c => (
                           <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-bold text-teal-850 block mb-1">Parroquia:</label>
+                      <select
+                        value={editingHotel.parroquia || ''}
+                        onChange={(e) => {
+                          const newParroquia = e.target.value;
+                          setEditingHotel({
+                            ...editingHotel,
+                            parroquia: newParroquia
+                          });
+                        }}
+                        disabled={!editingHotel.ciudad}
+                        className="w-full text-xs border border-teal-200 bg-white p-2 rounded-lg focus:outline-none focus:border-teal-500 font-medium text-neutral-800 disabled:bg-neutral-100 disabled:text-neutral-400"
+                      >
+                        <option value="">-- Seleccionar Parroquia --</option>
+                        {getParroquiasForCity(editingHotel.provincia || '', editingHotel.ciudad || '').map(par => (
+                          <option key={par} value={par}>{par}</option>
                         ))}
                       </select>
                     </div>
@@ -3934,7 +3953,7 @@ export default function AdminView({
               <div className="space-y-3">
                 <div className="space-y-1">
                   <label className="text-[11px] font-semibold text-neutral-500 block">Ubicación Geográfica en Ecuador:</label>
-                  <div className="grid grid-cols-2 gap-3 bg-teal-50/60 p-3 rounded-xl border border-teal-100">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 bg-teal-50/60 p-3 rounded-xl border border-teal-100">
                     <div>
                       <label className="text-[10px] font-bold text-teal-850 block mb-1">Provincia:</label>
                       <select
@@ -3942,11 +3961,13 @@ export default function AdminView({
                         onChange={(e) => {
                           const newProv = e.target.value;
                           const defaultCity = getCitiesForProvince(newProv)[0] || '';
+                          const defaultParroquia = getParroquiasForCity(newProv, defaultCity)[0] || '';
                           setEditingProperty({
                             ...editingProperty,
                             provincia: newProv,
                             ciudad: defaultCity,
-                            ubicacion: editingProperty.ubicacion || (newProv ? `${defaultCity}, ${newProv}, Ecuador` : '')
+                            parroquia: defaultParroquia,
+                            ubicacion: editingProperty.ubicacion || (newProv ? `${defaultParroquia ? defaultParroquia + ', ' : ''}${defaultCity}, ${newProv}, Ecuador` : '')
                           });
                         }}
                         className="w-full text-xs border border-teal-200 bg-white p-2 rounded-lg focus:outline-none focus:border-teal-500 font-medium text-neutral-800"
@@ -3964,10 +3985,12 @@ export default function AdminView({
                         value={editingProperty.ciudad || ''}
                         onChange={(e) => {
                           const newCity = e.target.value;
+                          const defaultParroquia = getParroquiasForCity(editingProperty.provincia || '', newCity)[0] || '';
                           setEditingProperty({
                             ...editingProperty,
                             ciudad: newCity,
-                            ubicacion: editingProperty.ubicacion || (editingProperty.provincia ? `${newCity}, ${editingProperty.provincia}, Ecuador` : '')
+                            parroquia: defaultParroquia,
+                            ubicacion: editingProperty.ubicacion || (editingProperty.provincia ? `${defaultParroquia ? defaultParroquia + ', ' : ''}${newCity}, ${editingProperty.provincia}, Ecuador` : '')
                           });
                         }}
                         disabled={!editingProperty.provincia}
@@ -3976,6 +3999,27 @@ export default function AdminView({
                         <option value="">-- Seleccionar Ciudad --</option>
                         {getCitiesForProvince(editingProperty.provincia || '').map(c => (
                           <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-bold text-teal-850 block mb-1">Parroquia:</label>
+                      <select
+                        value={editingProperty.parroquia || ''}
+                        onChange={(e) => {
+                          const newParroquia = e.target.value;
+                          setEditingProperty({
+                            ...editingProperty,
+                            parroquia: newParroquia
+                          });
+                        }}
+                        disabled={!editingProperty.ciudad}
+                        className="w-full text-xs border border-teal-200 bg-white p-2 rounded-lg focus:outline-none focus:border-teal-500 font-medium text-neutral-800 disabled:bg-neutral-100 disabled:text-neutral-400"
+                      >
+                        <option value="">-- Seleccionar Parroquia --</option>
+                        {getParroquiasForCity(editingProperty.provincia || '', editingProperty.ciudad || '').map(par => (
+                          <option key={par} value={par}>{par}</option>
                         ))}
                       </select>
                     </div>
@@ -3998,11 +4042,37 @@ export default function AdminView({
                   <label className="text-[11px] font-semibold text-neutral-500 block mb-1">Enlace de Google Maps (URL / Pin):</label>
                   <input
                     type="text"
-                    placeholder="Ej: https://maps.google.com/..."
+                    placeholder="Ej: https://maps.google.com/... o enlace para compartir"
                     value={editingProperty.googleMapsUrl || ''}
                     onChange={(e) => setEditingProperty({ ...editingProperty, googleMapsUrl: e.target.value })}
-                    className="w-full text-xs border border-neutral-250 p-2 rounded-lg focus:outline-none"
+                    className="w-full text-xs border border-neutral-250 p-2 rounded-lg focus:outline-none font-mono"
                   />
+                  <div className="border border-neutral-200 rounded-xl overflow-hidden mt-1.5 bg-neutral-50 h-36 relative shadow-sm">
+                    {(() => {
+                      const embedSrc = getMapEmbedUrl(editingProperty.ubicacion, editingProperty.googleMapsUrl);
+                      if (!embedSrc) {
+                        return (
+                          <div className="flex flex-col items-center justify-center p-3 h-full text-center">
+                            <MapPin className="w-6 h-6 text-neutral-300 mb-1" />
+                            <p className="text-[10px] text-neutral-400 font-medium font-sans">Escribe una dirección o enlace de Google Maps para previsualizar el mapa</p>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <iframe
+                          title="Vista de Mapa de la Propiedad"
+                          width="100%"
+                          height="100%"
+                          style={{ border: 0 }}
+                          src={embedSrc}
+                          allowFullScreen
+                          loading="lazy"
+                          referrerPolicy="no-referrer-when-downgrade"
+                        />
+                      );
+                    })()}
+                  </div>
                 </div>
               </div>
 

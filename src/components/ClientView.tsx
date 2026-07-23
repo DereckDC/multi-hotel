@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import { Hotel, Room, Reservation, User, RoomStatus, Review, RoomPriceVariation } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
-import { getProvincesList, getCitiesForProvince } from '../data/ecuador';
+import { getProvincesList, getCitiesForProvince, getParroquiasForCity } from '../data/ecuador';
 
 import { MapPin, Calendar, Compass, List, CreditCard, ChevronRight, Sparkles, Filter, Check, Star, AlertCircle, Eye, Trash2, CalendarCheck, FileText, X, Building2, ShieldCheck, Lock, Home, Search, User as UserIcon } from 'lucide-react';
 import QRView from './QRView';
@@ -16,45 +16,39 @@ import { HotelImageGallery } from './HotelImageGallery';
 import { RoomReservationCalendar } from './RoomReservationCalendar';
 
 export function getMapEmbedUrl(ubicacion: string, googleMapsUrl?: string): string {
-  if (!ubicacion && !googleMapsUrl) return '';
+  const cleanUrl = googleMapsUrl ? googleMapsUrl.trim() : '';
+  const cleanUbicacion = ubicacion ? ubicacion.trim() : '';
 
-  // 1. If we have a full iframe code block, extract the src URL
-  if (googleMapsUrl && googleMapsUrl.includes('<iframe')) {
-    const match = googleMapsUrl.match(/src="([^"]+)"/);
-    if (match && match[1]) {
-      return match[1];
+  if (!cleanUrl && !cleanUbicacion) return '';
+
+  // 1. If googleMapsUrl was provided in the creation form, prioritize it directly
+  if (cleanUrl) {
+    // A. Full iframe snippet <iframe src="...">
+    if (cleanUrl.includes('<iframe')) {
+      const match = cleanUrl.match(/src=["']([^"']+)["']/i);
+      if (match && match[1]) {
+        return match[1];
+      }
     }
-  }
 
-  // 2. If it is already a direct Google Maps Embed URL
-  if (googleMapsUrl && (googleMapsUrl.includes('google.com/maps/embed') || googleMapsUrl.includes('google.com/maps/p/'))) {
-    return googleMapsUrl;
-  }
+    // B. Direct Google Maps Embed URL
+    if (cleanUrl.includes('google.com/maps/embed') || cleanUrl.includes('google.com/maps/p/')) {
+      return cleanUrl;
+    }
 
-  // 3. Try to extract coordinates from Google Maps URL (e.g. @19.4273,-99.1676)
-  if (googleMapsUrl) {
-    const coordsMatch = googleMapsUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+    // C. Coordinates inside the URL (e.g. @-0.18065,-78.46783 or ?q=-0.18065,-78.4678)
+    const coordsMatch = cleanUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) || cleanUrl.match(/[?&](?:q|ll)=(-?\d+\.\d+),(-?\d+\.\d+)/);
     if (coordsMatch && coordsMatch[1] && coordsMatch[2]) {
       return `https://maps.google.com/maps?q=${coordsMatch[1]},${coordsMatch[2]}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
     }
+
+    // D. Any other Google Maps URL/shortlink (maps.app.goo.gl, goo.gl/maps, place link)
+    return `https://maps.google.com/maps?q=${encodeURIComponent(cleanUrl)}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
   }
 
-  // 4. If we have a maps link like maps.app.goo.gl, prefer using physical address for embedded iframe compatibility
-  if (googleMapsUrl && (googleMapsUrl.includes('maps.app.goo.gl') || googleMapsUrl.includes('goo.gl/maps') || googleMapsUrl.includes('maps.google.com'))) {
-    if (ubicacion) {
-      return `https://maps.google.com/maps?q=${encodeURIComponent(ubicacion)}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
-    }
-    return `https://maps.google.com/maps?q=${encodeURIComponent(googleMapsUrl)}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
-  }
-
-  // 5. Fallback to physical address query if it exists
-  if (ubicacion) {
-    return `https://maps.google.com/maps?q=${encodeURIComponent(ubicacion)}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
-  }
-
-  // 6. Absolute fallback: use the URL itself as draft search query
-  if (googleMapsUrl) {
-    return `https://maps.google.com/maps?q=${encodeURIComponent(googleMapsUrl)}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
+  // 2. Fallback to physical address query if no googleMapsUrl was uploaded
+  if (cleanUbicacion) {
+    return `https://maps.google.com/maps?q=${encodeURIComponent(cleanUbicacion)}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
   }
 
   return '';
@@ -159,6 +153,7 @@ export default function ClientView({
   const [bedsFilter, setBedsFilter] = useState<string>('todos');
   const [provinciaFilter, setProvinciaFilter] = useState<string>('todas');
   const [ciudadFilter, setCiudadFilter] = useState<string>('todas');
+  const [parroquiaFilter, setParroquiaFilter] = useState<string>('todas');
   const [showOnlyAvailableRooms, setShowOnlyAvailableRooms] = useState<boolean>(false); // By default, show all rooms and browse, as requested by user
   const [propertyTypeFilter, setPropertyTypeFilter] = useState<string>('todos');
 
@@ -339,6 +334,13 @@ export default function ClientView({
         if (!matchCity) return false;
       }
 
+      // Location filter (Parroquia)
+      if (parroquiaFilter !== 'todas') {
+        const par = h.parroquia || h.contacto?.parroquia || '';
+        const matchPar = par.toLowerCase() === parroquiaFilter.toLowerCase() || h.ubicacion.toLowerCase().includes(parroquiaFilter.toLowerCase());
+        if (!matchPar) return false;
+      }
+
       // Beds filter
       if (bedsFilter !== 'todos') {
         const targetBeds = parseInt(bedsFilter, 10);
@@ -379,6 +381,13 @@ export default function ClientView({
         const city = h.ciudad || '';
         const matchCity = city.toLowerCase() === ciudadFilter.toLowerCase() || h.ubicacion.toLowerCase().includes(ciudadFilter.toLowerCase());
         if (!matchCity) return false;
+      }
+
+      // Location filter (Parroquia)
+      if (parroquiaFilter !== 'todas') {
+        const par = h.parroquia || h.contacto?.parroquia || '';
+        const matchPar = par.toLowerCase() === parroquiaFilter.toLowerCase() || h.ubicacion.toLowerCase().includes(parroquiaFilter.toLowerCase());
+        if (!matchPar) return false;
       }
 
       // Beds filter
@@ -861,6 +870,7 @@ export default function ClientView({
                       onChange={(e) => {
                         setProvinciaFilter(e.target.value);
                         setCiudadFilter('todas');
+                        setParroquiaFilter('todas');
                       }}
                       className="border-none bg-transparent font-bold focus:ring-0 cursor-pointer text-teal-700 text-xs"
                     >
@@ -877,12 +887,32 @@ export default function ClientView({
                       <span className="text-neutral-500 font-semibold">Ciudad:</span>
                       <select
                         value={ciudadFilter}
-                        onChange={(e) => setCiudadFilter(e.target.value)}
+                        onChange={(e) => {
+                          setCiudadFilter(e.target.value);
+                          setParroquiaFilter('todas');
+                        }}
                         className="border-none bg-transparent font-bold focus:ring-0 cursor-pointer text-teal-700 text-xs"
                       >
                         <option value="todas">Todas las Ciudades</option>
                         {getCitiesForProvince(provinciaFilter).map(c => (
                           <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* ECUADOR PARROQUIA FILTER */}
+                  {provinciaFilter !== 'todas' && ciudadFilter !== 'todas' && (
+                    <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-lg border border-neutral-200 shadow-sm animate-fade-in">
+                      <span className="text-neutral-500 font-semibold">Parroquia:</span>
+                      <select
+                        value={parroquiaFilter}
+                        onChange={(e) => setParroquiaFilter(e.target.value)}
+                        className="border-none bg-transparent font-bold focus:ring-0 cursor-pointer text-teal-700 text-xs"
+                      >
+                        <option value="todas">Todas las Parroquias</option>
+                        {getParroquiasForCity(provinciaFilter, ciudadFilter).map(par => (
+                          <option key={par} value={par}>{par}</option>
                         ))}
                       </select>
                     </div>
@@ -1035,7 +1065,11 @@ export default function ClientView({
                           
                           <div className="flex items-center gap-1.5 text-xs text-neutral-400 mb-3">
                             <MapPin className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
-                            <span className="truncate">{hotel.ubicacion.split(',')[1] || hotel.ubicacion}</span>
+                            <span className="truncate">
+                              {hotel.parroquia 
+                                ? `${hotel.parroquia}, ${hotel.ciudad || ''}`
+                                : (hotel.ubicacion.split(',')[1] || hotel.ubicacion)}
+                            </span>
                           </div>
                           
                           <p className="text-xs text-neutral-500 line-clamp-2 leading-relaxed mb-3">
