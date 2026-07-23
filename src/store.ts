@@ -628,12 +628,32 @@ export function useHotelStore() {
     });
 
     try {
-      await syncHotelToSupabase(hotel);
+      const syncRes = await syncHotelToSupabase(hotel);
       if (hotel.tipoEstablecimiento === 'casa' || hotel.tipoEstablecimiento === 'departamento') {
         await syncPropertyDetailsToSupabase(hotel);
       }
-    } catch (err) {
+
+      if (!syncRes.success) {
+        console.error("❌ Supabase syncHotel error detail:", syncRes.error);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('aura-toast', {
+            detail: { message: `⚠️ Guardado en memoria. Supabase: ${syncRes.error}` }
+          }));
+        }
+      } else {
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('aura-toast', {
+            detail: { message: `✅ "${hotel.nombre}" guardado y registrado en la base de datos Supabase.` }
+          }));
+        }
+      }
+    } catch (err: any) {
       console.warn("Supabase saveHotel sync error:", err);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('aura-toast', {
+          detail: { message: `⚠️ Guardado localmente. Excepción: ${err.message || String(err)}` }
+        }));
+      }
     }
 
     addLog(
