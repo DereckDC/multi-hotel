@@ -127,8 +127,7 @@ export function mapHotelToDb(hotel: Hotel): any {
     redessociales: hotel.redesSociales || {},
     estado: hotel.estado || 'activo',
     provincia: hotel.provincia || null,
-    ciudad: hotel.ciudad || null,
-    parroquia: hotel.parroquia || null
+    ciudad: hotel.ciudad || null
   };
 }
 
@@ -374,12 +373,48 @@ export async function syncPropertyDetailsToSupabase(hotel: Hotel): Promise<{ suc
 
 export async function syncHotelToSupabase(hotel: Hotel): Promise<{ success: boolean; error?: string }> {
   try {
+    const payload = mapHotelToDb(hotel);
+    
+    // Ensure payload does not contain non-existent top level columns
+    delete payload.parroquia;
+
     const { error } = await supabase
       .from('hotels')
-      .upsert(mapHotelToDb(hotel));
+      .upsert(payload);
 
     if (error) {
       console.warn('Supabase syncHotel error:', error);
+
+      // If Postgres error relates to missing columns or casing, strip non-standard top-level keys and retry
+      if (error.code === '42703' || error.code === 'PGRST204' || error.message?.includes('column')) {
+        const fallbackPayload = {
+          id: payload.id,
+          nombre: payload.nombre,
+          logo: payload.logo,
+          portada: payload.portada,
+          imagenes: payload.imagenes,
+          descripcion: payload.descripcion,
+          ubicacion: payload.ubicacion,
+          coordenadas: payload.coordenadas,
+          googlemapsurl: payload.googlemapsurl,
+          servicios: payload.servicios,
+          politicas: payload.politicas,
+          horarios: payload.horarios,
+          contacto: payload.contacto,
+          redessociales: payload.redessociales,
+          estado: payload.estado,
+          provincia: payload.provincia,
+          ciudad: payload.ciudad
+        };
+
+        const { error: retryError } = await supabase
+          .from('hotels')
+          .upsert(fallbackPayload);
+
+        if (!retryError) return { success: true };
+        return { success: false, error: retryError.message };
+      }
+
       return { success: false, error: error.message };
     }
     return { success: true };
