@@ -210,7 +210,8 @@ export default function AdminView({
     descripcion: string;
     estado: 'activo' | 'inactivo';
     emoji: string;
-  }>({ id: '', nombre: '', precio: 0, descripcion: '', estado: 'activo', emoji: '' });
+    tipoCobro: 'por_estadia' | 'por_dia';
+  }>({ id: '', nombre: '', precio: 0, descripcion: '', estado: 'activo', emoji: '', tipoCobro: 'por_estadia' });
 
   const [showEmojiPickerHotel, setShowEmojiPickerHotel] = useState(false);
   const [showEmojiPickerProperty, setShowEmojiPickerProperty] = useState(false);
@@ -3336,11 +3337,14 @@ export default function AdminView({
                             }`}>
                               {service.estado}
                             </span>
+                            <span className="text-[8px] font-bold px-1.5 py-0.5 rounded uppercase bg-teal-50 text-teal-700 border border-teal-200/50">
+                              {service.tipoCobro === 'por_dia' ? 'Por día' : 'Por estadía'}
+                            </span>
                           </div>
                           <p className="text-[10px] text-neutral-500 mt-0.5 leading-snug line-clamp-2">{service.descripcion}</p>
                         </div>
                         <div className="text-right shrink-0 flex flex-col items-end gap-1.5">
-                          <span className="text-xs font-extrabold text-neutral-850 font-mono">${service.precio} <span className="text-[9px] text-neutral-400 font-normal">/ pers</span></span>
+                          <span className="text-xs font-extrabold text-neutral-850 font-mono">${service.precio} <span className="text-[9px] text-neutral-400 font-normal">/ pers {service.tipoCobro === 'por_dia' ? '/ día' : '/ estadía'}</span></span>
                           <div className="flex gap-1.5">
                             <button
                               type="button"
@@ -3351,7 +3355,8 @@ export default function AdminView({
                                   precio: service.precio,
                                   descripcion: service.descripcion,
                                   estado: service.estado,
-                                  emoji: service.emoji || ''
+                                  emoji: service.emoji || '',
+                                  tipoCobro: service.tipoCobro || 'por_estadia'
                                 });
                               }}
                               className="text-[9px] font-bold text-teal-600 hover:text-teal-700 cursor-pointer"
@@ -3429,8 +3434,6 @@ export default function AdminView({
                       </div>
                     </div>
 
-
-
                     <div>
                       <label className="text-[9px] text-neutral-450 block mb-0.5 font-bold uppercase">Precio Unitario ($)</label>
                       <input
@@ -3453,6 +3456,19 @@ export default function AdminView({
                         <option value="inactivo">Inactivo</option>
                       </select>
                     </div>
+
+                    <div className="col-span-2">
+                      <label className="text-[9px] text-neutral-450 block mb-0.5 font-bold uppercase">Frecuencia / Modalidad de Cobro</label>
+                      <select
+                        value={newServiceForm.tipoCobro || 'por_estadia'}
+                        onChange={(e) => setNewServiceForm({ ...newServiceForm, tipoCobro: e.target.value as 'por_estadia' | 'por_dia' })}
+                        className="w-full text-xs border border-neutral-250 p-1.5 rounded-lg focus:outline-none bg-white cursor-pointer"
+                      >
+                        <option value="por_estadia">Una sola vez por la estadía (Tarifa plana por persona)</option>
+                        <option value="por_dia">Cobrar y calcular por cada día de estadía (Diario por persona)</option>
+                      </select>
+                    </div>
+
                     <div className="col-span-2">
                       <label className="text-[9px] text-neutral-450 block mb-0.5 font-bold uppercase">Descripción del Servicio</label>
                       <textarea
@@ -3468,7 +3484,7 @@ export default function AdminView({
                       <button
                         type="button"
                         onClick={() => {
-                          setNewServiceForm({ id: '', nombre: '', precio: 0, descripcion: '', estado: 'activo', emoji: '' });
+                          setNewServiceForm({ id: '', nombre: '', precio: 0, descripcion: '', estado: 'activo', emoji: '', tipoCobro: 'por_estadia' });
                         }}
                         className="px-2.5 py-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-600 rounded-lg text-[10px] font-bold cursor-pointer"
                       >
@@ -3500,13 +3516,14 @@ export default function AdminView({
                             precio: newServiceForm.precio,
                             descripcion: newServiceForm.descripcion.trim(),
                             estado: newServiceForm.estado as 'activo' | 'inactivo',
-                            emoji: newServiceForm.emoji.trim() || '✨'
+                            emoji: newServiceForm.emoji.trim() || '✨',
+                            tipoCobro: newServiceForm.tipoCobro || 'por_estadia'
                           };
                           nextList = [...currentList, newServiceObj];
                         }
 
                         setEditingHotel({ ...editingHotel, serviciosDetallados: nextList });
-                        setNewServiceForm({ id: '', nombre: '', precio: 0, descripcion: '', estado: 'activo', emoji: '' });
+                        setNewServiceForm({ id: '', nombre: '', precio: 0, descripcion: '', estado: 'activo', emoji: '', tipoCobro: 'por_estadia' });
                       }}
                       className="bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs px-4 py-1.5 rounded-lg flex items-center justify-center gap-1 transition-colors cursor-pointer h-8 w-full sm:w-auto"
                     >
@@ -4498,11 +4515,14 @@ export default function AdminView({
                               }`}>
                                 {service.estado}
                               </span>
+                              <span className="text-[8px] font-bold px-1.5 py-0.5 rounded uppercase bg-teal-50 text-teal-700 border border-teal-200/50">
+                                {service.tipoCobro === 'por_dia' ? 'Por día' : 'Por estadía'}
+                              </span>
                             </div>
                             <p className="text-[10px] text-neutral-500 mt-0.5 leading-snug line-clamp-2">{service.descripcion}</p>
                           </div>
                           <div className="text-right shrink-0 flex flex-col items-end gap-1.5">
-                            <span className="text-xs font-extrabold text-neutral-850 font-mono">${service.precio} <span className="text-[9px] text-neutral-400 font-normal">/ pers</span></span>
+                            <span className="text-xs font-extrabold text-neutral-850 font-mono">${service.precio} <span className="text-[9px] text-neutral-400 font-normal">/ pers {service.tipoCobro === 'por_dia' ? '/ día' : '/ estadía'}</span></span>
                             <div className="flex gap-1.5">
                               <button
                                 type="button"
@@ -4513,7 +4533,8 @@ export default function AdminView({
                                     precio: service.precio,
                                     descripcion: service.descripcion,
                                     estado: service.estado,
-                                    emoji: service.emoji || ''
+                                    emoji: service.emoji || '',
+                                    tipoCobro: service.tipoCobro || 'por_estadia'
                                   });
                                 }}
                                 className="text-[9px] font-bold text-teal-600 hover:text-teal-700 cursor-pointer"
@@ -4591,8 +4612,6 @@ export default function AdminView({
                       </div>
                     </div>
 
-
-
                       <div>
                         <label className="text-[9px] text-neutral-450 block mb-0.5 font-bold uppercase">Precio Unitario ($)</label>
                         <input
@@ -4615,6 +4634,19 @@ export default function AdminView({
                           <option value="inactivo">Inactivo</option>
                         </select>
                       </div>
+
+                      <div className="col-span-2">
+                        <label className="text-[9px] text-neutral-450 block mb-0.5 font-bold uppercase">Frecuencia / Modalidad de Cobro</label>
+                        <select
+                          value={newServiceForm.tipoCobro || 'por_estadia'}
+                          onChange={(e) => setNewServiceForm({ ...newServiceForm, tipoCobro: e.target.value as 'por_estadia' | 'por_dia' })}
+                          className="w-full text-xs border border-neutral-250 p-1.5 rounded-lg focus:outline-none bg-white cursor-pointer"
+                        >
+                          <option value="por_estadia">Una sola vez por la estadía (Tarifa plana por persona)</option>
+                          <option value="por_dia">Cobrar y calcular por cada día de estadía (Diario por persona)</option>
+                        </select>
+                      </div>
+
                       <div className="col-span-2">
                         <label className="text-[9px] text-neutral-450 block mb-0.5 font-bold uppercase">Descripción del Servicio</label>
                         <textarea
@@ -4630,7 +4662,7 @@ export default function AdminView({
                         <button
                           type="button"
                           onClick={() => {
-                            setNewServiceForm({ id: '', nombre: '', precio: 0, descripcion: '', estado: 'activo', emoji: '' });
+                            setNewServiceForm({ id: '', nombre: '', precio: 0, descripcion: '', estado: 'activo', emoji: '', tipoCobro: 'por_estadia' });
                           }}
                           className="px-2.5 py-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-600 rounded-lg text-[10px] font-bold cursor-pointer"
                         >
@@ -4662,13 +4694,14 @@ export default function AdminView({
                               precio: newServiceForm.precio,
                               descripcion: newServiceForm.descripcion.trim(),
                               estado: newServiceForm.estado as 'activo' | 'inactivo',
-                              emoji: newServiceForm.emoji.trim() || '✨'
+                              emoji: newServiceForm.emoji.trim() || '✨',
+                              tipoCobro: newServiceForm.tipoCobro || 'por_estadia'
                             };
                             nextList = [...currentList, newServiceObj];
                           }
 
                           setEditingProperty({ ...editingProperty, serviciosDetallados: nextList });
-                          setNewServiceForm({ id: '', nombre: '', precio: 0, descripcion: '', estado: 'activo', emoji: '' });
+                          setNewServiceForm({ id: '', nombre: '', precio: 0, descripcion: '', estado: 'activo', emoji: '', tipoCobro: 'por_estadia' });
                         }}
                         className="bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs px-4 py-1.5 rounded-lg flex items-center justify-center gap-1 transition-colors cursor-pointer h-8 w-full sm:w-auto"
                       >

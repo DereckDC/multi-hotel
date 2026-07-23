@@ -397,7 +397,7 @@ export default function ReceptionRegistroModule({
                               <p className="text-[9.5px] text-neutral-400 leading-tight">{srv.descripcion}</p>
                             </div>
                             <div className="shrink-0 text-right flex items-center gap-1.5">
-                              <span className="font-mono font-extrabold text-teal-800 text-[11px]">+${srv.precio}</span>
+                              <span className="font-mono font-extrabold text-teal-800 text-[11px]">+${srv.precio} <span className="text-[8.5px] text-neutral-400 font-normal">/ pers {srv.tipoCobro === 'por_dia' ? '/ día' : '/ estadía'}</span></span>
                               <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center transition-colors ${isChecked ? 'bg-[#344D67] border-[#344D67] text-white' : 'border-neutral-300 bg-white'}`}>
                                 {isChecked && <Check className="w-2.5 h-2.5 stroke-[3px]" />}
                               </div>
@@ -408,35 +408,40 @@ export default function ReceptionRegistroModule({
                           {isChecked && (
                             <div
                               onClick={(e) => e.stopPropagation()}
-                              className="mt-1 pt-1 border-t border-teal-200/50 flex items-center justify-between gap-4"
+                              className="mt-1 pt-1 border-t border-teal-200/50 flex flex-col gap-1"
                             >
-                              <span className="text-[9px] text-teal-700 font-semibold">¿Cuántas personas?</span>
-                              <div className="flex items-center gap-1 shrink-0 bg-white px-1.5 py-0.5 border border-teal-200 rounded">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const cur = walkInServicePeopleCount[srv.id] || 1;
-                                    if (cur > 1) {
-                                      setWalkInServicePeopleCount({ ...walkInServicePeopleCount, [srv.id]: cur - 1 });
-                                    }
-                                  }}
-                                  className="w-4 h-4 flex items-center justify-center rounded bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-bold text-[10px] cursor-pointer"
-                                >
-                                  -
-                                </button>
-                                <span className="text-[10px] font-mono font-bold text-neutral-900 w-5 text-center">
-                                  {walkInServicePeopleCount[srv.id] || 1}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const cur = walkInServicePeopleCount[srv.id] || 1;
-                                    setWalkInServicePeopleCount({ ...walkInServicePeopleCount, [srv.id]: cur + 1 });
-                                  }}
-                                  className="w-4 h-4 flex items-center justify-center rounded bg-teal-600 hover:bg-teal-700 text-white font-bold text-[10px] cursor-pointer"
-                                >
-                                  +
-                                </button>
+                              <div className="flex items-center justify-between gap-4">
+                                <span className="text-[9px] text-teal-700 font-semibold">¿Cuántas personas?</span>
+                                <div className="flex items-center gap-1 shrink-0 bg-white px-1.5 py-0.5 border border-teal-200 rounded">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const cur = walkInServicePeopleCount[srv.id] || 1;
+                                      if (cur > 1) {
+                                        setWalkInServicePeopleCount({ ...walkInServicePeopleCount, [srv.id]: cur - 1 });
+                                      }
+                                    }}
+                                    className="w-4 h-4 flex items-center justify-center rounded bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-bold text-[10px] cursor-pointer"
+                                  >
+                                    -
+                                  </button>
+                                  <span className="text-[10px] font-mono font-bold text-neutral-900 w-5 text-center">
+                                    {walkInServicePeopleCount[srv.id] || 1}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const cur = walkInServicePeopleCount[srv.id] || 1;
+                                      setWalkInServicePeopleCount({ ...walkInServicePeopleCount, [srv.id]: cur + 1 });
+                                    }}
+                                    className="w-4 h-4 flex items-center justify-center rounded bg-teal-600 hover:bg-teal-700 text-white font-bold text-[10px] cursor-pointer"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                              </div>
+                              <div className="text-[9px] text-teal-800 font-mono text-right bg-teal-50/70 py-0.5 px-1.5 rounded border border-teal-200/50">
+                                Subtotal: ${srv.precio} × {walkInServicePeopleCount[srv.id] || 1} pers {srv.tipoCobro === 'por_dia' ? `× ${Math.max(1, nights)} ${nights === 1 ? 'día' : 'días'}` : '(cobro único)'} = <span className="font-bold text-teal-900">${(srv.precio * (walkInServicePeopleCount[srv.id] || 1) * (srv.tipoCobro === 'por_dia' ? Math.max(1, nights) : 1)).toFixed(2)}</span>
                               </div>
                             </div>
                           )}

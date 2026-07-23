@@ -263,20 +263,6 @@ export default function ReceptionView({
   const [walkInSelectedServices, setWalkInSelectedServices] = useState<string[]>([]);
   const [walkInServicePeopleCount, setWalkInServicePeopleCount] = useState<Record<string, number>>({});
 
-  const getWalkInServicesTotal = () => {
-    if (!receptionistHotel) return 0;
-    const detailedServices = receptionistHotel.serviciosDetallados || [];
-    let sum = 0;
-    walkInSelectedServices.forEach(srvId => {
-      const srv = detailedServices.find(s => s.id === srvId);
-      if (srv) {
-        const count = walkInServicePeopleCount[srvId] || 1;
-        sum += srv.precio * count;
-      }
-    });
-    return sum;
-  };
-
   const selectedRoom = rooms.find(r => r.id === bookRoomId);
   
   let nights = 1;
@@ -285,6 +271,21 @@ export default function ReceptionView({
     nights = Math.ceil(diff / (1000 * 60 * 60 * 24));
     if (nights <= 0) nights = 1;
   }
+
+  const getWalkInServicesTotal = () => {
+    if (!receptionistHotel) return 0;
+    const detailedServices = receptionistHotel.serviciosDetallados || [];
+    let sum = 0;
+    walkInSelectedServices.forEach(srvId => {
+      const srv = detailedServices.find(s => s.id === srvId);
+      if (srv) {
+        const count = walkInServicePeopleCount[srvId] || 1;
+        const isPerDay = srv.tipoCobro === 'por_dia';
+        sum += isPerDay ? srv.precio * count * nights : srv.precio * count;
+      }
+    });
+    return sum;
+  };
 
   const getRoomPriceForDate = (room: Room, dateStr: string) => {
     const exactMatch = roomPriceVariations.find(v => {
@@ -465,8 +466,10 @@ export default function ReceptionView({
       const srv = detailedList.find(s => s.id === srvId);
       if (srv) {
         const count = walkInServicePeopleCount[srvId] || 1;
-        const total = srv.precio * count;
-        return `${srv.nombre} (${count} pers - $${total})`;
+        const isPerDay = srv.tipoCobro === 'por_dia';
+        const total = isPerDay ? srv.precio * count * nights : srv.precio * count;
+        const detailStr = isPerDay ? `${count} pers x ${nights} ${nights === 1 ? 'día' : 'días'}` : `${count} pers`;
+        return `${srv.nombre} (${detailStr} - $${total.toFixed(2)})`;
       }
       return srvId;
     });

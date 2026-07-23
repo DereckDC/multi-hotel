@@ -88,6 +88,7 @@ export interface HotelService {
   descripcion: string;
   estado: 'activo' | 'inactivo';
   emoji?: string;
+  tipoCobro?: 'por_estadia' | 'por_dia';
 }
 
 export interface ReservationServiceSelection {
