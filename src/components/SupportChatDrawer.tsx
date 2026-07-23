@@ -15,10 +15,10 @@ import {
   Building2, 
   Bell, 
   Dot, 
-  Sparkles, 
   MessageCircle 
 } from 'lucide-react';
 import { Hotel, User as UserType, ChatMessage, UserRole } from '../types';
+import { sortMessagesChronologically } from '../utils/chatUtils';
 
 interface SupportChatDrawerProps {
   hotels: Hotel[];
@@ -76,17 +76,19 @@ export default function SupportChatDrawer({
     }
   }, [isStaff, activeUser, activeHotels, selectedHotelId]);
 
-  // Filter messages based on role and selected targets
+  // Filter messages based on role and selected targets, sorted with millisecond precision
   const getFilteredMessages = () => {
     const hotelFilterId = isStaff && activeUser.rol !== 'super_admin' ? activeUser.hotelId : selectedHotelId;
+    let raw: ChatMessage[] = [];
     if (!isStaff) {
       // Clients see their chat history with the selected hotel
-      return messages.filter(m => m.hotelId === hotelFilterId && (m.senderId === activeUser.id || m.senderId === 'system' || (m.senderRole !== 'cliente' && m.senderId !== activeUser.id)));
+      raw = messages.filter(m => m.hotelId === hotelFilterId && (m.senderId === activeUser.id || m.senderId === 'system' || (m.senderRole !== 'cliente' && m.senderId !== activeUser.id)));
     } else {
       // Staff see chat history between the selected hotel and selected customer
       if (!selectedCustomerId) return [];
-      return messages.filter(m => m.hotelId === hotelFilterId && (m.senderId === selectedCustomerId || (m.senderRole === 'cliente' && m.senderId === selectedCustomerId) || (m.senderRole !== 'cliente' && m.hotelId === hotelFilterId)));
+      raw = messages.filter(m => m.hotelId === hotelFilterId && (m.senderId === selectedCustomerId || (m.senderRole === 'cliente' && m.senderId === selectedCustomerId) || (m.senderRole !== 'cliente' && m.hotelId === hotelFilterId)));
     }
+    return sortMessagesChronologically(raw);
   };
 
   const filteredMessages = getFilteredMessages();
@@ -183,7 +185,7 @@ export default function SupportChatDrawer({
     if (!messageHotelId) return;
 
     const newMsg: ChatMessage = {
-      id: `MSG-${Math.floor(10000 + Math.random() * 90000)}`,
+      id: `MSG-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`,
       senderId: activeUser?.id || 'guest',
       senderName: activeUser ? `${activeUser.nombre} ${activeUser.apellido}` : 'Invitado',
       senderRole: activeUser?.rol || 'cliente',
@@ -238,19 +240,13 @@ export default function SupportChatDrawer({
           >
             {/* Dark Aesthetic Header */}
             <div className="bg-gradient-to-r from-[#0E2A47] to-[#071726] p-4 border-b border-[#0E2A47] flex items-center justify-between">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-full bg-brand-cyan/10 border border-brand-cyan/20 flex items-center justify-center">
-                  <Sparkles className="w-4 h-4 text-brand-cyan" />
+                  <MessageCircle className="w-4 h-4 text-brand-cyan" />
                 </div>
                 <div>
-                  <div className="flex items-center gap-1.5">
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-brand-cyan">Asistencia de Huéspedes</h4>
-                    <span className="flex items-center gap-1 text-[9px] bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-mono px-1.5 py-0.2 rounded-full">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                      WebSocket
-                    </span>
-                  </div>
-                  <p className="text-[10px] text-brand-grey font-mono">Roomia Direct WebSocket Sync</p>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-brand-cyan">Asistencia de Huéspedes</h4>
+                  <p className="text-[10px] text-brand-grey font-mono">Los mensajes son temporales y solo duraran 24h</p>
                 </div>
               </div>
               <button

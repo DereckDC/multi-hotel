@@ -5,6 +5,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { getSocket } from './services/socket';
+import { sortMessagesChronologically } from './utils/chatUtils';
 import { Hotel, Room, User, Reservation, RoomStatus, ReservationStatus, UserRole, ChatMessage, PaymentTransaction, Review, RoomPriceVariation } from './types';
 import {
   supabase,
@@ -474,7 +475,8 @@ export function useHotelStore() {
           if (msgRes.status === 'fulfilled' && msgRes.value.data) {
             const cutoff24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
             const mappedMsgs = msgRes.value.data.map(mapChatMessageFromDb).filter(Boolean) as ChatMessage[];
-            setMessages(mappedMsgs.filter(msg => msg.timestamp >= cutoff24h));
+            const filteredMsgs = mappedMsgs.filter(msg => msg.timestamp >= cutoff24h);
+            setMessages(sortMessagesChronologically(filteredMsgs));
           }
 
           if (txRes.status === 'fulfilled' && txRes.value.data) {
@@ -498,7 +500,7 @@ export function useHotelStore() {
         if (!incomingMsg || !incomingMsg.id) return;
         setMessages(prev => {
           if (prev.some(m => m.id === incomingMsg.id)) return prev;
-          return [...prev, incomingMsg];
+          return sortMessagesChronologically([...prev, incomingMsg]);
         });
       });
 
@@ -521,11 +523,12 @@ export function useHotelStore() {
           const cutoff24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
           const mappedMsgs = data.map(mapChatMessageFromDb).filter(Boolean) as ChatMessage[];
           const filteredMsgs = mappedMsgs.filter(msg => msg.timestamp >= cutoff24h);
+          const sorted = sortMessagesChronologically(filteredMsgs);
           setMessages(prev => {
-            if (prev.length === filteredMsgs.length && prev.every((m, idx) => m.id === filteredMsgs[idx]?.id && m.read === filteredMsgs[idx]?.read)) {
+            if (prev.length === sorted.length && prev.every((m, idx) => m.id === sorted[idx]?.id && m.read === sorted[idx]?.read)) {
               return prev;
             }
-            return filteredMsgs;
+            return sorted;
           });
         }
       } catch (e) {
@@ -1905,7 +1908,7 @@ El Equipo de Hospitalidad de Roomia PMS.`;
   const sendChatMessage = async (msg: ChatMessage) => {
     setMessages(prev => {
       if (prev.some(m => m.id === msg.id)) return prev;
-      return [...prev, msg];
+      return sortMessagesChronologically([...prev, msg]);
     });
 
     // Emit live chat message via persistent WebSocket connection
