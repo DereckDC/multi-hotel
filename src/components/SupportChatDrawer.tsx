@@ -243,8 +243,14 @@ export default function SupportChatDrawer({
                   <Sparkles className="w-4 h-4 text-brand-cyan" />
                 </div>
                 <div>
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-brand-cyan">Asistencia de Huéspedes</h4>
-                  <p className="text-[10px] text-brand-grey font-mono">Roomia Secure Live Chat</p>
+                  <div className="flex items-center gap-1.5">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-brand-cyan">Asistencia de Huéspedes</h4>
+                    <span className="flex items-center gap-1 text-[9px] bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-mono px-1.5 py-0.2 rounded-full">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                      WebSocket
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-brand-grey font-mono">Roomia Direct WebSocket Sync</p>
                 </div>
               </div>
               <button

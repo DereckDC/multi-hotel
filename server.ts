@@ -1,5 +1,7 @@
 import express from "express";
 import path from "path";
+import { createServer as createHttpServer } from "http";
+import { Server as SocketIOServer } from "socket.io";
 import { createServer as createViteServer } from "vite";
 import nodemailer from "nodemailer";
 import dotenv from "dotenv";
@@ -8,7 +10,35 @@ dotenv.config();
 
 async function startServer() {
   const app = express();
+  const httpServer = createHttpServer(app);
+  const io = new SocketIOServer(httpServer, {
+    cors: {
+      origin: "*",
+      methods: ["GET", "POST"]
+    }
+  });
+
   const PORT = 3000;
+
+  // Real-time WebSocket connection listener for Live Chat
+  io.on("connection", (socket) => {
+    console.log(`[WebSocket Server] Cliente conectado al chat en vivo: ${socket.id}`);
+
+    // Receive chat message and broadcast immediately to all clients in real-time
+    socket.on("chat:message", (msg) => {
+      console.log(`[WebSocket Server] Difundiendo mensaje de chat ID: ${msg?.id}`);
+      io.emit("chat:message", msg);
+    });
+
+    // Receive read status update and broadcast
+    socket.on("chat:read", (payload) => {
+      io.emit("chat:read", payload);
+    });
+
+    socket.on("disconnect", () => {
+      console.log(`[WebSocket Server] Cliente desconectado del chat: ${socket.id}`);
+    });
+  });
 
   // Use JSON middleware to parse requests
   app.use(express.json());
@@ -137,8 +167,8 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+  httpServer.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server & WebSocket running on http://localhost:${PORT}`);
   });
 }
 
