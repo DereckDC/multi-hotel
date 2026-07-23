@@ -47,10 +47,14 @@ export interface Hotel {
   };
   provincia?: string;
   ciudad?: string;
+  parroquia?: string;
   contacto: {
     telefono: string;
     email: string;
     web?: string;
+    provincia?: string;
+    ciudad?: string;
+    parroquia?: string;
   };
   redesSociales: {
     facebook?: string;

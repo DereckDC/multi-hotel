@@ -43,3 +43,119 @@ export function getCitiesForProvince(provinciaName: string): string[] {
   const found = ECUADOR_PROVINCES.find(p => p.provincia.toLowerCase() === provinciaName.toLowerCase());
   return found ? found.ciudades : [];
 }
+
+/**
+ * Parroquias destacadas por Cantón / Ciudad en Ecuador
+ */
+export const ECUADOR_PARROQUIAS: Record<string, string[]> = {
+  "Quito": [
+    "Iñaquito", "Mariscal Sucre", "Centro Histórico", "Cumbayá", "Tumbaco", "Calderón",
+    "Pomasqui", "San Antonio de Pichincha", "Conocoto", "Puembo", "Guamani", "Cotocollao",
+    "Carcelén", "Quitumbe", "La Magdalena", "Chimbacalle", "Pifo", "Nayón", "Tababela"
+  ],
+  "Guayaquil": [
+    "Tarqui", "Ximena", "Febres Cordero", "Letamendi", "Garcia Moreno", "Urdaneta",
+    "Chongón", "Pascuales", "Posorja", "Puná", "Tenguel", "Progreso", "Puerto Bolívar", "Samanes", "Urdesa", "Ceibos"
+  ],
+  "Cuenca": [
+    "El Sagrario", "San Sebastián", "Huayna Cápac", "Bellavista", "Yanuncay", "Sucre",
+    "Baños", "Ricaurte", "San Joaquín", "Sayausí", "Turi", "Valle", "Molleturo", "Chaucha"
+  ],
+  "Manta": [
+    "Manta (Urbana)", "Tarqui", "Los Esteros", "San Mateo", "Eloy Alfaro", "San Lorenzo", "Santa Marianita"
+  ],
+  "Portoviejo": [
+    "Portoviejo Centro", "12 de Marzo", "18 de Octubre", "Andrés de Vera", "Crucita", "Picoazá", "Calderón", "Riochico"
+  ],
+  "Ambato": [
+    "Atocha-Ficoa", "Huachi Chico", "Huachi Loreto", "La Merced", "Matriz", "Izamba", "Atahualpa", "Santa Rosa", "Quisapincha"
+  ],
+  "Riobamba": [
+    "Lizarzaburu", "Maldonado", "Velasco", "Veloz", "Yaruquíes", "Licán", "San Luis", "Calpi", "Químiag"
+  ],
+  "Loja": [
+    "El Sagrario", "Sucre", "San Sebastián", "Valle", "Vilcabamba", "Malacatos", "El Cisne", "Yangana", "San Lucas"
+  ],
+  "Salinas": [
+    "Salinas (Urbana)", "General Alberto Enríquez Gallo", "Carlos Espinoza Larrea", "Vicente Rocafuerte", "Anconcito", "José Luis Tamayo (Muey)"
+  ],
+  "Santa Elena": [
+    "Santa Elena", "Ballenita", "Colonche", "Chanduy", "Manglaralto", "Olón", "Montañita", "Ayangue"
+  ],
+  "Ibarra": [
+    "Sagrario", "San Francisco", "Caranqui", "Alpachaca", "Priorato", "San Antonio de Ibarra", "Ambuquí", "La Esperanza"
+  ],
+  "Santo Domingo": [
+    "Abraham Calazacón", "Chiguilpe", "Río Verde", "Bombolí", "Zaracay", "Alluriquín", "Puerto Limón", "Valle Hermoso"
+  ],
+  "Esmeraldas": [
+    "Bartolomé Ruiz", "5 de Agosto", "Esmeraldas", "Luis Tello", "Simón Plata Torres", "Atacames", "Tachina", "Vuelta Larga"
+  ],
+  "Machala": [
+    "Machala Centro", "Puerto Bolívar", "La Providencia", "9 de Mayo", "El Cambio", "El Retiro"
+  ],
+  "Quevedo": [
+    "Quevedo Centro", "24 de Mayo", "Guayacán", "San Camilo", "San Cristóbal", "Seven de Octubre", "Venus del Río Quevedo", "La Esperanza"
+  ],
+  "Latacunga": [
+    "La Matriz", "Eloy Alfaro", "Ignacio Flores", "Juan Montalvo", "San Buenaventura", "Belisario Quevedo", "Guaytacama", "Mulaló", "Pastocalle", "Tanicuchí"
+  ],
+  "Baños de Agua Santa": [
+    "Baños Centro", "Lligua", "Río Verde", "Río Negro", "Ulba"
+  ],
+  "Samborondón": [
+    "Samborondón Cabecera", "La Puntilla", "Tarifa"
+  ],
+  "Daule": [
+    "Daule Cabecera", "La Aurora", "Banife", "Juan Bautista Aguirre", "Laurel", "Los Lojas"
+  ],
+  "Durán": [
+    "Eloy Alfaro", "El Recreo", "Abel Gilbert", "Divino Niño", "Panorama"
+  ],
+  "Otavalo": [
+    "Jordán", "San Luis", "Eugenio Espejo", "González Suárez", "San José de Quichinche", "San Juan de Ilumán", "San Pablo"
+  ],
+  "Cayambe": [
+    "Cayambe Centro", "Ayora", "Ascázubi", "Cangahua", "Olmedo", "Santa Rosa de Cuzubamba"
+  ],
+  "Rumiñahui (Sangolquí)": [
+    "Sangolquí Centro", "San Pedro de Taboada", "San Rafael", "Cotogchoa", "Rumipamba"
+  ],
+  "Atacames": [
+    "Atacames Centro", "Tonsupa", "Súa", "Same", "Tonchigue"
+  ],
+  "Montañita": [
+    "Montañita Centro", "Manglaralto", "Olón", "Ayangue"
+  ],
+  "Puerto Ayora (Santa Cruz)": [
+    "Puerto Ayora Centro", "Bellavista", "Santa Rosa"
+  ],
+  "Puerto Baquerizo Moreno (San Cristóbal)": [
+    "Puerto Baquerizo Centro", "El Progreso", "Isla Santa María"
+  ]
+};
+
+export function getParroquiasForCity(provinciaName: string, cityName: string): string[] {
+  if (!cityName) return [];
+  // Clean city name (e.g. remove parentheses like "Puerto Ayora (Santa Cruz)")
+  const cleanCity = cityName.split('(')[0].trim();
+  
+  // Search exact match or clean match in dictionary
+  for (const [key, val] of Object.entries(ECUADOR_PARROQUIAS)) {
+    if (key.toLowerCase() === cityName.toLowerCase() || key.toLowerCase().includes(cleanCity.toLowerCase())) {
+      return val;
+    }
+  }
+
+  // Generic fallback parroquias for any other city in Ecuador
+  return [
+    `${cleanCity} Centro (Urbana)`,
+    "Norte",
+    "Sur",
+    "Este",
+    "Oeste",
+    "Cabecera Cantonal",
+    "Zona Rural / Periferia"
+  ];
+}
+
