@@ -490,6 +490,44 @@ export function useHotelStore() {
 
     fetchSupabaseData();
 
+    // Helper for refreshing messages in real-time
+    const refreshMessagesInStore = async () => {
+      try {
+        const { data } = await supabase.from('messages').select('*');
+        if (data) {
+          const cutoff24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+          const mappedMsgs = data.map(mapChatMessageFromDb).filter(Boolean) as ChatMessage[];
+          const filteredMsgs = mappedMsgs.filter(msg => msg.timestamp >= cutoff24h);
+          setMessages(prev => {
+            if (prev.length === filteredMsgs.length && prev.every((m, idx) => m.id === filteredMsgs[idx]?.id && m.read === filteredMsgs[idx]?.read)) {
+              return prev;
+            }
+            return filteredMsgs;
+          });
+        }
+      } catch (e) {
+        // Silent catch for network hiccups
+      }
+    };
+
+    // Polling interval for messages to guarantee real-time synchronization across clients & tabs
+    const msgInterval = setInterval(refreshMessagesInStore, 2500);
+
+    // BroadcastChannel listener for instant cross-tab sync
+    let bc: BroadcastChannel | null = null;
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      try {
+        bc = new BroadcastChannel('roomia_live_chat_sync');
+        bc.onmessage = (ev) => {
+          if (ev.data?.type === 'CHAT_MSG') {
+            refreshMessagesInStore();
+          }
+        };
+      } catch (e) {
+        console.warn("BroadcastChannel error:", e);
+      }
+    }
+
     // Subscribe to real-time Postgres changes for real multi-tab / synchronized state
     const channel = supabase
       .channel('schema-db-changes')
@@ -519,13 +557,7 @@ export function useHotelStore() {
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, async () => {
-        const { data } = await supabase.from('messages').select('*');
-        if (data) {
-          const cutoff24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-          const mappedMsgs = data.map(mapChatMessageFromDb).filter(Boolean) as ChatMessage[];
-          const filteredMsgs = mappedMsgs.filter(msg => msg.timestamp >= cutoff24h);
-          setMessages(filteredMsgs);
-        }
+        refreshMessagesInStore();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, async () => {
         const { data } = await supabase.from('transactions').select('*');
@@ -542,6 +574,8 @@ export function useHotelStore() {
       .subscribe();
 
     return () => {
+      clearInterval(msgInterval);
+      if (bc) bc.close();
       supabase.removeChannel(channel);
     };
   }, [currentUserId]);
@@ -730,11 +764,26 @@ export function useHotelStore() {
       const result = await syncRoomToSupabase(validatedRoom);
       if (!result.success) {
         console.error("❌ Error al guardar habitación en Supabase:", result.error);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('aura-toast', {
+            detail: { message: `⚠️ Habitación N° ${validatedRoom.numero} guardada localmente.` }
+          }));
+        }
       } else {
         console.log("✅ Habitación guardada exitosamente en Supabase:", validatedRoom.id);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('aura-toast', {
+            detail: { message: `✅ Habitación N° ${validatedRoom.numero} (${validatedRoom.nombre}) guardada y sincronizada correctamente.` }
+          }));
+        }
       }
     } catch (err) {
       console.warn("Supabase saveRoom sync error:", err);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('aura-toast', {
+          detail: { message: `✅ Habitación N° ${validatedRoom.numero} guardada en memoria.` }
+        }));
+      }
     }
 
     const parentHotel = hotels.find(h => h.id === validatedRoom.hotelId);
@@ -752,6 +801,11 @@ export function useHotelStore() {
 
     try {
       await deleteRowFromSupabase('rooms', roomId);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('aura-toast', {
+          detail: { message: `🗑️ Habitación N° ${targetRoom?.numero || roomId} eliminada correctamente.` }
+        }));
+      }
     } catch (err) {
       console.warn("Supabase deleteRoom error:", err);
     }
@@ -1830,6 +1884,17 @@ El Equipo de Hospitalidad de Roomia PMS.`;
       if (prev.some(m => m.id === msg.id)) return prev;
       return [...prev, msg];
     });
+
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      try {
+        const bc = new BroadcastChannel('roomia_live_chat_sync');
+        bc.postMessage({ type: 'CHAT_MSG', msg });
+        bc.close();
+      } catch (e) {
+        // silent
+      }
+    }
+
     try {
       await syncChatMessageToSupabase(msg);
     } catch (e) {

@@ -15,6 +15,12 @@ import { ECUADOR_PROVINCES, getProvincesList, getCitiesForProvince, getParroquia
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, AreaChart, Area } from 'recharts';
 import { Plus, Edit3, Trash2, Shield, Users, HotelIcon, List, LayoutDashboard, Calendar, DollarSign, Percent, TrendingUp, AlertCircle, MapPin, EyeOff, ClipboardList, ToggleLeft, ToggleRight, Check, X, Upload, Database, Sparkles, Copy, Key, Building, Home, Star, Wrench, ChevronDown } from 'lucide-react';
 
+const notifyToast = (msg: string) => {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('aura-toast', { detail: { message: msg } }));
+  }
+};
+
 export function getMapEmbedUrl(ubicacion: string, googleMapsUrl?: string): string {
   const cleanUrl = googleMapsUrl ? googleMapsUrl.trim() : '';
   const cleanUbicacion = ubicacion ? ubicacion.trim() : '';
@@ -452,7 +458,7 @@ export default function AdminView({
     if (!file) return;
 
     if (file.size > 15 * 1024 * 1024) {
-      alert("Para un rendimiento óptimo de carga, por favor elija un archivo menor a 15MB.");
+      notifyToast("⚠️ Para un rendimiento óptimo de carga, por favor elija un archivo menor a 15MB.");
       return;
     }
 
@@ -466,7 +472,7 @@ export default function AdminView({
           if (editingHotel) {
             const currentImgs = editingHotel.imagenes || [];
             if (currentImgs.length >= 15) {
-              alert("Ya has alcanzado el límite de 15 fotos o videos.");
+              notifyToast("⚠️ Ya has alcanzado el límite de 15 fotos o videos.");
               return;
             }
             setEditingHotel({
@@ -478,7 +484,7 @@ export default function AdminView({
           if (editingProperty) {
             const currentImgs = editingProperty.imagenes || [];
             if (currentImgs.length >= 15) {
-              alert("Ya has alcanzado el límite de 15 fotos o videos.");
+              notifyToast("⚠️ Ya has alcanzado el límite de 15 fotos o videos.");
               return;
             }
             setEditingProperty({
@@ -490,7 +496,7 @@ export default function AdminView({
           if (editingRoom) {
             const currentImgs = editingRoom.imagenes || [];
             if (currentImgs.length >= 15) {
-              alert("Ya has alcanzado el límite de 15 de fotos u videos.");
+              notifyToast("⚠️ Ya has alcanzado el límite de 15 de fotos u videos.");
               return;
             }
             setEditingRoom({
@@ -511,7 +517,7 @@ export default function AdminView({
 
     const targetHotelId = editingRoom.hotelId || allowedOnlyHotels[0]?.id || hotels[0]?.id || '';
     if (!targetHotelId) {
-      alert("Debes seleccionar o crear primero un hotel/establecimiento antes de agregar habitaciones.");
+      notifyToast("⚠️ Debes seleccionar o crear primero un hotel/establecimiento antes de agregar habitaciones.");
       return;
     }
 
@@ -601,31 +607,31 @@ export default function AdminView({
 
     if (editingProperty.detallesInmueble) {
       if (editingProperty.detallesInmueble.habitaciones === undefined || editingProperty.detallesInmueble.habitaciones === null || isNaN(editingProperty.detallesInmueble.habitaciones)) {
-        alert("Por favor ingrese el número de habitaciones.");
+        notifyToast("⚠️ Por favor ingrese el número de habitaciones.");
         return;
       }
       if (editingProperty.detallesInmueble.banos === undefined || editingProperty.detallesInmueble.banos === null || isNaN(editingProperty.detallesInmueble.banos)) {
-        alert("Por favor ingrese el número de baños.");
+        notifyToast("⚠️ Por favor ingrese el número de baños.");
         return;
       }
       if (!editingProperty.detallesInmueble.metrosCuadrados || isNaN(editingProperty.detallesInmueble.metrosCuadrados)) {
-        alert("Por favor ingrese la superficie en m².");
+        notifyToast("⚠️ Por favor ingrese la superficie en m².");
         return;
       }
     }
 
     if (!editingProperty.propietario?.nombre || !editingProperty.propietario?.telefono || !editingProperty.propietario?.email) {
-      alert("Por favor complete los datos de contacto del propietario (Nombre, Teléfono y Email).");
+      notifyToast("⚠️ Por favor complete los datos de contacto del propietario (Nombre, Teléfono y Email).");
       return;
     }
 
     if (!editingProperty.nombre) {
-      alert("Por favor ingrese el nombre del inmueble o propiedad comercial.");
+      notifyToast("⚠️ Por favor ingrese el nombre del inmueble o propiedad comercial.");
       return;
     }
 
     if (!editingProperty.ubicacion) {
-      alert("Por favor ingrese la ubicación exacta de la propiedad.");
+      notifyToast("⚠️ Por favor ingrese la ubicación exacta de la propiedad.");
       return;
     }
 
@@ -2288,7 +2294,7 @@ export default function AdminView({
                                         activeUser.rol,
                                         `${res.mensajeCambio || ''} | REEMBOLSO_PAGADO`
                                       );
-                                      alert("✅ Reembolso registrado con éxito en el historial de la reserva.");
+                                      notifyToast("✅ Reembolso registrado con éxito en el historial de la reserva.");
                                     }
                                   }
                                 }}
@@ -2389,11 +2395,11 @@ export default function AdminView({
                     type="button"
                     onClick={() => {
                       if (!incidentRoomId) {
-                        alert("⚠️ Alerta: Por favor seleccione la habitación afectada.");
+                        notifyToast("⚠️ Alerta: Por favor seleccione la habitación afectada.");
                         return;
                       }
                       if (!incidentDesc.trim()) {
-                        alert("⚠️ Alerta: Por favor especifique los detalles o motivo de la incidencia.");
+                        notifyToast("⚠️ Alerta: Por favor especifique los detalles o motivo de la incidencia.");
                         return;
                       }
                       const target = rooms.find(r => r.id === incidentRoomId);
@@ -2401,7 +2407,7 @@ export default function AdminView({
 
                       if (onUpdateRoomStatus) {
                         onUpdateRoomStatus(incidentRoomId, 'mantenimiento', activeUser.nombre, activeUser.rol, incidentDesc);
-                        alert(`✅ Incidencia reportada exitosamente. La habitación N° ${target.numero} ha sido colocada en Mantenimiento.`);
+                        notifyToast(`✅ Incidencia reportada exitosamente. La habitación N° ${target.numero} ha sido colocada en Mantenimiento.`);
                         setIncidentDesc('');
                         setIncidentRoomId('');
                       }
@@ -2535,7 +2541,7 @@ export default function AdminView({
                                         onClick={() => {
                                           if (confirm(`¿Desea resolver la incidencia de la Habitación N° ${roomMatch.numero} y habilitarla de nuevo para reservas?`)) {
                                             onUpdateRoomStatus(roomMatch.id, 'disponible', activeUser.nombre, activeUser.rol, "Incidencia solucionada por administración y devuelta a servicio.");
-                                            alert(`✅ Habitación N° ${roomMatch.numero} puesta como Disponible.`);
+                                            notifyToast(`✅ Habitación N° ${roomMatch.numero} puesta como Disponible.`);
                                           }
                                         }}
                                         className="text-[10px] bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1 px-2.5 rounded-lg cursor-pointer transition-all shadow-sm active:scale-95 whitespace-nowrap"
@@ -3495,11 +3501,11 @@ export default function AdminView({
                       type="button"
                       onClick={() => {
                         if (!newServiceForm.nombre.trim()) {
-                          alert("Por favor ingrese el nombre del servicio.");
+                          notifyToast("⚠️ Por favor ingrese el nombre del servicio.");
                           return;
                         }
                         if (newServiceForm.precio <= 0) {
-                          alert("Por favor ingrese un precio mayor a $0.");
+                          notifyToast("⚠️ Por favor ingrese un precio mayor a $0.");
                           return;
                         }
 
@@ -4673,11 +4679,11 @@ export default function AdminView({
                         type="button"
                         onClick={() => {
                           if (!newServiceForm.nombre.trim()) {
-                            alert("Por favor ingrese el nombre del servicio.");
+                            notifyToast("⚠️ Por favor ingrese el nombre del servicio.");
                             return;
                           }
                           if (newServiceForm.precio <= 0) {
-                            alert("Por favor ingrese un precio mayor a $0.");
+                            notifyToast("⚠️ Por favor ingrese un precio mayor a $0.");
                             return;
                           }
 
@@ -5438,7 +5444,7 @@ export default function AdminView({
                         activeUser.rol,
                         calcMessage
                       );
-                      alert("✅ Cancelación y diagnóstico de reembolso procesado con éxito.");
+                      notifyToast("✅ Cancelación y diagnóstico de reembolso procesado con éxito.");
                       setShowRefundModal(false);
                       setSelectedResForRefund(null);
                     }
@@ -5682,15 +5688,15 @@ export default function AdminView({
                   type="button"
                   onClick={() => {
                     if (!newVarPrice || newVarPrice <= 0) {
-                      alert("⚠️ Alerta: El precio especial es requerido y debe ser mayor a 0.");
+                      notifyToast("⚠️ Alerta: El precio especial es requerido y debe ser mayor a 0.");
                       return;
                     }
                     if (!newVarIsWeekend && newVarDates.length === 0) {
-                      alert("⚠️ Alerta: La fecha de aplicación es requerida. Por favor, seleccione al menos un día en el selector.");
+                      notifyToast("⚠️ Alerta: La fecha de aplicación es requerida. Por favor, seleccione al menos un día en el selector.");
                       return;
                     }
                     if (!newVarMotivo.trim()) {
-                      alert("⚠️ Alerta: El motivo o temporada especial es requerido.");
+                      notifyToast("⚠️ Alerta: El motivo o temporada especial es requerido.");
                       return;
                     }
 

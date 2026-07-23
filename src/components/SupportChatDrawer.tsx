@@ -234,7 +234,7 @@ export default function SupportChatDrawer({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 30, scale: 0.92 }}
             transition={{ type: 'spring', damping: 20, stiffness: 300 }}
-            className="absolute bottom-16 right-0 w-80 md:w-96 h-[500px] bg-[#071726] border border-[#0E2A47]/60 rounded-3xl shadow-2xl flex flex-col overflow-hidden text-neutral-100"
+            className="fixed sm:absolute bottom-20 sm:bottom-16 right-3 left-3 sm:left-auto sm:right-0 w-auto sm:w-96 max-w-[calc(100vw-24px)] h-[75vh] max-h-[520px] bg-[#071726] border border-[#0E2A47]/60 rounded-3xl shadow-2xl flex flex-col overflow-hidden text-neutral-100 z-50"
           >
             {/* Dark Aesthetic Header */}
             <div className="bg-gradient-to-r from-[#0E2A47] to-[#071726] p-4 border-b border-[#0E2A47] flex items-center justify-between">
