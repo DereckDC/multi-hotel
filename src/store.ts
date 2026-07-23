@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
+import { getSocket } from './services/socket';
 import { Hotel, Room, User, Reservation, RoomStatus, ReservationStatus, UserRole, ChatMessage, PaymentTransaction, Review, RoomPriceVariation } from './types';
 import {
   supabase,
@@ -490,7 +491,29 @@ export function useHotelStore() {
 
     fetchSupabaseData();
 
-    // Helper for refreshing messages in real-time
+    // WebSocket real-time listener for instant bidirectional chat updates without page refresh
+    let socket = getSocket();
+    if (socket) {
+      socket.on('chat:message', (incomingMsg: ChatMessage) => {
+        if (!incomingMsg || !incomingMsg.id) return;
+        setMessages(prev => {
+          if (prev.some(m => m.id === incomingMsg.id)) return prev;
+          return [...prev, incomingMsg];
+        });
+      });
+
+      socket.on('chat:read', (payload: { hotelId: string; senderId: string; senderRole: UserRole }) => {
+        if (!payload) return;
+        setMessages(prev => prev.map(m => {
+          if (m.hotelId === payload.hotelId && m.senderId === payload.senderId && m.senderRole === payload.senderRole) {
+            return { ...m, read: true };
+          }
+          return m;
+        }));
+      });
+    }
+
+    // Helper for refreshing messages in real-time as fallback
     const refreshMessagesInStore = async () => {
       try {
         const { data } = await supabase.from('messages').select('*');
@@ -1885,6 +1908,16 @@ El Equipo de Hospitalidad de Roomia PMS.`;
       return [...prev, msg];
     });
 
+    // Emit live chat message via persistent WebSocket connection
+    try {
+      const socket = getSocket();
+      if (socket) {
+        socket.emit("chat:message", msg);
+      }
+    } catch (e) {
+      console.warn("WebSocket sendChatMessage emit error:", e);
+    }
+
     if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
       try {
         const bc = new BroadcastChannel('roomia_live_chat_sync');
@@ -1909,6 +1942,16 @@ El Equipo de Hospitalidad de Roomia PMS.`;
       }
       return m;
     }));
+
+    // Emit read status via persistent WebSocket connection
+    try {
+      const socket = getSocket();
+      if (socket) {
+        socket.emit("chat:read", { hotelId, senderId, senderRole });
+      }
+    } catch (e) {
+      console.warn("WebSocket markMessagesAsRead emit error:", e);
+    }
     try {
       const { data } = await supabase
         .from('messages')
