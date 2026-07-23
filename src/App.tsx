@@ -1585,7 +1585,7 @@ export default function App() {
       )}
 
       {/* Modern Safe Toast Notifications Overlay */}
-      <div className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-3 max-w-sm w-full pointer-events-none print:hidden">
+      <div className="fixed bottom-4 sm:bottom-6 right-3 left-3 sm:left-auto sm:right-6 z-[9999] flex flex-col gap-2.5 max-w-md sm:max-w-sm w-auto sm:w-full pointer-events-none print:hidden">
         <AnimatePresence>
           {toasts.map((toast) => (
             <motion.div
