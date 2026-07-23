@@ -4842,6 +4842,108 @@ export default function AdminView({
                   </label>
                 </div>
 
+                {/* Servicios y Comodidades Incluidas en la Habitación */}
+                <div className="col-span-2 space-y-3 bg-neutral-50 p-4 rounded-xl border border-neutral-200">
+                  <div className="flex justify-between items-center pb-2 border-b border-neutral-200 font-sans">
+                    <span className="text-[11px] font-bold text-neutral-700 uppercase tracking-wide">
+                      Servicios y Comodidades Incluidas en la Habitación ({(editingRoom.servicios || []).length})
+                    </span>
+                    <span className="text-[10px] text-neutral-400 font-medium">Ej: Ducha Lluvia, TV Smart, Aire Acondicionado</span>
+                  </div>
+
+                  {/* Input para añadir servicio personalizado */}
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      placeholder="Escribe una comodidad (Ej: Jacuzzi, Caja Fuerte, Minibar...)"
+                      id="newRoomServiceInput"
+                      className="flex-1 text-xs border border-neutral-250 p-2 rounded-lg bg-white focus:outline-none"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          const val = (e.currentTarget.value || '').trim();
+                          if (val) {
+                            const current = editingRoom.servicios || [];
+                            if (!current.includes(val)) {
+                              setEditingRoom({ ...editingRoom, servicios: [...current, val] });
+                            }
+                            e.currentTarget.value = '';
+                          }
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const input = document.getElementById('newRoomServiceInput') as HTMLInputElement;
+                        if (input && input.value.trim()) {
+                          const val = input.value.trim();
+                          const current = editingRoom.servicios || [];
+                          if (!current.includes(val)) {
+                            setEditingRoom({ ...editingRoom, servicios: [...current, val] });
+                          }
+                          input.value = '';
+                        }
+                      }}
+                      className="px-3 py-2 bg-teal-700 text-white text-xs font-semibold rounded-lg hover:bg-teal-800 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Agregar
+                    </button>
+                  </div>
+
+                  {/* Badges sugeridos de un clic */}
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                    <span className="text-[10px] text-neutral-400 font-medium">Sugerencias rápidas:</span>
+                    {['Ducha Lluvia', 'TV Smart', 'Aire Acondicionado', 'Wifi de Alta Velocidad', 'Jacuzzi', 'Caja Fuerte', 'Minibar', 'Vista a la Ciudad', 'Balcón Privado', 'Escritorio', 'Secador de Pelo'].map((sug) => {
+                      const active = (editingRoom.servicios || []).includes(sug);
+                      return (
+                        <button
+                          key={sug}
+                          type="button"
+                          onClick={() => {
+                            const current = editingRoom.servicios || [];
+                            if (active) {
+                              setEditingRoom({ ...editingRoom, servicios: current.filter(s => s !== sug) });
+                            } else {
+                              setEditingRoom({ ...editingRoom, servicios: [...current, sug] });
+                            }
+                          }}
+                          className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors cursor-pointer ${
+                            active
+                              ? 'bg-teal-50 border-teal-300 text-teal-800 font-semibold'
+                              : 'bg-white border-neutral-200 text-neutral-600 hover:bg-neutral-100'
+                          }`}
+                        >
+                          {active ? '✓ ' : '+ '}{sug}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Tags actualmente agregados */}
+                  <div className="flex flex-wrap gap-1.5 pt-2">
+                    {(!editingRoom.servicios || editingRoom.servicios.length === 0) ? (
+                      <span className="text-[10px] text-neutral-400 italic">No hay servicios ni comodidades asignados a esta habitación.</span>
+                    ) : (
+                      editingRoom.servicios.map((service, index) => (
+                        <span key={index} className="inline-flex items-center gap-1 px-2.5 py-1 bg-white border border-neutral-250 rounded-md text-xs font-medium text-neutral-700 shadow-2xs">
+                          <span>{service}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const filtered = (editingRoom.servicios || []).filter((_, idx) => idx !== index);
+                              setEditingRoom({ ...editingRoom, servicios: filtered });
+                            }}
+                            className="text-neutral-400 hover:text-red-600 ml-1 font-bold cursor-pointer"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))
+                    )}
+                  </div>
+                </div>
+
                 <div className="col-span-2 space-y-3 bg-neutral-50 p-4 rounded-xl border border-neutral-200">
                   <div className="flex justify-between items-center pb-2 border-b border-neutral-200 font-sans">
                     <span className="text-[11px] font-bold text-neutral-700 uppercase tracking-wide">Imágenes y Videos de la Habitación ({(editingRoom.imagenes || []).length}/15)</span>

@@ -260,7 +260,15 @@ export default function ClientView({
     setBookingRoom(null);
     setSelectedServices([]);
     setServicePeopleCount({});
+    window.scrollTo({ top: 0, behavior: 'instant' });
   }, [selectedHotelId]);
+
+  // Scroll a la parte superior cuando se selecciona/abre una habitación para consultar o reservar
+  React.useEffect(() => {
+    if (bookingRoom) {
+      window.scrollTo({ top: 0, behavior: 'instant' });
+    }
+  }, [bookingRoom]);
 
   // Limpiar fechas cuando cambia de hotel o de habitación elegida, o preestablecer para alquileres de 3 meses
   React.useEffect(() => {
@@ -1329,104 +1337,102 @@ export default function ClientView({
                         })()}
 
                         {/* Additional services checkout menu */}
-                        <div className="space-y-2">
-                          <label className="text-xs font-semibold text-neutral-500 block mb-1">Servicios Estancia Adicionales (Opcional):</label>
-                          <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                            {(() => {
-                              const bookingHotel = hotels.find(h => h.id === bookingRoom?.hotelId);
-                              const availableServices = (bookingHotel?.serviciosDetallados && bookingHotel.serviciosDetallados.length > 0)
-                                ? bookingHotel.serviciosDetallados.filter(s => s.estado === 'activo')
-                                : ADDITIONAL_SERVICES.map(s => ({
-                                    id: s.id,
-                                    nombre: s.name,
-                                    precio: s.price,
-                                    descripcion: s.desc,
-                                    estado: 'activo' as const
-                                  }));
+                        {(() => {
+                          const bookingHotel = hotels.find(h => h.id === bookingRoom?.hotelId);
+                          const availableServices = (bookingHotel?.serviciosDetallados && bookingHotel.serviciosDetallados.length > 0)
+                            ? bookingHotel.serviciosDetallados.filter(s => s.estado === 'activo')
+                            : [];
 
-                              return availableServices.map(srv => {
-                                const isChecked = selectedServices.includes(srv.id);
-                                return (
-                                  <div
-                                    key={srv.id}
-                                    onClick={() => {
-                                      setSelectedServices(prev => {
-                                        const exists = prev.includes(srv.id);
-                                        if (exists) {
-                                          return prev.filter(id => id !== srv.id);
-                                        } else {
-                                          setServicePeopleCount(prevCounts => ({
-                                            ...prevCounts,
-                                            [srv.id]: 1
-                                          }));
-                                          return [...prev, srv.id];
-                                        }
-                                      });
-                                    }}
-                                    className={`p-3 rounded-xl border text-xs cursor-pointer transition-all flex flex-col gap-2 ${
-                                      isChecked
-                                        ? 'bg-teal-50/50 border-teal-300 shadow-sm'
-                                        : 'bg-white hover:bg-neutral-50 border-neutral-200'
-                                    }`}
-                                  >
-                                    <div className="flex justify-between items-start gap-4">
-                                      <div className="min-w-0 flex-1">
-                                        <p className="font-semibold text-neutral-800 flex items-center gap-1.5">
-                                          {srv.emoji && <span className="text-sm shrink-0">{srv.emoji}</span>}
-                                          <span>{srv.nombre}</span>
-                                        </p>
-                                        <p className="text-[10px] text-neutral-450 mt-0.5 leading-relaxed">{srv.descripcion}</p>
-                                      </div>
-                                      <div className="shrink-0 text-right flex items-center gap-2">
-                                        <span className="font-mono font-bold text-teal-800">+${srv.precio} <span className="text-[9px] text-neutral-400 font-normal">/ pers</span></span>
-                                        <div className={`w-4.5 h-4.5 rounded border-2 flex items-center justify-center transition-colors ${isChecked ? 'bg-teal-600 border-teal-600 text-white' : 'border-neutral-300 bg-white'}`}>
-                                          {isChecked && <Check className="w-3.5 h-3.5 stroke-[3px]" />}
+                          if (availableServices.length === 0) return null;
+
+                          return (
+                            <div className="space-y-2">
+                              <label className="text-xs font-semibold text-neutral-500 block mb-1">Servicios Estancia Adicionales (Opcional):</label>
+                              <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                                {availableServices.map(srv => {
+                                  const isChecked = selectedServices.includes(srv.id);
+                                  return (
+                                    <div
+                                      key={srv.id}
+                                      onClick={() => {
+                                        setSelectedServices(prev => {
+                                          const exists = prev.includes(srv.id);
+                                          if (exists) {
+                                            return prev.filter(id => id !== srv.id);
+                                          } else {
+                                            setServicePeopleCount(prevCounts => ({
+                                              ...prevCounts,
+                                              [srv.id]: 1
+                                            }));
+                                            return [...prev, srv.id];
+                                          }
+                                        });
+                                      }}
+                                      className={`p-3 rounded-xl border text-xs cursor-pointer transition-all flex flex-col gap-2 ${
+                                        isChecked
+                                          ? 'bg-teal-50/50 border-teal-300 shadow-sm'
+                                          : 'bg-white hover:bg-neutral-50 border-neutral-200'
+                                      }`}
+                                    >
+                                      <div className="flex justify-between items-start gap-4">
+                                        <div className="min-w-0 flex-1">
+                                          <p className="font-semibold text-neutral-800 flex items-center gap-1.5">
+                                            {srv.emoji && <span className="text-sm shrink-0">{srv.emoji}</span>}
+                                            <span>{srv.nombre}</span>
+                                          </p>
+                                          <p className="text-[10px] text-neutral-450 mt-0.5 leading-relaxed">{srv.descripcion}</p>
+                                        </div>
+                                        <div className="shrink-0 text-right flex items-center gap-2">
+                                          <span className="font-mono font-bold text-teal-800">+${srv.precio} <span className="text-[9px] text-neutral-400 font-normal">/ pers</span></span>
+                                          <div className={`w-4.5 h-4.5 rounded border-2 flex items-center justify-center transition-colors ${isChecked ? 'bg-teal-600 border-teal-600 text-white' : 'border-neutral-300 bg-white'}`}>
+                                            {isChecked && <Check className="w-3.5 h-3.5 stroke-[3px]" />}
+                                          </div>
                                         </div>
                                       </div>
+
+                                      {/* Multiplier Quantity Picker for Selected Services */}
+                                      {isChecked && (
+                                        <div
+                                          onClick={(e) => e.stopPropagation()}
+                                          className="mt-1 pt-2 border-t border-teal-200/50 flex items-center justify-between gap-4 animate-fade-in"
+                                        >
+                                          <span className="text-[10px] text-teal-700 font-bold">Seleccionar cantidad de personas para el servicio:</span>
+                                          <div className="flex items-center gap-1.5 shrink-0 bg-white px-2 py-1 border border-teal-200 rounded-lg">
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                const cur = servicePeopleCount[srv.id] || 1;
+                                                if (cur > 1) {
+                                                  setServicePeopleCount({ ...servicePeopleCount, [srv.id]: cur - 1 });
+                                                }
+                                              }}
+                                              className="w-5 h-5 flex items-center justify-center rounded bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-extrabold text-xs select-none cursor-pointer border border-neutral-250"
+                                            >
+                                              -
+                                            </button>
+                                            <span className="text-xs font-mono font-bold text-neutral-900 w-6 text-center">
+                                              {servicePeopleCount[srv.id] || 1}
+                                            </span>
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                const cur = servicePeopleCount[srv.id] || 1;
+                                                setServicePeopleCount({ ...servicePeopleCount, [srv.id]: cur + 1 });
+                                              }}
+                                              className="w-5 h-5 flex items-center justify-center rounded bg-teal-600 hover:bg-teal-700 text-white font-extrabold text-xs select-none cursor-pointer border border-teal-750"
+                                            >
+                                              +
+                                            </button>
+                                          </div>
+                                        </div>
+                                      )}
                                     </div>
-
-                                    {/* Multiplier Quantity Picker for Selected Services */}
-                                    {isChecked && (
-                                      <div
-                                        onClick={(e) => e.stopPropagation()}
-                                        className="mt-1 pt-2 border-t border-teal-200/50 flex items-center justify-between gap-4 animate-fade-in"
-                                      >
-                                        <span className="text-[10px] text-teal-700 font-bold">Seleccionar cantidad de personas para el servicio:</span>
-                                        <div className="flex items-center gap-1.5 shrink-0 bg-white px-2 py-1 border border-teal-200 rounded-lg">
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              const cur = servicePeopleCount[srv.id] || 1;
-                                              if (cur > 1) {
-                                                setServicePeopleCount({ ...servicePeopleCount, [srv.id]: cur - 1 });
-                                              }
-                                            }}
-                                            className="w-5 h-5 flex items-center justify-center rounded bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-extrabold text-xs select-none cursor-pointer border border-neutral-250"
-                                          >
-                                            -
-                                          </button>
-                                          <span className="text-xs font-mono font-bold text-neutral-900 w-6 text-center">
-                                            {servicePeopleCount[srv.id] || 1}
-                                          </span>
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              const cur = servicePeopleCount[srv.id] || 1;
-                                              setServicePeopleCount({ ...servicePeopleCount, [srv.id]: cur + 1 });
-                                            }}
-                                            className="w-5 h-5 flex items-center justify-center rounded bg-teal-600 hover:bg-teal-700 text-white font-extrabold text-xs select-none cursor-pointer border border-teal-750"
-                                          >
-                                            +
-                                          </button>
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              });
-                            })()}
-                          </div>
-                        </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })()}
 
                         {/* Notas */}
                         <div>
