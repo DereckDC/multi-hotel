@@ -566,13 +566,15 @@ export default function ClientView({
     if (!bookingRoom) return 0;
     const bookingHotel = hotels.find(h => h.id === bookingRoom.hotelId);
     const detailedServices = bookingHotel?.serviciosDetallados || [];
+    const nNights = Math.max(1, getNightsCount());
     
     let sum = 0;
     selectedServices.forEach(srvId => {
       const srv = detailedServices.find(s => s.id === srvId);
       if (srv) {
         const count = servicePeopleCount[srvId] || 1;
-        sum += srv.precio * count;
+        const isPerDay = srv.tipoCobro === 'por_dia';
+        sum += isPerDay ? srv.precio * count * nNights : srv.precio * count;
       } else {
         const fallback = ADDITIONAL_SERVICES.find(s => s.id === srvId);
         if (fallback) {
@@ -713,12 +715,15 @@ export default function ClientView({
     const bookingHotel = hotels.find(h => h.id === bookingRoom.hotelId);
     const detailedList = bookingHotel?.serviciosDetallados || [];
 
+    const nNights = Math.max(1, getNightsCount());
     const mappedServices = selectedServices.map(srvId => {
       const srv = detailedList.find(s => s.id === srvId);
       if (srv) {
         const count = servicePeopleCount[srvId] || 1;
-        const total = srv.precio * count;
-        return `${srv.nombre} (${count} pers - $${total})`;
+        const isPerDay = srv.tipoCobro === 'por_dia';
+        const total = isPerDay ? srv.precio * count * nNights : srv.precio * count;
+        const cobroDetail = isPerDay ? `${count} pers x ${nNights} ${nNights === 1 ? 'día' : 'días'}` : `${count} pers`;
+        return `${srv.nombre} (${cobroDetail} - $${total.toFixed(2)})`;
       }
       const fallback = ADDITIONAL_SERVICES.find(s => s.id === srvId);
       if (fallback) {
@@ -1383,7 +1388,7 @@ export default function ClientView({
                                           <p className="text-[10px] text-neutral-450 mt-0.5 leading-relaxed">{srv.descripcion}</p>
                                         </div>
                                         <div className="shrink-0 text-right flex items-center gap-2">
-                                          <span className="font-mono font-bold text-teal-800">+${srv.precio} <span className="text-[9px] text-neutral-400 font-normal">/ pers</span></span>
+                                          <span className="font-mono font-bold text-teal-800">+${srv.precio} <span className="text-[9px] text-neutral-400 font-normal">/ pers {srv.tipoCobro === 'por_dia' ? '/ día' : '/ estadía'}</span></span>
                                           <div className={`w-4.5 h-4.5 rounded border-2 flex items-center justify-center transition-colors ${isChecked ? 'bg-teal-600 border-teal-600 text-white' : 'border-neutral-300 bg-white'}`}>
                                             {isChecked && <Check className="w-3.5 h-3.5 stroke-[3px]" />}
                                           </div>
@@ -1394,35 +1399,42 @@ export default function ClientView({
                                       {isChecked && (
                                         <div
                                           onClick={(e) => e.stopPropagation()}
-                                          className="mt-1 pt-2 border-t border-teal-200/50 flex items-center justify-between gap-4 animate-fade-in"
+                                          className="mt-1 pt-2 border-t border-teal-200/50 flex flex-col gap-1.5 animate-fade-in"
                                         >
-                                          <span className="text-[10px] text-teal-700 font-bold">Seleccionar cantidad de personas para el servicio:</span>
-                                          <div className="flex items-center gap-1.5 shrink-0 bg-white px-2 py-1 border border-teal-200 rounded-lg">
-                                            <button
-                                              type="button"
-                                              onClick={() => {
-                                                const cur = servicePeopleCount[srv.id] || 1;
-                                                if (cur > 1) {
-                                                  setServicePeopleCount({ ...servicePeopleCount, [srv.id]: cur - 1 });
-                                                }
-                                              }}
-                                              className="w-5 h-5 flex items-center justify-center rounded bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-extrabold text-xs select-none cursor-pointer border border-neutral-250"
-                                            >
-                                              -
-                                            </button>
-                                            <span className="text-xs font-mono font-bold text-neutral-900 w-6 text-center">
-                                              {servicePeopleCount[srv.id] || 1}
-                                            </span>
-                                            <button
-                                              type="button"
-                                              onClick={() => {
-                                                const cur = servicePeopleCount[srv.id] || 1;
-                                                setServicePeopleCount({ ...servicePeopleCount, [srv.id]: cur + 1 });
-                                              }}
-                                              className="w-5 h-5 flex items-center justify-center rounded bg-teal-600 hover:bg-teal-700 text-white font-extrabold text-xs select-none cursor-pointer border border-teal-750"
-                                            >
-                                              +
-                                            </button>
+                                          <div className="flex items-center justify-between gap-4">
+                                            <span className="text-[10px] text-teal-700 font-bold">Cantidad de personas para el servicio:</span>
+                                            <div className="flex items-center gap-1.5 shrink-0 bg-white px-2 py-1 border border-teal-200 rounded-lg">
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  const cur = servicePeopleCount[srv.id] || 1;
+                                                  if (cur > 1) {
+                                                    setServicePeopleCount({ ...servicePeopleCount, [srv.id]: cur - 1 });
+                                                  }
+                                                }}
+                                                className="w-5 h-5 flex items-center justify-center rounded bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-extrabold text-xs select-none cursor-pointer border border-neutral-250"
+                                              >
+                                                -
+                                              </button>
+                                              <span className="text-xs font-mono font-bold text-neutral-900 w-6 text-center">
+                                                {servicePeopleCount[srv.id] || 1}
+                                              </span>
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  const cur = servicePeopleCount[srv.id] || 1;
+                                                  setServicePeopleCount({ ...servicePeopleCount, [srv.id]: cur + 1 });
+                                                }}
+                                                className="w-5 h-5 flex items-center justify-center rounded bg-teal-600 hover:bg-teal-700 text-white font-extrabold text-xs select-none cursor-pointer border border-teal-750"
+                                              >
+                                                +
+                                              </button>
+                                            </div>
+                                          </div>
+
+                                          {/* Subtotal calculation indicator */}
+                                          <div className="text-[10px] text-teal-800 font-mono text-right bg-teal-50/70 py-1 px-2 rounded-md border border-teal-200/60">
+                                            Subtotal: ${srv.precio} × {servicePeopleCount[srv.id] || 1} pers {srv.tipoCobro === 'por_dia' ? `× ${Math.max(1, getNightsCount())} ${getNightsCount() === 1 ? 'día' : 'días'}` : '(cobro único)'} = <span className="font-bold text-teal-900">${(srv.precio * (servicePeopleCount[srv.id] || 1) * (srv.tipoCobro === 'por_dia' ? Math.max(1, getNightsCount()) : 1)).toFixed(2)}</span>
                                           </div>
                                         </div>
                                       )}
