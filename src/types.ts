@@ -71,6 +71,7 @@ export interface Hotel {
     email: string;
     documento?: string;
   };
+  adicionarIva?: boolean; // If false, the property price already includes IVA
   detallesInmueble?: {
     habitaciones: number;
     banos: number;
@@ -78,6 +79,7 @@ export interface Hotel {
     amueblado?: boolean;
     tieneEstacionamiento?: boolean;
     precio?: number; // Precio mensual de alquiler o valor de venta
+    adicionarIva?: boolean; // If false, the property price already includes IVA
   };
 }
 
