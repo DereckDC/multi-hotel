@@ -162,6 +162,7 @@ export default function ClientView({
   const [roomMaxPriceInput, setRoomMaxPriceInput] = useState<string>('1500');
   const [roomCapacity, setRoomCapacity] = useState<string>('');
   const [roomTypeFilter, setRoomTypeFilter] = useState<string>('');
+  const [roomSortOrder, setRoomSortOrder] = useState<'asc' | 'desc' | ''>('');
 
   // States for review system
   const [showReviewModal, setShowReviewModal] = useState(false);
@@ -430,6 +431,20 @@ export default function ClientView({
     }
     if (roomTypeFilter !== '' && r.tipo !== roomTypeFilter) return false;
     return true;
+  })
+  .sort((a, b) => {
+    if (roomSortOrder === 'asc') {
+      const priceDiff = a.precio - b.precio;
+      if (priceDiff !== 0) return priceDiff;
+      return (a.numero || '').localeCompare(b.numero || '', undefined, { numeric: true, sensitivity: 'base' });
+    }
+    if (roomSortOrder === 'desc') {
+      const priceDiff = b.precio - a.precio;
+      if (priceDiff !== 0) return priceDiff;
+      return (a.numero || '').localeCompare(b.numero || '', undefined, { numeric: true, sensitivity: 'base' });
+    }
+    // Predeterminado: Orden numérico de habitación (ej: 1, 2, 10, 101...)
+    return (a.numero || '').localeCompare(b.numero || '', undefined, { numeric: true, sensitivity: 'base' });
   });
 
   const myReservations = reservations.filter(r => r.guestId === activeUser.id && !r.eliminadaPorCliente);
@@ -1992,15 +2007,29 @@ export default function ClientView({
                     </div>
                   </div>
 
-                  {/* ADVANCED MULTIPLE FILTERS SECTION (Capacity, Prices, Room type) */}
-                  <div className="bg-neutral-50 p-4 rounded-2xl border border-neutral-200 grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-medium">
-                    {/* Filter 1: Capacity (Cantidad de personas) */}
+                  {/* ADVANCED MULTIPLE FILTERS SECTION (Capacity, Prices, Room type, Price Sorting) */}
+                  <div className="bg-neutral-50 p-4 rounded-2xl border border-neutral-200 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs font-medium">
+                    {/* Filter 1: Sort by Price */}
+                    <div className="space-y-1.5 col-span-1">
+                      <span className="text-neutral-500 block font-semibold uppercase tracking-wider text-[10px]">Ordenar por Precio</span>
+                      <select
+                        value={roomSortOrder}
+                        onChange={(e) => setRoomSortOrder(e.target.value as 'asc' | 'desc' | '')}
+                        className="w-full bg-white border border-neutral-200 rounded-xl p-2 focus:ring-1 focus:ring-teal-500 focus:outline-none cursor-pointer h-[38px] shadow-sm font-semibold text-neutral-800"
+                      >
+                        <option value="">Predeterminado (Número de habitación)</option>
+                        <option value="asc">Precio: de menor a mayor</option>
+                        <option value="desc">Precio: de mayor a menor</option>
+                      </select>
+                    </div>
+
+                    {/* Filter 2: Capacity (Cantidad de personas) */}
                     <div className="space-y-1.5 col-span-1">
                       <span className="text-neutral-500 block font-semibold uppercase tracking-wider text-[10px]">Cantidad de Personas</span>
                       <select
                         value={roomCapacity}
                         onChange={(e) => setRoomCapacity(e.target.value)}
-                        className="w-full bg-white border border-neutral-200 rounded-xl p-2 focus:ring-1 focus:ring-teal-500 focus:outline-none cursor-pointer h-[38px] shadow-sm font-semibold"
+                        className="w-full bg-white border border-neutral-200 rounded-xl p-2 focus:ring-1 focus:ring-teal-500 focus:outline-none cursor-pointer h-[38px] shadow-sm font-semibold text-neutral-800"
                       >
                         <option value="">Cualquier capacidad (Predeterminado)</option>
                         <option value="1-2">1-2 personas</option>
@@ -2009,13 +2038,13 @@ export default function ClientView({
                       </select>
                     </div>
 
-                    {/* Filter 2: Room Type */}
+                    {/* Filter 3: Room Type */}
                     <div className="space-y-1.5 col-span-1">
                       <span className="text-neutral-500 block font-semibold uppercase tracking-wider text-[10px]">Tipo de Suite / Habitación</span>
                       <select
                         value={roomTypeFilter}
                         onChange={(e) => setRoomTypeFilter(e.target.value)}
-                        className="w-full bg-white border border-neutral-200 rounded-xl p-2 focus:ring-1 focus:ring-teal-500 focus:outline-none cursor-pointer h-[38px] shadow-sm font-semibold"
+                        className="w-full bg-white border border-neutral-200 rounded-xl p-2 focus:ring-1 focus:ring-teal-500 focus:outline-none cursor-pointer h-[38px] shadow-sm font-semibold text-neutral-800"
                       >
                         <option value="">Todos los tipos (Predeterminado)</option>
                         {Array.from(new Set(rooms.filter(r => r.hotelId === selectedHotelId).map(r => r.tipo))).map(type => (
@@ -2024,7 +2053,7 @@ export default function ClientView({
                       </select>
                     </div>
 
-                    {/* Filter 3: Price Input & Search (Precios) */}
+                    {/* Filter 4: Price Input & Search (Precios) */}
                     <div className="space-y-1.5 col-span-1">
                       <div className="flex justify-between items-center">
                         <span className="text-neutral-500 font-semibold uppercase tracking-wider text-[10px]">Precio Máximo por noche</span>
