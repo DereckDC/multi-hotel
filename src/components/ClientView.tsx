@@ -591,7 +591,11 @@ export default function ClientView({
       const bHotel = hotels.find(h => h.id === bookingRoom.hotelId);
       const isAlquiler = bHotel && (bHotel.tipoEstablecimiento === 'casa' || bHotel.tipoEstablecimiento === 'departamento') && bHotel.finalidad === 'alquiler';
       if (isAlquiler) {
-        const isIvaAdded = bookingRoom.adicionarIva !== false;
+        const isIvaAdded = bHotel.detallesInmueble?.adicionarIva !== undefined 
+          ? bHotel.detallesInmueble.adicionarIva !== false 
+          : (bHotel.adicionarIva !== undefined 
+              ? bHotel.adicionarIva !== false 
+              : bookingRoom.adicionarIva !== false);
         if (!isIvaAdded) {
           const rentIva = roomPrice * 0.16;
           const rentExcludingIva = roomPrice - rentIva;
@@ -623,7 +627,14 @@ export default function ClientView({
 
     const rawSub = getBookingSubtotal(roomPrice);
     const servicesSub = getServicesTotal();
-    const isIvaAdded = bookingRoom ? (bookingRoom.adicionarIva !== false) : true;
+    const bHotelForRoom = bookingRoom ? hotels.find(h => h.id === bookingRoom.hotelId) : null;
+    const isIvaAdded = bookingRoom 
+      ? (bookingRoom.adicionarIva !== undefined 
+          ? bookingRoom.adicionarIva !== false 
+          : (bHotelForRoom?.detallesInmueble?.adicionarIva !== undefined 
+              ? bHotelForRoom.detallesInmueble.adicionarIva !== false 
+              : (bHotelForRoom?.adicionarIva !== false))) 
+      : true;
 
     if (!isIvaAdded) {
       const roomIva = rawSub * 0.16;
@@ -1927,34 +1938,46 @@ export default function ClientView({
                       </div>
 
                       <div className="w-full md:w-56 bg-white border border-teal-100/75 rounded-2xl p-4 shadow-sm flex flex-col justify-center items-center text-center space-y-3 shrink-0">
-                        <div>
-                          <span className="text-[10px] text-neutral-400 block font-bold uppercase tracking-wider">VALOR DE ESTA UNIDAD</span>
-                          <span className="font-mono font-extrabold text-teal-850 text-2xl">${activeHotel.detallesInmueble?.precio || 150} USD</span>
-                          <span className="text-[10px] text-neutral-500 block">Valor mensual estimado (mín. 3 meses)</span>
-                        </div>
+                        {(() => {
+                          const isIvaAdded = activeHotel.detallesInmueble?.adicionarIva !== undefined
+                            ? activeHotel.detallesInmueble.adicionarIva !== false
+                            : (activeHotel.adicionarIva !== false);
+                          return (
+                            <>
+                              <div>
+                                <span className="text-[10px] text-neutral-400 block font-bold uppercase tracking-wider">VALOR DE ESTA UNIDAD</span>
+                                <span className="font-mono font-extrabold text-teal-850 text-2xl">${activeHotel.detallesInmueble?.precio || 150} USD</span>
+                                <span className="text-[10px] text-neutral-500 block">
+                                  Valor mensual (mín. 3 meses) • <span className={isIvaAdded ? 'text-teal-700 font-semibold' : 'text-amber-700 font-semibold'}>{isIvaAdded ? '+16% IVA' : 'IVA incluido'}</span>
+                                </span>
+                              </div>
 
-                        <button
-                          onClick={() => {
-                            const syntheticRoom: Room = {
-                              id: `room-full-${activeHotel.id}`,
-                              hotelId: activeHotel.id,
-                              nombre: activeHotel.nombre,
-                              numero: 'Full',
-                              tipo: activeHotel.tipoEstablecimiento === 'casa' ? 'Suite Presidencial' : 'Suite',
-                              precio: activeHotel.detallesInmueble?.precio || 150,
-                              capacidad: (activeHotel.detallesInmueble?.habitaciones || 2) * 2,
-                              camas: activeHotel.detallesInmueble?.habitaciones || 2,
-                              descripcion: activeHotel.descripcion,
-                              imagenes: activeHotel.imagenes,
-                              servicios: activeHotel.servicios,
-                              estado: 'disponible'
-                            };
-                            setBookingRoom(syntheticRoom);
-                          }}
-                          className="w-full py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl transition-all cursor-pointer shadow-md hover:shadow-lg active:scale-95"
-                        >
-                          Alquilar Propiedad Completa
-                        </button>
+                              <button
+                                onClick={() => {
+                                  const syntheticRoom: Room = {
+                                    id: `room-full-${activeHotel.id}`,
+                                    hotelId: activeHotel.id,
+                                    nombre: activeHotel.nombre,
+                                    numero: 'Full',
+                                    tipo: activeHotel.tipoEstablecimiento === 'casa' ? 'Suite Presidencial' : 'Suite',
+                                    precio: activeHotel.detallesInmueble?.precio || 150,
+                                    capacidad: (activeHotel.detallesInmueble?.habitaciones || 2) * 2,
+                                    camas: activeHotel.detallesInmueble?.habitaciones || 2,
+                                    descripcion: activeHotel.descripcion,
+                                    imagenes: activeHotel.imagenes,
+                                    servicios: activeHotel.servicios,
+                                    estado: 'disponible',
+                                    adicionarIva: isIvaAdded
+                                  };
+                                  setBookingRoom(syntheticRoom);
+                                }}
+                                className="w-full py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl transition-all cursor-pointer shadow-md hover:shadow-lg active:scale-95"
+                              >
+                                Alquilar Propiedad Completa
+                              </button>
+                            </>
+                          );
+                        })()}
                       </div>
                     </div>
                   </div>

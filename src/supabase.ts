@@ -106,6 +106,7 @@ export function mapHotelToDb(hotel: Hotel): any {
     finalidad: hotel.finalidad || null,
     propietario: hotel.propietario || null,
     detallesInmueble: hotel.detallesInmueble || null,
+    adicionarIva: hotel.adicionarIva !== undefined ? hotel.adicionarIva : (hotel.detallesInmueble?.adicionarIva !== false),
     provincia: hotel.provincia || null,
     ciudad: hotel.ciudad || null,
     parroquia: hotel.parroquia || null
@@ -140,6 +141,9 @@ export function mapHotelFromDb(db: any): Hotel {
   const finalidad = contacto.finalidad || db.finalidad || null;
   const propietario = contacto.propietario || db.propietario || null;
   const detallesInmueble = contacto.detallesInmueble || db.detallesInmueble || null;
+  const adicionarIva = db.adicionar_iva !== undefined 
+    ? db.adicionar_iva 
+    : (contacto.adicionarIva !== undefined ? contacto.adicionarIva : (detallesInmueble?.adicionarIva !== false));
   const provincia = db.provincia || contacto.provincia || '';
   const ciudad = db.ciudad || contacto.ciudad || '';
   const parroquia = db.parroquia || contacto.parroquia || '';
@@ -164,6 +168,7 @@ export function mapHotelFromDb(db: any): Hotel {
     finalidad: finalidad,
     propietario: propietario,
     detallesInmueble: detallesInmueble,
+    adicionarIva: adicionarIva,
     provincia: provincia,
     ciudad: ciudad,
     parroquia: parroquia

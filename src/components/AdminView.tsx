@@ -595,8 +595,9 @@ export default function AdminView({
       tipoEstablecimiento: 'casa',
       finalidad: 'alquiler',
       serviciosDetallados: [],
+      adicionarIva: true,
       propietario: { nombre: '', telefono: '', email: '', documento: '' },
-      detallesInmueble: { habitaciones: 0, banos: 0, metrosCuadrados: undefined, amueblado: false, tieneEstacionamiento: false }
+      detallesInmueble: { habitaciones: 0, banos: 0, metrosCuadrados: undefined, amueblado: false, tieneEstacionamiento: false, adicionarIva: true }
     });
     setShowPropertyModal(true);
   };
@@ -2711,6 +2712,32 @@ export default function AdminView({
                       </div>
                     </div>
 
+                    <div className="pt-1.5 border-t border-teal-100">
+                      <label className="text-[10px] font-bold text-neutral-500 block uppercase tracking-wider mb-1.5 font-sans">IVA de la Propiedad / Alquiler:</label>
+                      <label className="relative inline-flex items-center cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={editingHotel.detallesInmueble?.adicionarIva !== false && editingHotel.adicionarIva !== false}
+                          onChange={(e) => {
+                            const val = e.target.checked;
+                            setEditingHotel({
+                              ...editingHotel,
+                              adicionarIva: val,
+                              detallesInmueble: {
+                                ...(editingHotel.detallesInmueble || { habitaciones: 1, banos: 1, metrosCuadrados: 40, amueblado: true, tieneEstacionamiento: false }),
+                                adicionarIva: val
+                              }
+                            });
+                          }}
+                          className="sr-only peer"
+                        />
+                        <div className="w-8 h-4.5 bg-neutral-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2.5px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-teal-600"></div>
+                        <span className="ml-2 text-xs font-semibold text-neutral-700">
+                          {editingHotel.detallesInmueble?.adicionarIva !== false && editingHotel.adicionarIva !== false ? 'Sumar IVA al precio' : 'Precio ya incluye IVA'}
+                        </span>
+                      </label>
+                    </div>
+
                     <h5 className="text-[11px] font-bold text-teal-800 uppercase tracking-widest flex items-center gap-1.5 border-b border-teal-100 pb-1.5 pt-2 mt-1">
                       <span>👤 Datos de Contacto de Propietario</span>
                     </h5>
@@ -3830,7 +3857,7 @@ export default function AdminView({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-2 pt-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                   <div>
                     <label className="text-[9.5px] font-bold text-neutral-500 block mb-1 font-sans">Precio Comercial de Propiedad (USD):</label>
                     <div className="relative">
@@ -3854,6 +3881,32 @@ export default function AdminView({
                         className="w-full text-xs font-semibold pl-6 pr-3 py-1.5 border border-neutral-250 rounded-lg focus:outline-none text-neutral-800 font-mono"
                       />
                     </div>
+                  </div>
+
+                  <div className="flex flex-col justify-end pb-1 pl-0.5">
+                    <label className="text-[9.5px] font-bold text-neutral-500 block uppercase tracking-wider mb-1.5 font-sans">IVA de la Propiedad / Alquiler:</label>
+                    <label className="relative inline-flex items-center cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={editingProperty.detallesInmueble?.adicionarIva !== false && editingProperty.adicionarIva !== false}
+                        onChange={(e) => {
+                          const val = e.target.checked;
+                          setEditingProperty({
+                            ...editingProperty,
+                            adicionarIva: val,
+                            detallesInmueble: {
+                              ...(editingProperty.detallesInmueble || { habitaciones: 0, banos: 0 }),
+                              adicionarIva: val
+                            }
+                          });
+                        }}
+                        className="sr-only peer"
+                      />
+                      <div className="w-8 h-4.5 bg-neutral-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2.5px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-teal-600"></div>
+                      <span className="ml-2 text-xs font-semibold text-neutral-700">
+                        {editingProperty.detallesInmueble?.adicionarIva !== false && editingProperty.adicionarIva !== false ? 'Sumar IVA al precio' : 'Precio ya incluye IVA'}
+                      </span>
+                    </label>
                   </div>
                 </div>
 
