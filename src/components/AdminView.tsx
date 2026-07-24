@@ -207,6 +207,7 @@ export default function AdminView({
   const [newPropertyServiceText, setNewPropertyServiceText] = useState("");
 
   // CRUD Property State
+  const [adminRoomSortOrder, setAdminRoomSortOrder] = useState<'asc' | 'desc' | ''>('');
   const [editingProperty, setEditingProperty] = useState<Hotel | null>(null);
   const [showPropertyModal, setShowPropertyModal] = useState(false);
   const [newServiceForm, setNewServiceForm] = useState<{
@@ -1428,8 +1429,35 @@ export default function AdminView({
             </div>
           )}
 
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white p-4 rounded-2xl border border-neutral-200 shadow-sm">
+            <span className="text-xs font-bold text-neutral-700 flex items-center gap-1.5">
+              <span>↕️ Ordenar habitaciones por precio:</span>
+            </span>
+            <select
+              value={adminRoomSortOrder}
+              onChange={(e) => setAdminRoomSortOrder(e.target.value as 'asc' | 'desc' | '')}
+              className="text-xs font-semibold text-neutral-700 bg-neutral-50 hover:bg-neutral-100 border border-neutral-200 rounded-xl px-3 py-2 focus:outline-none cursor-pointer w-full sm:w-auto transition-colors"
+            >
+              <option value="">Predeterminado (Número de habitación)</option>
+              <option value="asc">Precio: de menor a mayor</option>
+              <option value="desc">Precio: de mayor a menor</option>
+            </select>
+          </div>
+
           <div className="space-y-3">
-            {allowedRooms.map(room => {
+            {[...allowedRooms].sort((a, b) => {
+              if (adminRoomSortOrder === 'asc') {
+                const priceDiff = a.precio - b.precio;
+                if (priceDiff !== 0) return priceDiff;
+                return (a.numero || '').localeCompare(b.numero || '', undefined, { numeric: true, sensitivity: 'base' });
+              }
+              if (adminRoomSortOrder === 'desc') {
+                const priceDiff = b.precio - a.precio;
+                if (priceDiff !== 0) return priceDiff;
+                return (a.numero || '').localeCompare(b.numero || '', undefined, { numeric: true, sensitivity: 'base' });
+              }
+              return (a.numero || '').localeCompare(b.numero || '', undefined, { numeric: true, sensitivity: 'base' });
+            }).map(room => {
               const h = allowedHotels.find(ht => ht.id === room.hotelId);
               return (
                 <div key={room.id} className="bg-white rounded-xl p-4 border border-neutral-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:shadow-sm transition-all shadow-inner">
