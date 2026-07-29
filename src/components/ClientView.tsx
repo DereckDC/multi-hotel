@@ -2387,9 +2387,15 @@ export default function ClientView({
                       <div>
                         <span className="text-[10px] text-neutral-400 block font-medium uppercase tracking-wider">MONTO TOTAL NETO</span>
                         <span className="font-mono font-bold text-neutral-900">${res.total.toFixed(2)} USD</span>
+                        {res.montoPagado !== undefined && res.montoPagado > 0 && res.montoPendiente !== undefined && res.montoPendiente > 0 && (
+                          <div className="flex gap-2 text-[10px] mt-0.5 font-medium">
+                            <span className="text-emerald-700">Abonado (20%): ${res.montoPagado.toFixed(2)}</span>
+                            <span className="text-amber-700 font-bold">Pendiente (80%): ${res.montoPendiente.toFixed(2)}</span>
+                          </div>
+                        )}
                       </div>
 
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2">
                         <button
                           onClick={() => setPreviewingRes(res)}
                           className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-neutral-200 hover:bg-neutral-100 text-neutral-700 rounded-lg cursor-pointer transition-colors font-medium text-[11px]"
@@ -2398,17 +2404,27 @@ export default function ClientView({
                           <span>Pre-Factura / QR</span>
                         </button>
 
-                        {res.estado === 'pendiente' && (
-                          <button
-                            onClick={() => {
-                              setSelectedResForPayment(res);
-                              setShowPaymentModal(true);
-                            }}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg cursor-pointer transition-colors font-medium text-[11px] shadow"
-                          >
-                            <FileText className="w-3.5 h-3.5" />
-                            <span>Ver Instrucciones de Pago</span>
-                          </button>
+                        {(res.estado === 'pendiente' || (res.estado === 'confirmada' && res.montoPendiente !== undefined && res.montoPendiente > 0)) && (
+                          <>
+                            <a
+                              href="https://ppls.me/xfktaGibroQRpCxF1DeqCg"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white rounded-lg cursor-pointer transition-colors font-bold text-[11px] shadow"
+                            >
+                              <span>💳 Pagar con Payphone</span>
+                            </a>
+                            <button
+                              onClick={() => {
+                                setSelectedResForPayment(res);
+                                setShowPaymentModal(true);
+                              }}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg cursor-pointer transition-colors font-medium text-[11px] shadow"
+                            >
+                              <FileText className="w-3.5 h-3.5" />
+                              <span>Instrucciones de Pago</span>
+                            </button>
+                          </>
                         )}
 
                         {(res.estado === 'confirmada' || res.estado === 'pendiente') && (
@@ -2569,6 +2585,52 @@ export default function ClientView({
                     <span className="text-teal-800 uppercase tracking-wide text-[9px] block font-semibold">SEÑAL DE RESERVA (20%)</span>
                     <span className="font-mono font-bold text-teal-600 text-sm">${(selectedResForPayment.total * 0.20).toFixed(2)} USD</span>
                   </div>
+                  <div className="flex justify-between items-center bg-slate-100/70 p-1.5 rounded-lg text-slate-600">
+                    <span className="uppercase tracking-wide text-[9px] block font-semibold">SALDO RESTANTE AL CHECK-IN (80%)</span>
+                    <span className="font-mono font-medium text-xs">${(selectedResForPayment.total * 0.80).toFixed(2)} USD</span>
+                  </div>
+                </div>
+
+                {/* PAYPHONE DIRECT PAYMENT CARD */}
+                <div className="p-4 bg-gradient-to-br from-orange-50 to-amber-50 rounded-2xl border border-orange-200 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="p-1.5 bg-orange-600 text-white rounded-lg text-xs font-bold">Payphone</span>
+                      <h5 className="font-bold text-slate-900 text-xs">Pago Directo en Línea</h5>
+                    </div>
+                    <span className="text-[10px] font-semibold text-orange-700 bg-orange-100/80 px-2 py-0.5 rounded-full">Recomendado</span>
+                  </div>
+
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    Puedes pagar inmediatamente con tarjeta de crédito/débito desde tu app o web mediante Payphone:
+                  </p>
+
+                  <div className="bg-white/90 p-3 rounded-xl border border-orange-100 space-y-1.5 text-[11px] text-slate-700">
+                    <p className="font-semibold text-slate-900 flex items-center gap-1.5">
+                      <span>1. Abre nuestro link oficial de Payphone:</span>
+                    </p>
+                    <a
+                      href="https://ppls.me/xfktaGibroQRpCxF1DeqCg"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center justify-center gap-2 w-full py-2.5 px-4 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-xl text-xs transition-colors shadow cursor-pointer my-1"
+                    >
+                      {selectedResForPayment.estado === 'confirmada' && selectedResForPayment.montoPendiente !== undefined && selectedResForPayment.montoPendiente > 0 ? (
+                        <span>💳 Abrir Payphone para Liquidar Saldo (${selectedResForPayment.montoPendiente.toFixed(2)} USD)</span>
+                      ) : (
+                        <span>💳 Abrir Payphone para Pagar (${(selectedResForPayment.total * 0.20).toFixed(2)} o ${selectedResForPayment.total.toFixed(2)} USD)</span>
+                      )}
+                    </a>
+                    <div className="space-y-1 text-[10.5px] text-slate-600 leading-normal pt-1">
+                      {selectedResForPayment.estado === 'confirmada' && selectedResForPayment.montoPendiente !== undefined && selectedResForPayment.montoPendiente > 0 ? (
+                        <p><strong>2. Ingresa el monto:</strong> Paga tu saldo pendiente de <strong>${selectedResForPayment.montoPendiente.toFixed(2)} USD</strong>.</p>
+                      ) : (
+                        <p><strong>2. Ingresa el monto:</strong> Paga el <strong>20% de garantía (${(selectedResForPayment.total * 0.20).toFixed(2)} USD)</strong> o el total <strong>(${selectedResForPayment.total.toFixed(2)} USD)</strong>.</p>
+                      )}
+                      <p><strong>3. Escribe la nota:</strong> Coloca tu Código de Reserva <strong className="font-mono bg-orange-100/80 px-1 rounded">{selectedResForPayment.id}</strong> en la descripción.</p>
+                      <p><strong>4. Notifica el pago:</strong> Haz clic en "Contactar Administrador" o adjunta tu comprobante por el chat para actualizar tu comprobante de pago.</p>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="space-y-3.5 text-xs">
@@ -2591,7 +2653,7 @@ export default function ClientView({
                   <div className="space-y-2">
                     <h5 className="font-bold text-slate-900 text-xs flex items-center gap-1.5 pt-1">
                       <ShieldCheck className="w-4 h-4 text-teal-600" />
-                      Pasos para tramitar su pago:
+                      Otros métodos de pago (Transferencia / Depósito / Efectivo):
                     </h5>
                     <ul className="list-decimal pl-4.5 space-y-1.5 text-slate-600 leading-normal text-[11.5px]">
                       <li>
@@ -2601,7 +2663,7 @@ export default function ClientView({
                         Suministre su id de reserva <strong>{selectedResForPayment.id}</strong> para que ubiquen su transacción.
                       </li>
                       <li>
-                        Efectúe el pago por el valor total de <strong>${selectedResForPayment.total.toFixed(2)} USD</strong> o abone el depósito del 20% de <strong>${(selectedResForPayment.total * 0.20).toFixed(2)} USD</strong> (en efectivo, depósito bancario o transferencia).
+                        Efectúe el pago por el valor total de <strong>${selectedResForPayment.total.toFixed(2)} USD</strong> o abone el depósito del 20% de <strong>${(selectedResForPayment.total * 0.20).toFixed(2)} USD</strong> (en Payphone, efectivo, depósito bancario o transferencia).
                       </li>
                       <li>
                         Al confirmarlo la administración, se actualizará su estado a <strong>"Reservada"</strong> (estado de reserva confirmada en el sistema) y se le enviará su correo de confirmación respectivo.
