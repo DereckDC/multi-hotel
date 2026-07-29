@@ -2094,13 +2094,13 @@ export default function AdminView({
               <div className="flex gap-2.5">
                 <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                 <div>
-                  <strong className="font-bold">Regla de Pago Completo:</strong> El reembolso aplica únicamente cuando la reserva ha sido pagada en su totalidad (<strong className="font-bold">100% abonado</strong>) y posteriormente se cancela. Si la reserva solo se garantizó con un pago parcial (seña del <strong className="font-bold">20%</strong>), no se aplica devolución ni reembolso del dinero abonado.
+                  <strong className="font-bold">Política de Reembolsos por Abonos:</strong> El reembolso se calcula como un porcentaje (100%, 50% o 20%) aplicado directamente sobre el <strong>monto total abonado/pagado</strong> por el huésped (ya sea abono parcial del 20% o pago total del 100%), según los días de anticipación con que solicite la cancelación.
                 </div>
               </div>
               <div className="flex gap-2.5 border-t border-amber-200/50 pt-2 mt-1">
                 <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                 <div>
-                  <strong className="font-bold">Regla Importante de Pago Pendiente:</strong> Si la reservación se encuentra en estado <strong className="font-bold uppercase">Pendiente de Pago</strong>, pasa únicamente a <strong className="font-bold uppercase">Cancelada</strong> y no aplica a ningún reembolso, ya que no se ha registrado abono ni pago al administrador.
+                  <strong className="font-bold">Regla Importante de Pago Pendiente:</strong> Si la reservación se encuentra en estado <strong className="font-bold uppercase">Pendiente de Pago</strong> (sin abono verificado), pasa únicamente a <strong className="font-bold uppercase">Cancelada</strong> y no aplica a ningún reembolso, ya que no se ha registrado abono ni pago al administrador.
                 </div>
               </div>
             </div>
@@ -2163,26 +2163,15 @@ export default function AdminView({
                     };
 
                     const getRefundCategory = (res: Reservation, requestDate: string) => {
-                      if (res.estado === 'pendiente') {
+                      const montoAbonado = res.montoPagado !== undefined ? res.montoPagado : (res.estado === 'pendiente' ? 0 : res.total);
+
+                      if (res.estado === 'pendiente' || montoAbonado <= 0) {
                         return {
                           percent: 0,
                           label: 'Sin pago - Solo Cancelación',
                           color: 'bg-amber-50 text-amber-800 border-amber-200',
                           applyRefund: false,
-                          desc: 'No se registró ningún pago. Pasa directo a Cancelada sin reembolso.'
-                        };
-                      }
-
-                      const montoAbonado = res.montoPagado !== undefined ? res.montoPagado : res.total;
-                      const pagadoTotal = res.montoPendiente !== undefined ? (res.montoPendiente === 0) : (montoAbonado >= res.total);
-
-                      if (!pagadoTotal) {
-                        return {
-                          percent: 0,
-                          label: 'Sin Reembolso (Pago Parcial 20%)',
-                          color: 'bg-red-50 text-red-800 border-red-200',
-                          applyRefund: false,
-                          desc: 'El reembolso solo aplica cuando una reserva se pagó el valor total.'
+                          desc: 'No se registró ningún abono. Pasa directo a Cancelada sin reembolso.'
                         };
                       }
                       
@@ -2218,7 +2207,7 @@ export default function AdminView({
                           label: 'Penalización Completa (0%)',
                           color: 'bg-red-50 text-red-800 border-red-200',
                           applyRefund: true,
-                          desc: '🔴 Reembolso del 0%. No aplica devolución de dinero por cancelación tardía.'
+                          desc: '🔴 Reembolso del 0%. No aplica devolución de dinero por cancelación tardía (menos de 3 días).'
                         };
                       }
                     };
@@ -5347,29 +5336,18 @@ export default function AdminView({
         };
 
         const getRefundCategory = (res: Reservation, requestDate: string) => {
-          if (res.estado === 'pendiente') {
+          const montoAbonado = res.montoPagado !== undefined ? res.montoPagado : (res.estado === 'pendiente' ? 0 : res.total);
+
+          if (res.estado === 'pendiente' || montoAbonado <= 0) {
             return {
               percent: 0,
               label: 'Sin pago - Solo Cancelación',
               color: 'bg-amber-50 text-amber-800 border-amber-200',
               applyRefund: false,
-              desc: 'No se registró ningún pago. Pasa directo a Cancelada sin reembolso.'
+              desc: 'No se registró ningún abono. Pasa directo a Cancelada sin reembolso.'
             };
           }
 
-          const montoAbonado = res.montoPagado !== undefined ? res.montoPagado : res.total;
-          const pagadoTotal = res.montoPendiente !== undefined ? (res.montoPendiente === 0) : (montoAbonado >= res.total);
-
-          if (!pagadoTotal) {
-            return {
-              percent: 0,
-              label: 'Sin Reembolso (Pago Parcial 20%)',
-              color: 'bg-red-50 text-red-800 border-red-200',
-              applyRefund: false,
-              desc: 'No aplica reembolso. El reembolso solo aplica cuando una reserva se pagó el valor total.'
-            };
-          }
-          
           const days = getDaysDiff(res.fechaEntrada, requestDate);
           
           if (days >= 15) {
@@ -5402,7 +5380,7 @@ export default function AdminView({
               label: 'Penalización Completa (0%)',
               color: 'bg-red-50 text-red-800 border-red-200',
               applyRefund: true,
-              desc: '🔴 Reembolso del 0%. No aplica devolución de dinero por cancelación tardía.'
+              desc: '🔴 Reembolso del 0%. No aplica devolución de dinero por cancelación tardía (menos de 3 días).'
             };
           }
         };
@@ -5508,15 +5486,10 @@ export default function AdminView({
                   onClick={() => {
                     if (onUpdateReservationStatus) {
                       let calcMessage = "";
-                      if (selectedResForRefund.estado === 'pendiente') {
-                        calcMessage = `Cancelación directa sin cobro (Reserva estaba Pendiente de Pago). Nota: ${refundNote}`;
+                      if (selectedResForRefund.estado === 'pendiente' || montoAbonado <= 0) {
+                        calcMessage = `Cancelación directa sin cobro (Reserva estaba Pendiente de Pago o con abonado $0). Nota: ${refundNote}`;
                       } else {
-                        const pagadoTotal = selectedResForRefund.montoPendiente !== undefined ? (selectedResForRefund.montoPendiente === 0) : (montoAbonado >= selectedResForRefund.total);
-                        if (!pagadoTotal) {
-                          calcMessage = `Cancelación con pago parcial (20% seña). No aplica reembolso. Nota: ${refundNote}`;
-                        } else {
-                          calcMessage = `Cancelación con ${days} días de anticipación. Reembolso calculado del ${diag.percent}% ($${refundAmount} USD) sobre lo abonado ($${montoAbonado} USD). Nota: ${refundNote}`;
-                        }
+                        calcMessage = `Cancelación con ${days} días de anticipación. Reembolso calculado del ${diag.percent}% ($${refundAmount} USD) sobre el monto abonado ($${montoAbonado} USD). Nota: ${refundNote}`;
                       }
                       onUpdateReservationStatus(
                         selectedResForRefund.id,
