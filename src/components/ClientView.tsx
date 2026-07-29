@@ -209,6 +209,35 @@ export default function ClientView({
     return `${yyyy}-${mm}-${dd}`;
   };
 
+  const openPayphoneWindow = (e: React.MouseEvent<HTMLAnchorElement | HTMLButtonElement>) => {
+    e.preventDefault();
+    const payphoneUrl = "https://ppls.me/xfktaGibroQRpCxF1DeqCg";
+    const width = 480;
+    const height = 680;
+    
+    // Si la pantalla es móvil o pequeña (<768px), abre en nueva pestaña normal
+    if (window.innerWidth < 768) {
+      window.open(payphoneUrl, '_blank');
+      return;
+    }
+
+    // En navegador de ordenador / PC, calcula posición centrada y abre una ventana emergente (popup) compacta
+    const left = Math.max(0, Math.round((window.screen.width - width) / 2));
+    const top = Math.max(0, Math.round((window.screen.height - height) / 2));
+    
+    const popup = window.open(
+      payphoneUrl,
+      'PayPhoneCheckout',
+      `width=${width},height=${height},top=${top},left=${left},resizable=yes,scrollbars=yes,status=no,toolbar=no,menubar=no`
+    );
+
+    if (popup) {
+      popup.focus();
+    } else {
+      window.open(payphoneUrl, '_blank');
+    }
+  };
+
   const getMonthsCount = (d1: string, d2: string) => {
     if (!d1 || !d2) return 0;
     const start = new Date(d1 + 'T00:00:00');
@@ -2410,6 +2439,7 @@ export default function ClientView({
                               href="https://ppls.me/xfktaGibroQRpCxF1DeqCg"
                               target="_blank"
                               rel="noopener noreferrer"
+                              onClick={openPayphoneWindow}
                               className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white rounded-lg cursor-pointer transition-colors font-bold text-[11px] shadow"
                             >
                               <span>💳 Pagar con Payphone</span>
@@ -2613,6 +2643,7 @@ export default function ClientView({
                       href="https://ppls.me/xfktaGibroQRpCxF1DeqCg"
                       target="_blank"
                       rel="noopener noreferrer"
+                      onClick={openPayphoneWindow}
                       className="inline-flex items-center justify-center gap-2 w-full py-2.5 px-4 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-xl text-xs transition-colors shadow cursor-pointer my-1"
                     >
                       {selectedResForPayment.estado === 'confirmada' && selectedResForPayment.montoPendiente !== undefined && selectedResForPayment.montoPendiente > 0 ? (
