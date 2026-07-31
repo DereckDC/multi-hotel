@@ -222,6 +222,7 @@ export default function LoginView({
     try {
       const emailLower = trimmedEmail.toLowerCase();
       let matchedUser: User | undefined;
+      let authenticatedViaSupabase = false;
 
       // 1. Try Supabase Auth sign in
       try {
@@ -231,6 +232,7 @@ export default function LoginView({
         });
 
         if (!error && data?.user) {
+          authenticatedViaSupabase = true;
           const sbUser = data.user;
           // Try fetching profile from DB
           try {
@@ -268,8 +270,9 @@ export default function LoginView({
         console.warn('Supabase Auth sign-in attempt warning:', authErr);
       }
 
-      // 2. If Supabase Auth didn't return user, check public database & state
-      if (!matchedUser) {
+      // 2. If Supabase Auth did not authenticate the user, verify candidate credentials strictly
+      if (!authenticatedViaSupabase) {
+        let candidateUser: User | undefined;
         try {
           const { data: dbUser } = await supabase
             .from('users')
@@ -277,15 +280,32 @@ export default function LoginView({
             .ilike('email', emailLower)
             .maybeSingle();
           if (dbUser) {
-            matchedUser = mapUserFromDb(dbUser);
+            candidateUser = mapUserFromDb(dbUser);
           }
         } catch (e) {
           console.warn('Database user search warning:', e);
         }
-      }
 
-      if (!matchedUser) {
-        matchedUser = users.find(u => u && u.email && u.email.toLowerCase() === emailLower);
+        if (!candidateUser) {
+          candidateUser = users.find(u => u && u.email && u.email.toLowerCase() === emailLower);
+        }
+
+        if (candidateUser) {
+          // If the candidate user has a specific local password (e.g. temporary password set during reset)
+          if (candidateUser.password) {
+            if (candidateUser.password === passwordInput) {
+              matchedUser = candidateUser;
+            } else {
+              throw new Error('Correo electrónico o contraseña incorrectos.');
+            }
+          } else {
+            // User exists in system, but Supabase Auth rejected credentials and no matching local password exists.
+            throw new Error('Correo electrónico o contraseña incorrectos.');
+          }
+        } else {
+          // User not found at all
+          throw new Error('Correo electrónico o contraseña incorrectos. Si no tienes cuenta, por favor regístrate.');
+        }
       }
 
       if (matchedUser) {
@@ -296,7 +316,7 @@ export default function LoginView({
         }
         onLoginSuccess(matchedUser.id, matchedUser);
       } else {
-        throw new Error('Correo electrónico o contraseña incorrectos. Si no tienes cuenta, por favor regístrate.');
+        throw new Error('Correo electrónico o contraseña incorrectos.');
       }
     } catch (error: any) {
       setErrorMsg(error.message || 'Error de autenticación: Credenciales no válidas.');
