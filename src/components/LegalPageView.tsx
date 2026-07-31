@@ -189,10 +189,10 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
                 <div className="space-y-2 transition-all duration-300 hover:translate-x-1 p-1">
                   <h4 className="font-bold text-neutral-850 text-sm md:text-base flex items-center gap-2">
                     <span className="w-1.5 h-4 bg-teal-600 rounded-sm inline-block animate-pulse" />
-                    1. Sobre Roomia
+                    1. Sobre Roomia y Representación Legal
                   </h4>
                   <p>
-                    Roomia es una plataforma tecnológica operada bajo el modelo Software como Servicio (SaaS) que ofrece herramientas digitales para la gestión de establecimientos de hospedaje y la publicación de anuncios relacionados con propiedades de alojamiento e inmuebles.
+                    Roomia es una plataforma tecnológica operada bajo el modelo Software como Servicio (SaaS), administrada y representada legalmente por <strong>Dereck Cisneros</strong> (C.I. <strong>2450397340</strong>), que ofrece herramientas digitales para la gestión de establecimientos de hospedaje y la publicación de anuncios relacionados con propiedades de alojamiento e inmuebles.
                   </p>
                   <p>
                     La plataforma está dirigida principalmente a propietarios, administradores y empresas del sector hotelero que desean administrar sus operaciones desde un único sistema, así como a huéspedes interesados en consultar disponibilidad y realizar solicitudes de reserva.
@@ -384,18 +384,25 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
                   </p>
                 </div>
 
-                {/* Sección 10: Contacto */}
+                {/* Sección 10: Titularidad, Representación Legal y Contacto */}
                 <div className="space-y-2 transition-all duration-300 hover:translate-x-1 p-1">
                   <h4 className="font-bold text-neutral-850 text-sm md:text-base flex items-center gap-2">
                     <span className="w-1.5 h-4 bg-teal-600 rounded-sm inline-block animate-pulse" />
-                    10. Contacto
+                    10. Titularidad, Representación Legal y Contacto
                   </h4>
                   <p>
-                    Para consultas relacionadas con estos Términos y Condiciones puede comunicarse mediante los canales oficiales de Roomia:
+                    Para consultas relacionadas con estos Términos y Condiciones o temas legales de la plataforma, puede comunicarse con el responsable legal mediante los canales oficiales de Roomia:
                   </p>
                   
-                  <div className="bg-neutral-50 p-4 rounded-2xl border border-neutral-150 space-y-2.5 mt-2">
-                    <span className="text-[10px] uppercase font-mono font-bold tracking-wider text-neutral-400 block">Oficina Legal y Consultas de Cumplimiento</span>
+                  <div className="bg-neutral-50 p-4 rounded-2xl border border-neutral-150 space-y-3 mt-2">
+                    <div>
+                      <span className="text-[10px] uppercase font-mono font-bold tracking-wider text-teal-700 block">Responsable / Titular Legal de la Plataforma</span>
+                      <p className="text-xs font-bold text-neutral-900 mt-0.5">
+                        Dereck Cisneros <span className="font-mono font-normal text-neutral-600">(C.I. 2450397340)</span>
+                      </p>
+                    </div>
+
+                    <span className="text-[10px] uppercase font-mono font-bold tracking-wider text-neutral-400 block pt-1 border-t border-neutral-200">Canales Oficiales de Contacto</span>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-neutral-600">
                       <div className="flex items-center gap-2">
                         <Mail className="w-4 h-4 text-teal-600" />
