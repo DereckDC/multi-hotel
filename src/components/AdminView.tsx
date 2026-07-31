@@ -95,6 +95,7 @@ interface AdminViewProps {
   onDeleteRoomPriceVariation?: (id: string) => void;
   adminTab?: 'dashboard' | 'hotels' | 'properties' | 'rooms' | 'users' | 'logs' | 'reservations' | 'refunds' | 'incidents';
   onAdminTabChange?: (tab: 'dashboard' | 'hotels' | 'properties' | 'rooms' | 'users' | 'logs' | 'reservations' | 'refunds' | 'incidents') => void;
+  onRegisterUser?: (newUser: User) => Promise<any> | void;
 }
 
 export default function AdminView({
@@ -122,7 +123,8 @@ export default function AdminView({
   onSaveRoomPriceVariation,
   onDeleteRoomPriceVariation,
   adminTab: propAdminTab,
-  onAdminTabChange
+  onAdminTabChange,
+  onRegisterUser
 }: AdminViewProps) {
   // Navigation tabs within Admin: 'dashboard' | 'hotels' | 'rooms' | 'users' | 'logs' | 'reservations' | 'refunds' | 'incidents'
   const [localAdminTab, setLocalAdminTab] = useState<'dashboard' | 'hotels' | 'properties' | 'rooms' | 'users' | 'logs' | 'reservations' | 'refunds' | 'incidents'>('dashboard');

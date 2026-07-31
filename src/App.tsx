@@ -1141,6 +1141,7 @@ export default function App() {
                               onDeleteRoomPriceVariation={deleteRoomPriceVariation}
                               adminTab={adminActiveTab}
                               onAdminTabChange={setAdminActiveTab}
+                              onRegisterUser={registerUser}
                             />
                           )}
                         </>

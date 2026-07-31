@@ -38,31 +38,27 @@ import {
 // Safe standard local storage storage key constants
 const STORAGE_PREFIX = 'aura_hotel_pms_';
 
-// Resolve appropriate API Base URL for APK compatibility on WebViews
+// Resolve appropriate API Base URL for web and mobile (APK) compatibility
 export function getApiBaseUrl(): string {
-  const origin = typeof window !== 'undefined' ? window.location.origin : '';
-  
-  // If running in local dev on port 3000
-  if (origin && (origin.includes('localhost:3000') || origin.includes('127.0.0.1:3000'))) {
-    return origin;
+  if (typeof window !== 'undefined' && window.location && window.location.origin) {
+    const origin = window.location.origin;
+    // Any valid http or https browser origin (Vercel, custom domain, Cloud Run, local dev)
+    if (origin.startsWith('http://') || origin.startsWith('https://')) {
+      try {
+        localStorage.setItem('roomia_api_origin', origin);
+      } catch (e) {}
+      return origin;
+    }
   }
 
-  // If on hosted run.app preview
-  if (origin && origin.includes('run.app')) {
-    try {
-      localStorage.setItem('roomia_api_origin', origin);
-    } catch (e) {}
-    return origin;
-  }
-
-  // Fallback to saved origin if any
+  // Fallback to saved origin if any (for mobile WebViews like Capacitor/Cordova)
   try {
     const saved = localStorage.getItem('roomia_api_origin');
     if (saved) return saved;
   } catch (e) {}
 
-  // Production Cloud Run deployment address for Roomia instance
-  return 'https://ais-pre-x2bbmoykvbb2j2cvvu5ybf-300435593784.us-east5.run.app';
+  // Production primary domain fallback instance
+  return 'https://roomiapms.site';
 }
 const KEYS = {
   HOTELS: `${STORAGE_PREFIX}hotels`,
@@ -1262,7 +1258,7 @@ El Equipo de Hospitalidad de Roomia PMS.`;
           </table>
 
           <div style="margin-top: 30px; text-align: center;">
-            <a href="https://ais-pre-x2bbmoykvbb2j2cvvu5ybf-300435593784.us-east5.run.app" style="display: inline-block; padding: 12px 24px; background-color: #2dd4bf; color: #0f172a; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 14px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            <a href="${getApiBaseUrl()}" style="display: inline-block; padding: 12px 24px; background-color: #2dd4bf; color: #0f172a; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 14px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
               Acceder al Panel de Gestión
             </a>
           </div>
