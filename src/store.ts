@@ -38,31 +38,25 @@ import {
 // Safe standard local storage storage key constants
 const STORAGE_PREFIX = 'aura_hotel_pms_';
 
-// Resolve appropriate API Base URL for APK compatibility on WebViews
+// Resolve appropriate API Base URL for Web (Vercel, Cloud Run, Local) and Mobile (Capacitor/WebView)
 export function getApiBaseUrl(): string {
-  const origin = typeof window !== 'undefined' ? window.location.origin : '';
-  
-  // If running in local dev on port 3000
-  if (origin && (origin.includes('localhost:3000') || origin.includes('127.0.0.1:3000'))) {
-    return origin;
-  }
-
-  // If on hosted run.app preview
-  if (origin && origin.includes('run.app')) {
+  if (typeof window !== 'undefined' && window.location && window.location.origin) {
+    const origin = window.location.origin;
+    // Mobile Capacitor / WebView environment
+    if (origin.startsWith('capacitor:') || origin.startsWith('file:')) {
+      try {
+        const saved = localStorage.getItem('roomia_api_origin');
+        if (saved) return saved;
+      } catch (e) {}
+      return 'https://ais-pre-x2bbmoykvbb2j2cvvu5ybf-300435593784.us-east5.run.app';
+    }
+    // Web environments (Vercel, Localhost, Cloud Run, Custom Domains)
     try {
       localStorage.setItem('roomia_api_origin', origin);
     } catch (e) {}
     return origin;
   }
-
-  // Fallback to saved origin if any
-  try {
-    const saved = localStorage.getItem('roomia_api_origin');
-    if (saved) return saved;
-  } catch (e) {}
-
-  // Production Cloud Run deployment address for Roomia instance
-  return 'https://ais-pre-x2bbmoykvbb2j2cvvu5ybf-300435593784.us-east5.run.app';
+  return '';
 }
 const KEYS = {
   HOTELS: `${STORAGE_PREFIX}hotels`,
@@ -1000,6 +994,48 @@ Agradecemos su confianza y le aseguramos que cada una de sus estadías será mem
 Atentamente,
 El Equipo de Hospitalidad de Roomia PMS.`;
 
+    const emailHtml = `
+      <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; color: #1e293b;">
+        <div style="text-align: center; padding-bottom: 20px; border-bottom: 2px solid #0f172a;">
+          <h1 style="color: #0f172a; margin: 0; font-size: 24px; font-weight: 800;">Roomia PMS</h1>
+          <p style="color: #0d9488; margin: 4px 0 0 0; font-size: 13px; font-weight: 600;">Sistema de Gestión Hotelera & Experiencias</p>
+        </div>
+        
+        <div style="padding: 24px 0; line-height: 1.6;">
+          <h2 style="color: #0f172a; font-size: 18px; margin-top: 0;">¡Hola, ${user.nombre} ${user.apellido}!</h2>
+          <p>Le damos una cálida bienvenida a <strong>Roomia PMS</strong>. Su cuenta ha sido creada exitosamente en nuestra plataforma.</p>
+          
+          ${user.debeCambiarPassword ? `
+          <div style="background-color: #fef2f2; border-left: 4px solid #ef4444; padding: 14px 16px; border-radius: 6px; margin: 20px 0;">
+            <p style="margin: 0; color: #991b1b; font-weight: 700; font-size: 13px;">⚠️ ACCIÓN REQUERIDA - CLAVE TEMPORAL</p>
+            <p style="margin: 6px 0 0 0; color: #7f1d1d; font-size: 13px;">Su contraseña temporal es: <strong style="background-color: #fee2e2; padding: 2px 8px; border-radius: 4px; font-family: monospace;">${user.password}</strong></p>
+            <p style="margin: 6px 0 0 0; color: #991b1b; font-size: 12px;">Al iniciar sesión por primera vez se le solicitará cambiar su clave por motivos de seguridad.</p>
+          </div>
+          ` : ''}
+
+          <div style="background-color: #f8fafc; border-radius: 8px; padding: 16px; margin: 20px 0;">
+            <h3 style="margin-top: 0; font-size: 14px; color: #334155; text-transform: uppercase; letter-spacing: 0.5px;">Detalles de la Cuenta</h3>
+            <table style="width: 100%; font-size: 13px; color: #475569; border-collapse: collapse;">
+              <tr><td style="padding: 4px 0; font-weight: 600; width: 40%;">Nombre completo:</td><td style="padding: 4px 0;">${user.nombre} ${user.apellido}</td></tr>
+              <tr><td style="padding: 4px 0; font-weight: 600;">Correo electrónico:</td><td style="padding: 4px 0;">${user.email}</td></tr>
+              <tr><td style="padding: 4px 0; font-weight: 600;">Teléfono:</td><td style="padding: 4px 0;">${user.telefono || 'No especificado'}</td></tr>
+              <tr><td style="padding: 4px 0; font-weight: 600;">Documento ID:</td><td style="padding: 4px 0;">${user.documento || 'No especificado'}</td></tr>
+            </table>
+          </div>
+
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${typeof window !== 'undefined' ? window.location.origin : ''}" style="background-color: #0f172a; color: #2dd4bf; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-weight: bold; font-size: 14px; display: inline-block;">
+              Ingresar a Roomia PMS
+            </a>
+          </div>
+        </div>
+
+        <div style="border-top: 1px solid #e2e8f0; padding-top: 16px; text-align: center; font-size: 11px; color: #94a3b8;">
+          <p style="margin: 0;">Roomia PMS Hospitality Engine • Correo automático generado por el sistema.</p>
+        </div>
+      </div>
+    `;
+
     try {
       const emailResponse = await fetch(`${getApiBaseUrl()}/api/send-email`, {
         method: 'POST',
@@ -1009,13 +1045,21 @@ El Equipo de Hospitalidad de Roomia PMS.`;
         body: JSON.stringify({
           to: user.email,
           subject: emailSubject,
-          text: emailBody
+          text: emailBody,
+          html: emailHtml
         })
       });
-      const emailData = await emailResponse.json();
-      console.log("[SMTP DISPATCH ATTEMPT]", emailData);
+
+      const contentType = emailResponse.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        const emailData = await emailResponse.json();
+        console.log("[WELCOME EMAIL DISPATCH RESULT]", emailData);
+      } else {
+        const textResult = await emailResponse.text();
+        console.warn("[WELCOME EMAIL NON-JSON RESPONSE]", textResult.substring(0, 150));
+      }
     } catch (mailErr) {
-      console.error("Failed to dispatch real welcoming email through server:", mailErr);
+      console.error("Failed to dispatch welcoming email through server:", mailErr);
     }
 
     addLog(
@@ -1150,8 +1194,14 @@ El Equipo de Hospitalidad de Roomia PMS.`;
           text: `Roomia Premium Hotels: Reserva ${resObj.id}. Hotel: ${hotelObj?.nombre}. Total: $${resObj.total} USD. Estado: ${resObj.estado}.`
         })
       });
-      const data = await r.json();
-      console.log("[SMTP EMAIL DISPATCH RESULT]:", data);
+      const cType = r.headers.get("content-type");
+      if (cType && cType.includes("application/json")) {
+        const data = await r.json();
+        console.log("[SMTP EMAIL DISPATCH RESULT]:", data);
+      } else {
+        const textResult = await r.text();
+        console.warn("[SMTP EMAIL NON-JSON RESULT]:", textResult.substring(0, 150));
+      }
     } catch (apiErr) {
       console.error("[SMTP EMAIL EXCEPTION]:", apiErr);
     }
