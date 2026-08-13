@@ -94,7 +94,7 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
                 </div>
                 <div className="min-w-0">
                   <span className="block leading-tight">Términos y Condiciones</span>
-                  <span className="text-[10px] text-neutral-400 font-mono block mt-0.5">Actualizado: Jun 2026</span>
+                  <span className="text-[10px] text-neutral-400 font-mono block mt-0.5">Actualizado: Ago 2026</span>
                 </div>
               </button>
 
@@ -114,7 +114,7 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
                 </div>
                 <div className="min-w-0">
                   <span className="block leading-tight">Política de Privacidad</span>
-                  <span className="text-[10px] text-neutral-400 font-mono block mt-0.5">Actualizado: Jun 2026</span>
+                  <span className="text-[10px] text-neutral-400 font-mono block mt-0.5">Actualizado: Ago 2026</span>
                 </div>
               </button>
 
@@ -134,7 +134,7 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
                 </div>
                 <div className="min-w-0">
                   <span className="block leading-tight">Cancelaciones y Reembolsos</span>
-                  <span className="text-[10px] text-neutral-400 font-mono block mt-0.5">Actualizado: Jun 2026</span>
+                  <span className="text-[10px] text-neutral-400 font-mono block mt-0.5">Actualizado: Ago 2026</span>
                 </div>
               </button>
             </div>
@@ -165,7 +165,7 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
               </span>
               <span className="flex items-center gap-1.5 font-mono font-bold text-teal-600">
                 <CalendarClock className="w-3.5 h-3.5" />
-                Última actualización: 28 de Junio de 2026
+                Última actualización: 13 de Agosto de 2026
               </span>
             </div>
           </div>
@@ -189,10 +189,10 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
                 <div className="space-y-2 transition-all duration-300 hover:translate-x-1 p-1">
                   <h4 className="font-bold text-neutral-850 text-sm md:text-base flex items-center gap-2">
                     <span className="w-1.5 h-4 bg-teal-600 rounded-sm inline-block animate-pulse" />
-                    1. Sobre Roomia y Representación Legal
+                    1. Sobre Roomia
                   </h4>
                   <p>
-                    Roomia es una plataforma tecnológica operada bajo el modelo Software como Servicio (SaaS), administrada y representada legalmente por <strong>Dereck Cisneros</strong> (C.I. <strong>2450397340</strong>), que ofrece herramientas digitales para la gestión de establecimientos de hospedaje y la publicación de anuncios relacionados con propiedades de alojamiento e inmuebles.
+                    Roomia es una plataforma tecnológica operada bajo el modelo Software como Servicio (SaaS) que ofrece herramientas digitales para la gestión de establecimientos de hospedaje y la publicación de anuncios relacionados con propiedades de alojamiento e inmuebles.
                   </p>
                   <p>
                     La plataforma está dirigida principalmente a propietarios, administradores y empresas del sector hotelero que desean administrar sus operaciones desde un único sistema, así como a huéspedes interesados en consultar disponibilidad y realizar solicitudes de reserva.
@@ -225,8 +225,8 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
                     <p>
                       Cada establecimiento es responsable de configurar correctamente su información, tarifas, disponibilidad y políticas internas.
                     </p>
-                    <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 text-xs text-amber-950 font-medium">
-                      ⚠️ <strong>TARIFA OPERATIVA DE LA PLATAFORMA:</strong> Roomia cobrará una tarifa del <strong>10%</strong> de la tarifa total de cada transacción. Esta tarifa se deduce de forma automática del cobro del anfitrión por cada reserva o alquiler procesado.
+                    <div className="bg-teal-50 p-4 rounded-xl border border-teal-200 text-xs text-teal-950 font-medium">
+                      💳 <strong>MODELO DE COBRO Y SERVICIOS:</strong> Roomia opera mediante una suscripción mensual fija para propietarios y administradores según el plan contratado. Adicionalmente, para los pagos con tarjeta tramitados directamente a través de la pasarela integrada en la plataforma Roomia, el administrador o propietario cubrirá una tarifa del <strong>5% del monto total pagado por el cliente por cada reserva</strong>. Esta tarifa cubre los trámites de la pasarela de pagos integrada y la gestión del envío y liquidación del dinero de la reserva hacia el propietario.
                     </div>
                   </div>
 
@@ -258,10 +258,10 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
                     3. Contratación del servicio
                   </h4>
                   <p>
-                    Los servicios de gestión para establecimientos funcionan mediante suscripción bajo modalidad SaaS.
+                    Los servicios de Roomia se proporcionan bajo la modalidad SaaS mediante el cobro de una <strong>suscripción mensual fija</strong> a los propietarios o administradores de propiedades y hoteles.
                   </p>
                   <p>
-                    Cada establecimiento podrá contratar el plan que mejor se adapte a sus necesidades, accediendo únicamente a las funcionalidades incluidas dentro del plan seleccionado.
+                    El valor de dicha mensualidad depende del plan contratado (según la cantidad de propiedades administradas) y otorga acceso completo e ilimitado a todas las funcionalidades del sistema durante el período contratado.
                   </p>
                   <p>
                     La contratación podrá realizarse directamente desde la plataforma o mediante los canales comerciales oficiales de Roomia.
@@ -295,19 +295,19 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
                 <div className="space-y-2 transition-all duration-300 hover:translate-x-1 p-1">
                   <h4 className="font-bold text-neutral-850 text-sm md:text-base flex items-center gap-2">
                     <span className="w-1.5 h-4 bg-teal-600 rounded-sm inline-block animate-pulse" />
-                    5. Pagos
+                    5. Pagos y Liquidaciones
                   </h4>
                   <p>
-                    Cuando un establecimiento utilice pasarelas de pago integradas, las transacciones serán procesadas por proveedores externos especializados.
+                    Cuando un establecimiento utilice las pasarelas de pago integradas en Roomia, las transacciones serán procesadas de forma segura por proveedores externos especializados.
                   </p>
                   <p>
                     Roomia no almacena información confidencial de tarjetas bancarias como números completos, códigos CVV u otros datos sensibles de pago.
                   </p>
                   <p>
-                    Las condiciones específicas de procesamiento estarán sujetas también a los términos establecidos por cada proveedor de pagos.
+                    Las condiciones específicas de procesamiento estarán sujetas también a los términos establecidos por cada proveedor de pasarela.
                   </p>
                   <div className="bg-teal-50 p-4 rounded-xl border border-teal-150 text-xs text-teal-950 font-medium">
-                    📌 <strong>Deducción del 10%:</strong> El cobro procesado por concepto de reserva o alquiler tendrá una deducción del 10% que Roomia retendrá automáticamente como comisión por uso de la plataforma tecnológica y pasarela, liquidando el saldo restante al anfitrión.
+                    📌 <strong>Tarifa por Procesamiento y Gestión de Pagos (5%):</strong> Cuando los clientes o huéspedes realicen pagos con tarjeta a través de la pasarela integrada en la plataforma Roomia, se aplicará una tarifa del <strong>5% sobre el monto total pagado por el cliente por reserva</strong>. Esta tarifa será asumida por el administrador/propietario y cubre los trámites operativos de la pasarela de pago y la gestión del envío y acreditación del dinero de la reserva hacia la cuenta bancaria del propietario. Los pagos que el establecimiento reciba directamente en recepción (como efectivo o transferencias directas a su propia cuenta) están exentos de esta tarifa.
                   </div>
                 </div>
 
@@ -384,25 +384,18 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
                   </p>
                 </div>
 
-                {/* Sección 10: Titularidad, Representación Legal y Contacto */}
+                {/* Sección 10: Titularidad y Contacto */}
                 <div className="space-y-2 transition-all duration-300 hover:translate-x-1 p-1">
                   <h4 className="font-bold text-neutral-850 text-sm md:text-base flex items-center gap-2">
                     <span className="w-1.5 h-4 bg-teal-600 rounded-sm inline-block animate-pulse" />
-                    10. Titularidad, Representación Legal y Contacto
+                    10. Titularidad y Canales de Contacto
                   </h4>
                   <p>
-                    Para consultas relacionadas con estos Términos y Condiciones o temas legales de la plataforma, puede comunicarse con el responsable legal mediante los canales oficiales de Roomia:
+                    Para consultas relacionadas con estos Términos y Condiciones o temas legales de la plataforma, puede comunicarse con el equipo de administración mediante los canales oficiales de Roomia:
                   </p>
                   
                   <div className="bg-neutral-50 p-4 rounded-2xl border border-neutral-150 space-y-3 mt-2">
-                    <div>
-                      <span className="text-[10px] uppercase font-mono font-bold tracking-wider text-teal-700 block">Responsable / Titular Legal de la Plataforma</span>
-                      <p className="text-xs font-bold text-neutral-900 mt-0.5">
-                        Dereck Cisneros <span className="font-mono font-normal text-neutral-600">(C.I. 2450397340)</span>
-                      </p>
-                    </div>
-
-                    <span className="text-[10px] uppercase font-mono font-bold tracking-wider text-neutral-400 block pt-1 border-t border-neutral-200">Canales Oficiales de Contacto</span>
+                    <span className="text-[10px] uppercase font-mono font-bold tracking-wider text-teal-700 block">Canales Oficiales de Contacto y Soporte Legal</span>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-neutral-600">
                       <div className="flex items-center gap-2">
                         <Mail className="w-4 h-4 text-teal-600" />

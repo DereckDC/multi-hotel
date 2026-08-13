@@ -478,7 +478,7 @@ export default function LandingPageView({ onClose, onOpenLegal }: LandingPageVie
               </div>
               <div className="flex items-start gap-2.5">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                <span><strong>Transparente y sin sorpresas:</strong> Sin cobros ocultos ni comisiones por reserva. Pagos claros y fijos.</span>
+                <span><strong>Transparente y sin sorpresas:</strong> Suscripción mensual fija según su plan. Tarifa del 5% solo al procesar cobros con tarjeta en línea (cubre la pasarela y la dispersión del dinero).</span>
               </div>
               <div className="flex items-start gap-2.5">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
