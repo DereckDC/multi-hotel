@@ -4,6 +4,7 @@
  */
 
 import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   Building2, 
   CheckCircle, 
@@ -28,7 +29,8 @@ import {
   ChevronUp,
   Star,
   Lock,
-  MessageCircle
+  MessageCircle,
+  MessagesSquare
 } from 'lucide-react';
 import { InteractiveContainer } from './InteractiveContainer';
 import { GlobalTrailCursor } from './GlobalTrailCursor';
@@ -460,58 +462,93 @@ export default function LandingPageView({ onClose, onOpenLegal }: LandingPageVie
 
           </div>
 
-          {/* Destacados clave por los que eligen Roomia */}
-          <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-6 md:p-8 space-y-4 mt-8">
-            <h3 className="text-lg md:text-xl font-bold text-white flex items-center gap-2">
-              <ShieldCheck className="w-5 h-5 text-emerald-400" />
-              <span>¿Por qué los propietarios eligen Roomia?</span>
-            </h3>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-slate-300">
-              <div className="flex items-start gap-2.5">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                <span><strong>Fácil e intuitivo:</strong> Diseñado para operar desde el primer día sin capacitaciones largas ni complicaciones.</span>
-              </div>
-              <div className="flex items-start gap-2.5">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                <span><strong>100% en tiempo real:</strong> Sincronización instantánea de reservas, habitaciones y cobros para todo el equipo.</span>
-              </div>
-              <div className="flex items-start gap-2.5">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                <span><strong>Transparente y sin sorpresas:</strong> Suscripción mensual fija según su plan. Tarifa del 5% solo al procesar cobros con tarjeta en línea (cubre la pasarela y la dispersión del dinero).</span>
-              </div>
-              <div className="flex items-start gap-2.5">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                <span><strong>Seguridad y respaldo:</strong> Datos respaldados en la nube con acceso protegido y soporte técnico en español.</span>
-              </div>
-            </div>
-          </div>
-
         </div>
       </InteractiveContainer>
 
-      {/* 5. CTA INTERMEDIO (Botón CTA #2 "Solicitar demo por WhatsApp") */}
+      {/* 5. CTA INTERMEDIO + ¿POR QUÉ ELIGEN ROOMIA? (Unificado en un solo contenedor izquierda / derecha) */}
       <InteractiveContainer className="bg-slate-950 py-12 px-4 md:px-6 border-b border-slate-900">
-        <div className="max-w-4xl mx-auto bg-gradient-to-r from-[#0E2A47] via-slate-900 to-[#0E2A47] border border-brand-cyan/30 rounded-3xl p-8 md:p-12 text-center space-y-6 shadow-2xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-brand-cyan/10 rounded-full blur-2xl pointer-events-none" />
+        <div className="max-w-6xl mx-auto bg-gradient-to-br from-[#0E2A47] via-slate-900 to-[#0B1E33] border border-brand-cyan/30 rounded-3xl p-6 md:p-10 shadow-2xl relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-48 h-48 bg-brand-cyan/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute bottom-0 left-0 w-48 h-48 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
           
-          <div className="space-y-3 relative z-10">
-            <h2 className="text-2xl md:text-3.5xl font-serif font-black text-white">
-              ¿Listo para transformar la gestión de su negocio?
-            </h2>
-            <p className="text-xs md:text-sm text-slate-300 max-w-lg mx-auto leading-relaxed">
-              Solicite una demostración personalizada de 15 minutos y descubra cómo Roomia se adapta exactamente a su tipo de propiedad.
-            </p>
-          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-center relative z-10">
+            
+            {/* Columna Izquierda: Razones por las que eligen Roomia */}
+            <div className="lg:col-span-7 space-y-5">
+              <div className="space-y-2">
+                <h3 className="text-xl md:text-2xl lg:text-3xl font-serif font-black text-white leading-tight">
+                  ¿Por qué los propietarios eligen Roomia?
+                </h3>
+              </div>
 
-          <div className="pt-2 relative z-10 flex justify-center">
-            <button
-              onClick={() => openWhatsApp("Hola, quiero solicitar una demo por WhatsApp de Roomia PMS.")}
-              className="px-8 py-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs md:text-sm rounded-xl shadow-xl shadow-emerald-500/20 hover:shadow-emerald-500/30 transition-all hover:scale-[1.03] active:scale-95 cursor-pointer flex items-center gap-3"
-            >
-              <MessageCircle className="w-5 h-5 fill-slate-950" />
-              <span>Solicitar demo por WhatsApp</span>
-            </button>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-xs text-slate-300">
+                <div className="p-3.5 rounded-2xl bg-slate-950/50 border border-slate-800/80 space-y-1.5 hover:border-brand-cyan/30 transition-colors">
+                  <div className="flex items-center gap-2 text-white font-bold">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>Fácil e intuitivo</span>
+                  </div>
+                  <p className="text-slate-400 leading-relaxed text-[11px]">
+                    Diseñado para operar desde el primer día sin capacitaciones largas ni complicaciones.
+                  </p>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-slate-950/50 border border-slate-800/80 space-y-1.5 hover:border-brand-cyan/30 transition-colors">
+                  <div className="flex items-center gap-2 text-white font-bold">
+                    <MessagesSquare className="w-4 h-4 text-brand-cyan shrink-0" />
+                    <span>Chat en tiempo real</span>
+                  </div>
+                  <p className="text-slate-400 leading-relaxed text-[11px]">
+                    Canal directo para coordinar al equipo interno y responder preguntas de clientes y huéspedes al instante.
+                  </p>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-slate-950/50 border border-slate-800/80 space-y-1.5 hover:border-brand-cyan/30 transition-colors">
+                  <div className="flex items-center gap-2 text-white font-bold">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>Transparente</span>
+                  </div>
+                  <p className="text-slate-400 leading-relaxed text-[11px]">
+                    Suscripción mensual fija. Tarifa del 5% solo al procesar pagos con tarjeta en línea.
+                  </p>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-slate-950/50 border border-slate-800/80 space-y-1.5 hover:border-brand-cyan/30 transition-colors">
+                  <div className="flex items-center gap-2 text-white font-bold">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>Seguridad y respaldo</span>
+                  </div>
+                  <p className="text-slate-400 leading-relaxed text-[11px]">
+                    Datos respaldados en la nube con acceso protegido y soporte técnico en español.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Divisor Visual en móvil */}
+            <div className="lg:hidden h-px bg-slate-800 w-full" />
+
+            {/* Columna Derecha: Llamado a la Acción (CTA Demo) */}
+            <div className="lg:col-span-5 flex flex-col justify-center space-y-5 bg-slate-950/70 p-6 md:p-7 rounded-2xl border border-brand-cyan/25 shadow-xl text-center lg:text-left">
+              <div className="space-y-2.5">
+                <h2 className="text-xl md:text-2xl font-serif font-black text-white leading-tight">
+                  ¿Listo para transformar la gestión de su negocio?
+                </h2>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Solicite una demostración personalizada de 15 minutos y descubra cómo Roomia se adapta exactamente a su tipo de propiedad.
+                </p>
+              </div>
+
+              <div className="pt-1">
+                <button
+                  onClick={() => openWhatsApp("Hola, quiero solicitar una demo por WhatsApp de Roomia PMS.")}
+                  className="w-full py-3.5 px-6 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs md:text-sm rounded-xl shadow-xl shadow-emerald-500/20 hover:shadow-emerald-500/30 transition-all hover:scale-[1.02] active:scale-95 cursor-pointer flex items-center justify-center gap-2.5"
+                >
+                  <MessageCircle className="w-5 h-5 fill-slate-950" />
+                  <span>Solicitar demo por WhatsApp</span>
+                </button>
+              </div>
+            </div>
+
           </div>
         </div>
       </InteractiveContainer>
@@ -615,6 +652,10 @@ export default function LandingPageView({ onClose, onOpenLegal }: LandingPageVie
                   </li>
                   <li className="flex items-center gap-2">
                     <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>Chat en tiempo real (equipo y huéspedes)</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
                     <span>Reservas y huéspedes ilimitados</span>
                   </li>
                   <li className="flex items-center gap-2">
@@ -673,6 +714,10 @@ export default function LandingPageView({ onClose, onOpenLegal }: LandingPageVie
                   </li>
                   <li className="flex items-center gap-2">
                     <CheckCircle className="w-4 h-4 text-brand-cyan shrink-0" />
+                    <span>Chat en tiempo real (equipo y huéspedes)</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-brand-cyan shrink-0" />
                     <span>Gestión multi-propiedad centralizada</span>
                   </li>
                   <li className="flex items-center gap-2">
@@ -727,6 +772,10 @@ export default function LandingPageView({ onClose, onOpenLegal }: LandingPageVie
                   </li>
                   <li className="flex items-center gap-2">
                     <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>Chat en tiempo real (equipo y huéspedes)</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
                     <span>Gestión multi-propiedad avanzada</span>
                   </li>
                   <li className="flex items-center gap-2">
@@ -758,82 +807,155 @@ export default function LandingPageView({ onClose, onOpenLegal }: LandingPageVie
 
           </div>
 
-          {/* Texto Aclaratorio Requerido */}
-          <div className="bg-slate-900/40 border border-slate-850 rounded-2xl p-4 text-center max-w-3xl mx-auto">
-            <p className="text-xs md:text-sm text-slate-300 font-medium leading-relaxed">
-              "Todo Roomia para administrar 1 propiedad — no es una versión limitada. Más propiedades, mayor capacidad, nunca menos funciones."
-            </p>
-          </div>
-
-          {/* Bloque: Programa de Clientes Fundadores (Colapsable) */}
-          <div className="bg-slate-900/90 border border-brand-cyan/30 rounded-3xl p-6 md:p-8 space-y-6 max-w-3xl mx-auto shadow-xl">
-            <div className="flex items-center justify-between gap-4 border-b border-slate-800 pb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-brand-cyan/10 text-brand-cyan flex items-center justify-center shrink-0">
-                  <Sparkles className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-base md:text-lg font-bold text-white">Programa de Clientes Fundadores</h3>
-                  <p className="text-xs text-slate-400">Precios promocionales por cupos limitados de lanzamiento.</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Always Visible: Franja Activa Default */}
-            <div className="space-y-3">
-              <div className="p-4 bg-brand-cyan/10 border border-brand-cyan/30 rounded-2xl flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <span className="text-[10px] font-bold text-brand-cyan uppercase font-mono tracking-wider block">FRANJA 1 (ACTIVA AHORA)</span>
-                  <h4 className="text-sm font-extrabold text-white">Clientes 1 – 20</h4>
-                  <p className="text-xs text-slate-300 mt-0.5">Roomia 1: $29/mes | Roomia 3: $69/mes | Roomia 5: $109/mes</p>
-                </div>
-                <span className="px-2.5 py-1 bg-brand-cyan text-slate-950 font-black text-[10px] rounded-lg uppercase tracking-wide">
-                  Cupos Abiertos
-                </span>
+          {/* Bloque: Programa de Clientes Fundadores (Diseño horizontal, título grande, expansión hacia abajo) */}
+          <div className="bg-gradient-to-br from-slate-900 via-slate-900/95 to-slate-950 border border-brand-cyan/35 rounded-3xl p-6 md:p-8 max-w-5xl mx-auto shadow-2xl shadow-brand-cyan/10 relative overflow-hidden">
+            
+            {/* Header del Programa (Horizontal, Título destacado, sin ícono de estrella) */}
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+              <div className="space-y-2 max-w-2xl">
+                <h3 className="text-xl md:text-2xl font-black text-white tracking-tight flex items-center gap-2">
+                  <span>🚀 PROGRAMA DE CLIENTES FUNDADORES</span>
+                </h3>
+                <p className="text-xs md:text-sm text-slate-300 leading-relaxed">
+                  Los primeros 20 clientes obtienen hasta un <strong className="text-brand-cyan">22% de descuento permanente</strong> en su plan Roomia. Tu precio queda protegido mientras mantengas activa tu suscripción.
+                </p>
               </div>
 
-              {/* Collapsible Section for Tiers 2 & 3 */}
-              {showAllTiers && (
-                <div className="space-y-3 pt-1 animate-fade-in">
-                  <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl flex flex-wrap items-center justify-between gap-3 opacity-80">
-                    <div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase font-mono tracking-wider block">FRANJA 2 (Siguiente)</span>
-                      <h4 className="text-sm font-bold text-slate-200">Clientes 21 – 50</h4>
-                      <p className="text-xs text-slate-400 mt-0.5">Roomia 1: $34/mes | Roomia 3: $79/mes | Roomia 5: $124/mes</p>
-                    </div>
-                    <span className="px-2.5 py-1 bg-slate-800 text-slate-400 font-bold text-[10px] rounded-lg uppercase">
-                      Próxima Franja
-                    </span>
-                  </div>
-
-                  <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl flex flex-wrap items-center justify-between gap-3 opacity-60">
-                    <div>
-                      <span className="text-[10px] font-bold text-slate-500 uppercase font-mono tracking-wider block">FRANJA 3 (Precio Oficial)</span>
-                      <h4 className="text-sm font-bold text-slate-300">Clientes 51+</h4>
-                      <p className="text-xs text-slate-400 mt-0.5">Roomia 1: $39/mes | Roomia 3: $89/mes | Roomia 5: $139/mes</p>
-                    </div>
-                    <span className="px-2.5 py-1 bg-slate-800 text-slate-500 font-bold text-[10px] rounded-lg uppercase">
-                      Precio Oficial
-                    </span>
-                  </div>
-                </div>
-              )}
-
+              {/* Botón de toggle desplegable hacia abajo */}
               <button
                 onClick={() => setShowAllTiers(!showAllTiers)}
-                className="w-full py-2 text-xs font-bold text-brand-cyan hover:text-[#3fc2f0] transition-colors flex items-center justify-center gap-1 cursor-pointer pt-1"
+                className="inline-flex items-center justify-center gap-2.5 px-5 py-3 rounded-2xl bg-brand-cyan text-slate-950 hover:bg-[#3fc2f0] font-extrabold text-xs md:text-sm tracking-wide transition-all cursor-pointer shrink-0 active:scale-95 shadow-lg shadow-brand-cyan/20"
               >
-                <span>{showAllTiers ? "Ocultar franjas futuras" : "Ver todas las franjas de precio (3 franjas)"}</span>
-                {showAllTiers ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                <span>{showAllTiers ? "Contraer franjas" : "Ver todas las franjas"}</span>
+                {showAllTiers ? (
+                  <ChevronUp className="w-4 h-4" />
+                ) : (
+                  <ChevronDown className="w-4 h-4" />
+                )}
               </button>
             </div>
 
-            {/* Frase Obligatoria Resaltada */}
-            <div className="p-4 bg-brand-cyan/10 border border-brand-cyan/20 rounded-2xl text-center">
-              <p className="text-xs md:text-sm font-bold text-brand-cyan leading-relaxed">
-                "Una vez cerrado tu cupo, tu precio queda congelado — sin importar cuántas franjas suban después."
-              </p>
-            </div>
+            {/* Vista Desplegable hacia abajo (Las 3 franjas aparecen solo al hacer click) */}
+            <AnimatePresence>
+              {showAllTiers && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                  animate={{ opacity: 1, height: 'auto', marginTop: 24 }}
+                  exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                  transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+                  className="pt-6 border-t border-slate-800/80 space-y-5 overflow-hidden"
+                >
+                  {/* Grid Horizontal de las 3 Franjas */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    
+                    {/* FRANJA 1: ACTIVA AHORA */}
+                    <div className="p-4 md:p-5 bg-brand-cyan/10 border-2 border-brand-cyan/50 rounded-2xl flex flex-col justify-between gap-4 shadow-lg shadow-brand-cyan/10 relative overflow-hidden">
+                      <div className="absolute -right-6 -bottom-6 w-24 h-24 bg-brand-cyan/10 rounded-full blur-xl pointer-events-none" />
+                      
+                      <div className="space-y-1.5 relative z-10">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[10px] font-black text-brand-cyan uppercase font-mono tracking-wider">
+                            FRANJA 1 (ACTIVA)
+                          </span>
+                          <span className="px-2 py-0.5 bg-brand-cyan text-slate-950 font-black text-[9px] rounded-md uppercase tracking-wider animate-pulse">
+                            Cupos Abiertos
+                          </span>
+                        </div>
+                        <h4 className="text-base font-black text-white">Clientes 1 – 20</h4>
+                        <p className="text-[11px] text-emerald-400 font-bold">Ahorro hasta 22% permanente</p>
+                      </div>
+
+                      <div className="pt-2.5 border-t border-brand-cyan/20 space-y-1.5 text-xs text-slate-200 font-mono relative z-10">
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">Roomia 1:</span>
+                          <span className="font-bold text-white">$29 <span className="text-[10px] text-slate-400">/mes</span></span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">Roomia 3:</span>
+                          <span className="font-bold text-brand-cyan">$69 <span className="text-[10px] text-slate-400">/mes</span></span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">Roomia 5:</span>
+                          <span className="font-bold text-white">$109 <span className="text-[10px] text-slate-400">/mes</span></span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* FRANJA 2: Próxima */}
+                    <div className="p-4 md:p-5 bg-slate-950/80 border border-slate-800 rounded-2xl flex flex-col justify-between gap-4 opacity-85">
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase font-mono tracking-wider">
+                            FRANJA 2 (Siguiente)
+                          </span>
+                          <span className="px-2 py-0.5 bg-slate-800 text-slate-400 font-bold text-[9px] rounded-md uppercase">
+                            Próxima
+                          </span>
+                        </div>
+                        <h4 className="text-base font-bold text-slate-200">Clientes 21 – 50</h4>
+                        <p className="text-[11px] text-slate-400">Ahorro hasta 12% permanente</p>
+                      </div>
+
+                      <div className="pt-2.5 border-t border-slate-800 space-y-1.5 text-xs text-slate-300 font-mono">
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">Roomia 1:</span>
+                          <span className="font-semibold text-slate-200">$34 <span className="text-[10px] text-slate-500">/mes</span></span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">Roomia 3:</span>
+                          <span className="font-semibold text-slate-200">$79 <span className="text-[10px] text-slate-500">/mes</span></span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">Roomia 5:</span>
+                          <span className="font-semibold text-slate-200">$124 <span className="text-[10px] text-slate-500">/mes</span></span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* FRANJA 3: Oficial */}
+                    <div className="p-4 md:p-5 bg-slate-950/60 border border-slate-800/80 rounded-2xl flex flex-col justify-between gap-4 opacity-65">
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[10px] font-bold text-slate-500 uppercase font-mono tracking-wider">
+                            FRANJA 3 (Tarifa Final)
+                          </span>
+                          <span className="px-2 py-0.5 bg-slate-850 text-slate-500 font-bold text-[9px] rounded-md uppercase">
+                            Precio Oficial
+                          </span>
+                        </div>
+                        <h4 className="text-base font-bold text-slate-300">Clientes 51+</h4>
+                        <p className="text-[11px] text-slate-500">Tarifa regular de mercado</p>
+                      </div>
+
+                      <div className="pt-2.5 border-t border-slate-850 space-y-1.5 text-xs text-slate-400 font-mono">
+                        <div className="flex justify-between">
+                          <span className="text-slate-600">Roomia 1:</span>
+                          <span className="text-slate-300">$39 <span className="text-[10px] text-slate-600">/mes</span></span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-600">Roomia 3:</span>
+                          <span className="text-slate-300">$89 <span className="text-[10px] text-slate-600">/mes</span></span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-600">Roomia 5:</span>
+                          <span className="text-slate-300">$139 <span className="text-[10px] text-slate-600">/mes</span></span>
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+
+                  {/* Garantía de Precio Congelado */}
+                  <div className="p-3.5 bg-brand-cyan/10 border border-brand-cyan/20 rounded-2xl flex items-center justify-center gap-2 text-center">
+                    <Lock className="w-4 h-4 text-brand-cyan shrink-0" />
+                    <p className="text-xs md:text-sm font-bold text-brand-cyan leading-relaxed">
+                      Una vez cerrado tu cupo, tu precio queda 100% congelado de por vida mientras mantengas activa tu suscripción.
+                    </p>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
           </div>
 
         </div>
