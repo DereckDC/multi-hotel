@@ -185,14 +185,14 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
                   </p>
                 </div>
 
-                {/* Sección 1: Sobre Roomia */}
+                {/* Sección 1: Sobre Roomia y Representación Legal */}
                 <div className="space-y-2 transition-all duration-300 hover:translate-x-1 p-1">
                   <h4 className="font-bold text-neutral-850 text-sm md:text-base flex items-center gap-2">
                     <span className="w-1.5 h-4 bg-teal-600 rounded-sm inline-block animate-pulse" />
-                    1. Sobre Roomia
+                    1. Sobre Roomia y Representación Legal
                   </h4>
                   <p>
-                    Roomia es una plataforma tecnológica operada bajo el modelo Software como Servicio (SaaS) que ofrece herramientas digitales para la gestión de establecimientos de hospedaje y la publicación de anuncios relacionados con propiedades de alojamiento e inmuebles.
+                    Roomia es una plataforma tecnológica operada bajo el modelo Software como Servicio (SaaS), administrada y representada legalmente por Dereck Cisneros (C.I.2450397340), que ofrece herramientas digitales para la gestión de establecimientos de hospedaje y la publicación de anuncios relacionados con propiedades de alojamiento e inmuebles.
                   </p>
                   <p>
                     La plataforma está dirigida principalmente a propietarios, administradores y empresas del sector hotelero que desean administrar sus operaciones desde un único sistema, así como a huéspedes interesados en consultar disponibilidad y realizar solicitudes de reserva.
