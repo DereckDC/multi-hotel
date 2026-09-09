@@ -612,9 +612,19 @@ export async function deleteRowFromSupabase(table: 'hotels' | 'rooms' | 'users' 
 
 export function mapChatMessageToDb(msg: ChatMessage): any {
   const isInternal = msg.channel === 'internal';
-  const dbText = isInternal && !msg.text.startsWith('[INTERNAL_STAFF]') 
-    ? `[INTERNAL_STAFF]${msg.text}` 
-    : msg.text;
+  let dbText = msg.text || '';
+
+  // Si el mensaje es de staff y va dirigido a un cliente específico, codificar el tag seguro
+  const targetClient = msg.recipientId || msg.customerId;
+  if (!isInternal && targetClient && msg.senderRole !== 'cliente') {
+    if (!dbText.startsWith(`[TO_CLIENT:${targetClient}]`)) {
+      // Limpiar cualquier tag anterior si existiera
+      dbText = dbText.replace(/^\[TO_CLIENT:[^\]]+\]/, '');
+      dbText = `[TO_CLIENT:${targetClient}]${dbText}`;
+    }
+  } else if (isInternal && !dbText.startsWith('[INTERNAL_STAFF]')) {
+    dbText = `[INTERNAL_STAFF]${dbText}`;
+  }
 
   return {
     id: msg.id,
@@ -632,6 +642,8 @@ export function mapChatMessageFromDb(db: any): ChatMessage {
   if (!db) return db;
   let rawText = db.text || '';
   let channel: 'guest' | 'internal' = 'guest';
+  let recipientId: string | undefined = db.recipientid || db.recipientId || undefined;
+  let customerId: string | undefined = db.customerid || db.customerId || undefined;
 
   if (rawText.startsWith('[INTERNAL_STAFF]')) {
     channel = 'internal';
@@ -640,16 +652,36 @@ export function mapChatMessageFromDb(db: any): ChatMessage {
     channel = 'internal';
   }
 
+  // Parsear tag seguro de destinatario [TO_CLIENT:id] si viene en el texto
+  if (rawText.startsWith('[TO_CLIENT:')) {
+    const match = rawText.match(/^\[TO_CLIENT:([^\]]+)\]/);
+    if (match) {
+      recipientId = match[1];
+      customerId = match[1];
+      rawText = rawText.substring(match[0].length);
+    }
+  }
+
+  const senderRole = db.senderrole !== undefined ? db.senderrole : (db.senderRole || 'cliente');
+  const senderId = db.senderid !== undefined ? db.senderid : (db.senderId || '');
+
+  // Si el emisor es cliente, la conversación pertenece a ese cliente
+  if (senderRole === 'cliente') {
+    customerId = senderId;
+  }
+
   return {
     id: db.id,
-    senderId: db.senderid !== undefined ? db.senderid : (db.senderId || ''),
+    senderId,
     senderName: db.sendername !== undefined ? db.sendername : (db.senderName || ''),
-    senderRole: db.senderrole !== undefined ? db.senderrole : (db.senderRole || 'cliente'),
+    senderRole,
     hotelId: db.hotelid !== undefined ? db.hotelid : (db.hotelId || ''),
     text: rawText,
     timestamp: db.timestamp || '',
     read: db.read !== undefined ? db.read : false,
-    channel
+    channel,
+    recipientId,
+    customerId
   };
 }
 

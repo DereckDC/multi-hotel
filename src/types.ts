@@ -176,6 +176,8 @@ export interface ChatMessage {
   timestamp: string;
   read: boolean;
   channel?: 'guest' | 'internal';
+  recipientId?: string; // ID del destinatario específico (ej. cliente cuando el staff responde)
+  customerId?: string;  // ID del cliente al que pertenece la conversación
 }
 
 export interface PaymentTransaction {
