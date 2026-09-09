@@ -498,12 +498,28 @@ export function useHotelStore() {
         });
       });
 
-      socket.on('chat:read', (payload: { hotelId: string; senderId: string; senderRole: UserRole }) => {
-        if (!payload) return;
+      socket.on('chat:read', (payload: { hotelId: string; senderId?: string; senderRole?: UserRole; targetCustomerId?: string; isClientReading?: boolean }) => {
+        if (!payload || !payload.hotelId) return;
         setMessages(prev => prev.map(m => {
-          if (m.hotelId === payload.hotelId && m.senderId === payload.senderId && m.senderRole === payload.senderRole) {
+          if (m.hotelId !== payload.hotelId) return m;
+
+          if (payload.isClientReading || payload.senderRole === 'cliente') {
+            const cId = payload.senderId;
+            if ((m.recipientId === cId || m.customerId === cId) && m.senderRole !== 'cliente') {
+              return { ...m, read: true };
+            }
+          }
+
+          if (payload.targetCustomerId) {
+            if (m.senderId === payload.targetCustomerId && m.senderRole === 'cliente') {
+              return { ...m, read: true };
+            }
+          }
+
+          if (payload.senderId && payload.senderRole && m.senderId === payload.senderId && m.senderRole === payload.senderRole) {
             return { ...m, read: true };
           }
+
           return m;
         }));
       });
@@ -1988,11 +2004,35 @@ El Equipo de Hospitalidad de Roomia PMS.`;
     }
   };
 
-  const markMessagesAsRead = async (hotelId: string, senderId: string, senderRole: UserRole) => {
+  const markMessagesAsRead = async (
+    hotelId: string, 
+    senderId: string, 
+    senderRole: UserRole, 
+    options?: { targetCustomerId?: string; isClientReading?: boolean }
+  ) => {
     setMessages(prev => prev.map(m => {
-      if (m.hotelId === hotelId && m.senderId === senderId && m.senderRole === senderRole) {
+      if (m.hotelId !== hotelId) return m;
+
+      // 1. Si el cliente está leyendo: marca como leídos los mensajes dirigidos a él
+      if (options?.isClientReading || senderRole === 'cliente') {
+        const cId = senderId;
+        if ((m.recipientId === cId || m.customerId === cId) && m.senderRole !== 'cliente') {
+          return { ...m, read: true };
+        }
+      }
+
+      // 2. Si el staff está atendiendo la conversación de un huésped específico
+      if (options?.targetCustomerId) {
+        if (m.senderId === options.targetCustomerId && m.senderRole === 'cliente') {
+          return { ...m, read: true };
+        }
+      }
+
+      // 3. Fallback estándar (ej. staff leyendo mensajes de un remitente específico)
+      if (m.senderId === senderId && m.senderRole === senderRole) {
         return { ...m, read: true };
       }
+
       return m;
     }));
 
@@ -2000,24 +2040,57 @@ El Equipo de Hospitalidad de Roomia PMS.`;
     try {
       const socket = getSocket();
       if (socket) {
-        socket.emit("chat:read", { hotelId, senderId, senderRole });
+        socket.emit("chat:read", { hotelId, senderId, senderRole, ...options });
       }
     } catch (e) {
       console.warn("WebSocket markMessagesAsRead emit error:", e);
     }
     try {
-      const { data } = await supabase
-        .from('messages')
-        .select('*')
-        .eq('hotelid', hotelId)
-        .eq('senderid', senderId)
-        .eq('senderrole', senderRole);
-      if (data) {
-        for (const item of data) {
-          await supabase
-            .from('messages')
-            .update({ read: true })
-            .eq('id', item.id);
+      if (options?.isClientReading || senderRole === 'cliente') {
+        const { data } = await supabase
+          .from('messages')
+          .select('*')
+          .eq('hotelid', hotelId);
+        if (data) {
+          for (const item of data) {
+            const mapped = mapChatMessageFromDb(item);
+            if ((mapped.recipientId === senderId || mapped.customerId === senderId) && mapped.senderRole !== 'cliente' && !mapped.read) {
+              await supabase
+                .from('messages')
+                .update({ read: true })
+                .eq('id', item.id);
+            }
+          }
+        }
+      } else if (options?.targetCustomerId) {
+        const { data } = await supabase
+          .from('messages')
+          .select('*')
+          .eq('hotelid', hotelId)
+          .eq('senderid', options.targetCustomerId)
+          .eq('senderrole', 'cliente');
+        if (data) {
+          for (const item of data) {
+            await supabase
+              .from('messages')
+              .update({ read: true })
+              .eq('id', item.id);
+          }
+        }
+      } else {
+        const { data } = await supabase
+          .from('messages')
+          .select('*')
+          .eq('hotelid', hotelId)
+          .eq('senderid', senderId)
+          .eq('senderrole', senderRole);
+        if (data) {
+          for (const item of data) {
+            await supabase
+              .from('messages')
+              .update({ read: true })
+              .eq('id', item.id);
+          }
         }
       }
     } catch (e) {

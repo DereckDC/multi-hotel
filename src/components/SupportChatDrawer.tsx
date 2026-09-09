@@ -26,7 +26,7 @@ interface SupportChatDrawerProps {
   activeUser: UserType;
   messages: ChatMessage[];
   onSendMessage: (msg: ChatMessage) => void;
-  onMarkAsRead: (hotelId: string, senderId: string, role: UserRole) => void;
+  onMarkAsRead: (hotelId: string, senderId: string, role: UserRole, options?: { targetCustomerId?: string; isClientReading?: boolean }) => void;
   openHotelId?: string | null;
   users?: UserType[];
 }
@@ -51,6 +51,7 @@ export default function SupportChatDrawer({
   const [showScrollBottom, setShowScrollBottom] = useState(false);
   const prevMessageCountRef = useRef<number>(0);
   const prevConversationKeyRef = useRef<string>('');
+  const isSettlingScrollRef = useRef<boolean>(false);
 
   const isStaff = activeUser?.rol ? activeUser.rol !== 'cliente' : false;
 
@@ -85,18 +86,28 @@ export default function SupportChatDrawer({
     }
   }, [isStaff, activeUser, activeHotels, selectedHotelId]);
 
-  // Filter messages based on role and selected targets, sorted with millisecond precision
+  // Filter messages based on role and selected targets, strictly isolated per customer
   const filteredMessages = React.useMemo(() => {
     const hotelFilterId = isStaff && activeUser?.rol !== 'super_admin' ? (activeUser?.hotelId || selectedHotelId) : selectedHotelId;
     let raw: ChatMessage[] = [];
 
     if (!isStaff) {
-      // Clients see their chat history with the selected hotel, NEVER internal team messages
-      raw = messages.filter(m => 
-        m.hotelId === hotelFilterId && 
-        m.channel !== 'internal' && 
-        (m.senderId === activeUser?.id || m.senderId === 'system' || (m.senderRole !== 'cliente' && m.senderId !== activeUser?.id))
-      );
+      // CLIENTE: Ve ÚNICA Y EXCLUSIVAMENTE su propia conversación con el hotel seleccionado
+      // NUNCA ve mensajes de otros clientes ni respuestas del staff dirigidas a otros clientes
+      raw = messages.filter(m => {
+        if (m.hotelId !== hotelFilterId) return false;
+        if (m.channel === 'internal') return false;
+
+        // 1. Mensajes enviados por este mismo cliente
+        if (m.senderId === activeUser?.id) return true;
+
+        // 2. Mensajes enviados por administradores o recepcionistas dirigidos a este cliente
+        if (m.senderRole !== 'cliente') {
+          return m.recipientId === activeUser?.id || m.customerId === activeUser?.id;
+        }
+
+        return false;
+      });
     } else {
       if (chatChannel === 'internal') {
         // Internal team channel: only messages between admin and receptionists for this hotel
@@ -106,36 +117,74 @@ export default function SupportChatDrawer({
           m.senderRole !== 'cliente'
         );
       } else {
-        // Staff view of guest conversations
+        // Staff view of guest conversations: exclusivamente los mensajes del cliente seleccionado
         if (!selectedCustomerId) return [];
-        raw = messages.filter(m => 
-          m.hotelId === hotelFilterId && 
-          m.channel !== 'internal' && 
-          (m.senderId === selectedCustomerId || (m.senderRole !== 'cliente' && m.hotelId === hotelFilterId))
-        );
+        raw = messages.filter(m => {
+          if (m.hotelId !== hotelFilterId) return false;
+          if (m.channel === 'internal') return false;
+
+          // Mensaje enviado por el cliente seleccionado
+          if (m.senderId === selectedCustomerId && m.senderRole === 'cliente') return true;
+
+          // Mensaje enviado por el staff dirigido a este cliente seleccionado
+          if (m.senderRole !== 'cliente') {
+            return m.recipientId === selectedCustomerId || m.customerId === selectedCustomerId;
+          }
+
+          return false;
+        });
       }
     }
     return sortMessagesChronologically(raw);
   }, [messages, isStaff, activeUser?.rol, activeUser?.id, activeUser?.hotelId, selectedHotelId, selectedCustomerId, chatChannel]);
 
-  // Get unique clients who have started chats with the selected hotel (for staff selection)
+  // Get unique clients with their conversation status and unread count (for staff selection)
   const hotelClients = React.useMemo(() => {
     const hotelFilterId = isStaff && activeUser.rol !== 'super_admin' ? (activeUser.hotelId || selectedHotelId) : selectedHotelId;
     if (!hotelFilterId) return [];
-    const clientIds = new Set<string>();
-    const clients: { id: string; name: string }[] = [];
+    
+    const clientMap = new Map<string, { id: string; name: string; unreadCount: number }>();
 
+    // 1. Clientes registrados en el sistema
+    if (users && users.length > 0) {
+      users
+        .filter(u => u.rol === 'cliente')
+        .forEach(u => {
+          const fullName = `${u.nombre} ${u.apellido}`.trim() || u.email;
+          clientMap.set(u.id, { id: u.id, name: fullName, unreadCount: 0 });
+        });
+    }
+
+    // 2. Clientes que han interactuado en el chat del hotel (incluso invitados o anónimos)
     messages
-      .filter(m => m.hotelId === hotelFilterId && m.senderRole === 'cliente' && m.channel !== 'internal')
+      .filter(m => m.hotelId === hotelFilterId && m.channel !== 'internal')
       .forEach(m => {
-        if (!clientIds.has(m.senderId)) {
-          clientIds.add(m.senderId);
-          clients.push({ id: m.senderId, name: m.senderName });
+        const cId = m.senderRole === 'cliente' ? m.senderId : (m.recipientId || m.customerId);
+        if (cId) {
+          const existing = clientMap.get(cId);
+          if (existing) {
+            if (m.senderRole === 'cliente' && m.senderName && existing.name.startsWith('Huésped')) {
+              existing.name = m.senderName;
+            }
+          } else {
+            const clientName = m.senderRole === 'cliente' ? m.senderName : `Huésped (${cId.substring(0, 8)})`;
+            clientMap.set(cId, { id: cId, name: clientName, unreadCount: 0 });
+          }
         }
       });
 
-    return clients;
-  }, [messages, selectedHotelId, isStaff, activeUser.hotelId, activeUser.rol]);
+    // 3. Contar mensajes no leídos enviados por cada cliente a este hotel
+    messages
+      .filter(m => m.hotelId === hotelFilterId && m.channel !== 'internal' && m.senderRole === 'cliente' && !m.read)
+      .forEach(m => {
+        const entry = clientMap.get(m.senderId);
+        if (entry) {
+          entry.unreadCount += 1;
+        }
+      });
+
+    return Array.from(clientMap.values());
+  }, [messages, selectedHotelId, isStaff, activeUser.hotelId, activeUser.rol, users]);
 
   // Get staff team members linked to this hotel
   const hotelStaffMembers = React.useMemo(() => {
@@ -148,15 +197,17 @@ export default function SupportChatDrawer({
     });
   }, [users, isStaff, activeUser?.hotelId, activeUser?.rol, selectedHotelId]);
 
-  // If staff and in guests tab and no customer selected, default to the first client in list
+  // If staff and in guests tab and no customer selected, default to client with unread messages or the first client
   useEffect(() => {
     if (isStaff && chatChannel === 'guests' && !selectedCustomerId && hotelClients.length > 0) {
-      setSelectedCustomerId(hotelClients[0].id);
+      const clientWithUnread = hotelClients.find(c => c.unreadCount > 0);
+      setSelectedCustomerId(clientWithUnread ? clientWithUnread.id : hotelClients[0].id);
     }
   }, [isStaff, chatChannel, hotelClients, selectedCustomerId]);
 
   // User scroll listener: detects if the user intentionally scrolled up to read earlier messages
   const handleScroll = () => {
+    if (isSettlingScrollRef.current) return;
     const container = scrollContainerRef.current;
     if (!container) return;
     const { scrollTop, scrollHeight, clientHeight } = container;
@@ -167,19 +218,71 @@ export default function SupportChatDrawer({
   };
 
   // Safe scroll to bottom of chat
-  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
+  const scrollToBottom = (behavior: ScrollBehavior = 'auto') => {
     const container = scrollContainerRef.current;
     if (container) {
-      container.scrollTo({
-        top: container.scrollHeight,
-        behavior
-      });
-    } else {
-      messagesEndRef.current?.scrollIntoView({ behavior });
+      if (behavior === 'auto') {
+        container.scrollTop = container.scrollHeight;
+      } else {
+        container.scrollTo({
+          top: container.scrollHeight,
+          behavior: 'smooth'
+        });
+      }
+    }
+    if (messagesEndRef.current) {
+      try {
+        messagesEndRef.current.scrollIntoView({ behavior, block: 'end' });
+      } catch {
+        // Safe fallback for browsers
+      }
     }
   };
 
-  // Smart scroll effect on drawer open, conversation change, or new message arrival
+  // Force scroll to bottom across multiple render and animation frames
+  const forceScrollToBottom = (behavior: ScrollBehavior = 'auto') => {
+    isAtBottomRef.current = true;
+    setShowScrollBottom(false);
+    isSettlingScrollRef.current = true;
+
+    // 1. Inmediato
+    scrollToBottom(behavior);
+
+    // 2. Siguiente frame de animación
+    const rafId = requestAnimationFrame(() => {
+      scrollToBottom(behavior);
+    });
+
+    // 3. Tras renderizado de layout y estilos
+    const t1 = setTimeout(() => {
+      scrollToBottom(behavior);
+    }, 50);
+
+    const t2 = setTimeout(() => {
+      scrollToBottom(behavior);
+    }, 150);
+
+    const t3 = setTimeout(() => {
+      scrollToBottom(behavior);
+      isSettlingScrollRef.current = false;
+    }, 320);
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+    };
+  };
+
+  // On drawer open, ensure default position is at the very bottom
+  useEffect(() => {
+    if (isOpen) {
+      return forceScrollToBottom('auto');
+    }
+  }, [isOpen]);
+
+  // Smart scroll effect on conversation change, tab switch, or new message arrival
   useEffect(() => {
     if (!isOpen) return;
 
@@ -189,24 +292,16 @@ export default function SupportChatDrawer({
     const hasMoreMessages = currentCount > prevMessageCountRef.current;
 
     if (isNewConversation) {
-      // Reset position when switching conversation or tab
+      // Reset position when switching conversation or tab to always start at bottom
       prevConversationKeyRef.current = conversationKey;
       prevMessageCountRef.current = currentCount;
-      isAtBottomRef.current = true;
-      setShowScrollBottom(false);
-      const timer = setTimeout(() => {
-        scrollToBottom('auto');
-      }, 50);
-      return () => clearTimeout(timer);
+      return forceScrollToBottom('auto');
     }
 
     if (hasMoreMessages) {
       prevMessageCountRef.current = currentCount;
       if (isAtBottomRef.current) {
-        const timer = setTimeout(() => {
-          scrollToBottom('smooth');
-        }, 50);
-        return () => clearTimeout(timer);
+        return forceScrollToBottom('smooth');
       }
     } else {
       prevMessageCountRef.current = currentCount;
@@ -218,15 +313,16 @@ export default function SupportChatDrawer({
     if (!isOpen || !selectedHotelId) return;
 
     if (!isStaff) {
-      // Client marks messages from hotel staff as read
+      // Client marks messages from hotel staff directed to this client as read
       const unreadStaffMessages = messages.filter(m => 
         m.hotelId === selectedHotelId && 
         m.senderRole !== 'cliente' && 
         m.channel !== 'internal' && 
+        (m.recipientId === activeUser?.id || m.customerId === activeUser?.id) &&
         !m.read
       );
       if (unreadStaffMessages.length > 0) {
-        onMarkAsRead(selectedHotelId, unreadStaffMessages[0].senderId, unreadStaffMessages[0].senderRole);
+        onMarkAsRead(selectedHotelId, activeUser?.id, 'cliente', { isClientReading: true });
       }
     } else {
       if (chatChannel === 'guests') {
@@ -240,7 +336,7 @@ export default function SupportChatDrawer({
             !m.read
           );
           if (unreadClientMessages.length > 0) {
-            onMarkAsRead(selectedHotelId, selectedCustomerId, 'cliente');
+            onMarkAsRead(selectedHotelId, activeUser?.id, activeUser?.rol, { targetCustomerId: selectedCustomerId });
           }
         }
       } else {
@@ -257,7 +353,7 @@ export default function SupportChatDrawer({
         });
       }
     }
-  }, [isOpen, messages, selectedHotelId, selectedCustomerId, isStaff, chatChannel, onMarkAsRead, activeUser?.id]);
+  }, [isOpen, messages, selectedHotelId, selectedCustomerId, isStaff, chatChannel, onMarkAsRead, activeUser?.id, activeUser?.rol]);
 
   // Format timestamp for display
   const formatTime = (isoString: string) => {
@@ -273,10 +369,12 @@ export default function SupportChatDrawer({
   // Calculate unread counts for guests and internal channel
   const unreadGuestCount = React.useMemo(() => {
     if (!isStaff) {
+      // Huésped: cuenta únicamente las respuestas no leídas del hotel dirigidas a él
       return messages.filter(m => 
         m.channel !== 'internal' && 
         m.senderRole !== 'cliente' && 
         m.hotelId === selectedHotelId && 
+        (m.recipientId === activeUser?.id || m.customerId === activeUser?.id) &&
         !m.read
       ).length;
     }
@@ -286,7 +384,7 @@ export default function SupportChatDrawer({
       if (activeUser?.rol === 'super_admin') return !hotelFilterId || m.hotelId === hotelFilterId;
       return m.hotelId === hotelFilterId;
     }).length;
-  }, [messages, isStaff, selectedHotelId, activeUser?.rol, activeUser?.hotelId]);
+  }, [messages, isStaff, selectedHotelId, activeUser?.rol, activeUser?.hotelId, activeUser?.id]);
 
   const unreadInternalCount = React.useMemo(() => {
     if (!isStaff) return 0;
@@ -310,30 +408,36 @@ export default function SupportChatDrawer({
 
     const isInternalMsg = isStaff && chatChannel === 'internal';
 
+    // Construcción con asignación estricta de recipientId y customerId
     const newMsg: ChatMessage = {
       id: `MSG-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`,
       senderId: activeUser?.id || 'guest',
-      senderName: activeUser ? `${activeUser.nombre} ${activeUser.apellido}` : 'Invitado',
+      senderName: activeUser ? `${activeUser.nombre} ${activeUser.apellido}`.trim() : 'Huésped',
       senderRole: activeUser?.rol || 'cliente',
       hotelId: messageHotelId,
       text: inputText.trim(),
       timestamp: new Date().toISOString(),
       read: false,
-      channel: isInternalMsg ? 'internal' : 'guest'
+      channel: isInternalMsg ? 'internal' : 'guest',
+      // Si es cliente, el customerId es su propio ID
+      // Si es staff respondiendo a un cliente en guests tab, el recipientId y customerId es el cliente seleccionado
+      customerId: !isStaff 
+        ? (activeUser?.id || 'guest')
+        : (!isInternalMsg ? selectedCustomerId : undefined),
+      recipientId: isStaff && !isInternalMsg 
+        ? selectedCustomerId 
+        : undefined
     };
 
     onSendMessage(newMsg);
     setInputText('');
 
     // Al enviar mensaje propio, posicionarse al final para ver el nuevo mensaje
-    isAtBottomRef.current = true;
-    setShowScrollBottom(false);
-    setTimeout(() => {
-      scrollToBottom('smooth');
-    }, 60);
+    forceScrollToBottom('smooth');
   };
 
   const activeHotel = hotels.find(h => h.id === selectedHotelId);
+  const selectedClientObj = hotelClients.find(c => c.id === selectedCustomerId);
 
   return (
     <div className="fixed bottom-6 right-6 z-50 font-sans">
@@ -370,6 +474,9 @@ export default function SupportChatDrawer({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 30, scale: 0.92 }}
             transition={{ type: 'spring', damping: 20, stiffness: 300 }}
+            onAnimationComplete={() => {
+              forceScrollToBottom('auto');
+            }}
             className="fixed sm:absolute bottom-20 sm:bottom-16 right-3 left-3 sm:left-auto sm:right-0 w-auto sm:w-[410px] max-w-[calc(100vw-24px)] h-[78vh] max-h-[560px] bg-[#071726] border border-[#0E2A47]/80 rounded-3xl shadow-2xl flex flex-col overflow-hidden text-neutral-100 z-50"
           >
             {/* Dark Aesthetic Header */}
@@ -388,12 +495,19 @@ export default function SupportChatDrawer({
                 </div>
                 <div>
                   <h4 className={`text-xs font-bold uppercase tracking-wider ${
-                    isStaff && chatChannel === 'internal' ? 'text-amber-400' : 'text-brand-cyan'
+                    isStaff && chatChannel === 'internal' 
+                      ? 'text-amber-400' 
+                      : (isStaff ? 'text-teal-400' : 'text-brand-cyan')
                   }`}>
-                    {isStaff && chatChannel === 'internal' ? 'Chat Interno del Personal' : 'Asistencia & Recepción'}
+                    {isStaff && chatChannel === 'internal' 
+                      ? 'Chat Interno del Personal' 
+                      : (isStaff ? 'Atención a Huéspedes' : 'Asistencia & Recepción')}
                   </h4>
-                  <p className="text-[10px] text-brand-grey font-mono">
-                    {activeHotel?.nombre || 'Propiedad seleccionada'}
+                  <p className="text-[10px] text-brand-grey font-mono truncate max-w-[200px]">
+                    {activeHotel?.nombre || 'Propiedad'}
+                    {isStaff && chatChannel === 'guests' && selectedClientObj && (
+                      <span className="text-teal-300 ml-1">• {selectedClientObj.name}</span>
+                    )}
                   </p>
                 </div>
               </div>
@@ -473,6 +587,16 @@ export default function SupportChatDrawer({
                 </select>
               </div>
 
+              {/* Para huéspedes: Banner indicador de confidencialidad y canal directo */}
+              {!isStaff && (
+                <div className="pt-1 border-t border-slate-900 flex items-center gap-2 text-[10.5px] text-teal-300/80 bg-teal-950/40 px-2.5 py-1.5 rounded-lg border border-teal-800/30">
+                  <ShieldCheck className="w-3.5 h-3.5 text-teal-400 shrink-0" />
+                  <span className="leading-tight">
+                    Canal directo con la administración de <strong className="text-teal-200 font-semibold">{activeHotel?.nombre || 'este hotel'}</strong>. Tu conversación es privada y confidencial.
+                  </span>
+                </div>
+              )}
+
               {/* Guests Channel: Client Selector (Staff side) */}
               {isStaff && chatChannel === 'guests' && (
                 <div className="flex items-center gap-2 pt-1 border-t border-slate-900">
@@ -488,7 +612,9 @@ export default function SupportChatDrawer({
                     >
                       <option value="">Seleccionar Huésped...</option>
                       {hotelClients.map(c => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
+                        <option key={c.id} value={c.id}>
+                          {c.name}{c.unreadCount > 0 ? ` (${c.unreadCount} sin leer)` : ''}
+                        </option>
                       ))}
                     </select>
                   )}
@@ -653,8 +779,8 @@ export default function SupportChatDrawer({
                   isStaff 
                     ? (chatChannel === 'internal'
                         ? `Mensaje interno para el equipo de ${activeHotel?.nombre || 'este hotel'}...`
-                        : (!selectedCustomerId ? "Selecciona un huésped..." : "Escribe una respuesta para el huésped..."))
-                    : "Escribe tu mensaje para recepción..."
+                        : (!selectedCustomerId ? "Selecciona un huésped..." : `Responder a ${selectedClientObj?.name || 'huésped'}...`))
+                    : `Escribe tu consulta a la recepción de ${activeHotel?.nombre || 'este hotel'}...`
                 }
                 disabled={isStaff && chatChannel === 'guests' && !selectedCustomerId}
                 className="flex-1 text-xs bg-[#0E2A47]/60 border border-[#0E2A47]/40 rounded-xl px-3.5 py-2.5 text-white placeholder-brand-grey focus:outline-none focus:ring-1 focus:ring-brand-cyan focus:border-transparent disabled:opacity-45"
