@@ -10,12 +10,13 @@ import {
   Send, 
   X, 
   User, 
+  Users,
+  Lock,
   ShieldCheck, 
   CheckCheck, 
   Building2, 
-  Bell, 
-  Dot, 
-  MessageCircle 
+  MessageCircle,
+  ChevronDown
 } from 'lucide-react';
 import { Hotel, User as UserType, ChatMessage, UserRole } from '../types';
 import { sortMessagesChronologically } from '../utils/chatUtils';
@@ -27,6 +28,7 @@ interface SupportChatDrawerProps {
   onSendMessage: (msg: ChatMessage) => void;
   onMarkAsRead: (hotelId: string, senderId: string, role: UserRole) => void;
   openHotelId?: string | null;
+  users?: UserType[];
 }
 
 export default function SupportChatDrawer({
@@ -35,13 +37,20 @@ export default function SupportChatDrawer({
   messages,
   onSendMessage,
   onMarkAsRead,
-  openHotelId
+  openHotelId,
+  users = []
 }: SupportChatDrawerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedHotelId, setSelectedHotelId] = useState<string>('');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
+  const [chatChannel, setChatChannel] = useState<'guests' | 'internal'>('guests');
   const [inputText, setInputText] = useState('');
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const isAtBottomRef = useRef<boolean>(true);
+  const [showScrollBottom, setShowScrollBottom] = useState(false);
+  const prevMessageCountRef = useRef<number>(0);
+  const prevConversationKeyRef = useRef<string>('');
 
   const isStaff = activeUser?.rol ? activeUser.rol !== 'cliente' : false;
 
@@ -50,11 +59,11 @@ export default function SupportChatDrawer({
     return hotels.filter(h => {
       if (h.estado !== 'activo') return false;
       if (isStaff && activeUser?.rol !== 'super_admin') {
-        return h.id === activeUser?.hotelId;
+        return h.id === activeUser?.hotelId || activeUser?.hotelIds?.includes(h.id);
       }
       return true;
     });
-  }, [hotels, isStaff, activeUser?.hotelId, activeUser?.rol]);
+  }, [hotels, isStaff, activeUser?.hotelId, activeUser?.hotelIds, activeUser?.rol]);
 
   // If client, default and keep selectedHotelId in sync with the openHotelId
   useEffect(() => {
@@ -77,31 +86,47 @@ export default function SupportChatDrawer({
   }, [isStaff, activeUser, activeHotels, selectedHotelId]);
 
   // Filter messages based on role and selected targets, sorted with millisecond precision
-  const getFilteredMessages = () => {
-    const hotelFilterId = isStaff && activeUser.rol !== 'super_admin' ? activeUser.hotelId : selectedHotelId;
+  const filteredMessages = React.useMemo(() => {
+    const hotelFilterId = isStaff && activeUser?.rol !== 'super_admin' ? (activeUser?.hotelId || selectedHotelId) : selectedHotelId;
     let raw: ChatMessage[] = [];
+
     if (!isStaff) {
-      // Clients see their chat history with the selected hotel
-      raw = messages.filter(m => m.hotelId === hotelFilterId && (m.senderId === activeUser.id || m.senderId === 'system' || (m.senderRole !== 'cliente' && m.senderId !== activeUser.id)));
+      // Clients see their chat history with the selected hotel, NEVER internal team messages
+      raw = messages.filter(m => 
+        m.hotelId === hotelFilterId && 
+        m.channel !== 'internal' && 
+        (m.senderId === activeUser?.id || m.senderId === 'system' || (m.senderRole !== 'cliente' && m.senderId !== activeUser?.id))
+      );
     } else {
-      // Staff see chat history between the selected hotel and selected customer
-      if (!selectedCustomerId) return [];
-      raw = messages.filter(m => m.hotelId === hotelFilterId && (m.senderId === selectedCustomerId || (m.senderRole === 'cliente' && m.senderId === selectedCustomerId) || (m.senderRole !== 'cliente' && m.hotelId === hotelFilterId)));
+      if (chatChannel === 'internal') {
+        // Internal team channel: only messages between admin and receptionists for this hotel
+        raw = messages.filter(m => 
+          m.hotelId === hotelFilterId && 
+          m.channel === 'internal' && 
+          m.senderRole !== 'cliente'
+        );
+      } else {
+        // Staff view of guest conversations
+        if (!selectedCustomerId) return [];
+        raw = messages.filter(m => 
+          m.hotelId === hotelFilterId && 
+          m.channel !== 'internal' && 
+          (m.senderId === selectedCustomerId || (m.senderRole !== 'cliente' && m.hotelId === hotelFilterId))
+        );
+      }
     }
     return sortMessagesChronologically(raw);
-  };
-
-  const filteredMessages = getFilteredMessages();
+  }, [messages, isStaff, activeUser?.rol, activeUser?.id, activeUser?.hotelId, selectedHotelId, selectedCustomerId, chatChannel]);
 
   // Get unique clients who have started chats with the selected hotel (for staff selection)
   const hotelClients = React.useMemo(() => {
-    const hotelFilterId = isStaff && activeUser.rol !== 'super_admin' ? activeUser.hotelId : selectedHotelId;
+    const hotelFilterId = isStaff && activeUser.rol !== 'super_admin' ? (activeUser.hotelId || selectedHotelId) : selectedHotelId;
     if (!hotelFilterId) return [];
     const clientIds = new Set<string>();
     const clients: { id: string; name: string }[] = [];
 
     messages
-      .filter(m => m.hotelId === hotelFilterId && m.senderRole === 'cliente')
+      .filter(m => m.hotelId === hotelFilterId && m.senderRole === 'cliente' && m.channel !== 'internal')
       .forEach(m => {
         if (!clientIds.has(m.senderId)) {
           clientIds.add(m.senderId);
@@ -112,42 +137,127 @@ export default function SupportChatDrawer({
     return clients;
   }, [messages, selectedHotelId, isStaff, activeUser.hotelId, activeUser.rol]);
 
-  // If staff and no customer selected, default to the first client in list
+  // Get staff team members linked to this hotel
+  const hotelStaffMembers = React.useMemo(() => {
+    const hotelFilterId = isStaff && activeUser?.rol !== 'super_admin' ? (activeUser?.hotelId || selectedHotelId) : selectedHotelId;
+    if (!users || !hotelFilterId) return [];
+    return users.filter(u => {
+      if (u.rol === 'cliente') return false;
+      if (u.rol === 'super_admin') return true;
+      return u.hotelId === hotelFilterId || u.hotelIds?.includes(hotelFilterId);
+    });
+  }, [users, isStaff, activeUser?.hotelId, activeUser?.rol, selectedHotelId]);
+
+  // If staff and in guests tab and no customer selected, default to the first client in list
   useEffect(() => {
-    if (isStaff && !selectedCustomerId && hotelClients.length > 0) {
+    if (isStaff && chatChannel === 'guests' && !selectedCustomerId && hotelClients.length > 0) {
       setSelectedCustomerId(hotelClients[0].id);
     }
-  }, [isStaff, hotelClients, selectedCustomerId]);
+  }, [isStaff, chatChannel, hotelClients, selectedCustomerId]);
 
-  // Auto-scroll to bottom of chat
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  // User scroll listener: detects if the user intentionally scrolled up to read earlier messages
+  const handleScroll = () => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+    const isNearBottom = distanceFromBottom <= 80;
+    isAtBottomRef.current = isNearBottom;
+    setShowScrollBottom(!isNearBottom);
   };
 
-  useEffect(() => {
-    if (isOpen) {
-      scrollToBottom();
+  // Safe scroll to bottom of chat
+  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
+    const container = scrollContainerRef.current;
+    if (container) {
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior
+      });
+    } else {
+      messagesEndRef.current?.scrollIntoView({ behavior });
     }
-  }, [filteredMessages, isOpen]);
+  };
 
-  // Mark incoming messages as read when drawer is open
+  // Smart scroll effect on drawer open, conversation change, or new message arrival
   useEffect(() => {
-    if (isOpen && selectedHotelId) {
-      if (!isStaff) {
-        // Client marks messages from hotel staff as read
-        const unreadStaffMessages = messages.filter(m => m.hotelId === selectedHotelId && m.senderRole !== 'cliente' && !m.read);
-        if (unreadStaffMessages.length > 0) {
-          onMarkAsRead(selectedHotelId, unreadStaffMessages[0].senderId, unreadStaffMessages[0].senderRole);
-        }
-      } else if (selectedCustomerId) {
+    if (!isOpen) return;
+
+    const conversationKey = `${selectedHotelId}_${chatChannel}_${chatChannel === 'guests' ? selectedCustomerId : 'internal'}`;
+    const isNewConversation = prevConversationKeyRef.current !== conversationKey;
+    const currentCount = filteredMessages.length;
+    const hasMoreMessages = currentCount > prevMessageCountRef.current;
+
+    if (isNewConversation) {
+      // Reset position when switching conversation or tab
+      prevConversationKeyRef.current = conversationKey;
+      prevMessageCountRef.current = currentCount;
+      isAtBottomRef.current = true;
+      setShowScrollBottom(false);
+      const timer = setTimeout(() => {
+        scrollToBottom('auto');
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+
+    if (hasMoreMessages) {
+      prevMessageCountRef.current = currentCount;
+      if (isAtBottomRef.current) {
+        const timer = setTimeout(() => {
+          scrollToBottom('smooth');
+        }, 50);
+        return () => clearTimeout(timer);
+      }
+    } else {
+      prevMessageCountRef.current = currentCount;
+    }
+  }, [isOpen, filteredMessages.length, selectedHotelId, selectedCustomerId, chatChannel]);
+
+  // Mark incoming messages as read when drawer is open and visible
+  useEffect(() => {
+    if (!isOpen || !selectedHotelId) return;
+
+    if (!isStaff) {
+      // Client marks messages from hotel staff as read
+      const unreadStaffMessages = messages.filter(m => 
+        m.hotelId === selectedHotelId && 
+        m.senderRole !== 'cliente' && 
+        m.channel !== 'internal' && 
+        !m.read
+      );
+      if (unreadStaffMessages.length > 0) {
+        onMarkAsRead(selectedHotelId, unreadStaffMessages[0].senderId, unreadStaffMessages[0].senderRole);
+      }
+    } else {
+      if (chatChannel === 'guests') {
         // Staff marks messages from this specific client as read
-        const unreadClientMessages = messages.filter(m => m.hotelId === selectedHotelId && m.senderId === selectedCustomerId && m.senderRole === 'cliente' && !m.read);
-        if (unreadClientMessages.length > 0) {
-          onMarkAsRead(selectedHotelId, selectedCustomerId, 'cliente');
+        if (selectedCustomerId) {
+          const unreadClientMessages = messages.filter(m => 
+            m.hotelId === selectedHotelId && 
+            m.senderId === selectedCustomerId && 
+            m.senderRole === 'cliente' && 
+            m.channel !== 'internal' && 
+            !m.read
+          );
+          if (unreadClientMessages.length > 0) {
+            onMarkAsRead(selectedHotelId, selectedCustomerId, 'cliente');
+          }
         }
+      } else {
+        // Staff marks unread internal messages from other colleagues as read
+        const unreadInternal = messages.filter(m => 
+          m.hotelId === selectedHotelId && 
+          m.channel === 'internal' && 
+          m.senderRole !== 'cliente' && 
+          m.senderId !== activeUser.id && 
+          !m.read
+        );
+        unreadInternal.forEach(m => {
+          onMarkAsRead(selectedHotelId, m.senderId, m.senderRole);
+        });
       }
     }
-  }, [isOpen, messages, selectedHotelId, selectedCustomerId, isStaff, onMarkAsRead]);
+  }, [isOpen, messages, selectedHotelId, selectedCustomerId, isStaff, chatChannel, onMarkAsRead, activeUser?.id]);
 
   // Format timestamp for display
   const formatTime = (isoString: string) => {
@@ -160,22 +270,36 @@ export default function SupportChatDrawer({
     }
   };
 
-  // Calculate global unread system message notification count
-  const getUnreadCount = () => {
+  // Calculate unread counts for guests and internal channel
+  const unreadGuestCount = React.useMemo(() => {
     if (!isStaff) {
-      // Client unread count: messages sent by staff to this client that are unread
-      return messages.filter(m => m.senderRole !== 'cliente' && m.hotelId === selectedHotelId && !m.read).length;
-    } else {
-      // Staff unread count: messages sent by clients to their assigned hotel (or any hotel if super admin)
-      return messages.filter(m => {
-        if (m.senderRole !== 'cliente' || m.read) return false;
-        if (activeUser?.rol === 'super_admin') return true;
-        return m.hotelId === activeUser?.hotelId;
-      }).length;
+      return messages.filter(m => 
+        m.channel !== 'internal' && 
+        m.senderRole !== 'cliente' && 
+        m.hotelId === selectedHotelId && 
+        !m.read
+      ).length;
     }
-  };
+    const hotelFilterId = activeUser?.rol !== 'super_admin' ? (activeUser?.hotelId || selectedHotelId) : selectedHotelId;
+    return messages.filter(m => {
+      if (m.channel === 'internal' || m.senderRole !== 'cliente' || m.read) return false;
+      if (activeUser?.rol === 'super_admin') return !hotelFilterId || m.hotelId === hotelFilterId;
+      return m.hotelId === hotelFilterId;
+    }).length;
+  }, [messages, isStaff, selectedHotelId, activeUser?.rol, activeUser?.hotelId]);
 
-  const unreadCount = getUnreadCount();
+  const unreadInternalCount = React.useMemo(() => {
+    if (!isStaff) return 0;
+    const hotelFilterId = activeUser?.rol !== 'super_admin' ? (activeUser?.hotelId || selectedHotelId) : selectedHotelId;
+    return messages.filter(m => {
+      if (m.channel !== 'internal' || m.senderRole === 'cliente' || m.read) return false;
+      if (m.senderId === activeUser.id) return false;
+      if (activeUser?.rol === 'super_admin') return !hotelFilterId || m.hotelId === hotelFilterId;
+      return m.hotelId === hotelFilterId;
+    }).length;
+  }, [messages, isStaff, selectedHotelId, activeUser?.rol, activeUser?.hotelId, activeUser.id]);
+
+  const totalUnreadCount = unreadGuestCount + unreadInternalCount;
 
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
@@ -183,6 +307,8 @@ export default function SupportChatDrawer({
 
     const messageHotelId = selectedHotelId || (isStaff && activeUser?.hotelId) || activeHotels[0]?.id;
     if (!messageHotelId) return;
+
+    const isInternalMsg = isStaff && chatChannel === 'internal';
 
     const newMsg: ChatMessage = {
       id: `MSG-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -192,11 +318,19 @@ export default function SupportChatDrawer({
       hotelId: messageHotelId,
       text: inputText.trim(),
       timestamp: new Date().toISOString(),
-      read: false
+      read: false,
+      channel: isInternalMsg ? 'internal' : 'guest'
     };
 
     onSendMessage(newMsg);
     setInputText('');
+
+    // Al enviar mensaje propio, posicionarse al final para ver el nuevo mensaje
+    isAtBottomRef.current = true;
+    setShowScrollBottom(false);
+    setTimeout(() => {
+      scrollToBottom('smooth');
+    }, 60);
   };
 
   const activeHotel = hotels.find(h => h.id === selectedHotelId);
@@ -212,7 +346,7 @@ export default function SupportChatDrawer({
             ? 'bg-[#0E2A47] text-brand-cyan border border-brand-cyan/30' 
             : 'bg-brand-cyan text-[#071726] hover:bg-[#3fc2f0] hover:scale-105'
         }`}
-        title="Canal de Asistencia & Chat en Tiempo Real"
+        title={isStaff ? "Chat del Hotel: Huéspedes y Equipo Interno" : "Canal de Asistencia con Recepción"}
       >
         {isOpen ? (
           <X className="w-6 h-6 animate-fade-in" />
@@ -221,14 +355,14 @@ export default function SupportChatDrawer({
         )}
 
         {/* Unread Alert Bullet Notification */}
-        {unreadCount > 0 && (
+        {totalUnreadCount > 0 && (
           <span className="absolute -top-1 -right-1 bg-red-650 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center justify-center border-2 border-white animate-bounce">
-            {unreadCount}
+            {totalUnreadCount}
           </span>
         )}
       </button>
 
-      {/* 2. CHAT DRAWER PANEL CONTAINER MAP */}
+      {/* 2. CHAT DRAWER PANEL CONTAINER */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
@@ -236,33 +370,91 @@ export default function SupportChatDrawer({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 30, scale: 0.92 }}
             transition={{ type: 'spring', damping: 20, stiffness: 300 }}
-            className="fixed sm:absolute bottom-20 sm:bottom-16 right-3 left-3 sm:left-auto sm:right-0 w-auto sm:w-96 max-w-[calc(100vw-24px)] h-[75vh] max-h-[520px] bg-[#071726] border border-[#0E2A47]/60 rounded-3xl shadow-2xl flex flex-col overflow-hidden text-neutral-100 z-50"
+            className="fixed sm:absolute bottom-20 sm:bottom-16 right-3 left-3 sm:left-auto sm:right-0 w-auto sm:w-[410px] max-w-[calc(100vw-24px)] h-[78vh] max-h-[560px] bg-[#071726] border border-[#0E2A47]/80 rounded-3xl shadow-2xl flex flex-col overflow-hidden text-neutral-100 z-50"
           >
             {/* Dark Aesthetic Header */}
-            <div className="bg-gradient-to-r from-[#0E2A47] to-[#071726] p-4 border-b border-[#0E2A47] flex items-center justify-between">
+            <div className="bg-gradient-to-r from-[#0E2A47] to-[#071726] p-3.5 border-b border-[#0E2A47] flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-full bg-brand-cyan/10 border border-brand-cyan/20 flex items-center justify-center">
-                  <MessageCircle className="w-4 h-4 text-brand-cyan" />
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center border ${
+                  isStaff && chatChannel === 'internal'
+                    ? 'bg-amber-500/15 border-amber-500/30 text-amber-400'
+                    : 'bg-brand-cyan/10 border-brand-cyan/20 text-brand-cyan'
+                }`}>
+                  {isStaff && chatChannel === 'internal' ? (
+                    <Lock className="w-4 h-4" />
+                  ) : (
+                    <MessageCircle className="w-4 h-4" />
+                  )}
                 </div>
                 <div>
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-brand-cyan">Asistencia de Huéspedes</h4>
-                  <p className="text-[10px] text-brand-grey font-mono">Los mensajes son temporales y solo duraran 24h</p>
+                  <h4 className={`text-xs font-bold uppercase tracking-wider ${
+                    isStaff && chatChannel === 'internal' ? 'text-amber-400' : 'text-brand-cyan'
+                  }`}>
+                    {isStaff && chatChannel === 'internal' ? 'Chat Interno del Personal' : 'Asistencia & Recepción'}
+                  </h4>
+                  <p className="text-[10px] text-brand-grey font-mono">
+                    {activeHotel?.nombre || 'Propiedad seleccionada'}
+                  </p>
                 </div>
               </div>
               <button
                 onClick={() => setIsOpen(false)}
-                className="p-1 hover:bg-slate-800 rounded-full text-slate-400 hover:text-white cursor-pointer"
+                className="p-1.5 hover:bg-slate-800 rounded-full text-slate-400 hover:text-white cursor-pointer transition-colors"
+                title="Cerrar chat"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Selector/Target filters segment */}
-            <div className="p-3 bg-slate-950/80 border-b border-slate-800 space-y-2 text-xs">
+            {/* CHANNEL SELECTOR TABS (EXCLUSIVO PARA STAFF: ADMINS Y RECEPCIONISTAS) */}
+            {isStaff && (
+              <div className="bg-[#05111d] px-3 py-2 border-b border-[#0E2A47] flex items-center gap-2">
+                <button
+                  type="button"
+                  id="tab-chat-guests"
+                  onClick={() => setChatChannel('guests')}
+                  className={`flex-1 py-1.5 px-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    chatChannel === 'guests'
+                      ? 'bg-brand-cyan text-slate-950 font-bold shadow-sm shadow-brand-cyan/25'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                  }`}
+                >
+                  <Users className="w-3.5 h-3.5" />
+                  <span>Huéspedes</span>
+                  {unreadGuestCount > 0 && (
+                    <span className="bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.2 rounded-full">
+                      {unreadGuestCount}
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  id="tab-chat-internal"
+                  onClick={() => setChatChannel('internal')}
+                  className={`flex-1 py-1.5 px-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    chatChannel === 'internal'
+                      ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-bold shadow-sm shadow-amber-500/25'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                  }`}
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                  <span>Equipo Interno</span>
+                  {unreadInternalCount > 0 && (
+                    <span className="bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.2 rounded-full">
+                      {unreadInternalCount}
+                    </span>
+                  )}
+                </button>
+              </div>
+            )}
+
+            {/* Target filters / hotel selection segment */}
+            <div className="p-3 bg-slate-950/90 border-b border-slate-800/90 space-y-2 text-xs">
               {/* Hotel Select Filter */}
               <div className="flex items-center gap-2">
                 <Building2 className="w-3.5 h-3.5 text-teal-500 shrink-0" />
-                <span className="text-[10px] text-slate-400 font-medium">Hotel:</span>
+                <span className="text-[10px] text-slate-400 font-medium">Propiedad:</span>
                 <select
                   value={selectedHotelId}
                   disabled={isStaff && activeUser?.rol !== 'super_admin'}
@@ -270,10 +462,10 @@ export default function SupportChatDrawer({
                     setSelectedHotelId(e.target.value);
                     setSelectedCustomerId(''); // Reset customer on hotel change
                   }}
-                  className="bg-slate-900 border border-slate-850 rounded px-2 py-1 text-xs text-neutral-200 focus:outline-none flex-1 max-w-[200px] disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="bg-slate-900 border border-slate-800 rounded px-2.5 py-1 text-xs text-neutral-200 focus:outline-none flex-1 max-w-[240px] disabled:opacity-75 disabled:cursor-not-allowed"
                 >
-                  {isStaff && !activeUser.hotelId && (
-                    <option value="">-- Todos los Hoteles --</option>
+                  {isStaff && activeUser?.rol === 'super_admin' && !activeUser.hotelId && (
+                    <option value="">-- Seleccionar Propiedad --</option>
                   )}
                   {activeHotels.map(h => (
                     <option key={h.id} value={h.id}>{h.nombre}</option>
@@ -281,18 +473,18 @@ export default function SupportChatDrawer({
                 </select>
               </div>
 
-              {/* Client Conversation Selector (Staff side) */}
-              {isStaff && (
+              {/* Guests Channel: Client Selector (Staff side) */}
+              {isStaff && chatChannel === 'guests' && (
                 <div className="flex items-center gap-2 pt-1 border-t border-slate-900">
                   <User className="w-3.5 h-3.5 text-teal-500 shrink-0" />
-                  <span className="text-[10px] text-slate-400 font-medium">Conversación:</span>
+                  <span className="text-[10px] text-slate-400 font-medium">Huésped:</span>
                   {hotelClients.length === 0 ? (
-                    <span className="text-[10px] italic text-slate-500">Sin mensajes del cliente actualmente</span>
+                    <span className="text-[10px] italic text-slate-500">Sin mensajes de huéspedes actualmente</span>
                   ) : (
                     <select
                       value={selectedCustomerId}
                       onChange={(e) => setSelectedCustomerId(e.target.value)}
-                      className="bg-slate-900 border border-slate-850 rounded px-2 py-1 text-xs text-teal-400 focus:outline-none flex-1 max-w-[200px]"
+                      className="bg-slate-900 border border-slate-800 rounded px-2.5 py-1 text-xs text-teal-400 focus:outline-none flex-1 max-w-[240px]"
                     >
                       <option value="">Seleccionar Huésped...</option>
                       {hotelClients.map(c => (
@@ -302,71 +494,153 @@ export default function SupportChatDrawer({
                   )}
                 </div>
               )}
-            </div>
 
-            {/* 3. MESSAGE STREAM BLOCK */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-900/60 custom-scrollbar">
-              {filteredMessages.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-2">
-                  <MessageSquare className="w-10 h-10 text-slate-700 animate-pulse" />
-                  <div>
-                    <h5 className="font-bold text-xs text-slate-400">Canal Seguro Vacío</h5>
-                    <p className="text-[10px] text-slate-500 leading-normal max-w-[200px] mx-auto mt-1">
-                      {!isStaff 
-                        ? `Envía un mensaje de texto para iniciar el chat interactivo directo con el mostrada o recepcionista de ${activeHotel?.nombre || 'este hotel'}.`
-                        : `Selecciona un huésped activo del listado para ver su historial de ayuda.`}
+              {/* Internal Channel Banner: Explica la privacidad y lista miembros del equipo */}
+              {isStaff && chatChannel === 'internal' && (
+                <div className="pt-1.5 border-t border-slate-900 flex items-start gap-2 text-[10px] text-amber-300/80 bg-amber-500/5 p-2 rounded-lg border border-amber-500/20">
+                  <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                  <div className="leading-tight space-y-1">
+                    <p className="font-semibold text-amber-300">
+                      Canal privado exclusivo para Admin y Recepcionistas
+                    </p>
+                    <p className="text-slate-400 text-[9.5px]">
+                      {hotelStaffMembers.length > 0
+                        ? `${hotelStaffMembers.length} colaboradores enlazados a ${activeHotel?.nombre || 'esta propiedad'}. Ningún huésped puede ver este chat.`
+                        : `Solo el personal administrativo de ${activeHotel?.nombre || 'esta propiedad'} puede interactuar aquí.`}
                     </p>
                   </div>
                 </div>
-              ) : (
-                filteredMessages.map((msg, i) => {
-                  const isMine = msg.senderId === activeUser.id;
-                  const isSys = msg.senderId === 'system';
-                  
-                  if (isSys) {
+              )}
+            </div>
+
+            {/* 3. MESSAGE STREAM BLOCK */}
+            <div className="flex-1 relative overflow-hidden flex flex-col bg-slate-900/60">
+              <div 
+                ref={scrollContainerRef}
+                onScroll={handleScroll}
+                className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar"
+              >
+                {filteredMessages.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-2">
+                    {isStaff && chatChannel === 'internal' ? (
+                      <>
+                        <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
+                          <Lock className="w-6 h-6 text-amber-400 animate-pulse" />
+                        </div>
+                        <div>
+                          <h5 className="font-bold text-xs text-amber-300">Chat Interno sin Mensajes</h5>
+                          <p className="text-[10px] text-slate-400 leading-normal max-w-[240px] mx-auto mt-1">
+                            Usa este canal para coordinar entregas de llaves, novedades de habitaciones, cambios de turno o avisos administrativos con tu equipo de {activeHotel?.nombre || 'esta propiedad'}.
+                          </p>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <MessageSquare className="w-10 h-10 text-slate-700 animate-pulse" />
+                        <div>
+                          <h5 className="font-bold text-xs text-slate-400">Canal Seguro Vacío</h5>
+                          <p className="text-[10px] text-slate-500 leading-normal max-w-[220px] mx-auto mt-1">
+                            {!isStaff 
+                              ? `Envía un mensaje de texto para iniciar el chat interactivo directo con la recepción de ${activeHotel?.nombre || 'este hotel'}.`
+                              : `Selecciona un huésped activo del listado para ver su historial de consultas.`}
+                          </p>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  filteredMessages.map((msg, i) => {
+                    const isMine = msg.senderId === activeUser.id;
+                    const isSys = msg.senderId === 'system';
+                    const isInternal = msg.channel === 'internal';
+                    
+                    if (isSys) {
+                      return (
+                        <div key={msg.id || i} className="flex justify-center">
+                          <span className="bg-slate-950 text-teal-500/80 font-mono text-[9px] px-2.5 py-1 rounded-full border border-teal-950/40">
+                            {msg.text}
+                          </span>
+                        </div>
+                      );
+                    }
+
+                    // Helper badge label for roles in internal channel
+                    const getRoleBadge = (role: UserRole) => {
+                      if (role === 'super_admin') {
+                        return <span className="bg-purple-900/50 text-purple-300 border border-purple-700/40 text-[8.5px] px-1.5 py-0.2 rounded font-medium">Super Admin</span>;
+                      }
+                      if (role === 'hotel_admin') {
+                        return <span className="bg-amber-900/50 text-amber-300 border border-amber-700/40 text-[8.5px] px-1.5 py-0.2 rounded font-medium">Admin Hotel</span>;
+                      }
+                      if (role === 'recepcionista') {
+                        return <span className="bg-teal-900/50 text-teal-300 border border-teal-700/40 text-[8.5px] px-1.5 py-0.2 rounded font-medium">Recepción</span>;
+                      }
+                      return null;
+                    };
+
                     return (
-                      <div key={msg.id || i} className="flex justify-center">
-                        <span className="bg-slate-950 text-teal-500/80 font-mono text-[9px] px-2.5 py-1 rounded-full border border-teal-950/40">
-                          {msg.text}
-                        </span>
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <div
-                      key={msg.id || i}
-                      className={`flex flex-col max-w-[80%] ${isMine ? 'ml-auto items-end' : 'mr-auto items-start'}`}
-                    >
-                      {/* Name badge if not me */}
-                      {!isMine && (
-                        <span className="text-[9px] text-slate-400 ml-1.5 mb-0.5 flex items-center gap-1">
-                          {msg.senderRole !== 'cliente' ? <ShieldCheck className="w-2.5 h-2.5 text-teal-400 inline" /> : null}
-                          {msg.senderName}
-                        </span>
-                      )}
-
-                      {/* Bubble box */}
-                      <div className={`p-3 rounded-2xl text-xs leading-relaxed ${
-                        isMine
-                          ? 'bg-gradient-to-br from-teal-600 to-teal-700 text-white rounded-br-xs font-medium border border-teal-550 shadow-sm shadow-teal-900/10'
-                          : 'bg-slate-800 text-neutral-100 rounded-bl-xs border border-slate-700/60'
-                      }`}>
-                        <p className="whitespace-pre-wrap">{msg.text}</p>
-                        
-                        {/* Meta status & time */}
-                        <div className="flex justify-end items-center gap-1 text-[9px] text-neutral-200/60 mt-1 font-mono">
-                          <span>{formatTime(msg.timestamp)}</span>
-                          {isMine && (
-                            <CheckCheck className={`w-3 h-3 ${msg.read ? 'text-teal-200' : 'text-neutral-400/40'}`} />
+                      <div
+                        key={msg.id || i}
+                        className={`flex flex-col max-w-[82%] ${isMine ? 'ml-auto items-end' : 'mr-auto items-start'}`}
+                      >
+                        {/* Name & Role Header */}
+                        <div className={`text-[9.5px] text-slate-400 mb-1 flex items-center gap-1.5 ${isMine ? 'mr-1 flex-row-reverse' : 'ml-1'}`}>
+                          <span className="font-medium text-slate-300">
+                            {isMine ? 'Tú' : msg.senderName}
+                          </span>
+                          {isInternal && getRoleBadge(msg.senderRole)}
+                          {!isInternal && !isMine && msg.senderRole !== 'cliente' && (
+                            <ShieldCheck className="w-2.5 h-2.5 text-teal-400 inline" />
                           )}
                         </div>
+
+                        {/* Bubble Box */}
+                        <div className={`p-3 rounded-2xl text-xs leading-relaxed ${
+                          isMine
+                            ? isInternal
+                              ? 'bg-gradient-to-br from-amber-600 to-amber-700 text-white rounded-br-xs font-medium border border-amber-500 shadow-sm shadow-amber-900/20'
+                              : 'bg-gradient-to-br from-teal-600 to-teal-700 text-white rounded-br-xs font-medium border border-teal-550 shadow-sm shadow-teal-900/10'
+                            : isInternal
+                              ? 'bg-[#13273d] text-neutral-100 rounded-bl-xs border border-amber-500/20 shadow-sm'
+                              : 'bg-slate-800 text-neutral-100 rounded-bl-xs border border-slate-700/60'
+                        }`}>
+                          <p className="whitespace-pre-wrap">{msg.text}</p>
+                          
+                          {/* Meta status & time */}
+                          <div className="flex justify-end items-center gap-1 text-[9px] text-neutral-200/60 mt-1 font-mono">
+                            <span>{formatTime(msg.timestamp)}</span>
+                            {isMine && (
+                              <CheckCheck className={`w-3 h-3 ${msg.read ? (isInternal ? 'text-amber-200' : 'text-teal-200') : 'text-neutral-400/40'}`} />
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  );
-                })
-              )}
-              <div ref={messagesEndRef} />
+                    );
+                  })
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+
+              {/* Botón flotante para volver a los últimos mensajes */}
+              <AnimatePresence>
+                {showScrollBottom && (
+                  <motion.button
+                    type="button"
+                    initial={{ opacity: 0, scale: 0.85, y: 10 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.85, y: 10 }}
+                    onClick={() => {
+                      isAtBottomRef.current = true;
+                      scrollToBottom('smooth');
+                    }}
+                    className="absolute bottom-3 right-4 bg-[#0E2A47]/95 hover:bg-[#16385d] text-brand-cyan border border-brand-cyan/40 px-3 py-1.5 rounded-full shadow-2xl text-[11px] font-semibold flex items-center gap-1.5 cursor-pointer z-10 active:scale-95 transition-all backdrop-blur-sm"
+                    title="Ir al último mensaje"
+                  >
+                    <ChevronDown className="w-3.5 h-3.5 animate-bounce" />
+                    <span>Últimos mensajes</span>
+                  </motion.button>
+                )}
+              </AnimatePresence>
             </div>
 
             {/* 4. CHAT FOOTER CONTROLS */}
@@ -376,17 +650,24 @@ export default function SupportChatDrawer({
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 placeholder={
-                  isStaff && !selectedCustomerId 
-                    ? "Selecciona un cliente..." 
-                    : "Escribe tu mensaje..."
+                  isStaff 
+                    ? (chatChannel === 'internal'
+                        ? `Mensaje interno para el equipo de ${activeHotel?.nombre || 'este hotel'}...`
+                        : (!selectedCustomerId ? "Selecciona un huésped..." : "Escribe una respuesta para el huésped..."))
+                    : "Escribe tu mensaje para recepción..."
                 }
-                disabled={isStaff && !selectedCustomerId}
+                disabled={isStaff && chatChannel === 'guests' && !selectedCustomerId}
                 className="flex-1 text-xs bg-[#0E2A47]/60 border border-[#0E2A47]/40 rounded-xl px-3.5 py-2.5 text-white placeholder-brand-grey focus:outline-none focus:ring-1 focus:ring-brand-cyan focus:border-transparent disabled:opacity-45"
               />
               <button
                 type="submit"
-                disabled={!inputText.trim() || (isStaff && !selectedCustomerId)}
-                className="p-2.5 bg-brand-cyan hover:bg-[#3fc2f0] text-[#071726] rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-md"
+                disabled={!inputText.trim() || (isStaff && chatChannel === 'guests' && !selectedCustomerId)}
+                className={`p-2.5 rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-md ${
+                  isStaff && chatChannel === 'internal'
+                    ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold'
+                    : 'bg-brand-cyan hover:bg-[#3fc2f0] text-[#071726]'
+                }`}
+                title={isStaff && chatChannel === 'internal' ? "Enviar al equipo interno" : "Enviar mensaje"}
               >
                 <Send className="w-4 h-4" />
               </button>
