@@ -1581,6 +1581,7 @@ export default function App() {
           onSendMessage={sendChatMessage}
           onMarkAsRead={markMessagesAsRead}
           openHotelId={openHotelId}
+          users={users}
         />
       )}
 

@@ -175,6 +175,7 @@ export interface ChatMessage {
   text: string;
   timestamp: string;
   read: boolean;
+  channel?: 'guest' | 'internal';
 }
 
 export interface PaymentTransaction {

@@ -611,13 +611,18 @@ export async function deleteRowFromSupabase(table: 'hotels' | 'rooms' | 'users' 
 }
 
 export function mapChatMessageToDb(msg: ChatMessage): any {
+  const isInternal = msg.channel === 'internal';
+  const dbText = isInternal && !msg.text.startsWith('[INTERNAL_STAFF]') 
+    ? `[INTERNAL_STAFF]${msg.text}` 
+    : msg.text;
+
   return {
     id: msg.id,
     senderid: msg.senderId,
     sendername: msg.senderName,
     senderrole: msg.senderRole,
     hotelid: msg.hotelId,
-    text: msg.text,
+    text: dbText,
     timestamp: msg.timestamp,
     read: msg.read
   };
@@ -625,15 +630,26 @@ export function mapChatMessageToDb(msg: ChatMessage): any {
 
 export function mapChatMessageFromDb(db: any): ChatMessage {
   if (!db) return db;
+  let rawText = db.text || '';
+  let channel: 'guest' | 'internal' = 'guest';
+
+  if (rawText.startsWith('[INTERNAL_STAFF]')) {
+    channel = 'internal';
+    rawText = rawText.substring('[INTERNAL_STAFF]'.length);
+  } else if (db.channel === 'internal') {
+    channel = 'internal';
+  }
+
   return {
     id: db.id,
     senderId: db.senderid !== undefined ? db.senderid : (db.senderId || ''),
     senderName: db.sendername !== undefined ? db.sendername : (db.senderName || ''),
     senderRole: db.senderrole !== undefined ? db.senderrole : (db.senderRole || 'cliente'),
     hotelId: db.hotelid !== undefined ? db.hotelid : (db.hotelId || ''),
-    text: db.text || '',
+    text: rawText,
     timestamp: db.timestamp || '',
-    read: db.read !== undefined ? db.read : false
+    read: db.read !== undefined ? db.read : false,
+    channel
   };
 }
 
