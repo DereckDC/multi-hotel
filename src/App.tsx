@@ -15,6 +15,7 @@ import LandingPageView from './components/LandingPageView';
 import LegalPageView, { LegalDocType } from './components/LegalPageView';
 import { InteractiveContainer } from './components/InteractiveContainer';
 import { BrandLogo } from './components/BrandLogo';
+import { LoadingSkeletonView } from './components/LoadingSkeletonView';
 import { LayoutDashboard, Users, User as UserIcon, CalendarDays, KeyRound, Star, Sparkles, Building2, ShieldAlert, LogOut, Edit3, Camera, Check, X, Shield, AlertCircle, Eye, EyeOff, Briefcase, LogIn, Key, Menu, Home, Compass, DollarSign, ClipboardList, QrCode, Calendar, ArrowLeft, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -549,32 +550,6 @@ export default function App() {
     });
   };
 
-  if (isInitialSyncing) {
-    return (
-      <div className="min-h-screen bg-[#071726] flex flex-col items-center justify-center p-6 text-white relative overflow-hidden select-none">
-        {/* Ambient background glows */}
-        <div className="absolute -top-40 -left-40 w-96 h-96 rounded-full bg-[#23B4E6]/5 blur-[120px] pointer-events-none" />
-        <div className="absolute -bottom-40 -right-40 w-96 h-96 rounded-full bg-[#23B4E6]/5 blur-[120px] pointer-events-none" />
-
-        <div className="flex flex-col items-center gap-6 max-w-sm text-center relative z-10">
-          <div className="p-4 bg-[#071726]/80 border border-[#23B4E6]/20 rounded-2xl shadow-xl shadow-[#23B4E6]/5 flex items-center justify-center animate-pulse">
-            <BrandLogo size="lg" showText={false} lightText={true} />
-          </div>
-
-          <div className="space-y-2 mt-4">
-            <h2 className="text-lg font-semibold text-white tracking-wide flex items-center justify-center gap-2">
-              <Loader2 className="w-5 h-5 text-[#23B4E6] animate-spin" />
-              <span>Estableciendo Conexión</span>
-            </h2>
-            <p className="text-xs text-slate-400">
-              Sincronizando base de datos en tiempo real...
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   if (activeLegalDoc !== null) {
     return (
       <LegalPageView
@@ -615,20 +590,30 @@ export default function App() {
               <BrandLogo size="lg" showText={true} lightText={true} />
             </div>
 
-            {showFullLoginScreen && (
-              <button
-                type="button"
-                onClick={() => {
-                  setShowFullLoginScreen(false);
-                  setClientTab('explore');
-                  setOpenHotelId(null);
-                }}
-                className="px-4 py-2 bg-[#0E2A47] hover:bg-[#133A62] border border-brand-cyan/30 text-white text-xs font-semibold rounded-xl transition-all shadow-md shadow-brand-cyan/5 flex items-center gap-2 cursor-pointer active:scale-95"
-              >
-                <ArrowLeft className="w-4 h-4 text-brand-cyan" />
-                <span>Volver</span>
-              </button>
-            )}
+            <div className="flex items-center gap-3">
+              {isInitialSyncing && (
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-[#23B4E6]/10 border border-[#23B4E6]/30 text-[#23B4E6] rounded-full text-xs font-semibold shadow-sm animate-pulse">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-brand-cyan" />
+                  <span className="hidden sm:inline">Actualizando catálogo...</span>
+                  <span className="sm:hidden">Actualizando...</span>
+                </div>
+              )}
+
+              {showFullLoginScreen && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowFullLoginScreen(false);
+                    setClientTab('explore');
+                    setOpenHotelId(null);
+                  }}
+                  className="px-4 py-2 bg-[#0E2A47] hover:bg-[#133A62] border border-brand-cyan/30 text-white text-xs font-semibold rounded-xl transition-all shadow-md shadow-brand-cyan/5 flex items-center gap-2 cursor-pointer active:scale-95"
+                >
+                  <ArrowLeft className="w-4 h-4 text-brand-cyan" />
+                  <span>Volver</span>
+                </button>
+              )}
+            </div>
 
             {/* Current Persona signature badge removed as requested since they are in the menu */}
 
@@ -1067,6 +1052,7 @@ export default function App() {
                           activeTab={clientTab}
                           onActiveTabChange={setClientTab}
                           onRefreshCatalog={store.refreshCatalogFromSupabase}
+                          isLoading={isInitialSyncing}
                         />
                       ) : (
                         <>
@@ -1091,6 +1077,7 @@ export default function App() {
                               activeTab={clientTab}
                               onActiveTabChange={setClientTab}
                               onRefreshCatalog={store.refreshCatalogFromSupabase}
+                              isLoading={isInitialSyncing}
                             />
                           )}
 

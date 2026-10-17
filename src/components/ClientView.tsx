@@ -8,7 +8,7 @@ import { Hotel, Room, Reservation, User, RoomStatus, Review, RoomPriceVariation 
 import { motion, AnimatePresence } from 'motion/react';
 import { getProvincesList, getCitiesForProvince, getParroquiasForCity } from '../data/ecuador';
 
-import { MapPin, Calendar, Compass, List, CreditCard, ChevronRight, Sparkles, Filter, Check, Star, AlertCircle, Eye, Trash2, CalendarCheck, FileText, X, Building2, ShieldCheck, Lock, Home, Search, User as UserIcon } from 'lucide-react';
+import { MapPin, Calendar, Compass, List, CreditCard, ChevronRight, Sparkles, Filter, Check, Star, AlertCircle, Eye, Trash2, CalendarCheck, FileText, X, Building2, ShieldCheck, Lock, Home, Search, User as UserIcon, Loader2 } from 'lucide-react';
 import QRView from './QRView';
 import InvoicePDF from './InvoicePDF';
 import { RoomImageGallery } from './RoomImageGallery';
@@ -75,6 +75,7 @@ interface ClientViewProps {
   onActiveTabChange?: (tab: 'explore' | 'properties' | 'reservations') => void;
   openHotelId?: string | null;
   onRefreshCatalog?: () => Promise<boolean>;
+  isLoading?: boolean;
 }
 
 const ADDITIONAL_SERVICES = [
@@ -103,7 +104,8 @@ export default function ClientView({
   onTriggerBookingAuth,
   activeTab: propActiveTab,
   onActiveTabChange,
-  openHotelId
+  openHotelId,
+  isLoading = false
 }: ClientViewProps) {
   // Navigation Tabs: 'explore' | 'properties' | 'reservations'
   const [localActiveTab, setLocalActiveTab] = useState<'explore' | 'properties' | 'reservations'>('explore');
@@ -917,8 +919,17 @@ export default function ClientView({
             <div className="space-y-6">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                  <h3 className="text-xl font-semibold text-neutral-800">
-                    {activeTab === 'explore' ? 'Catálogo de Hoteles Premium' : 'Catálogo de Propiedades Exclusivas'} ({activeTab === 'explore' ? filteredHotels.length : filteredProperties.length})
+                  <h3 className="text-xl font-semibold text-neutral-800 flex items-center gap-2.5">
+                    <span>
+                      {activeTab === 'explore' ? 'Catálogo de Hoteles Premium' : 'Catálogo de Propiedades Exclusivas'}{' '}
+                      ({(activeTab === 'explore' ? filteredHotels.length : filteredProperties.length) || (isLoading ? 2 : 0)})
+                    </span>
+                    {isLoading && (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-teal-50 text-teal-700 border border-teal-200 animate-pulse">
+                        <Loader2 className="w-3 h-3 text-teal-600 animate-spin" />
+                        <span>Sincronizando...</span>
+                      </span>
+                    )}
                   </h3>
                   <p className="text-xs text-neutral-400 mt-1">
                     {activeTab === 'explore' 
@@ -1031,154 +1042,238 @@ export default function ClientView({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {(activeTab === 'explore' ? filteredHotels : filteredProperties)
-                  .map(hotel => {
-                    // Quick lowest room price/property price calculation
-                    const hotelRooms = rooms.filter(r => r.hotelId === hotel.id);
-                    const isPropiedad = hotel.tipoEstablecimiento === 'casa' || hotel.tipoEstablecimiento === 'departamento';
-                    const displayPrice = isPropiedad && hotel.detallesInmueble?.precio
-                      ? hotel.detallesInmueble.precio
-                      : (hotelRooms.length > 0 ? Math.min(...hotelRooms.map(r => r.precio)) : 150);
-                    const hotelReviews = reviews.filter(r => r.hotelId === hotel.id);
-                    const isHotelOrAlquiler = !isPropiedad || hotel.finalidad === 'alquiler';
+              {isLoading ? (
+                <div className="space-y-6">
+                  {/* Discreet Catalog Loading Bar with Spinner */}
+                  <div className="flex items-center gap-3.5 p-4 bg-gradient-to-r from-teal-50/90 via-sky-50/70 to-teal-50/90 border border-teal-200/80 rounded-2xl shadow-sm">
+                    <div className="w-8 h-8 rounded-lg bg-teal-600/10 border border-teal-600/20 flex items-center justify-center shrink-0">
+                      <Loader2 className="w-4 h-4 text-teal-600 animate-spin" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-neutral-800">
+                        {activeTab === 'explore' ? 'Cargando hoteles...' : 'Actualizando catálogo...'}
+                      </p>
+                      <p className="text-[11px] text-neutral-500">
+                        {activeTab === 'explore'
+                          ? 'Recuperando alojamientos, suites disponibles y tarifas...'
+                          : 'Recuperando propiedades exclusivas disponibles...'}
+                      </p>
+                    </div>
+                  </div>
 
-                    return (
-                      <motion.div
-                        key={hotel.id}
-                        onClick={() => {
-                          setSelectedHotelId(hotel.id);
-                          if (onOpenHotelChange) onOpenHotelChange(hotel.id);
-                        }}
-                        initial={{ opacity: 0, y: 20 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true }}
-                        whileHover={{ y: -6, scale: 1.015, boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.08)" }}
-                        transition={{ duration: 0.4, ease: "easeOut" }}
-                        className="bg-white rounded-2xl overflow-hidden border border-neutral-100 hover:border-teal-200 transition-colors group cursor-pointer"
+                  {/* Skeletons Grid matching exactly the 3 columns layout */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {[1, 2, 3, 4, 5, 6].map(i => (
+                      <div
+                        key={i}
+                        className="bg-white rounded-2xl overflow-hidden border border-neutral-200/90 shadow-sm animate-pulse"
                       >
-                        <div className="relative h-48 overflow-hidden bg-neutral-100">
-                          <img
-                            src={hotel.portada}
-                            alt={hotel.nombre}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                            referrerPolicy="no-referrer"
-                          />
-                           {hotel.tipoEstablecimiento === 'hotel' ? (() => {
-                             if (hotelReviews.length === 0) {
-                               return (
-                                 <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-sm px-2.5 py-1 rounded-full text-[10px] font-extrabold text-neutral-800 uppercase tracking-widest flex items-center gap-1 shadow-sm font-sans border border-neutral-100">
-                                   🏨 Hotel
-                                 </div>
-                               );
-                             }
-                             const avgRating = hotelReviews.reduce((sum, r) => sum + r.rating, 0) / hotelReviews.length;
-                            return (
-                              <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-sm px-2.5 py-1 rounded-full text-[10px] font-bold text-neutral-800 flex items-center gap-1 shadow-sm font-sans border border-neutral-100/80 animate-fade-in">
-                                <div className="flex items-center gap-0.5">
-                                  {Array.from({ length: 5 }).map((_, idx) => (
-                                    <Star 
-                                      key={idx} 
-                                      className={`w-3 h-3 ${
-                                        idx < Math.round(avgRating) ? 'fill-current text-yellow-500' : 'text-neutral-200'
-                                      }`} 
-                                    />
-                                  ))}
-                                </div>
-                                <span className="text-[10px] font-extrabold text-neutral-850 ml-1 font-mono">
-                                  {avgRating.toFixed(1)}
-                                </span>
-                              </div>
-                            );
-                          })() : (
-                            <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-sm px-2.5 py-1 rounded-full text-[10px] font-bold text-neutral-800 uppercase tracking-widest flex items-center gap-1 shadow-sm font-sans border border-neutral-100">
-                              {hotel.tipoEstablecimiento === 'casa' ? '🏡 Casa Completa' : '🏢 Departamento'}
-                            </div>
-                          )}
+                        {/* Photo skeleton with badge */}
+                        <div className="relative h-48 bg-slate-200/90 overflow-hidden">
+                          <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm px-2.5 py-1 rounded-full h-5 w-24" />
+                          <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm rounded-full w-8 h-8" />
                         </div>
 
-                        <div className="p-5">
-                          <div className="flex justify-between items-start gap-4 mb-2">
-                            <h4 className="font-semibold text-neutral-800 text-lg group-hover:text-teal-600 transition-colors font-sans">
-                              {hotel.nombre}
-                            </h4>
-                            <span className="font-mono text-sm font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded shrink-0">
-                              ${displayPrice.toLocaleString()} <span className="font-sans font-normal text-xs text-neutral-500">
-                                {hotel.finalidad === 'venta' ? 'compra' : isPropiedad ? '/ mes' : '/ noche'}
-                              </span>
-                            </span>
+                        <div className="p-5 space-y-3.5">
+                          <div className="flex justify-between items-start gap-4">
+                            <div className="h-5 w-3/5 bg-slate-200 rounded" />
+                            <div className="h-6 w-20 bg-teal-100 rounded" />
                           </div>
 
-                          {/* Stars Rating for Properties only (since hotels have it in the top badge instead of "Hotel Boutique") */}
-                          {isPropiedad && isHotelOrAlquiler && hotelReviews.length > 0 && (() => {
-                            const avgRating = hotelReviews.reduce((sum, r) => sum + r.rating, 0) / hotelReviews.length;
-                            return (
-                              <div className="flex items-center gap-1 mb-2.5 bg-yellow-500/5 border border-yellow-500/10 px-2 py-1 rounded-lg w-fit font-sans">
-                                <div className="flex items-center gap-0.5">
-                                  {Array.from({ length: 5 }).map((_, idx) => (
-                                    <Star 
-                                      key={idx} 
-                                      className={`w-3 h-3 ${
-                                        idx < Math.round(avgRating) ? 'fill-current text-yellow-500' : 'text-neutral-200'
-                                      }`} 
-                                    />
-                                  ))}
-                                </div>
-                                <span className="text-[10.5px] font-bold text-neutral-850 ml-1 font-mono">
-                                  {avgRating.toFixed(1)}
-                                </span>
-                              </div>
-                            );
-                          })()}
-                          
-                          <div className="flex items-center gap-1.5 text-xs text-neutral-400 mb-3">
-                            <MapPin className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
-                            <span className="truncate">
-                              {hotel.parroquia 
-                                ? `${hotel.parroquia}, ${hotel.ciudad || ''}`
-                                : (hotel.ubicacion.split(',')[1] || hotel.ubicacion)}
-                            </span>
-                          </div>
-                          
-                          <p className="text-xs text-neutral-500 line-clamp-2 leading-relaxed mb-3">
-                            {hotel.descripcion}
-                          </p>
-
-                          {/* Specific specs of Houses and Apartments */}
-                          {(hotel.tipoEstablecimiento === 'casa' || hotel.tipoEstablecimiento === 'departamento') && hotel.detallesInmueble && (
-                            <div className="flex flex-wrap gap-2 text-[10.5px] bg-teal-50/50 border border-teal-100/50 p-2.5 rounded-xl mb-4 font-semibold text-teal-800">
-                              <span className="flex items-center gap-0.5">🛏️ {hotel.detallesInmueble.habitaciones} Hab</span>
-                              <span className="text-teal-200">•</span>
-                              <span className="flex items-center gap-0.5">🚿 {hotel.detallesInmueble.banos} Baños</span>
-                              <span className="text-teal-200">•</span>
-                              <span className="flex items-center gap-0.5 font-mono">{hotel.detallesInmueble.metrosCuadrados || '40'} m²</span>
-                              <span className="text-teal-200">•</span>
-                              <span>🛋️ {hotel.detallesInmueble.amueblado !== false ? 'Amoblado' : 'S/A'}</span>
+                          {/* Rating stars skeleton */}
+                          <div className="flex items-center gap-1.5">
+                            <div className="flex gap-0.5">
+                              {[1, 2, 3, 4, 5].map(s => (
+                                <div key={s} className="w-3 h-3 rounded-full bg-yellow-200/80" />
+                              ))}
                             </div>
-                          )}
+                            <div className="h-3.5 w-6 bg-slate-200 rounded ml-1" />
+                          </div>
 
-                          <div className="flex flex-wrap gap-1 mb-4">
-                            {hotel.servicios.slice(0, 3).map((serv, i) => (
-                              <span key={i} className="px-2 py-0.5 bg-neutral-50 text-neutral-500 text-[10px] rounded border border-neutral-100 font-medium">
-                                {serv}
-                              </span>
-                            ))}
-                            {hotel.servicios.length > 3 && (
-                              <span className="px-2 py-0.5 bg-neutral-100 text-neutral-500 text-[10px] rounded border border-neutral-200 font-mono font-medium">
-                                +{hotel.servicios.length - 3}
-                              </span>
+                          {/* Location skeleton */}
+                          <div className="flex items-center gap-2">
+                            <div className="w-3.5 h-3.5 rounded-full bg-slate-200 shrink-0" />
+                            <div className="h-3.5 w-1/2 bg-slate-200 rounded" />
+                          </div>
+
+                          {/* Description line skeleton */}
+                          <div className="space-y-1.5 pt-1">
+                            <div className="h-3 w-full bg-slate-100 rounded" />
+                            <div className="h-3 w-4/5 bg-slate-100 rounded" />
+                          </div>
+
+                          {/* Amenities tag pills */}
+                          <div className="flex flex-wrap gap-1.5 pt-1">
+                            <div className="h-5 w-16 bg-slate-100 rounded-md" />
+                            <div className="h-5 w-16 bg-slate-100 rounded-md" />
+                            <div className="h-5 w-12 bg-slate-100 rounded-md" />
+                          </div>
+
+                          {/* Bottom CTA bar */}
+                          <div className="pt-3.5 border-t border-neutral-100 flex items-center justify-between">
+                            <div className="h-4 w-28 bg-teal-100/70 rounded" />
+                            <div className="w-4 h-4 bg-slate-200 rounded-full" />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (activeTab === 'explore' ? filteredHotels : filteredProperties).length === 0 ? (
+                <div className="bg-white rounded-2xl p-12 border border-neutral-200 text-center text-neutral-500 shadow-sm">
+                  <p className="text-base font-semibold text-neutral-700">No se encontraron alojamientos para los filtros seleccionados.</p>
+                  <p className="text-xs text-neutral-400 mt-1.5">Intente cambiar la provincia o los filtros de búsqueda.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {(activeTab === 'explore' ? filteredHotels : filteredProperties)
+                    .map(hotel => {
+                      // Quick lowest room price/property price calculation
+                      const hotelRooms = rooms.filter(r => r.hotelId === hotel.id);
+                      const isPropiedad = hotel.tipoEstablecimiento === 'casa' || hotel.tipoEstablecimiento === 'departamento';
+                      const displayPrice = isPropiedad && hotel.detallesInmueble?.precio
+                        ? hotel.detallesInmueble.precio
+                        : (hotelRooms.length > 0 ? Math.min(...hotelRooms.map(r => r.precio)) : 150);
+                      const hotelReviews = reviews.filter(r => r.hotelId === hotel.id);
+                      const isHotelOrAlquiler = !isPropiedad || hotel.finalidad === 'alquiler';
+
+                      return (
+                        <motion.div
+                          key={hotel.id}
+                          onClick={() => {
+                            setSelectedHotelId(hotel.id);
+                            if (onOpenHotelChange) onOpenHotelChange(hotel.id);
+                          }}
+                          initial={{ opacity: 0, y: 20 }}
+                          whileInView={{ opacity: 1, y: 0 }}
+                          viewport={{ once: true }}
+                          whileHover={{ y: -6, scale: 1.015, boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.08)" }}
+                          transition={{ duration: 0.4, ease: "easeOut" }}
+                          className="bg-white rounded-2xl overflow-hidden border border-neutral-100 hover:border-teal-200 transition-colors group cursor-pointer"
+                        >
+                          <div className="relative h-48 overflow-hidden bg-neutral-100">
+                            <img
+                              src={hotel.portada}
+                              alt={hotel.nombre}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                              referrerPolicy="no-referrer"
+                            />
+                            {hotel.tipoEstablecimiento === 'hotel' ? (() => {
+                              if (hotelReviews.length === 0) {
+                                return (
+                                  <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-sm px-2.5 py-1 rounded-full text-[10px] font-extrabold text-neutral-800 uppercase tracking-widest flex items-center gap-1 shadow-sm font-sans border border-neutral-100">
+                                    🏨 Hotel
+                                  </div>
+                                );
+                              }
+                              const avgRating = hotelReviews.reduce((sum, r) => sum + r.rating, 0) / hotelReviews.length;
+                              return (
+                                <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-sm px-2.5 py-1 rounded-full text-[10px] font-bold text-neutral-800 flex items-center gap-1 shadow-sm font-sans border border-neutral-100/80 animate-fade-in">
+                                  <div className="flex items-center gap-0.5">
+                                    {Array.from({ length: 5 }).map((_, idx) => (
+                                      <Star 
+                                        key={idx} 
+                                        className={`w-3 h-3 ${
+                                          idx < Math.round(avgRating) ? 'fill-current text-yellow-500' : 'text-neutral-200'
+                                        }`} 
+                                      />
+                                    ))}
+                                  </div>
+                                  <span className="text-[10px] font-extrabold text-neutral-850 ml-1 font-mono">
+                                    {avgRating.toFixed(1)}
+                                  </span>
+                                </div>
+                              );
+                            })() : (
+                              <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-sm px-2.5 py-1 rounded-full text-[10px] font-bold text-neutral-800 uppercase tracking-widest flex items-center gap-1 shadow-sm font-sans border border-neutral-100">
+                                {hotel.tipoEstablecimiento === 'casa' ? '🏡 Casa Completa' : '🏢 Departamento'}
+                              </div>
                             )}
                           </div>
 
-                          <div className="pt-4 border-t border-neutral-100 flex items-center justify-between text-xs text-teal-600 font-semibold font-sans">
-                            <span>{isPropiedad ? 'Ver detalles de propiedad' : 'Ver suites disponibles'}</span>
-                            <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                          <div className="p-5">
+                            <div className="flex justify-between items-start gap-4 mb-2">
+                              <h4 className="font-semibold text-neutral-800 text-lg group-hover:text-teal-600 transition-colors font-sans">
+                                {hotel.nombre}
+                              </h4>
+                              <span className="font-mono text-sm font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded shrink-0">
+                                ${displayPrice.toLocaleString()} <span className="font-sans font-normal text-xs text-neutral-500">
+                                  {hotel.finalidad === 'venta' ? 'compra' : isPropiedad ? '/ mes' : '/ noche'}
+                                </span>
+                              </span>
+                            </div>
+
+                            {/* Stars Rating for Properties only (since hotels have it in the top badge instead of "Hotel Boutique") */}
+                            {isPropiedad && isHotelOrAlquiler && hotelReviews.length > 0 && (() => {
+                              const avgRating = hotelReviews.reduce((sum, r) => sum + r.rating, 0) / hotelReviews.length;
+                              return (
+                                <div className="flex items-center gap-1 mb-2.5 bg-yellow-500/5 border border-yellow-500/10 px-2 py-1 rounded-lg w-fit font-sans">
+                                  <div className="flex items-center gap-0.5">
+                                    {Array.from({ length: 5 }).map((_, idx) => (
+                                      <Star 
+                                        key={idx} 
+                                        className={`w-3 h-3 ${
+                                          idx < Math.round(avgRating) ? 'fill-current text-yellow-500' : 'text-neutral-200'
+                                        }`} 
+                                      />
+                                    ))}
+                                  </div>
+                                  <span className="text-[10.5px] font-bold text-neutral-850 ml-1 font-mono">
+                                    {avgRating.toFixed(1)}
+                                  </span>
+                                </div>
+                              );
+                            })()}
+                            
+                            <div className="flex items-center gap-1.5 text-xs text-neutral-400 mb-3">
+                              <MapPin className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+                              <span className="truncate">
+                                {hotel.parroquia 
+                                  ? `${hotel.parroquia}, ${hotel.ciudad || ''}`
+                                  : (hotel.ubicacion.split(',')[1] || hotel.ubicacion)}
+                              </span>
+                            </div>
+                            
+                            <p className="text-xs text-neutral-500 line-clamp-2 leading-relaxed mb-3">
+                              {hotel.descripcion}
+                            </p>
+
+                            {/* Specific specs of Houses and Apartments */}
+                            {(hotel.tipoEstablecimiento === 'casa' || hotel.tipoEstablecimiento === 'departamento') && hotel.detallesInmueble && (
+                              <div className="flex flex-wrap gap-2 text-[10.5px] bg-teal-50/50 border border-teal-100/50 p-2.5 rounded-xl mb-4 font-semibold text-teal-800">
+                                <span className="flex items-center gap-0.5">🛏️ {hotel.detallesInmueble.habitaciones} Hab</span>
+                                <span className="text-teal-200">•</span>
+                                <span className="flex items-center gap-0.5">🚿 {hotel.detallesInmueble.banos} Baños</span>
+                                <span className="text-teal-200">•</span>
+                                <span className="flex items-center gap-0.5 font-mono">{hotel.detallesInmueble.metrosCuadrados || '40'} m²</span>
+                                <span className="text-teal-200">•</span>
+                                <span>🛋️ {hotel.detallesInmueble.amueblado !== false ? 'Amoblado' : 'S/A'}</span>
+                              </div>
+                            )}
+
+                            <div className="flex flex-wrap gap-1 mb-4">
+                              {hotel.servicios.slice(0, 3).map((serv, i) => (
+                                <span key={i} className="px-2 py-0.5 bg-neutral-50 text-neutral-500 text-[10px] rounded border border-neutral-100 font-medium">
+                                  {serv}
+                                </span>
+                              ))}
+                              {hotel.servicios.length > 3 && (
+                                <span className="px-2 py-0.5 bg-neutral-100 text-neutral-500 text-[10px] rounded border border-neutral-200 font-mono font-medium">
+                                  +{hotel.servicios.length - 3}
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="pt-4 border-t border-neutral-100 flex items-center justify-between text-xs text-teal-600 font-semibold font-sans">
+                              <span>{isPropiedad ? 'Ver detalles de propiedad' : 'Ver suites disponibles'}</span>
+                              <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                            </div>
                           </div>
-                        </div>
-                      </motion.div>
-                    );
-                  })}
-              </div>
+                        </motion.div>
+                      );
+                    })}
+                </div>
+              )}
             </div>
           ) : bookingRoom !== null ? (
             // DEDICATED ROOM RESERVATION VIEW PAGE (replaces old popup modal)
@@ -2120,7 +2215,37 @@ export default function ClientView({
                   </div>
 
                   <div className="space-y-4">
-                    {roomsInActiveHotel.length === 0 ? (
+                    {isLoading ? (
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2.5 p-3.5 bg-gradient-to-r from-teal-50/90 via-sky-50/70 to-teal-50/90 border border-teal-200/80 rounded-2xl text-xs text-teal-800 shadow-sm">
+                          <Loader2 className="w-4 h-4 text-teal-600 animate-spin shrink-0" />
+                          <span className="font-semibold">Cargando habitaciones y disponibilidad...</span>
+                        </div>
+                        <div className="space-y-4">
+                          {[1, 2, 3].map(item => (
+                            <div key={item} className="bg-white rounded-2xl p-5 border border-neutral-200/90 shadow-sm flex flex-col md:flex-row gap-6 animate-pulse">
+                              <div className="w-full md:w-56 h-36 bg-slate-200 rounded-xl shrink-0" />
+                              <div className="flex-1 space-y-3">
+                                <div className="flex gap-2">
+                                  <div className="h-5 w-24 bg-slate-200 rounded-full" />
+                                  <div className="h-5 w-20 bg-teal-100 rounded-full" />
+                                </div>
+                                <div className="h-6 w-1/2 bg-slate-200 rounded" />
+                                <div className="h-3 w-3/4 bg-slate-100 rounded" />
+                                <div className="flex gap-2 pt-2">
+                                  <div className="h-4 w-16 bg-slate-100 rounded" />
+                                  <div className="h-4 w-16 bg-slate-100 rounded" />
+                                </div>
+                              </div>
+                              <div className="flex md:flex-col justify-between items-end shrink-0 pt-2 md:pt-0">
+                                <div className="h-6 w-24 bg-teal-100 rounded" />
+                                <div className="h-9 w-28 bg-teal-200/70 rounded-xl" />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : roomsInActiveHotel.length === 0 ? (
                       <div className="bg-neutral-50 rounded-2xl p-8 border border-neutral-200 text-center text-neutral-500 py-12">
                         <p className="text-sm font-medium">No se encontraron habitaciones para mostrar con el filtro seleccionado.</p>
                         {showOnlyAvailableRooms && (
@@ -2323,7 +2448,26 @@ export default function ClientView({
                 <p className="text-xs text-neutral-400">Administre su hospedaje, presente los comprobantes QR al recepcionista para el Check-In, y descargue su pre-factura en formato PDF.</p>
               </div>
 
-              {myReservations.length === 0 ? (
+              {isLoading ? (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2.5 p-3.5 bg-gradient-to-r from-teal-50/90 via-sky-50/70 to-teal-50/90 border border-teal-200/80 rounded-2xl text-xs text-teal-800 shadow-sm">
+                    <Loader2 className="w-4 h-4 text-teal-600 animate-spin shrink-0" />
+                    <span className="font-semibold">Cargando reservaciones y expedientes...</span>
+                  </div>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {[1, 2].map(item => (
+                      <div key={item} className="bg-white rounded-2xl border border-neutral-200/90 p-5 shadow-sm space-y-4 animate-pulse">
+                        <div className="flex justify-between items-center">
+                          <div className="h-5 w-32 bg-slate-200 rounded" />
+                          <div className="h-6 w-20 bg-teal-100 rounded-full" />
+                        </div>
+                        <div className="h-4 w-48 bg-slate-200 rounded" />
+                        <div className="h-12 w-full bg-slate-100 rounded-xl" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : myReservations.length === 0 ? (
             <div className="bg-white border border-neutral-200 rounded-3xl p-10 text-center flex flex-col items-center justify-center max-w-lg mx-auto">
               <CalendarCheck className="w-12 h-12 text-neutral-300 mb-3" />
               <h4 className="font-semibold text-neutral-700 text-base">Sin reservaciones registradas</h4>
