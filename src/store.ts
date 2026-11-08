@@ -383,9 +383,9 @@ export function useHotelStore() {
       }
     };
 
-    // Ejecutar de forma diferida tras cargar datos, y re-evaluar cada 5 minutos
-    const timeout = setTimeout(sweepExpiredReservations, 10000);
-    const interval = setInterval(sweepExpiredReservations, 300000);
+    // Ejecutar de forma diferida tras cargar datos, y re-evaluar cada 1 minuto (60s)
+    const timeout = setTimeout(sweepExpiredReservations, 5000);
+    const interval = setInterval(sweepExpiredReservations, 60000);
 
     return () => {
       clearTimeout(timeout);
@@ -396,93 +396,90 @@ export function useHotelStore() {
   // Synchronize with Supabase database on mount and listen to changes
   useEffect(() => {
     const fetchSupabaseData = async () => {
-      console.log("🔌 Initiating optimized initial connection sync with database...");
-      
-      const timeoutPromise = new Promise(resolve => setTimeout(resolve, 2500));
-
-      const performSync = async () => {
-        try {
-          // 1. Fetch public catalog in parallel
-          const [hotelsRes, roomsRes, reviewsRes, variationsRes] = await Promise.allSettled([
-            supabase.from('hotels').select('*'),
-            supabase.from('rooms').select('*'),
-            supabase.from('reviews').select('*'),
-            supabase.from('room_price_variations').select('*')
-          ]);
-
-          if (hotelsRes.status === 'fulfilled' && hotelsRes.value.data) {
-            const mappedHotels = hotelsRes.value.data.map(mapHotelFromDb).filter(Boolean) as Hotel[];
-            setHotels(sanitizeHotels(mappedHotels));
-          }
-
-          if (roomsRes.status === 'fulfilled' && roomsRes.value.data) {
-            const mappedRooms = roomsRes.value.data.map(mapRoomFromDb).filter(Boolean) as Room[];
-            setRooms(mappedRooms);
-          }
-          if (reviewsRes.status === 'fulfilled' && reviewsRes.value.data) {
-            setReviews(reviewsRes.value.data.map(mapReviewFromDb).filter(Boolean) as Review[]);
-          }
-          if (variationsRes.status === 'fulfilled' && variationsRes.value.data) {
-            setRoomPriceVariations(variationsRes.value.data.map(mapRoomPriceVariationFromDb).filter(Boolean) as RoomPriceVariation[]);
-          }
-
-          // 2. Check auth session and saved user state
-          try {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (session?.user) {
-              setCurrentUserId(session.user.id);
-            } else {
-              const savedId = loadFromLocalStorage(KEYS.CURRENT_USER_ID, '');
-              if (savedId) {
-                setCurrentUserId(savedId);
-              }
-            }
-          } catch (e) {
-            console.warn("Session check exception:", e);
-          }
-
-          // 3. Fetch user profiles, reservations, logs, messages, and transactions from Supabase DB
-          const [usersRes, resRes, logsRes, msgRes, txRes] = await Promise.allSettled([
-            supabase.from('users').select('*'),
-            supabase.from('reservations').select('*'),
-            supabase.from('logs').select('*'),
-            supabase.from('messages').select('*'),
-            supabase.from('transactions').select('*')
-          ]);
-
-          if (usersRes.status === 'fulfilled' && usersRes.value.data) {
-            const mappedUsers = usersRes.value.data.map(mapUserFromDb).filter(Boolean) as User[];
-            setUsers(mappedUsers);
-          }
-
-          if (resRes.status === 'fulfilled' && resRes.value.data) {
-            const mappedRes = resRes.value.data.map(mapReservationFromDb).filter(Boolean) as Reservation[];
-            setReservations(mappedRes);
-          }
-
-          if (logsRes.status === 'fulfilled' && logsRes.value.data) {
-            const cutoff30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-            const filteredLogs = (logsRes.value.data as ActivityLog[]).filter(log => log.timestamp >= cutoff30d);
-            setLogs(filteredLogs.sort((a, b) => b.timestamp.localeCompare(a.timestamp)));
-          }
-
-          if (msgRes.status === 'fulfilled' && msgRes.value.data) {
-            const cutoff24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-            const mappedMsgs = msgRes.value.data.map(mapChatMessageFromDb).filter(Boolean) as ChatMessage[];
-            const filteredMsgs = mappedMsgs.filter(msg => msg.timestamp >= cutoff24h);
-            setMessages(sortMessagesChronologically(filteredMsgs));
-          }
-
-          if (txRes.status === 'fulfilled' && txRes.value.data) {
-            setTransactions(txRes.value.data.map(mapPaymentTransactionFromDb).filter(Boolean) as PaymentTransaction[]);
-          }
-        } catch (err) {
-          console.warn("Fast parallel fetch exception:", err);
+      // Prioritize public catalog fetch to minimize LCP & Critical Path Latency
+      const catalogPromise = Promise.allSettled([
+        supabase.from('hotels').select('*'),
+        supabase.from('rooms').select('*'),
+        supabase.from('reviews').select('*'),
+        supabase.from('room_price_variations').select('*')
+      ]).then(([hotelsRes, roomsRes, reviewsRes, variationsRes]) => {
+        if (hotelsRes.status === 'fulfilled' && hotelsRes.value.data) {
+          const mappedHotels = hotelsRes.value.data.map(mapHotelFromDb).filter(Boolean) as Hotel[];
+          setHotels(sanitizeHotels(mappedHotels));
         }
-      };
 
-      await Promise.race([performSync(), timeoutPromise]);
-      setIsInitialSyncing(false);
+        if (roomsRes.status === 'fulfilled' && roomsRes.value.data) {
+          const mappedRooms = roomsRes.value.data.map(mapRoomFromDb).filter(Boolean) as Room[];
+          setRooms(mappedRooms);
+        }
+        if (reviewsRes.status === 'fulfilled' && reviewsRes.value.data) {
+          setReviews(reviewsRes.value.data.map(mapReviewFromDb).filter(Boolean) as Review[]);
+        }
+        if (variationsRes.status === 'fulfilled' && variationsRes.value.data) {
+          setRoomPriceVariations(variationsRes.value.data.map(mapRoomPriceVariationFromDb).filter(Boolean) as RoomPriceVariation[]);
+        }
+        // Unlock public catalog view immediately for ultra-fast LCP (< 500ms)
+        setIsInitialSyncing(false);
+      }).catch(err => {
+        console.warn("Catalog fetch exception:", err);
+        setIsInitialSyncing(false);
+      });
+
+      // Concurrently check session without blocking the critical catalog render
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session?.user) {
+          setCurrentUserId(session.user.id);
+        } else {
+          const savedId = loadFromLocalStorage(KEYS.CURRENT_USER_ID, '');
+          if (savedId) {
+            setCurrentUserId(savedId);
+          }
+        }
+      }).catch(e => {
+        console.warn("Session check exception:", e);
+      });
+
+      // Background parallel fetch for admin & operational tables without delaying LCP
+      Promise.allSettled([
+        supabase.from('users').select('*'),
+        supabase.from('reservations').select('*'),
+        supabase.from('logs').select('*'),
+        supabase.from('messages').select('*'),
+        supabase.from('transactions').select('*')
+      ]).then(([usersRes, resRes, logsRes, msgRes, txRes]) => {
+        if (usersRes.status === 'fulfilled' && usersRes.value.data) {
+          const mappedUsers = usersRes.value.data.map(mapUserFromDb).filter(Boolean) as User[];
+          setUsers(mappedUsers);
+        }
+
+        if (resRes.status === 'fulfilled' && resRes.value.data) {
+          const mappedRes = resRes.value.data.map(mapReservationFromDb).filter(Boolean) as Reservation[];
+          setReservations(mappedRes);
+        }
+
+        if (logsRes.status === 'fulfilled' && logsRes.value.data) {
+          const cutoff30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+          const filteredLogs = (logsRes.value.data as ActivityLog[]).filter(log => log.timestamp >= cutoff30d);
+          setLogs(filteredLogs.sort((a, b) => b.timestamp.localeCompare(a.timestamp)));
+        }
+
+        if (msgRes.status === 'fulfilled' && msgRes.value.data) {
+          const cutoff24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+          const mappedMsgs = msgRes.value.data.map(mapChatMessageFromDb).filter(Boolean) as ChatMessage[];
+          const filteredMsgs = mappedMsgs.filter(msg => msg.timestamp >= cutoff24h);
+          setMessages(sortMessagesChronologically(filteredMsgs));
+        }
+
+        if (txRes.status === 'fulfilled' && txRes.value.data) {
+          setTransactions(txRes.value.data.map(mapPaymentTransactionFromDb).filter(Boolean) as PaymentTransaction[]);
+        }
+      }).catch(err => {
+        console.warn("Background tables sync exception:", err);
+      });
+
+      // Safety timeout to guarantee isInitialSyncing is cleared even in network timeouts
+      setTimeout(() => setIsInitialSyncing(false), 2000);
+      await catalogPromise;
     };
 
     fetchSupabaseData();
@@ -546,8 +543,12 @@ export function useHotelStore() {
       }
     };
 
-    // Polling interval for messages to guarantee real-time synchronization across clients & tabs
-    const msgInterval = setInterval(refreshMessagesInStore, 2500);
+    // Lightweight fallback polling interval for messages when tab is active
+    const msgInterval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        refreshMessagesInStore();
+      }
+    }, 20000);
 
     // BroadcastChannel listener for instant cross-tab sync
     let bc: BroadcastChannel | null = null;
@@ -1368,18 +1369,23 @@ El Equipo de Hospitalidad de Roomia PMS.`;
 
   // --- FLOW RESERVATIONS ---
   const createReservation = async (newRes: Reservation) => {
+    const resToSave: Reservation = {
+      ...newRes,
+      fechaRegistroTimestamp: newRes.fechaRegistroTimestamp || new Date().toISOString()
+    };
+
     setReservations(prev => {
-      const exists = prev.some(r => r.id === newRes.id);
+      const exists = prev.some(r => r.id === resToSave.id);
       if (exists) {
-        return prev.map(r => r.id === newRes.id ? newRes : r);
+        return prev.map(r => r.id === resToSave.id ? resToSave : r);
       }
-      return [newRes, ...prev];
+      return [resToSave, ...prev];
     });
-    setRooms(prev => prev.map(r => r.id === newRes.roomId ? { ...r, estado: 'reservado' } : r));
+    setRooms(prev => prev.map(r => r.id === resToSave.roomId ? { ...r, estado: 'reservado' } : r));
 
     try {
-      await syncReservationToSupabase(newRes);
-      const matchedRoom = rooms.find(r => r.id === newRes.roomId);
+      await syncReservationToSupabase(resToSave);
+      const matchedRoom = rooms.find(r => r.id === resToSave.roomId);
       if (matchedRoom) {
         await syncRoomToSupabase({ ...matchedRoom, estado: 'reservado' });
       }

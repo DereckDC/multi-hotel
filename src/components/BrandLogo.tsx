@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
-import RoomiaLogo from '../RoomiaPMSLogoSinFondo.png';
+import RoomiaLogoWebp from '../RoomiaPMSLogoSinFondo.webp';
+import RoomiaLogoPng from '../RoomiaPMSLogoSinFondo.png';
 
-// Official local static asset imported to allow Vite compilation
-export const OFFICIAL_LOGO_URL = RoomiaLogo;
+// Official local static assets in modern WebP and optimized PNG
+export const OFFICIAL_LOGO_URL = RoomiaLogoWebp;
+export const OFFICIAL_LOGO_PNG = RoomiaLogoPng;
 
 // Remote backup URL using high-performance vector SVG to prevent external CDN decay
 export const BACKUP_LOGO_URL = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj4gPHJlY3Qgd2lkdGg9IjEwMCIgaGVpZ2h0PSIxMDAiIHJ4PSIyMCIgZmlsbD0iIzA3MTcyNiIvPiA8Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0MiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMjNCNEU2IiBzdHJva2Utd2lkdGg9IjMiIG9wYWNpdHk9IjAuNCIvPiA8ZyBzdHJva2U9IiMyM0I0RTYiIHN0cm9rZS13aWR0aD0iNC41IiBmaWxsPSJub25lIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPiA8cGF0aCBkPSJNNDAgMzAgSDU1IEM2NSAzMCwgNjUgNDYsIDU1IDQ2IEg0MCBaIi8+IDxwYXRoIGQ9Ik00MCA0NiBMNjAgNzAiLz4gPHBhdGggZD0iTTQwIDI0IFY3MCIvPiA8cGF0aCBkPSJNNTAgMjAgQzMzIDIwLCAyMCAzMywgMjAgNTAgQzIwIDY3LCAzMyA4MCwgNTAgODAgQzY3IDgwLCA4MCA2NywgODAgNTAiIG9wYWNpdHk9IjAuNiIvPiA8cGF0aCBkPSJNNjQgMzYgQzY4IDQwLCA3MCA0NSwgNzAgNTAgQzcwIDYxLCA2MSA3MCwgNTAgNzAiIG9wYWNpdHk9IjAuOCIgc3Ryb2tlLXdpZHRoPSIzIi8+IDwvZz4gPC9zdmc+";
@@ -68,12 +70,19 @@ export function BrandLogo({ size = 'md', showText = false, lightText = false }: 
     <div className="flex items-center gap-3 select-none justify-start">
       <div className={`relative ${iconSizeClass} overflow-hidden flex items-center justify-center shrink-0 transition-transform hover:scale-105 duration-300`}>
         {logoSource === 'local' && (
-          <img 
-            src={OFFICIAL_LOGO_URL} 
-            alt="Roomia PMS Logo" 
-            className="w-full h-full object-contain mx-auto my-auto"
-            onError={handleLogoError}
-          />
+          <picture className="w-full h-full flex items-center justify-center">
+            <source srcSet={RoomiaLogoWebp} type="image/webp" />
+            <img 
+              src={RoomiaLogoPng} 
+              alt="Roomia PMS Logo" 
+              width="72"
+              height="72"
+              loading="eager"
+              decoding="async"
+              className="w-full h-full object-contain mx-auto my-auto"
+              onError={handleLogoError}
+            />
+          </picture>
         )}
         {logoSource === 'backup' && (
           <img 

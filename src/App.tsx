@@ -3,16 +3,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, FormEvent, useRef } from 'react';
+import { useState, useEffect, FormEvent, useRef, lazy, Suspense } from 'react';
 import { useHotelStore, compressImage } from './store';
 import { supabase } from './supabase';
 import ClientView from './components/ClientView';
-import ReceptionView from './components/ReceptionView';
-import SupportChatDrawer from './components/SupportChatDrawer';
-import AdminView from './components/AdminView';
 import LoginView from './components/LoginView';
 import LandingPageView from './components/LandingPageView';
-import LegalPageView, { LegalDocType } from './components/LegalPageView';
+import type { LegalDocType } from './components/LegalPageView';
+
+const ReceptionView = lazy(() => import('./components/ReceptionView'));
+const SupportChatDrawer = lazy(() => import('./components/SupportChatDrawer'));
+const AdminView = lazy(() => import('./components/AdminView'));
+const LegalPageView = lazy(() => import('./components/LegalPageView'));
 import { InteractiveContainer } from './components/InteractiveContainer';
 import { BrandLogo } from './components/BrandLogo';
 import { LoadingSkeletonView } from './components/LoadingSkeletonView';
@@ -552,15 +554,17 @@ export default function App() {
 
   if (activeLegalDoc !== null) {
     return (
-      <LegalPageView
-        documentType={activeLegalDoc}
-        onClose={() => {
-          // If we had an active user session, go back to app, else go back to landing
-          window.history.pushState(null, '', '/');
-          setActiveLegalDoc(null);
-        }}
-        onSelectDoc={(type) => setActiveLegalDoc(type)}
-      />
+      <Suspense fallback={<div className="min-h-screen bg-[#F8FAFB] flex items-center justify-center p-8"><Loader2 className="w-8 h-8 text-brand-cyan animate-spin" /></div>}>
+        <LegalPageView
+          documentType={activeLegalDoc}
+          onClose={() => {
+            // If we had an active user session, go back to app, else go back to landing
+            window.history.pushState(null, '', '/');
+            setActiveLegalDoc(null);
+          }}
+          onSelectDoc={(type) => setActiveLegalDoc(type)}
+        />
+      </Suspense>
     );
   }
 
@@ -1082,53 +1086,57 @@ export default function App() {
                           )}
 
                           {(activeUser?.rol === 'recepcionista' || ((activeUser?.rol === 'hotel_admin' || activeUser?.rol === 'super_admin') && viewOverride === 'reception')) && (
-                            <ReceptionView
-                              hotels={hotels}
-                              rooms={rooms}
-                              reservations={reservations}
-                              activeUser={activeUser}
-                              onPerformCheckIn={store.performCheckIn}
-                              onPerformCheckOut={store.performCheckOut}
-                              onUpdateRoomStatus={updateRoomStatus}
-                              onUpdateReservationStatus={updateReservationStatus}
-                              users={users}
-                              onAddLog={handleAddLogSimulated}
-                              onCreateReservation={createReservation}
-                              onRegisterUser={registerUser}
-                              roomPriceVariations={roomPriceVariations}
-                              activeTab={receptionActiveTab}
-                              logs={logs}
-                            />
+                            <Suspense fallback={<div className="p-12 flex justify-center items-center"><Loader2 className="w-8 h-8 text-brand-cyan animate-spin" /></div>}>
+                              <ReceptionView
+                                hotels={hotels}
+                                rooms={rooms}
+                                reservations={reservations}
+                                activeUser={activeUser}
+                                onPerformCheckIn={store.performCheckIn}
+                                onPerformCheckOut={store.performCheckOut}
+                                onUpdateRoomStatus={updateRoomStatus}
+                                onUpdateReservationStatus={updateReservationStatus}
+                                users={users}
+                                onAddLog={handleAddLogSimulated}
+                                onCreateReservation={createReservation}
+                                onRegisterUser={registerUser}
+                                roomPriceVariations={roomPriceVariations}
+                                activeTab={receptionActiveTab}
+                                logs={logs}
+                              />
+                            </Suspense>
                           )}
 
                           {((activeUser?.rol === 'hotel_admin' || activeUser?.rol === 'super_admin') && viewOverride !== 'reception') && (
-                            <AdminView
-                              hotels={hotels}
-                              rooms={rooms}
-                              users={users}
-                              reservations={reservations}
-                              logs={logs}
-                              activeUser={activeUser}
-                              onSaveHotel={saveHotel}
-                              onDeleteHotel={deleteHotel}
-                              onSaveRoom={saveRoom}
-                              onDeleteRoom={deleteRoom}
-                              onUpdateUserRole={updateUserRole}
-                              onUpdateUserHotel={updateUserHotel}
-                              onUpdateUserHotels={updateUserHotels}
-                              onToggleUserStatus={toggleUserStatus}
-                              onChangeUserPassword={changeUserPassword}
-                              statistics={stats}
-                              onUpdateRoomStatus={updateRoomStatus}
-                              onUpdateReservationStatus={updateReservationStatus}
-                              onSyncAllToSupabase={store.syncAllToSupabase}
-                              reviews={reviews}
-                              roomPriceVariations={roomPriceVariations}
-                              onSaveRoomPriceVariation={saveRoomPriceVariation}
-                              onDeleteRoomPriceVariation={deleteRoomPriceVariation}
-                              adminTab={adminActiveTab}
-                              onAdminTabChange={setAdminActiveTab}
-                            />
+                            <Suspense fallback={<div className="p-12 flex justify-center items-center"><Loader2 className="w-8 h-8 text-brand-cyan animate-spin" /></div>}>
+                              <AdminView
+                                hotels={hotels}
+                                rooms={rooms}
+                                users={users}
+                                reservations={reservations}
+                                logs={logs}
+                                activeUser={activeUser}
+                                onSaveHotel={saveHotel}
+                                onDeleteHotel={deleteHotel}
+                                onSaveRoom={saveRoom}
+                                onDeleteRoom={deleteRoom}
+                                onUpdateUserRole={updateUserRole}
+                                onUpdateUserHotel={updateUserHotel}
+                                onUpdateUserHotels={updateUserHotels}
+                                onToggleUserStatus={toggleUserStatus}
+                                onChangeUserPassword={changeUserPassword}
+                                statistics={stats}
+                                onUpdateRoomStatus={updateRoomStatus}
+                                onUpdateReservationStatus={updateReservationStatus}
+                                onSyncAllToSupabase={store.syncAllToSupabase}
+                                reviews={reviews}
+                                roomPriceVariations={roomPriceVariations}
+                                onSaveRoomPriceVariation={saveRoomPriceVariation}
+                                onDeleteRoomPriceVariation={deleteRoomPriceVariation}
+                                adminTab={adminActiveTab}
+                                onAdminTabChange={setAdminActiveTab}
+                              />
+                            </Suspense>
                           )}
                         </>
                       )}
@@ -1561,15 +1569,17 @@ export default function App() {
 
       {/* Real-time Global Support Chat Component Drawer - Only visible once user has logged in */}
       {activeUser && !isLoggedOut && (
-        <SupportChatDrawer
-          hotels={hotels}
-          activeUser={activeUser}
-          messages={messages}
-          onSendMessage={sendChatMessage}
-          onMarkAsRead={markMessagesAsRead}
-          openHotelId={openHotelId}
-          users={users}
-        />
+        <Suspense fallback={null}>
+          <SupportChatDrawer
+            hotels={hotels}
+            activeUser={activeUser}
+            messages={messages}
+            onSendMessage={sendChatMessage}
+            onMarkAsRead={markMessagesAsRead}
+            openHotelId={openHotelId}
+            users={users}
+          />
+        </Suspense>
       )}
 
       {/* Modern Safe Toast Notifications Overlay */}

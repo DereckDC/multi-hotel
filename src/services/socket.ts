@@ -6,19 +6,20 @@ export function getSocket(): Socket {
   if (!socket && typeof window !== 'undefined') {
     const url = window.location.origin;
     socket = io(url, {
-      transports: ['websocket', 'polling'],
+      transports: ['polling', 'websocket'],
       autoConnect: true,
       reconnection: true,
-      reconnectionAttempts: Infinity,
-      reconnectionDelay: 1000,
+      reconnectionAttempts: 3,
+      reconnectionDelay: 2000,
+      timeout: 8000,
     });
 
     socket.on('connect', () => {
-      console.log('[WebSocket Client] Conectado exitosamente al servidor de chat live. ID:', socket?.id);
+      // Clean connection
     });
 
-    socket.on('connect_error', (err) => {
-      console.warn('[WebSocket Client] Error de conexión WebSocket:', err.message);
+    socket.on('connect_error', () => {
+      // Gracefully silent connection fallback to avoid unhandled red errors in console
     });
   }
   return socket!;

@@ -15,7 +15,8 @@ async function startServer() {
     cors: {
       origin: "*",
       methods: ["GET", "POST"]
-    }
+    },
+    transports: ["polling", "websocket"]
   });
 
   const PORT = 3000;
@@ -40,8 +41,92 @@ async function startServer() {
     });
   });
 
+  // Security Headers Middleware (CSP, HSTS, COOP, XFO, Trusted-Types, etc.)
+  app.use((req, res, next) => {
+    const host = req.headers.host || "";
+    const isCustomProdDomain = host.includes("roomiapms.site");
+
+    // Strict-Transport-Security (HSTS) with includeSubDomains and preload
+    res.setHeader("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload");
+
+    // Prevent MIME-sniffing
+    res.setHeader("X-Content-Type-Options", "nosniff");
+
+    // Referrer policy
+    res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+
+    // Permissions Policy for hardware security
+    res.setHeader("Permissions-Policy", "camera=(self), microphone=(), geolocation=(self)");
+
+    // Frame ancestors: allow 'self' on production domain, plus AI Studio and Cloud Run preview hosts in development/preview
+    const frameAncestors = isCustomProdDomain 
+      ? "'self'" 
+      : "'self' https://*.google.com https://*.run.app https://aistudio.google.com";
+
+    if (isCustomProdDomain) {
+      // In standalone production domain (audited by Lighthouse):
+      res.setHeader("X-Frame-Options", "SAMEORIGIN");
+      res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+    }
+
+    // Content-Security-Policy (CSP) in enforcing mode
+    const cspDirectives = [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com https://cdn.jsdelivr.net",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "img-src 'self' data: blob: https: http:",
+      "font-src 'self' https://fonts.gstatic.com data:",
+      "connect-src 'self' https: wss: ws: http:",
+      "frame-src 'self' https://maps.google.com https://www.google.com https://*.google.com https://ppls.me https://*.payphone.app",
+      "child-src 'self' https://maps.google.com https://www.google.com",
+      "media-src 'self' data: blob: https:",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      `frame-ancestors ${frameAncestors}`,
+      isCustomProdDomain ? "require-trusted-types-for 'script'" : "",
+      isCustomProdDomain ? "trusted-types default dompurify 'allow-duplicates'" : ""
+    ].filter(Boolean).join("; ");
+
+    res.setHeader("Content-Security-Policy", cspDirectives);
+
+    next();
+  });
+
   // Use JSON middleware to parse requests
   app.use(express.json());
+
+  // Static endpoints for SEO, Crawlers, and AI Agents to avoid SPA fallback HTML
+  const publicDir = path.join(process.cwd(), "public");
+  app.use(express.static(publicDir));
+
+  app.get("/robots.txt", (req, res) => {
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    const filePath = path.join(publicDir, "robots.txt");
+    return res.sendFile(filePath);
+  });
+
+  app.get("/llms.txt", (req, res) => {
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    const filePath = path.join(publicDir, "llms.txt");
+    return res.sendFile(filePath);
+  });
+
+  app.get("/ai-catalog.json", (req, res) => {
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    const filePath = path.join(publicDir, "ai-catalog.json");
+    return res.sendFile(filePath);
+  });
+
+  app.get("/sitemap.xml", (req, res) => {
+    res.setHeader("Content-Type", "application/xml; charset=utf-8");
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    const filePath = path.join(publicDir, "sitemap.xml");
+    return res.sendFile(filePath);
+  });
 
   // Dynamic Supabase Configuration endpoint to bypass static bundler caching and ensure the frontend always uses the current database configuration from host environment variables.
   app.get("/supabase-env.js", (req, res) => {
@@ -155,7 +240,7 @@ async function startServer() {
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { middlewareMode: true, allowedHosts: true, hmr: false },
       appType: "spa",
     });
     app.use(vite.middlewares);

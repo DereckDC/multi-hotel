@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "name": "Roomia PMS AI Catalog",
+  "version": "1.0.0",
+  "description": "Catálogo estructurado y capacidades operativas de Roomia PMS para agentes de inteligencia artificial y motores de búsqueda autónomos.",
+  "provider": {
+    "name": "Roomia PMS",
+    "url": "https://www.roomiapms.site",
+    "currency": "USD",
+    "country": "EC",
+    "languages": ["es", "en"]
+  },
+  "capabilities": [
+    {
+      "name": "hotel_search",
+      "description": "Búsqueda y filtrado de hoteles boutique por provincia, ciudad y número de camas."
+    },
+    {
+      "name": "room_availability",
+      "description": "Consulta de suites disponibles con tarifas y servicios adicionales."
+    },
+    {
+      "name": "property_listing",
+      "description": "Exploración de casas y departamentos en alquiler temporario o venta."
+    },
+    {
+      "name": "qr_checkin",
+      "description": "Validación digital de Check-In mediante código QR en recepción."
+    },
+    {
+      "name": "invoice_pdf",
+      "description": "Emisión y descarga instantánea de pre-facturas en formato PDF."
+    }
+  ],
+  "categories": [
+    {
+      "id": "hotels",
+      "name": "Hoteles Boutique Premium",
+      "description": "Estadías de lujo con atención personalizada y amenidades de primera categoría."
+    },
+    {
+      "id": "properties",
+      "name": "Propiedades Exclusivas",
+      "description": "Casas y departamentos en ubicaciones privilegiadas."
+    }
+  ],
+  "endpoints": {
+    "catalog": "https://www.roomiapms.site/",
+    "properties": "https://www.roomiapms.site/?tab=properties",
+    "aiCatalog": "https://www.roomiapms.site/ai-catalog.json",
+    "llms": "https://www.roomiapms.site/llms.txt"
+  }
+}

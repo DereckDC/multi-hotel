@@ -1,0 +1,25 @@
+# Roomia PMS
+
+> Roomia PMS es una plataforma integral de gestión hotelera (Property Management System) y motor de reservas premium para hoteles boutique y residencias exclusivas.
+
+Roomia PMS optimiza la operativa hotelera diaria mediante asignación dinámica de habitaciones, check-in digital instantáneo con validación QR, expedientes de huéspedes, pre-facturación electrónica en PDF y catálogo público interactivo.
+
+## Alojamientos y Catálogos
+
+- [Catálogo de Hoteles Boutique](https://www.roomiapms.site/): Exploración de suites, amenidades, tarifas oficiales y disponibilidad en tiempo real.
+- [Catálogo de Propiedades Exclusivas](https://www.roomiapms.site/?tab=properties): Casas y departamentos de lujo disponibles para alquiler temporal o venta definitiva.
+- [Esquema de Catálogo para IA (JSON)](https://www.roomiapms.site/ai-catalog.json): Especificación y catálogo estructurado para agentes de búsqueda y reserva.
+
+## Funcionalidades y Servicios
+
+- **Motor de Reservas**: Consulta de disponibilidad, cálculo de tarifas con servicios adicionales y confirmación inmediata.
+- **Check-In con Validación QR**: Verificación ágil de reservas escaneando el código QR del huésped desde cualquier dispositivo.
+- **Expediente Digital de Huésped**: Historial de estancias, comprobantes digitales y descarga de pre-facturas electrónicas en formato PDF.
+- **Chat de Soporte en Tiempo Real**: Canal directo entre huéspedes y recepción para consultas y solicitudes especiales.
+- **Panel Administrativo Multi-Hotel**: Control unificado de inventario de habitaciones, tarifas, reportes de ocupación y auditoría de incidencias.
+
+## Información Legal y Soporte
+
+- [Términos y Condiciones](https://www.roomiapms.site/?legal=terms): Condiciones generales de contratación y uso de la plataforma.
+- [Política de Privacidad](https://www.roomiapms.site/?legal=privacy): Tratamiento de datos personales y seguridad informática.
+- [Políticas de Cancelación](https://www.roomiapms.site/?legal=cancellation): Tiempos y directrices de cancelación y reembolso.

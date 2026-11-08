@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=JetBrains+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
 
 @theme {
@@ -10,14 +9,14 @@
   --color-brand-cyan: #23B4E6;
   --color-brand-navy1: #0E2A47;
   --color-brand-navy2: #071726;
-  --color-brand-grey: #A8B2BD;
+  --color-brand-grey: #64748B;
   --color-brand-white: #F8FAFB;
 
-  /* Total Brand Alignment: Override teal legacy tokens to guarantee 100% brand consistency */
+  /* Total Brand Alignment with Accessible WCAG AA Color Contrast */
   --color-teal-50: #F8FAFB;
   --color-teal-100: #e2f5fc;
-  --color-teal-200: #c1ecfc;
-  --color-teal-300: #7fd6f7;
+  --color-teal-200: #88d4f2;
+  --color-teal-300: #57c6ef;
   --color-teal-400: #23B4E6;
   --color-teal-500: #23B4E6;
   --color-teal-600: #1ba0cf;

@@ -8,12 +8,13 @@ import { Hotel, Room, Reservation, User, RoomStatus, Review, RoomPriceVariation 
 import { motion, AnimatePresence } from 'motion/react';
 import { getProvincesList, getCitiesForProvince, getParroquiasForCity } from '../data/ecuador';
 
-import { MapPin, Calendar, Compass, List, CreditCard, ChevronRight, Sparkles, Filter, Check, Star, AlertCircle, Eye, Trash2, CalendarCheck, FileText, X, Building2, ShieldCheck, Lock, Home, Search, User as UserIcon, Loader2 } from 'lucide-react';
+import { MapPin, Calendar, Compass, List, CreditCard, ChevronRight, Sparkles, Filter, Check, Star, AlertCircle, Eye, Trash2, CalendarCheck, FileText, X, Building2, ShieldCheck, Lock, Home, Search, User as UserIcon, Loader2, ArrowRight, ArrowLeft, CheckCircle2, ChevronLeft, Info } from 'lucide-react';
 import QRView from './QRView';
 import InvoicePDF from './InvoicePDF';
 import { RoomImageGallery } from './RoomImageGallery';
 import { HotelImageGallery } from './HotelImageGallery';
 import { RoomReservationCalendar } from './RoomReservationCalendar';
+import { CompactBookingCalendar } from './CompactBookingCalendar';
 
 export function getMapEmbedUrl(ubicacion: string, googleMapsUrl?: string): string {
   const cleanUrl = googleMapsUrl ? googleMapsUrl.trim() : '';
@@ -21,37 +22,104 @@ export function getMapEmbedUrl(ubicacion: string, googleMapsUrl?: string): strin
 
   if (!cleanUrl && !cleanUbicacion) return '';
 
-  // 1. If googleMapsUrl was provided in the creation form, prioritize it directly
-  if (cleanUrl) {
-    // A. Full iframe snippet <iframe src="...">
-    if (cleanUrl.includes('<iframe')) {
-      const match = cleanUrl.match(/src=["']([^"']+)["']/i);
-      if (match && match[1]) {
-        return match[1];
-      }
+  // 1. Full iframe snippet <iframe src="...">
+  if (cleanUrl.includes('<iframe')) {
+    const match = cleanUrl.match(/src=["']([^"']+)["']/i);
+    if (match && match[1]) {
+      return match[1];
     }
-
-    // B. Direct Google Maps Embed URL
-    if (cleanUrl.includes('google.com/maps/embed') || cleanUrl.includes('google.com/maps/p/')) {
-      return cleanUrl;
-    }
-
-    // C. Coordinates inside the URL (e.g. @-0.18065,-78.46783 or ?q=-0.18065,-78.4678)
-    const coordsMatch = cleanUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) || cleanUrl.match(/[?&](?:q|ll)=(-?\d+\.\d+),(-?\d+\.\d+)/);
-    if (coordsMatch && coordsMatch[1] && coordsMatch[2]) {
-      return `https://maps.google.com/maps?q=${coordsMatch[1]},${coordsMatch[2]}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
-    }
-
-    // D. Any other Google Maps URL/shortlink (maps.app.goo.gl, goo.gl/maps, place link)
-    return `https://maps.google.com/maps?q=${encodeURIComponent(cleanUrl)}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
   }
 
-  // 2. Fallback to physical address query if no googleMapsUrl was uploaded
+  // 2. Direct Google Maps Embed URL
+  if (cleanUrl.includes('google.com/maps/embed')) {
+    return cleanUrl;
+  }
+
+  // 3. Extract coordinates inside any URL (e.g. @-0.18065,-78.46783 or ?q=-0.18065,-78.4678)
+  const coordsMatch = cleanUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) || cleanUrl.match(/[?&](?:q|ll)=(-?\d+\.\d+),(-?\d+\.\d+)/);
+  if (coordsMatch && coordsMatch[1] && coordsMatch[2]) {
+    return `https://maps.google.com/maps?q=${coordsMatch[1]},${coordsMatch[2]}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
+  }
+
+  // 4. Extract place title from place URL (e.g. /maps/place/Hotel+Hilton+Quito/...)
+  const placeMatch = cleanUrl.match(/\/maps\/place\/([^/@?]+)/);
+  if (placeMatch && placeMatch[1]) {
+    const placeName = decodeURIComponent(placeMatch[1].replace(/\+/g, ' '));
+    return `https://maps.google.com/maps?q=${encodeURIComponent(placeName)}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
+  }
+
+  // 5. If cleanUbicacion is a physical address, prefer it for embed search query
   if (cleanUbicacion) {
     return `https://maps.google.com/maps?q=${encodeURIComponent(cleanUbicacion)}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
   }
 
-  return '';
+  // 6. Fallback if cleanUrl is plain text query
+  if (cleanUrl && !cleanUrl.startsWith('http')) {
+    return `https://maps.google.com/maps?q=${encodeURIComponent(cleanUrl)}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
+  }
+
+  return `https://maps.google.com/maps?q=${encodeURIComponent(cleanUbicacion || 'Quito, Ecuador')}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
+}
+
+function calculateTimeLeft(reservation: Reservation) {
+  let createdMs: number;
+  if (reservation.fechaRegistroTimestamp) {
+    createdMs = new Date(reservation.fechaRegistroTimestamp).getTime();
+  } else {
+    createdMs = new Date(reservation.fechaRegistro + 'T00:00:00').getTime();
+  }
+
+  const expireMs = createdMs + 24 * 60 * 60 * 1000;
+  const nowMs = Date.now();
+  const diffMs = expireMs - nowMs;
+
+  if (diffMs <= 0) {
+    return { hours: 0, minutes: 0, seconds: 0, isExpired: true };
+  }
+
+  const totalSecs = Math.floor(diffMs / 1000);
+  const hours = Math.floor(totalSecs / 3600);
+  const minutes = Math.floor((totalSecs % 3600) / 60);
+  const seconds = totalSecs % 60;
+
+  return { hours, minutes, seconds, isExpired: false };
+}
+
+export function ReservationCountdown({ reservation }: { reservation: Reservation }) {
+  const [timeLeft, setTimeLeft] = useState(() => calculateTimeLeft(reservation));
+
+  React.useEffect(() => {
+    const timer = setInterval(() => {
+      setTimeLeft(calculateTimeLeft(reservation));
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [reservation]);
+
+  if (reservation.estado !== 'pendiente') return null;
+
+  if (timeLeft.isExpired) {
+    return (
+      <div className="mx-4 mt-3 p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-[11px] font-semibold flex items-center gap-2 animate-pulse">
+        <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+        <span>Tiempo límite de pago expirado (24h). La reservación se liberará automáticamente.</span>
+      </div>
+    );
+  }
+
+  const pad = (n: number) => String(n).padStart(2, '0');
+
+  return (
+    <div className="mx-4 mt-3 p-2.5 bg-amber-50/90 border border-amber-200/90 rounded-xl text-amber-900 text-[11px] font-semibold flex items-center justify-between gap-2 shadow-2xs">
+      <div className="flex items-center gap-2 min-w-0">
+        <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping shrink-0" />
+        <span className="truncate">⏱ Plazo de 24h para reportar pago:</span>
+      </div>
+      <span className="font-mono font-extrabold text-amber-900 text-xs bg-white px-2 py-0.5 rounded border border-amber-200/80 shrink-0">
+        {pad(timeLeft.hours)}h {pad(timeLeft.minutes)}m {pad(timeLeft.seconds)}s
+      </span>
+    </div>
+  );
 }
 
 interface ClientViewProps {
@@ -278,6 +346,7 @@ export default function ClientView({
 
   // Booking Flow modal state
   const [bookingRoom, setBookingRoom] = useState<Room | null>(null);
+  const [bookingStep, setBookingStep] = useState<1 | 2 | 3>(1);
   const [checkInDate, setCheckInDate] = useState<string>('');
   const [checkOutDate, setCheckOutDate] = useState<string>('');
   const [rentalMonths, setRentalMonths] = useState<number>(3);
@@ -290,6 +359,7 @@ export default function ClientView({
   // Reset booking Flow modal state and select options when chosen hotel/property changes to prevent leaking prior states
   React.useEffect(() => {
     setBookingRoom(null);
+    setBookingStep(1);
     setSelectedServices([]);
     setServicePeopleCount({});
     window.scrollTo({ top: 0, behavior: 'instant' });
@@ -298,6 +368,7 @@ export default function ClientView({
   // Scroll a la parte superior cuando se selecciona/abre una habitación para consultar o reservar
   React.useEffect(() => {
     if (bookingRoom) {
+      setBookingStep(1);
       window.scrollTo({ top: 0, behavior: 'instant' });
     }
   }, [bookingRoom]);
@@ -931,7 +1002,7 @@ export default function ClientView({
                       </span>
                     )}
                   </h3>
-                  <p className="text-xs text-neutral-400 mt-1">
+                  <p className="text-xs text-neutral-600 font-medium mt-1">
                     {activeTab === 'explore' 
                       ? 'Seleccione un hotel boutique de primer nivel para explorar las habitaciones y suites disponibles.'
                       : 'Explore nuestra selecta colección de casas y departamentos en alquiler temporario o venta definitiva.'}
@@ -943,8 +1014,9 @@ export default function ClientView({
                   {/* ECUADOR PROVINCIA FILTER */}
                   <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-lg border border-neutral-200 shadow-sm">
                     <MapPin className="w-3.5 h-3.5 text-teal-600 shrink-0" />
-                    <span className="text-neutral-500 font-semibold">Provincia:</span>
+                    <span className="text-neutral-700 font-semibold">Provincia:</span>
                     <select
+                      aria-label="Filtrar hoteles por provincia"
                       value={provinciaFilter}
                       onChange={(e) => {
                         setProvinciaFilter(e.target.value);
@@ -963,8 +1035,9 @@ export default function ClientView({
                   {/* ECUADOR CIUDAD FILTER */}
                   {provinciaFilter !== 'todas' && (
                     <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-lg border border-neutral-200 shadow-sm animate-fade-in">
-                      <span className="text-neutral-500 font-semibold">Ciudad:</span>
+                      <span className="text-neutral-700 font-semibold">Ciudad:</span>
                       <select
+                        aria-label="Filtrar hoteles por ciudad"
                         value={ciudadFilter}
                         onChange={(e) => {
                           setCiudadFilter(e.target.value);
@@ -983,8 +1056,9 @@ export default function ClientView({
                   {/* ECUADOR PARROQUIA FILTER */}
                   {provinciaFilter !== 'todas' && ciudadFilter !== 'todas' && (
                     <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-lg border border-neutral-200 shadow-sm animate-fade-in">
-                      <span className="text-neutral-500 font-semibold">Parroquia:</span>
+                      <span className="text-neutral-700 font-semibold">Parroquia:</span>
                       <select
+                        aria-label="Filtrar hoteles por parroquia"
                         value={parroquiaFilter}
                         onChange={(e) => setParroquiaFilter(e.target.value)}
                         className="border-none bg-transparent font-bold focus:ring-0 cursor-pointer text-teal-700 text-xs"
@@ -1000,11 +1074,12 @@ export default function ClientView({
                   {activeTab === 'properties' && (
                     <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-lg border border-neutral-200 shadow-sm animate-fade-in">
                       <Home className="w-3.5 h-3.5 text-teal-600 shrink-0" />
-                      <span className="text-neutral-500 font-semibold">Tipo:</span>
+                      <span className="text-neutral-700 font-semibold">Tipo:</span>
                       <select
+                        aria-label="Filtrar por tipo de propiedad"
                         value={propertyTypeFilter}
                         onChange={(e) => setPropertyTypeFilter(e.target.value)}
-                        className="border-none bg-transparent font-bold focus:ring-0 cursor-pointer text-teal-700"
+                        className="border-none bg-transparent font-bold focus:ring-0 cursor-pointer text-teal-700 text-xs"
                       >
                         <option value="todos">Todas</option>
                         <option value="casa">🏡 Casas</option>
@@ -1014,8 +1089,9 @@ export default function ClientView({
                   )}
 
                   <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-lg border border-neutral-200 shadow-sm">
-                    <span className="text-neutral-500 font-semibold">Ordenar por:</span>
+                    <span className="text-neutral-700 font-semibold">Ordenar por:</span>
                     <select
+                      aria-label="Ordenar catálogo por precio"
                       value={sortOrder}
                       onChange={(e) => setSortOrder(e.target.value as 'asc' | 'desc')}
                       className="border-none bg-transparent font-bold focus:ring-0 cursor-pointer text-teal-700 text-xs"
@@ -1026,8 +1102,9 @@ export default function ClientView({
                   </div>
 
                   <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-lg border border-neutral-200 shadow-sm">
-                    <span className="text-neutral-500 font-semibold">Camas:</span>
+                    <span className="text-neutral-700 font-semibold">Camas:</span>
                     <select
+                      aria-label="Filtrar por número de camas"
                       value={bedsFilter}
                       onChange={(e) => setBedsFilter(e.target.value)}
                       className="border-none bg-transparent font-bold focus:ring-0 cursor-pointer text-teal-700 text-xs"
@@ -1061,15 +1138,15 @@ export default function ClientView({
                     </div>
                   </div>
 
-                  {/* Skeletons Grid matching exactly the 3 columns layout */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {/* Skeletons Grid matching exactly the 3 columns layout with reserved min-height to eliminate CLS */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 min-h-[520px]">
                     {[1, 2, 3, 4, 5, 6].map(i => (
                       <div
                         key={i}
                         className="bg-white rounded-2xl overflow-hidden border border-neutral-200/90 shadow-sm animate-pulse"
                       >
                         {/* Photo skeleton with badge */}
-                        <div className="relative h-48 bg-slate-200/90 overflow-hidden">
+                        <div className="relative w-full h-52 sm:h-56 bg-slate-200/90 overflow-hidden">
                           <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm px-2.5 py-1 rounded-full h-5 w-24" />
                           <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm rounded-full w-8 h-8" />
                         </div>
@@ -1120,14 +1197,14 @@ export default function ClientView({
                   </div>
                 </div>
               ) : (activeTab === 'explore' ? filteredHotels : filteredProperties).length === 0 ? (
-                <div className="bg-white rounded-2xl p-12 border border-neutral-200 text-center text-neutral-500 shadow-sm">
-                  <p className="text-base font-semibold text-neutral-700">No se encontraron alojamientos para los filtros seleccionados.</p>
-                  <p className="text-xs text-neutral-400 mt-1.5">Intente cambiar la provincia o los filtros de búsqueda.</p>
+                <div className="bg-white rounded-2xl p-12 border border-neutral-200 text-center text-neutral-600 shadow-sm min-h-[300px] flex flex-col justify-center items-center">
+                  <p className="text-base font-semibold text-neutral-800">No se encontraron alojamientos para los filtros seleccionados.</p>
+                  <p className="text-xs text-neutral-600 font-medium mt-1.5">Intente cambiar la provincia o los filtros de búsqueda.</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 min-h-[520px]">
                   {(activeTab === 'explore' ? filteredHotels : filteredProperties)
-                    .map(hotel => {
+                    .map((hotel, hotelIdx) => {
                       // Quick lowest room price/property price calculation
                       const hotelRooms = rooms.filter(r => r.hotelId === hotel.id);
                       const isPropiedad = hotel.tipoEstablecimiento === 'casa' || hotel.tipoEstablecimiento === 'departamento';
@@ -1144,17 +1221,21 @@ export default function ClientView({
                             setSelectedHotelId(hotel.id);
                             if (onOpenHotelChange) onOpenHotelChange(hotel.id);
                           }}
-                          initial={{ opacity: 0, y: 20 }}
-                          whileInView={{ opacity: 1, y: 0 }}
-                          viewport={{ once: true }}
+                          initial={{ opacity: 0, y: 15 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.3 }}
                           whileHover={{ y: -6, scale: 1.015, boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.08)" }}
-                          transition={{ duration: 0.4, ease: "easeOut" }}
-                          className="bg-white rounded-2xl overflow-hidden border border-neutral-100 hover:border-teal-200 transition-colors group cursor-pointer"
+                          className="bg-white rounded-2xl overflow-hidden border border-neutral-200 hover:border-teal-500 transition-colors group cursor-pointer focus:outline-none focus:ring-2 focus:ring-teal-500 flex flex-col"
+                          tabIndex={0}
+                          role="button"
+                          aria-label={`Ver detalles del alojamiento ${hotel.nombre}`}
                         >
-                          <div className="relative h-48 overflow-hidden bg-neutral-100">
+                          <div className="relative w-full h-52 sm:h-56 overflow-hidden bg-neutral-100 shrink-0">
                             <img
                               src={hotel.portada}
-                              alt={hotel.nombre}
+                              alt={`Fotografía exterior de ${hotel.nombre}`}
+                              loading={hotelIdx === 0 ? "eager" : "lazy"}
+                              decoding="async"
                               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                               referrerPolicy="no-referrer"
                             />
@@ -1196,8 +1277,8 @@ export default function ClientView({
                               <h4 className="font-semibold text-neutral-800 text-lg group-hover:text-teal-600 transition-colors font-sans">
                                 {hotel.nombre}
                               </h4>
-                              <span className="font-mono text-sm font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded shrink-0">
-                                ${displayPrice.toLocaleString()} <span className="font-sans font-normal text-xs text-neutral-500">
+                              <span className="font-mono text-sm font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded shrink-0">
+                                ${displayPrice.toLocaleString()} <span className="font-sans font-normal text-xs text-neutral-600">
                                   {hotel.finalidad === 'venta' ? 'compra' : isPropiedad ? '/ mes' : '/ noche'}
                                 </span>
                               </span>
@@ -1225,8 +1306,8 @@ export default function ClientView({
                               );
                             })()}
                             
-                            <div className="flex items-center gap-1.5 text-xs text-neutral-400 mb-3">
-                              <MapPin className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+                            <div className="flex items-center gap-1.5 text-xs text-neutral-600 mb-3">
+                              <MapPin className="w-3.5 h-3.5 text-teal-700 shrink-0" />
                               <span className="truncate">
                                 {hotel.parroquia 
                                   ? `${hotel.parroquia}, ${hotel.ciudad || ''}`
@@ -1234,7 +1315,7 @@ export default function ClientView({
                               </span>
                             </div>
                             
-                            <p className="text-xs text-neutral-500 line-clamp-2 leading-relaxed mb-3">
+                            <p className="text-xs text-neutral-600 line-clamp-2 leading-relaxed mb-3">
                               {hotel.descripcion}
                             </p>
 
@@ -1276,483 +1357,657 @@ export default function ClientView({
               )}
             </div>
           ) : bookingRoom !== null ? (
-            // DEDICATED ROOM RESERVATION VIEW PAGE (replaces old popup modal)
-            <div className="space-y-6 animate-fade-in text-neutral-850">
-              <button
-                onClick={() => setBookingRoom(null)}
-                className="inline-flex items-center gap-2 text-sm text-neutral-500 hover:text-neutral-800 transition-colors font-medium cursor-pointer bg-white px-3 py-1.5 rounded-lg border border-neutral-200 shadow-sm active:scale-95 animate-fade-in"
-              >
-                ← Volver a las habitaciones de {activeHotel?.nombre}
-              </button>
+            // DYNAMIC 3-STEP RESERVATION FLOW (Eliminates excessive vertical scrolling)
+            <div className="space-y-5 animate-fade-in text-neutral-850 max-w-4xl mx-auto">
+              {/* Back navigation & Room Summary Bar */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBookingRoom(null);
+                    setBookingStep(1);
+                  }}
+                  className="inline-flex items-center gap-2 text-xs text-neutral-600 hover:text-neutral-900 transition-colors font-semibold cursor-pointer bg-white px-3.5 py-2 rounded-xl border border-neutral-200 shadow-xs active:scale-95"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span>Volver a habitaciones de {activeHotel?.nombre}</span>
+                </button>
 
-              {/* IMMERSIVE ROOM GALLERY AT THE TOP - MATCHES THE EXPERIENCE OF OPENING A HOTEL */}
-              <div className="bg-white p-5 rounded-3xl border border-neutral-200 shadow-sm space-y-4 animate-fade-in">
-                <HotelImageGallery 
-                  imagenes={bookingRoom.imagenes || []} 
-                  portada={bookingRoom.imagenes?.[0] || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1200&auto=format&fit=crop'} 
-                  hotelNombre={bookingRoom.nombre} 
-                />
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pt-2">
-                  <div>
-                    <h3 className="font-extrabold text-neutral-850 text-xl font-display leading-tight">{bookingRoom.nombre}</h3>
-                    <p className="text-xs text-neutral-500 font-medium mt-1">Suite N° {bookingRoom.numero} • Tipo: {bookingRoom.tipo} • Capacidad: {bookingRoom.capacidad} huéspedes • Camas: {bookingRoom.camas}</p>
-                  </div>
-                  <div className="bg-teal-50 border border-teal-100 p-2.5 px-4 rounded-xl text-left sm:text-right">
-                    <span className="text-[10px] font-bold text-teal-800 block uppercase tracking-wider">Precio base por noche</span>
-                    <span className="text-xl font-mono font-extrabold text-teal-700">${bookingRoom.precio} USD</span>
-                  </div>
+                <div className="text-xs text-neutral-500 font-medium">
+                  Habitación <strong className="text-neutral-800">#{bookingRoom.numero}</strong> • {bookingRoom.tipo}
                 </div>
-                {bookingRoom.descripcion && (
-                  <p className="text-xs text-neutral-600 leading-relaxed border-t border-neutral-100 pt-3">
-                    {bookingRoom.descripcion}
-                  </p>
-                )}
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start animate-fade-in duration-300">
-                
-                {/* Left side: Interactive room availability calendar (7 cols) */}
-                <div className="lg:col-span-7 bg-white p-5 rounded-3xl border border-neutral-200 shadow-sm space-y-4">
-                  <div className="border-b border-neutral-100 pb-3">
-                    <h4 className="font-semibold text-neutral-800 text-lg flex items-center gap-2 font-display">
-                      <Calendar className="w-5 h-5 text-teal-600" />
-                      <span>Calendario de Disponibilidad: Suite {bookingRoom.numero}</span>
-                    </h4>
-                    <p className="text-xs text-neutral-450 mt-1">
-                      Visualice las fechas reservadas (en rojo) para cuadrar su estancia en la habitación seleccionada.
+              {/* Compact Room Overview Header */}
+              <div className="bg-white p-4 rounded-2xl border border-neutral-200 shadow-xs flex flex-col sm:flex-row items-start sm:items-center gap-4 justify-between">
+                <div className="flex items-center gap-3.5 min-w-0">
+                  {bookingRoom.imagenes && bookingRoom.imagenes.length > 0 ? (
+                    <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden bg-neutral-100 shrink-0 border border-neutral-200 shadow-xs">
+                      <img
+                        src={bookingRoom.imagenes[0]}
+                        alt={bookingRoom.nombre}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  ) : (
+                    <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl bg-teal-50 border border-teal-100 flex items-center justify-center shrink-0 text-teal-700">
+                      <Building2 className="w-8 h-8" />
+                    </div>
+                  )}
+
+                  <div className="min-w-0">
+                    <h3 className="font-extrabold text-neutral-850 text-base sm:text-lg leading-tight truncate">
+                      {bookingRoom.nombre}
+                    </h3>
+                    <p className="text-xs text-neutral-500 font-medium mt-0.5">
+                      Suite N° {bookingRoom.numero} • Capacidad: {bookingRoom.capacidad} pers • {bookingRoom.camas} {bookingRoom.camas > 1 ? 'camas' : 'cama'}
                     </p>
-                  </div>
-                  <div className="overflow-hidden">
-                    {(() => {
-                      const bHotel = hotels.find(h => h.id === bookingRoom.hotelId);
-                      const isAlquiler = bHotel && (bHotel.tipoEstablecimiento === 'casa' || bHotel.tipoEstablecimiento === 'departamento') && bHotel.finalidad === 'alquiler';
-                      return (
-                        <RoomReservationCalendar
-                          hotels={hotels}
-                          rooms={rooms}
-                          reservations={reservations}
-                          users={users}
-                          activeUser={activeUser}
-                          forceHotelId={bookingRoom.hotelId}
-                          forceRoomId={bookingRoom.id}
-                          roomPriceVariations={roomPriceVariations}
-                          checkInDate={checkInDate}
-                          checkOutDate={checkOutDate}
-                          setCheckInDate={setCheckInDate}
-                          setCheckOutDate={setCheckOutDate}
-                          isAlquiler={!!isAlquiler}
-                        />
-                      );
-                    })()}
+                    {bookingRoom.descripcion && (
+                      <p className="text-[11px] text-neutral-400 line-clamp-1 mt-0.5">
+                        {bookingRoom.descripcion}
+                      </p>
+                    )}
                   </div>
                 </div>
 
-                {/* Right side: Checkout form & summary (5 cols) */}
-                <div className="lg:col-span-5 bg-white p-6 rounded-3xl border border-neutral-200 shadow-sm space-y-6">
-                  <div>
-                    <h4 className="font-semibold text-neutral-800 text-xl font-display">Completar Reservación</h4>
-                    <p className="text-xs text-neutral-450 mt-1">Defina las fechas de check-in / check-out, seleccione servicios premium y confirme su reserva.</p>
-                  </div>
+                <div className="bg-teal-50 border border-teal-100/90 py-2 px-3.5 rounded-xl text-left sm:text-right shrink-0">
+                  <span className="text-[10px] font-bold text-teal-800 block uppercase tracking-wider">Tarifa base</span>
+                  <span className="text-lg font-mono font-extrabold text-teal-700">${bookingRoom.precio} USD</span>
+                  <span className="text-[10px] text-teal-600 block">/ noche</span>
+                </div>
+              </div>
 
-                  <form onSubmit={handleCreateBooking} className="space-y-5">
-                    
-                    {/* Selected room details block */}
-                    <div className="p-4 bg-neutral-50 rounded-2xl border border-neutral-100 text-xs flex gap-4 shadow-sm">
-                      {bookingRoom.imagenes && bookingRoom.imagenes.length > 0 && (
-                        <RoomImageGallery 
-                          imagenes={bookingRoom.imagenes} 
-                          roomNombre={bookingRoom.nombre} 
-                          className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden bg-neutral-100 shrink-0 border border-neutral-200 shadow-sm group cursor-pointer"
-                        />
-                      )}
-                      <div className="flex-1 flex flex-col justify-between">
-                        <div>
-                          <p className="font-bold text-neutral-800 text-sm leading-tight">{bookingRoom.nombre}</p>
-                          <p className="text-neutral-500 mt-1 font-semibold text-[11px]">
-                            Habitación {bookingRoom.numero} ({bookingRoom.tipo})
-                          </p>
-                          <p className="text-[10px] text-neutral-405 mt-0.5">
-                            Capacidad: {bookingRoom.capacidad} personas • {bookingRoom.camas} {bookingRoom.camas > 1 ? 'camas' : 'cama'}
-                          </p>
-                        </div>
-                        <div className="flex justify-between items-baseline mt-2 pt-1.5 border-t border-neutral-200/50">
-                          <span className="text-neutral-400 text-[10px] uppercase font-bold tracking-wider">Tarifa</span>
-                          <p className="font-mono font-bold text-teal-800 text-sm">${bookingRoom.precio} USD <span className="font-sans font-normal text-[10px] text-neutral-500">/ noche</span></p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Booking success notification banner */}
-                    {bookingSuccess ? (
-                      <div className="bg-emerald-50 border border-emerald-300 text-emerald-800 p-4 rounded-xl flex items-center gap-3 animate-pulse">
-                        <Check className="w-5 h-5 text-emerald-600 shrink-0" />
-                        <div>
-                          <h5 className="font-semibold text-sm">Reserva Procesada Magníficamente</h5>
-                          <p className="text-xs text-emerald-600 mt-0.5">Se redireccionará a su expediente de mis reservaciones.</p>
-                        </div>
-                      </div>
+              {/* Wizard Steps Navigator */}
+              <div className="bg-white p-2 rounded-2xl border border-neutral-200 shadow-xs">
+                <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setBookingStep(1)}
+                    className={`py-2 px-2 sm:px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer ${
+                      bookingStep === 1
+                        ? 'bg-teal-700 text-white shadow-xs'
+                        : checkInDate && checkOutDate
+                        ? 'bg-teal-50 text-teal-800 hover:bg-teal-100'
+                        : 'bg-neutral-50 text-neutral-500 hover:bg-neutral-100'
+                    }`}
+                  >
+                    {checkInDate && checkOutDate && bookingStep > 1 ? (
+                      <Check className="w-3.5 h-3.5 text-teal-600 shrink-0 stroke-[3]" />
                     ) : (
-                      <>
-                        {bookingError && (
-                          <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs flex items-start gap-2.5 animate-pulse font-sans">
-                            <span className="font-bold uppercase text-[10px] shrink-0 bg-rose-200 text-rose-900 rounded px-1.5 py-0.5 mt-0.5">Error</span>
-                            <p className="font-medium leading-normal">{bookingError}</p>
+                      <span className="w-4 h-4 rounded-full bg-white/20 flex items-center justify-center text-[10px] shrink-0">1</span>
+                    )}
+                    <span className="truncate">1. Fechas y Estancia</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (checkInDate && checkOutDate) {
+                        setBookingError(null);
+                        setBookingStep(2);
+                      }
+                    }}
+                    disabled={!checkInDate || !checkOutDate}
+                    className={`py-2 px-2 sm:px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 sm:gap-2 ${
+                      bookingStep === 2
+                        ? 'bg-teal-700 text-white shadow-xs cursor-pointer'
+                        : checkInDate && checkOutDate
+                        ? 'bg-teal-50 text-teal-800 hover:bg-teal-100 cursor-pointer'
+                        : 'bg-neutral-50 text-neutral-350 cursor-not-allowed opacity-60'
+                    }`}
+                  >
+                    <span className="w-4 h-4 rounded-full bg-white/20 flex items-center justify-center text-[10px] shrink-0">2</span>
+                    <span className="truncate">2. Servicios</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (checkInDate && checkOutDate) {
+                        setBookingError(null);
+                        setBookingStep(3);
+                      }
+                    }}
+                    disabled={!checkInDate || !checkOutDate}
+                    className={`py-2 px-2 sm:px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 sm:gap-2 ${
+                      bookingStep === 3
+                        ? 'bg-teal-700 text-white shadow-xs cursor-pointer'
+                        : checkInDate && checkOutDate
+                        ? 'bg-teal-50 text-teal-800 hover:bg-teal-100 cursor-pointer'
+                        : 'bg-neutral-50 text-neutral-350 cursor-not-allowed opacity-60'
+                    }`}
+                  >
+                    <span className="w-4 h-4 rounded-full bg-white/20 flex items-center justify-center text-[10px] shrink-0">3</span>
+                    <span className="truncate">3. Confirmación</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Error Notification Banner */}
+              {bookingError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs flex items-start gap-2.5 animate-pulse font-sans">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  <p className="font-medium leading-normal">{bookingError}</p>
+                </div>
+              )}
+
+              {/* STEP 1: FECHAS Y ESTANCIA */}
+              {bookingStep === 1 && (
+                <div className="space-y-4 animate-fade-in">
+                  {(() => {
+                    const bHotel = hotels.find(h => h.id === bookingRoom.hotelId);
+                    const isAlquiler = bHotel && (bHotel.tipoEstablecimiento === 'casa' || bHotel.tipoEstablecimiento === 'departamento') && bHotel.finalidad === 'alquiler';
+
+                    if (isAlquiler) {
+                      return (
+                        <div className="bg-white p-5 rounded-2xl border border-neutral-200 shadow-xs space-y-4">
+                          <div className="border-b border-neutral-100 pb-3">
+                            <h4 className="font-bold text-neutral-800 text-base flex items-center gap-2">
+                              <Calendar className="w-4 h-4 text-teal-600" />
+                              <span>Contrato de Alquiler Residencial</span>
+                            </h4>
+                            <p className="text-xs text-neutral-500 mt-0.5">
+                              Seleccione la fecha de inicio y el plazo en meses (mínimo 3 meses reglamentarios).
+                            </p>
                           </div>
-                        )}
 
-                        {/* Dates Pickers */}
-                        {(() => {
-                          const bHotel = bookingRoom ? hotels.find(h => h.id === bookingRoom.hotelId) : null;
-                          const isAlquiler = bHotel && (bHotel.tipoEstablecimiento === 'casa' || bHotel.tipoEstablecimiento === 'departamento') && bHotel.finalidad === 'alquiler';
-                          
-                          if (isAlquiler) {
-                            return (
-                              <div className="space-y-3">
-                                <div className="grid grid-cols-2 gap-3.5">
-                                  <div>
-                                    <label className="text-xs font-semibold text-neutral-500 block mb-1.5">Fecha de Inicio de Alquiler</label>
-                                    <input
-                                      type="date"
-                                      required
-                                      min={getTodayString(0)}
-                                      value={checkInDate}
-                                      onChange={(e) => {
-                                        setCheckInDate(e.target.value);
-                                        setBookingError(null);
-                                      }}
-                                      className="w-full text-xs border border-neutral-200 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 focus:outline-none bg-white cursor-pointer"
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className="text-xs font-semibold text-neutral-500 block mb-1.5">Duración (Meses de Alquiler)</label>
-                                    <select
-                                      value={rentalMonths}
-                                      onChange={(e) => {
-                                        const num = parseInt(e.target.value, 10);
-                                        setRentalMonths(num);
-                                        setBookingError(null);
-                                      }}
-                                      className="w-full text-xs border border-neutral-200 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 focus:outline-none bg-white cursor-pointer h-[34px] font-semibold"
-                                    >
-                                      <option value={3}>3 meses (Mínimo)</option>
-                                      <option value={4}>4 meses</option>
-                                      <option value={5}>5 meses</option>
-                                      <option value={6}>6 meses (Semestral)</option>
-                                      <option value={7}>7 meses</option>
-                                      <option value={8}>8 meses</option>
-                                      <option value={9}>9 meses</option>
-                                      <option value={10}>10 meses</option>
-                                      <option value={11}>11 meses</option>
-                                      <option value={12}>12 meses (Anual)</option>
-                                      <option value={18}>18 meses</option>
-                                      <option value={24}>24 meses (2 Años)</option>
-                                    </select>
-                                  </div>
-                                </div>
-                                <div className="text-[11px] text-teal-700 bg-teal-50/70 py-2 px-3.5 rounded-xl border border-teal-100 flex justify-between items-center font-semibold">
-                                  <span>📅 Fecha de Finalización Calculada:</span>
-                                  <strong className="font-mono text-neutral-800">{checkOutDate || 'Sin calcular'}</strong>
-                                </div>
-                              </div>
-                            );
-                          }
-
-                          return (
-                            <div className="grid grid-cols-2 gap-3.5">
-                              <div>
-                                <label className="text-xs font-semibold text-neutral-500 block mb-1.5">Check-In</label>
-                                <input
-                                  type="date"
-                                  required
-                                  min={getTodayString(0)}
-                                  value={checkInDate}
-                                  onChange={(e) => {
-                                    setCheckInDate(e.target.value);
-                                    setBookingError(null);
-                                  }}
-                                  className="w-full text-xs border border-neutral-200 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 focus:outline-none bg-white cursor-pointer"
-                                />
-                              </div>
-                              <div>
-                                <label className="text-xs font-semibold text-neutral-500 block mb-1.5">Check-Out</label>
-                                <input
-                                  type="date"
-                                  required
-                                  min={getMinCheckOutDate()}
-                                  value={checkOutDate}
-                                  onChange={(e) => {
-                                    setCheckOutDate(e.target.value);
-                                    setBookingError(null);
-                                  }}
-                                  className="w-full text-xs border border-neutral-200 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 focus:outline-none bg-white cursor-pointer"
-                                />
-                              </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                              <label className="text-xs font-semibold text-neutral-600 block mb-1.5">Fecha de Inicio de Alquiler</label>
+                              <input
+                                type="date"
+                                required
+                                min={getTodayString(0)}
+                                value={checkInDate}
+                                onChange={(e) => {
+                                  const newIn = e.target.value;
+                                  setCheckInDate(newIn);
+                                  setCheckOutDate(getDateAfterNMonths(newIn, rentalMonths));
+                                  setBookingError(null);
+                                }}
+                                className="w-full text-xs border border-neutral-200 rounded-xl p-2.5 focus:ring-1 focus:ring-teal-500 focus:outline-none bg-white cursor-pointer shadow-xs"
+                              />
                             </div>
-                          );
-                        })()}
-
-                        {/* Additional services checkout menu */}
-                        {(() => {
-                          const bookingHotel = hotels.find(h => h.id === bookingRoom?.hotelId);
-                          const availableServices = (bookingHotel?.serviciosDetallados && bookingHotel.serviciosDetallados.length > 0)
-                            ? bookingHotel.serviciosDetallados.filter(s => s.estado === 'activo')
-                            : [];
-
-                          if (availableServices.length === 0) return null;
-
-                          return (
-                            <div className="space-y-2">
-                              <label className="text-xs font-semibold text-neutral-500 block mb-1">Servicios Estancia Adicionales (Opcional):</label>
-                              <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                                {availableServices.map(srv => {
-                                  const isChecked = selectedServices.includes(srv.id);
-                                  return (
-                                    <div
-                                      key={srv.id}
-                                      onClick={() => {
-                                        setSelectedServices(prev => {
-                                          const exists = prev.includes(srv.id);
-                                          if (exists) {
-                                            return prev.filter(id => id !== srv.id);
-                                          } else {
-                                            setServicePeopleCount(prevCounts => ({
-                                              ...prevCounts,
-                                              [srv.id]: 1
-                                            }));
-                                            return [...prev, srv.id];
-                                          }
-                                        });
-                                      }}
-                                      className={`p-3 rounded-xl border text-xs cursor-pointer transition-all flex flex-col gap-2 ${
-                                        isChecked
-                                          ? 'bg-teal-50/50 border-teal-300 shadow-sm'
-                                          : 'bg-white hover:bg-neutral-50 border-neutral-200'
-                                      }`}
-                                    >
-                                      <div className="flex justify-between items-start gap-4">
-                                        <div className="min-w-0 flex-1">
-                                          <p className="font-semibold text-neutral-800 flex items-center gap-1.5">
-                                            {srv.emoji && <span className="text-sm shrink-0">{srv.emoji}</span>}
-                                            <span>{srv.nombre}</span>
-                                          </p>
-                                          <p className="text-[10px] text-neutral-450 mt-0.5 leading-relaxed">{srv.descripcion}</p>
-                                        </div>
-                                        <div className="shrink-0 text-right flex items-center gap-2">
-                                          <span className="font-mono font-bold text-teal-800">+${srv.precio} <span className="text-[9px] text-neutral-400 font-normal">/ pers {srv.tipoCobro === 'por_dia' ? '/ día' : '/ estadía'}</span></span>
-                                          <div className={`w-4.5 h-4.5 rounded border-2 flex items-center justify-center transition-colors ${isChecked ? 'bg-teal-600 border-teal-600 text-white' : 'border-neutral-300 bg-white'}`}>
-                                            {isChecked && <Check className="w-3.5 h-3.5 stroke-[3px]" />}
-                                          </div>
-                                        </div>
-                                      </div>
-
-                                      {/* Multiplier Quantity Picker for Selected Services */}
-                                      {isChecked && (
-                                        <div
-                                          onClick={(e) => e.stopPropagation()}
-                                          className="mt-1 pt-2 border-t border-teal-200/50 flex flex-col gap-1.5 animate-fade-in"
-                                        >
-                                          <div className="flex items-center justify-between gap-4">
-                                            <span className="text-[10px] text-teal-700 font-bold">Cantidad de personas para el servicio:</span>
-                                            <div className="flex items-center gap-1.5 shrink-0 bg-white px-2 py-1 border border-teal-200 rounded-lg">
-                                              <button
-                                                type="button"
-                                                onClick={() => {
-                                                  const cur = servicePeopleCount[srv.id] || 1;
-                                                  if (cur > 1) {
-                                                    setServicePeopleCount({ ...servicePeopleCount, [srv.id]: cur - 1 });
-                                                  }
-                                                }}
-                                                className="w-5 h-5 flex items-center justify-center rounded bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-extrabold text-xs select-none cursor-pointer border border-neutral-250"
-                                              >
-                                                -
-                                              </button>
-                                              <span className="text-xs font-mono font-bold text-neutral-900 w-6 text-center">
-                                                {servicePeopleCount[srv.id] || 1}
-                                              </span>
-                                              <button
-                                                type="button"
-                                                onClick={() => {
-                                                  const cur = servicePeopleCount[srv.id] || 1;
-                                                  setServicePeopleCount({ ...servicePeopleCount, [srv.id]: cur + 1 });
-                                                }}
-                                                className="w-5 h-5 flex items-center justify-center rounded bg-teal-600 hover:bg-teal-700 text-white font-extrabold text-xs select-none cursor-pointer border border-teal-750"
-                                              >
-                                                +
-                                              </button>
-                                            </div>
-                                          </div>
-
-                                          {/* Subtotal calculation indicator */}
-                                          <div className="text-[10px] text-teal-800 font-mono text-right bg-teal-50/70 py-1 px-2 rounded-md border border-teal-200/60">
-                                            Subtotal: ${srv.precio} × {servicePeopleCount[srv.id] || 1} pers {srv.tipoCobro === 'por_dia' ? `× ${Math.max(1, getNightsCount())} ${getNightsCount() === 1 ? 'día' : 'días'}` : '(cobro único)'} = <span className="font-bold text-teal-900">${(srv.precio * (servicePeopleCount[srv.id] || 1) * (srv.tipoCobro === 'por_dia' ? Math.max(1, getNightsCount()) : 1)).toFixed(2)}</span>
-                                          </div>
-                                        </div>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                              </div>
+                            <div>
+                              <label className="text-xs font-semibold text-neutral-600 block mb-1.5">Duración (Meses de Alquiler)</label>
+                              <select
+                                value={rentalMonths}
+                                onChange={(e) => {
+                                  const num = parseInt(e.target.value, 10);
+                                  setRentalMonths(num);
+                                  if (checkInDate) {
+                                    setCheckOutDate(getDateAfterNMonths(checkInDate, num));
+                                  }
+                                  setBookingError(null);
+                                }}
+                                className="w-full text-xs border border-neutral-200 rounded-xl p-2.5 focus:ring-1 focus:ring-teal-500 focus:outline-none bg-white cursor-pointer font-semibold shadow-xs"
+                              >
+                                <option value={3}>3 meses (Mínimo requerido)</option>
+                                <option value={4}>4 meses</option>
+                                <option value={5}>5 meses</option>
+                                <option value={6}>6 meses (Semestral)</option>
+                                <option value={7}>7 meses</option>
+                                <option value={8}>8 meses</option>
+                                <option value={9}>9 meses</option>
+                                <option value={10}>10 meses</option>
+                                <option value={11}>11 meses</option>
+                                <option value={12}>12 meses (Anual)</option>
+                                <option value={18}>18 meses</option>
+                                <option value={24}>24 meses (2 Años)</option>
+                              </select>
                             </div>
-                          );
-                        })()}
+                          </div>
 
-                        {/* Notas */}
-                        <div>
-                          <label className="text-xs font-semibold text-neutral-500 block mb-1">Peticiones o notas especiales (Opcional)</label>
-                          <textarea
-                            value={bookingNote}
-                            onChange={(e) => setBookingNote(e.target.value)}
-                            placeholder="Ej: Requiere sábanas hipoalergénicas, traslado con rampa, etc."
-                            className="w-full text-xs border border-neutral-200 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 focus:outline-none h-14 bg-white"
+                          <div className="text-xs text-teal-800 bg-teal-50/70 p-3 rounded-xl border border-teal-100 flex justify-between items-center font-semibold">
+                            <span>📅 Fecha de Finalización Calculada:</span>
+                            <strong className="font-mono text-neutral-900">{checkOutDate || 'Seleccione fecha de inicio'}</strong>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+                        {/* Compact Calendar Panel */}
+                        <div className="lg:col-span-7 space-y-3">
+                          <CompactBookingCalendar
+                            room={bookingRoom}
+                            reservations={reservations}
+                            checkInDate={checkInDate}
+                            checkOutDate={checkOutDate}
+                            onSelectRange={(inD, outD) => {
+                              setCheckInDate(inD);
+                              setCheckOutDate(outD);
+                              setBookingError(null);
+                            }}
+                            roomPriceVariations={roomPriceVariations}
+                            isAlquiler={false}
                           />
                         </div>
 
-                        {/* AUTO COMPUTED PRICE BREAKDOWN PREVIEW */}
-                        {(() => {
-                          const billing = getBookingTotal(bookingRoom.precio);
-                          if (billing.isAlquiler) {
+                        {/* Dates Selection & Duration Card */}
+                        <div className="lg:col-span-5 bg-white p-4 sm:p-5 rounded-2xl border border-neutral-200 shadow-xs space-y-4">
+                          <div className="border-b border-neutral-100 pb-2.5">
+                            <h4 className="font-bold text-neutral-800 text-sm flex items-center gap-1.5">
+                              <CalendarCheck className="w-4 h-4 text-teal-600" />
+                              <span>Estancia Seleccionada</span>
+                            </h4>
+                            <p className="text-[11px] text-neutral-450 mt-0.5">
+                              Haga clic en el calendario: 1° fecha de llegada, 2° fecha de salida.
+                            </p>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2.5">
+                            <div className={`p-3 rounded-xl border transition-all ${checkInDate ? 'bg-teal-50/50 border-teal-200' : 'bg-neutral-50 border-neutral-200'}`}>
+                              <span className="text-[10px] font-bold text-neutral-450 block uppercase tracking-wider">Llegada (Check-in)</span>
+                              <strong className={`font-mono text-xs block mt-1 ${checkInDate ? 'text-teal-800' : 'text-neutral-400 italic'}`}>
+                                {checkInDate || 'Pendiente'}
+                              </strong>
+                            </div>
+
+                            <div className={`p-3 rounded-xl border transition-all ${checkOutDate ? 'bg-teal-50/50 border-teal-200' : 'bg-neutral-50 border-neutral-200'}`}>
+                              <span className="text-[10px] font-bold text-neutral-450 block uppercase tracking-wider">Salida (Check-out)</span>
+                              <strong className={`font-mono text-xs block mt-1 ${checkOutDate ? 'text-teal-800' : 'text-neutral-400 italic'}`}>
+                                {checkOutDate || 'Pendiente'}
+                              </strong>
+                            </div>
+                          </div>
+
+                          {/* Fallback Manual Pickers */}
+                          <div className="pt-2 border-t border-neutral-100">
+                            <span className="text-[10px] text-neutral-450 font-semibold block mb-1.5">O elija manualmente las fechas:</span>
+                            <div className="grid grid-cols-2 gap-2">
+                              <input
+                                type="date"
+                                min={getTodayString(0)}
+                                value={checkInDate}
+                                onChange={(e) => {
+                                  setCheckInDate(e.target.value);
+                                  setBookingError(null);
+                                }}
+                                className="w-full text-xs border border-neutral-200 rounded-lg p-2 bg-neutral-50/50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-teal-500 font-mono"
+                              />
+                              <input
+                                type="date"
+                                min={getMinCheckOutDate()}
+                                value={checkOutDate}
+                                onChange={(e) => {
+                                  setCheckOutDate(e.target.value);
+                                  setBookingError(null);
+                                }}
+                                className="w-full text-xs border border-neutral-200 rounded-lg p-2 bg-neutral-50/50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-teal-500 font-mono"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Nights and Subtotal preview */}
+                          {checkInDate && checkOutDate && checkOutDate > checkInDate && (
+                            <div className="p-3 bg-teal-50/70 border border-teal-100 rounded-xl space-y-1 text-xs">
+                              <div className="flex justify-between items-center text-teal-900">
+                                <span className="font-semibold">Noches de hospedaje:</span>
+                                <span className="font-mono font-bold bg-white px-2 py-0.5 rounded border border-teal-200">{getNightsCount()} {getNightsCount() === 1 ? 'noche' : 'noches'}</span>
+                              </div>
+                              <div className="flex justify-between items-center text-teal-800 pt-1 border-t border-teal-100/70">
+                                <span>Subtotal hospedaje:</span>
+                                <span className="font-mono font-bold text-sm text-teal-900">${getBookingSubtotal(bookingRoom.precio).toFixed(2)} USD</span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Step 1 Actions */}
+                  <div className="bg-white p-3.5 rounded-2xl border border-neutral-200 shadow-xs flex justify-between items-center">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBookingRoom(null);
+                        setBookingStep(1);
+                      }}
+                      className="px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-semibold rounded-xl text-xs transition-colors cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={!checkInDate || !checkOutDate || checkOutDate <= checkInDate}
+                      onClick={() => {
+                        if (!checkInDate || !checkOutDate) {
+                          setBookingError("Por favor seleccione fecha de check-in y check-out.");
+                          return;
+                        }
+                        if (checkOutDate <= checkInDate) {
+                          setBookingError("La fecha de check-out debe ser posterior a la fecha de check-in.");
+                          return;
+                        }
+                        setBookingError(null);
+                        setBookingStep(2);
+                      }}
+                      className={`px-5 py-2.5 font-bold rounded-xl text-xs transition-all flex items-center gap-2 shadow-xs ${
+                        !checkInDate || !checkOutDate || checkOutDate <= checkInDate
+                          ? 'bg-neutral-200 text-neutral-400 cursor-not-allowed'
+                          : 'bg-teal-700 hover:bg-teal-800 text-white cursor-pointer active:scale-95 shadow-teal-700/20 shadow-md'
+                      }`}
+                    >
+                      <span>Continuar a Servicios</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 2: SERVICIOS ADICIONALES */}
+              {bookingStep === 2 && (
+                <div className="bg-white p-5 rounded-2xl border border-neutral-200 shadow-xs space-y-5 animate-fade-in">
+                  <div>
+                    <h4 className="font-bold text-neutral-800 text-base flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-teal-600" />
+                      <span>Servicios Estancia y Extras Opcionales</span>
+                    </h4>
+                    <p className="text-xs text-neutral-500 mt-0.5">
+                      Personalice su experiencia añadiendo amenidades gastronómicas, traslados o paquetes relax.
+                    </p>
+                  </div>
+
+                  {(() => {
+                    const bookingHotel = hotels.find(h => h.id === bookingRoom?.hotelId);
+                    const availableServices = (bookingHotel?.serviciosDetallados && bookingHotel.serviciosDetallados.length > 0)
+                      ? bookingHotel.serviciosDetallados.filter(s => s.estado === 'activo')
+                      : ADDITIONAL_SERVICES.map(s => ({
+                          id: s.id,
+                          nombre: s.name,
+                          descripcion: s.desc,
+                          precio: s.price,
+                          tipoCobro: 'por_estadia' as const,
+                          estado: 'activo' as const,
+                          emoji: s.emoji
+                        }));
+
+                    return (
+                      <div className="space-y-2.5">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {availableServices.map(srv => {
+                            const isChecked = selectedServices.includes(srv.id);
                             return (
-                              <div className="p-4 bg-amber-50/50 rounded-2xl border border-amber-200/80 space-y-2 text-xs text-neutral-600 font-sans">
-                                <p className="font-bold text-amber-900 uppercase text-[10px] tracking-wider border-b border-amber-200 pb-1 mb-2">Desglose de Contrato de Alquiler</p>
-                                <div className="flex justify-between">
-                                  <span>Plazo del Alquiler:</span>
-                                  <span className="font-semibold text-neutral-800">{getMonthsCount(checkInDate, checkOutDate).toFixed(1)} meses (mínimo 3)</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span>Valor Mensual de Renta:</span>
-                                  <span className="font-mono font-semibold text-neutral-800">${billing.mensualidad.toFixed(2)} USD / mes</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span>Depósito de Garantía:</span>
-                                  <span className="font-mono font-semibold text-amber-700">${billing.garantia} USD</span>
-                                </div>
-                                {billing.tax > 0 && (
-                                  <div className="flex justify-between">
-                                    <span>Impuestos (IVA 16% sobre renta):</span>
-                                    <span className="font-mono text-neutral-500">
-                                      ${billing.tax.toFixed(2)} USD 
-                                      {bookingRoom.adicionarIva === false && <span className="text-[9px] text-amber-650 font-bold ml-1 font-sans">(Incluido)</span>}
-                                    </span>
+                              <div
+                                key={srv.id}
+                                onClick={() => {
+                                  setSelectedServices(prev => {
+                                    const exists = prev.includes(srv.id);
+                                    if (exists) {
+                                      return prev.filter(id => id !== srv.id);
+                                    } else {
+                                      setServicePeopleCount(prevCounts => ({
+                                        ...prevCounts,
+                                        [srv.id]: 1
+                                      }));
+                                      return [...prev, srv.id];
+                                    }
+                                  });
+                                }}
+                                className={`p-3.5 rounded-xl border text-xs cursor-pointer transition-all flex flex-col justify-between gap-2.5 ${
+                                  isChecked
+                                    ? 'bg-teal-50/60 border-teal-300 shadow-xs ring-1 ring-teal-400/40'
+                                    : 'bg-white hover:bg-neutral-50 border-neutral-200'
+                                }`}
+                              >
+                                <div className="flex justify-between items-start gap-3">
+                                  <div className="min-w-0 flex-1">
+                                    <p className="font-bold text-neutral-850 flex items-center gap-1.5">
+                                      {srv.emoji && <span className="text-base shrink-0">{srv.emoji}</span>}
+                                      <span className="truncate">{srv.nombre}</span>
+                                    </p>
+                                    <p className="text-[11px] text-neutral-500 mt-0.5 leading-relaxed line-clamp-2">{srv.descripcion}</p>
                                   </div>
-                                )}
-                                <div className="p-2 border border-amber-100 rounded-lg bg-white/70 text-[10px] text-amber-900 leading-normal">
-                                  💡 <b>Política de Garantía:</b> Al iniciar el alquiler se liquida el primer mes de alquiler por adelantado más la garantía equivalente a una mensualidad reembolsable.
+                                  <div className="shrink-0 flex items-center gap-2">
+                                    <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors ${isChecked ? 'bg-teal-700 border-teal-700 text-white' : 'border-neutral-300 bg-white'}`}>
+                                      {isChecked && <Check className="w-3.5 h-3.5 stroke-[3px]" />}
+                                    </div>
+                                  </div>
                                 </div>
-                                <div className="h-[1px] bg-amber-200/50 my-1.5" />
-                                <div className="flex justify-between font-bold text-neutral-900 text-sm font-sans">
-                                  <span>Primer Pago Inicial Total:</span>
-                                  <span className="font-mono text-amber-900 text-base font-bold">${billing.total.toFixed(2)} USD</span>
+
+                                <div className="flex justify-between items-center pt-2 border-t border-neutral-100">
+                                  <span className="font-mono font-bold text-teal-800 text-xs">
+                                    +${srv.precio} <span className="text-[10px] text-neutral-400 font-normal">/ pers {srv.tipoCobro === 'por_dia' ? '/ día' : ''}</span>
+                                  </span>
+
+                                  {isChecked && (
+                                    <div
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="flex items-center gap-1.5 shrink-0 bg-white px-2 py-0.5 border border-teal-200 rounded-lg shadow-2xs"
+                                    >
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const cur = servicePeopleCount[srv.id] || 1;
+                                          if (cur > 1) {
+                                            setServicePeopleCount({ ...servicePeopleCount, [srv.id]: cur - 1 });
+                                          }
+                                        }}
+                                        className="w-5 h-5 flex items-center justify-center rounded bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-extrabold text-xs cursor-pointer"
+                                      >
+                                        -
+                                      </button>
+                                      <span className="text-xs font-mono font-bold text-neutral-900 w-5 text-center">
+                                        {servicePeopleCount[srv.id] || 1}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const cur = servicePeopleCount[srv.id] || 1;
+                                          setServicePeopleCount({ ...servicePeopleCount, [srv.id]: cur + 1 });
+                                        }}
+                                        className="w-5 h-5 flex items-center justify-center rounded bg-teal-600 hover:bg-teal-700 text-white font-extrabold text-xs cursor-pointer"
+                                      >
+                                        +
+                                      </button>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             );
-                          }
+                          })}
+                        </div>
 
+                        {getServicesTotal() > 0 && (
+                          <div className="p-2.5 bg-teal-50 border border-teal-100 rounded-xl text-xs text-teal-900 flex justify-between items-center font-semibold">
+                            <span>Subtotal de Servicios Adicionales:</span>
+                            <span className="font-mono font-bold text-sm text-teal-800">+${getServicesTotal().toFixed(2)} USD</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {/* Notas y peticiones especiales */}
+                  <div className="pt-2 border-t border-neutral-100">
+                    <label className="text-xs font-semibold text-neutral-700 block mb-1">Peticiones o notas especiales (Opcional)</label>
+                    <textarea
+                      value={bookingNote}
+                      onChange={(e) => setBookingNote(e.target.value)}
+                      placeholder="Ej: Llegada estimada a las 18:00, requerimos cuna para bebé o sábanas hipoalergénicas..."
+                      className="w-full text-xs border border-neutral-200 rounded-xl p-2.5 focus:ring-1 focus:ring-teal-500 focus:outline-none h-16 bg-neutral-50/50 focus:bg-white resize-none shadow-xs"
+                    />
+                  </div>
+
+                  {/* Step 2 Actions */}
+                  <div className="pt-2 flex justify-between items-center border-t border-neutral-100">
+                    <button
+                      type="button"
+                      onClick={() => setBookingStep(1)}
+                      className="px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-semibold rounded-xl text-xs transition-colors cursor-pointer flex items-center gap-1.5"
+                    >
+                      <ArrowLeft className="w-3.5 h-3.5" />
+                      <span>Volver a Fechas</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBookingError(null);
+                        setBookingStep(3);
+                      }}
+                      className="px-5 py-2.5 bg-teal-700 hover:bg-teal-800 text-white font-bold rounded-xl text-xs transition-all flex items-center gap-2 shadow-md hover:shadow-lg active:scale-95 cursor-pointer"
+                    >
+                      <span>Continuar a Confirmación</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 3: CONFIRMACIÓN Y PRE-FACTURA */}
+              {bookingStep === 3 && (
+                <div className="bg-white p-5 rounded-2xl border border-neutral-200 shadow-xs space-y-5 animate-fade-in">
+                  <div>
+                    <h4 className="font-bold text-neutral-800 text-base flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-teal-600" />
+                      <span>Resumen y Pre-Factura Electrónica</span>
+                    </h4>
+                    <p className="text-xs text-neutral-500 mt-0.5">
+                      Verifique los detalles de su reservación antes de proceder a la confirmación y pago.
+                    </p>
+                  </div>
+
+                  {bookingSuccess ? (
+                    <div className="bg-emerald-50 border border-emerald-300 text-emerald-800 p-4 rounded-xl flex items-center gap-3 animate-pulse">
+                      <Check className="w-5 h-5 text-emerald-600 shrink-0" />
+                      <div>
+                        <h5 className="font-semibold text-sm">Reserva Procesada Exitosamente</h5>
+                        <p className="text-xs text-emerald-600 mt-0.5">Se redireccionará a su expediente de mis reservaciones.</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <form onSubmit={handleCreateBooking} className="space-y-4">
+                      {/* Summary Badges Grid */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-3.5 bg-neutral-50 rounded-xl border border-neutral-100 text-xs">
+                        <div>
+                          <span className="text-[10px] text-neutral-400 uppercase font-bold block">Habitación</span>
+                          <span className="font-bold text-neutral-800">{bookingRoom.nombre} (#{bookingRoom.numero})</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-neutral-400 uppercase font-bold block">Fechas</span>
+                          <span className="font-mono text-neutral-800 font-semibold">{checkInDate} → {checkOutDate}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-neutral-400 uppercase font-bold block">Estancia</span>
+                          <span className="font-semibold text-teal-800">{getNightsCount()} {getNightsCount() === 1 ? 'noche' : 'noches'}</span>
+                        </div>
+                      </div>
+
+                      {/* Pre-factura Breakdown Box */}
+                      {(() => {
+                        const billing = getBookingTotal(bookingRoom.precio);
+                        if (billing.isAlquiler) {
                           return (
-                            <div className="p-4 bg-teal-50/40 rounded-2xl border border-teal-100 space-y-1.5 text-xs text-neutral-600">
-                              <p className="font-bold text-teal-900 uppercase text-[10px] tracking-wider border-b border-teal-100 pb-1 mb-2">Resumen de Pre-Factura Roomia SaaS</p>
+                            <div className="p-4 bg-amber-50/50 rounded-2xl border border-amber-200/80 space-y-2 text-xs text-neutral-700 font-sans">
+                              <p className="font-bold text-amber-900 uppercase text-[10px] tracking-wider border-b border-amber-200 pb-1 mb-2">Desglose de Contrato de Alquiler</p>
                               <div className="flex justify-between">
-                                <span>Noches de estadía:</span>
-                                <span className="font-semibold">{getNightsCount()} {getNightsCount() > 1 ? 'noches' : 'noche'}</span>
+                                <span>Plazo del Alquiler:</span>
+                                <span className="font-semibold text-neutral-800">{getMonthsCount(checkInDate, checkOutDate).toFixed(1)} meses (mínimo 3)</span>
                               </div>
                               <div className="flex justify-between">
-                                <span>Hospedaje ({bookingRoom.nombre}):</span>
-                                <span className="font-mono">
-                                  ${getBookingSubtotal(bookingRoom.precio).toFixed(2)} USD
-                                </span>
+                                <span>Valor Mensual de Renta:</span>
+                                <span className="font-mono font-semibold text-neutral-800">${billing.mensualidad.toFixed(2)} USD / mes</span>
                               </div>
-                              {bookingRoom.adicionarIva === false && (
-                                <motion.div 
-                                  initial={{ opacity: 0, height: 0, y: -5 }}
-                                  animate={{ opacity: 1, height: 'auto', y: 0 }}
-                                  exit={{ opacity: 0, height: 0, y: -5 }}
-                                  transition={{ duration: 0.25, ease: 'easeOut' }}
-                                  className="text-[10px] overflow-hidden text-neutral-500 pl-3 border-l-2 border-teal-300 bg-teal-50/30 py-1.5 px-2.5 rounded-lg flex flex-col gap-0.5 font-sans"
-                                >
-                                  <div className="flex justify-between font-mono text-[9.5px]">
-                                    <span className="text-neutral-450">Base Gravable (Sin IVA):</span>
-                                    <span>${(getBookingSubtotal(bookingRoom.precio) * 0.84).toFixed(2)} USD</span>
-                                  </div>
-                                  <div className="flex justify-between font-mono text-[9.5px]">
-                                    <span className="text-neutral-450">Impuesto (IVA 16%):</span>
-                                    <span>${(getBookingSubtotal(bookingRoom.precio) * 0.16).toFixed(2)} USD</span>
-                                  </div>
-                                  <div className="flex justify-between font-bold text-teal-800 text-[9.5px] border-t border-teal-100/60 pt-0.5 mt-0.5">
-                                    <span>Total Desglosado:</span>
-                                    <span>${getBookingSubtotal(bookingRoom.precio).toFixed(2)} USD</span>
-                                  </div>
-                                </motion.div>
-                              )}
-                              {bookingRoom && (() => {
-                                const groupedVariations = getGroupedVariableNights(bookingRoom, checkInDate, checkOutDate);
-                                if (groupedVariations.length > 0) {
-                                  return (
-                                    <div className="mt-1 pl-3 border-l-2 border-teal-205 space-y-1 text-[10px] text-neutral-500 bg-teal-50/50 p-2 rounded-xl">
-                                      <p className="font-bold text-teal-800 text-[9px] uppercase tracking-wider">Variación Tarifaria por Fecha/Días:</p>
-                                      {groupedVariations.map((group, idx) => (
-                                        <div key={idx} className="flex justify-between font-mono">
-                                          <span>• ({group.formattedDate}) <span className="bg-white px-1 py-0.5 rounded border border-neutral-100 text-[8px] font-sans font-medium text-teal-700">{group.motivo}</span></span>
-                                          <span className="font-semibold text-teal-850">
-                                            ${group.precio.toFixed(2)} USD
-                                          </span>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  );
-                                }
-                                return (
-                                  <div className="mt-1 pl-3 border-l-2 border-neutral-300/60 bg-neutral-100/40 p-2 rounded-xl text-[10px] text-neutral-400 italic">
-                                    Tarifa estándar uniforme sin variaciones en este período.
-                                  </div>
-                                );
-                              })()}
-                              {getServicesTotal() > 0 && (
+                              <div className="flex justify-between">
+                                <span>Depósito de Garantía (reembolsable):</span>
+                                <span className="font-mono font-semibold text-amber-700">${billing.garantia} USD</span>
+                              </div>
+                              {billing.tax > 0 && (
                                 <div className="flex justify-between">
-                                  <span>Servicios Adicionales:</span>
-                                  <span className="font-mono text-emerald-750">+${getServicesTotal()} USD</span>
+                                  <span>Impuestos (IVA 16% sobre renta):</span>
+                                  <span className="font-mono text-neutral-600">
+                                    ${billing.tax.toFixed(2)} USD 
+                                    {bookingRoom.adicionarIva === false && <span className="text-[9px] text-amber-700 font-bold ml-1 font-sans">(Incluido)</span>}
+                                  </span>
                                 </div>
                               )}
-                              <div className="flex justify-between text-[11px]">
-                                <span>Impuestos (IVA 16%):</span>
-                                {bookingRoom.adicionarIva === false ? (
-                                  <span className="font-mono font-medium text-neutral-500">
-                                    ${billing.tax.toFixed(2)} USD <span className="text-[9px] text-teal-600 font-bold ml-1 font-sans bg-teal-50 px-1 py-0.5 rounded border border-teal-100">(Incluido)</span>
-                                  </span>
-                                ) : (
-                                  <span className="font-mono">${billing.tax.toFixed(2)} USD</span>
-                                )}
-                              </div>
-                              <div className="h-[1px] bg-teal-100/50 my-1.5" />
+                              <div className="h-[1px] bg-amber-200/50 my-1.5" />
                               <div className="flex justify-between font-bold text-neutral-900 text-sm">
-                                <span>Total Estimado:</span>
-                                <span className="font-mono text-teal-800">${billing.total.toFixed(2)} USD</span>
+                                <span>Primer Pago Inicial Total:</span>
+                                <span className="font-mono text-amber-900 text-base font-bold">${billing.total.toFixed(2)} USD</span>
                               </div>
                             </div>
                           );
-                        })()}
+                        }
 
-                        {/* Submit buttons */}
-                        <div className="pt-2 flex gap-3">
-                          <button
-                            type="button"
-                            onClick={() => setBookingRoom(null)}
-                            className="w-1/2 px-4 py-2.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-semibold rounded-xl text-xs transition-colors cursor-pointer text-center"
-                          >
-                            Volver
-                          </button>
-                          <button
-                            type="submit"
-                            className="w-1/2 px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl text-xs transition-all cursor-pointer text-center shadow-md hover:shadow-lg active:scale-95"
-                          >
-                            Confirmar Reserva
-                          </button>
+                        return (
+                          <div className="p-4 bg-teal-50/40 rounded-2xl border border-teal-100 space-y-2 text-xs text-neutral-700">
+                            <p className="font-bold text-teal-900 uppercase text-[10px] tracking-wider border-b border-teal-100 pb-1 mb-2">Resumen de Pre-Factura Roomia SaaS</p>
+                            <div className="flex justify-between">
+                              <span>Hospedaje ({bookingRoom.nombre} × {getNightsCount()} {getNightsCount() > 1 ? 'noches' : 'noche'}):</span>
+                              <span className="font-mono font-semibold">${getBookingSubtotal(bookingRoom.precio).toFixed(2)} USD</span>
+                            </div>
+
+                            {getServicesTotal() > 0 && (
+                              <div className="flex justify-between text-teal-800">
+                                <span>Servicios Adicionales Seleccionados:</span>
+                                <span className="font-mono font-bold">+${getServicesTotal().toFixed(2)} USD</span>
+                              </div>
+                            )}
+
+                            <div className="flex justify-between text-[11px]">
+                              <span>Impuestos (IVA 16%):</span>
+                              {bookingRoom.adicionarIva === false ? (
+                                <span className="font-mono font-medium text-neutral-500">
+                                  ${billing.tax.toFixed(2)} USD <span className="text-[9px] text-teal-700 font-bold ml-1 bg-teal-50 px-1 py-0.5 rounded border border-teal-100">(Incluido)</span>
+                                </span>
+                              ) : (
+                                <span className="font-mono">${billing.tax.toFixed(2)} USD</span>
+                              )}
+                            </div>
+
+                            <div className="h-[1px] bg-teal-100/60 my-1.5" />
+                            <div className="flex justify-between font-bold text-neutral-900 text-base">
+                              <span>Total Estimado a Pagar:</span>
+                              <span className="font-mono text-teal-800 text-lg font-extrabold">${billing.total.toFixed(2)} USD</span>
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                      {bookingNote && (
+                        <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-100 text-xs">
+                          <span className="text-[10px] text-neutral-450 uppercase font-bold block mb-0.5">Notas especiales:</span>
+                          <p className="text-neutral-700 italic">"{bookingNote}"</p>
                         </div>
-                      </>
-                    )}
+                      )}
 
-                  </form>
+                      {/* Guest prompt indicator */}
+                      {activeUser.id === 'guest' && (
+                        <div className="p-3 bg-sky-50 border border-sky-200 rounded-xl text-sky-900 text-xs flex items-center gap-2">
+                          <Info className="w-4 h-4 text-sky-600 shrink-0" />
+                          <span>Al hacer clic en confirmar, se abrirá la ventana para iniciar sesión o registrar su cuenta de huésped.</span>
+                        </div>
+                      )}
+
+                      {/* Step 3 Actions */}
+                      <div className="pt-2 flex justify-between items-center border-t border-neutral-100">
+                        <button
+                          type="button"
+                          onClick={() => setBookingStep(2)}
+                          className="px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-semibold rounded-xl text-xs transition-colors cursor-pointer flex items-center gap-1.5"
+                        >
+                          <ArrowLeft className="w-3.5 h-3.5" />
+                          <span>Modificar Servicios</span>
+                        </button>
+
+                        <button
+                          type="submit"
+                          className="px-6 py-2.5 bg-teal-700 hover:bg-teal-800 text-white font-bold rounded-xl text-xs transition-all cursor-pointer shadow-md hover:shadow-lg active:scale-95 flex items-center gap-2"
+                        >
+                          <Check className="w-4 h-4 stroke-[2.5]" />
+                          <span>Confirmar Reservación</span>
+                        </button>
+                      </div>
+                    </form>
+                  )}
                 </div>
-
-              </div>
+              )}
             </div>
           ) : (
             // HOTEL DETAIL PAGE & AVAILABLE ROOMS
@@ -2127,7 +2382,7 @@ export default function ClientView({
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div>
                       <h4 className="font-semibold text-neutral-850 text-xl font-display">Habitaciones y Suites</h4>
-                      <p className="text-xs text-neutral-400 mt-0.5">Explore alojamientos disponibles y personalice su búsqueda con los filtros avanzados.</p>
+                      <p className="text-xs text-neutral-600 font-medium mt-0.5">Explore alojamientos disponibles y personalice su búsqueda con los filtros avanzados.</p>
                     </div>
                   </div>
 
@@ -2135,8 +2390,9 @@ export default function ClientView({
                   <div className="bg-neutral-50 p-4 rounded-2xl border border-neutral-200 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs font-medium">
                     {/* Filter 1: Sort by Price */}
                     <div className="space-y-1.5 col-span-1">
-                      <span className="text-neutral-500 block font-semibold uppercase tracking-wider text-[10px]">Ordenar por Precio</span>
+                      <span className="text-neutral-700 block font-semibold uppercase tracking-wider text-[10px]">Ordenar por Precio</span>
                       <select
+                        aria-label="Ordenar habitaciones por precio"
                         value={roomSortOrder}
                         onChange={(e) => setRoomSortOrder(e.target.value as 'asc' | 'desc' | '')}
                         className="w-full bg-white border border-neutral-200 rounded-xl p-2 focus:ring-1 focus:ring-teal-500 focus:outline-none cursor-pointer h-[38px] shadow-sm font-semibold text-neutral-800"
@@ -2149,8 +2405,9 @@ export default function ClientView({
 
                     {/* Filter 2: Capacity (Cantidad de personas) */}
                     <div className="space-y-1.5 col-span-1">
-                      <span className="text-neutral-500 block font-semibold uppercase tracking-wider text-[10px]">Cantidad de Personas</span>
+                      <span className="text-neutral-700 block font-semibold uppercase tracking-wider text-[10px]">Cantidad de Personas</span>
                       <select
+                        aria-label="Filtrar habitaciones por cantidad de personas"
                         value={roomCapacity}
                         onChange={(e) => setRoomCapacity(e.target.value)}
                         className="w-full bg-white border border-neutral-200 rounded-xl p-2 focus:ring-1 focus:ring-teal-500 focus:outline-none cursor-pointer h-[38px] shadow-sm font-semibold text-neutral-800"
@@ -2164,8 +2421,9 @@ export default function ClientView({
 
                     {/* Filter 3: Room Type */}
                     <div className="space-y-1.5 col-span-1">
-                      <span className="text-neutral-500 block font-semibold uppercase tracking-wider text-[10px]">Tipo de Suite / Habitación</span>
+                      <span className="text-neutral-700 block font-semibold uppercase tracking-wider text-[10px]">Tipo de Suite / Habitación</span>
                       <select
+                        aria-label="Filtrar por tipo de suite o habitación"
                         value={roomTypeFilter}
                         onChange={(e) => setRoomTypeFilter(e.target.value)}
                         className="w-full bg-white border border-neutral-200 rounded-xl p-2 focus:ring-1 focus:ring-teal-500 focus:outline-none cursor-pointer h-[38px] shadow-sm font-semibold text-neutral-800"
@@ -2513,6 +2771,9 @@ export default function ClientView({
                          res.estado === 'cancelada' ? 'Cancelada' : res.estado}
                       </span>
                     </div>
+
+                    {/* Live 24-hour countdown for pending payment */}
+                    <ReservationCountdown reservation={res} />
 
                     {/* Meta specifics */}
                     <div className="p-5 flex gap-4">
