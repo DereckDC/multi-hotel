@@ -966,20 +966,22 @@ export default function ClientView({
   return (
     <div className="max-w-7xl mx-auto px-4 py-6">
       
-      {/* Search Header Banner */}
-      <div className="bg-gradient-to-r from-teal-800 to-indigo-900 rounded-2xl p-5 md:py-6 md:px-8 text-white shadow-lg mb-6 relative overflow-hidden animate-fade-in">
-        <div className="absolute top-0 right-0 w-48 h-48 bg-white/5 rounded-full blur-2xl transform translate-x-12 -translate-y-12" />
-        <div className="absolute bottom-0 left-0 w-36 h-36 bg-teal-500/10 rounded-full blur-2xl transform -translate-x-12 translate-y-12" />
-        
-        <div className="relative">
-          <h2 className="text-2xl md:text-3xl font-display font-semibold tracking-tight leading-tight">
-            Descubre estadías extraordinarias
-          </h2>
-          <p className="text-teal-100/90 text-xs md:text-sm mt-1.5 leading-relaxed max-w-2xl">
-            Disfrute de una suite de lujo seleccionada a mano, gestione sus reservas vigentes y obtenga sus pre-facturas electrónicas al instante.
-          </p>
+      {/* Search Header Banner - Hidden when viewing or booking a room */}
+      {bookingRoom === null && (
+        <div className="bg-gradient-to-r from-teal-800 to-indigo-900 rounded-2xl p-5 md:py-6 md:px-8 text-white shadow-lg mb-6 relative overflow-hidden animate-fade-in">
+          <div className="absolute top-0 right-0 w-48 h-48 bg-white/5 rounded-full blur-2xl transform translate-x-12 -translate-y-12" />
+          <div className="absolute bottom-0 left-0 w-36 h-36 bg-teal-500/10 rounded-full blur-2xl transform -translate-x-12 translate-y-12" />
+          
+          <div className="relative">
+            <h2 className="text-2xl md:text-3xl font-display font-semibold tracking-tight leading-tight">
+              Descubre estadías extraordinarias
+            </h2>
+            <p className="text-teal-100/90 text-xs md:text-sm mt-1.5 leading-relaxed max-w-2xl">
+              Disfrute de una suite de lujo seleccionada a mano, gestione sus reservas vigentes y obtenga sus pre-facturas electrónicas al instante.
+            </p>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* EXPLORE TABS */}
       {(activeTab === 'explore' || activeTab === 'properties') && (
@@ -1378,32 +1380,26 @@ export default function ClientView({
                 </div>
               </div>
 
+              {/* Galería de imágenes de la habitación en la parte superior (estilo interactivo de hotel) */}
+              <HotelImageGallery 
+                imagenes={bookingRoom.imagenes && bookingRoom.imagenes.length > 0 ? bookingRoom.imagenes : (activeHotel?.imagenes || [])} 
+                portada={bookingRoom.imagenes?.[0] || activeHotel?.portada || ''} 
+                hotelNombre={`${bookingRoom.nombre} • Habitación #${bookingRoom.numero}`} 
+                badgeTitle={`Habitación ${bookingRoom.tipo}`}
+              />
+
               {/* Compact Room Overview Header */}
               <div className="bg-white p-4 rounded-2xl border border-neutral-200 shadow-xs flex flex-col sm:flex-row items-start sm:items-center gap-4 justify-between">
                 <div className="flex items-center gap-3.5 min-w-0">
-                  {bookingRoom.imagenes && bookingRoom.imagenes.length > 0 ? (
-                    <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden bg-neutral-100 shrink-0 border border-neutral-200 shadow-xs">
-                      <img
-                        src={bookingRoom.imagenes[0]}
-                        alt={bookingRoom.nombre}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                  ) : (
-                    <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl bg-teal-50 border border-teal-100 flex items-center justify-center shrink-0 text-teal-700">
-                      <Building2 className="w-8 h-8" />
-                    </div>
-                  )}
-
                   <div className="min-w-0">
                     <h3 className="font-extrabold text-neutral-850 text-base sm:text-lg leading-tight truncate">
                       {bookingRoom.nombre}
                     </h3>
                     <p className="text-xs text-neutral-500 font-medium mt-0.5">
-                      Suite N° {bookingRoom.numero} • Capacidad: {bookingRoom.capacidad} pers • {bookingRoom.camas} {bookingRoom.camas > 1 ? 'camas' : 'cama'}
+                      Suite N° {bookingRoom.numero} • Capacidad: {bookingRoom.capacidad} pers • {bookingRoom.camas} {bookingRoom.camas > 1 ? 'camas' : 'cama'} • {activeHotel?.nombre}
                     </p>
                     {bookingRoom.descripcion && (
-                      <p className="text-[11px] text-neutral-400 line-clamp-1 mt-0.5">
+                      <p className="text-[11px] text-neutral-400 line-clamp-2 mt-0.5">
                         {bookingRoom.descripcion}
                       </p>
                     )}
@@ -2525,16 +2521,21 @@ export default function ClientView({
                             initial={{ opacity: 0, y: 15 }}
                             whileInView={{ opacity: 1, y: 0 }}
                             viewport={{ once: true }}
-                            whileHover={{ y: -3, scale: 1.005 }}
+                            whileHover={isBookable ? { y: -3, scale: 1.005 } : {}}
                             transition={{ duration: 0.3 }}
+                            onClick={() => {
+                              if (isBookable) {
+                                setBookingRoom(room);
+                              }
+                            }}
                             className={`bg-white rounded-2xl p-4 border transition-all flex flex-col md:flex-row gap-6 ${
                               isBookable
-                                ? 'border-neutral-200 hover:shadow-md hover:border-teal-300'
-                                : 'border-neutral-100 opacity-65'
+                                ? 'border-neutral-200 hover:shadow-md hover:border-teal-400 cursor-pointer group'
+                                : 'border-neutral-100 opacity-65 cursor-not-allowed'
                             }`}
                           >
                             {/* Animated Photo Gallery Thumbnail */}
-                            <RoomImageGallery imagenes={room.imagenes} roomNombre={room.nombre} />
+                            <RoomImageGallery imagenes={room.imagenes} roomNombre={room.nombre} disableLightbox={true} />
 
                             {/* Middle detail content */}
                             <div className="flex-1 flex flex-col justify-between">
@@ -2555,7 +2556,7 @@ export default function ClientView({
                                   )}
                                 </div>
 
-                                <h5 className="font-semibold text-neutral-800 text-base mb-1">{room.nombre}</h5>
+                                <h5 className="font-semibold text-neutral-800 group-hover:text-teal-700 transition-colors text-base mb-1">{room.nombre}</h5>
                                 <p className="text-xs text-neutral-500 leading-normal line-clamp-2 md:max-w-xl">{room.descripcion}</p>
                               </div>
 
@@ -2578,10 +2579,15 @@ export default function ClientView({
 
                               {isBookable ? (
                                 <button
-                                  onClick={() => setBookingRoom(room)}
-                                  className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-medium text-xs rounded-xl transition-all cursor-pointer shadow-sm hover:shadow active:scale-95"
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setBookingRoom(room);
+                                  }}
+                                  className="px-4 py-2 bg-teal-600 hover:bg-teal-700 group-hover:bg-teal-700 text-white font-medium text-xs rounded-xl transition-all cursor-pointer shadow-sm hover:shadow active:scale-95 flex items-center gap-1.5"
                                 >
-                                  Reservar Ahora
+                                  <span>Reservar Ahora</span>
+                                  <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
                                 </button>
                               ) : (
                                 <button

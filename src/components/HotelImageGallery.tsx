@@ -8,9 +8,10 @@ interface HotelImageGalleryProps {
   imagenes: string[];
   portada: string;
   hotelNombre: string;
+  badgeTitle?: string;
 }
 
-export function HotelImageGallery({ imagenes, portada, hotelNombre }: HotelImageGalleryProps) {
+export function HotelImageGallery({ imagenes, portada, hotelNombre, badgeTitle }: HotelImageGalleryProps) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const [direction, setDirection] = useState(0); // -1 for left, 1 for right
@@ -105,7 +106,7 @@ export function HotelImageGallery({ imagenes, portada, hotelNombre }: HotelImage
           <div className="space-y-1 text-white">
             <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-teal-500/90 text-[9px] font-bold uppercase tracking-wider border border-white/10 shadow-sm">
               <ImageIcon className="w-3 h-3" />
-              <span>Galería Roomia</span>
+              <span>{badgeTitle || 'Galería Roomia'}</span>
             </div>
             <h3 className="text-xl md:text-3xl font-display font-semibold tracking-tight leading-tight text-white drop-shadow-sm">
               {hotelNombre}

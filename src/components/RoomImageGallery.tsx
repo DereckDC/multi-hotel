@@ -109,9 +109,10 @@ interface RoomImageGalleryProps {
   imagenes: string[];
   roomNombre: string;
   className?: string;
+  disableLightbox?: boolean;
 }
 
-export function RoomImageGallery({ imagenes, roomNombre, className }: RoomImageGalleryProps) {
+export function RoomImageGallery({ imagenes, roomNombre, className, disableLightbox = false }: RoomImageGalleryProps) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
@@ -146,7 +147,11 @@ export function RoomImageGallery({ imagenes, roomNombre, className }: RoomImageG
         className={wrapperClass}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        onClick={() => setIsLightboxOpen(true)}
+        onClick={() => {
+          if (!disableLightbox) {
+            setIsLightboxOpen(true);
+          }
+        }}
       >
         {/* Animated Slide Content */}
         <div className="absolute inset-0 w-full h-full">
@@ -198,9 +203,11 @@ export function RoomImageGallery({ imagenes, roomNombre, className }: RoomImageG
         </div>
 
         {/* Hover Eye indicator to expand */}
-        <div className="absolute top-2 right-2 bg-neutral-900/75 text-white hover:bg-neutral-900 duration-200 p-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity border border-white/10 z-15">
-          <Maximize2 className="w-3 h-3" />
-        </div>
+        {!disableLightbox && (
+          <div className="absolute top-2 right-2 bg-neutral-900/75 text-white hover:bg-neutral-900 duration-200 p-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity border border-white/10 z-15">
+            <Maximize2 className="w-3 h-3" />
+          </div>
+        )}
 
         {/* Floating Indicator Dots */}
         {displayImages.length > 1 && (
