@@ -74,7 +74,7 @@ async function startServer() {
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com https://cdn.jsdelivr.net",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-      "img-src 'self' data: blob: https: http:",
+      "img-src 'self' data: blob: https://*.supabase.co https://images.unsplash.com https://maps.googleapis.com https://maps.gstatic.com https://lh3.googleusercontent.com https://www.roomiapms.site",
       "font-src 'self' https://fonts.gstatic.com data:",
       "connect-src 'self' https: wss: ws: http:",
       "frame-src 'self' https://maps.google.com https://www.google.com https://*.google.com https://ppls.me https://*.payphone.app",
@@ -166,11 +166,42 @@ async function startServer() {
     next();
   });
 
+  // In-memory sliding window Rate Limiter for email dispatches (5 req / 15 min per IP)
+  const emailRateLimitMap = new Map<string, { count: number; resetTime: number }>();
+
+  function isEmailRateLimited(ip: string): boolean {
+    const now = Date.now();
+    const windowMs = 15 * 60 * 1000;
+    const maxAllowed = 5;
+
+    const record = emailRateLimitMap.get(ip);
+    if (!record || now > record.resetTime) {
+      emailRateLimitMap.set(ip, { count: 1, resetTime: now + windowMs });
+      return false;
+    }
+
+    if (record.count >= maxAllowed) {
+      return true;
+    }
+
+    record.count += 1;
+    return false;
+  }
+
   // API Route for sending real emails via SMTP
   app.post("/api/send-email", async (req, res) => {
     try {
+      const clientIp = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || "127.0.0.1";
+
+      if (isEmailRateLimited(clientIp)) {
+        console.warn(`[SECURITY WARN] Rate limit de envío de correo alcanzado para IP: ${clientIp}`);
+        return res.status(429).json({
+          error: "Límite de solicitudes de correo alcanzado. Por seguridad, máximo 5 envíos cada 15 minutos por dirección IP."
+        });
+      }
+
       const { to, subject, html, text } = req.body;
-      if (!to || !subject) {
+      if (!to || (!subject && !text && !html)) {
         return res.status(400).json({ error: "Faltan datos obligatorios (destinatario, asunto)" });
       }
 

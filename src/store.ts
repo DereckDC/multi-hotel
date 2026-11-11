@@ -999,12 +999,10 @@ A partir de este momento, podrá gestionar sus reservaciones, realizar Check-In 
 Detalles del Perfil:
 • Cliente: ${user.nombre} ${user.apellido}
 • Correo de Acceso: ${user.email}
-${user.password ? `• Contraseña Temporal de Acceso: ${user.password}\n` : ''}• Teléfono: ${user.telefono || 'No especificado'}
+• Teléfono: ${user.telefono || 'No especificado'}
 • Documento de Identidad: ${user.documento || 'No especificado'}
 • Fecha de Registro: ${user.fechaRegistro}
 • Estado: Activo
-
-${user.debeCambiarPassword ? `Por favor, diríjase a ${window.location.origin} para iniciar sesión con su correo electrónico y su contraseña temporal, luego proceda de inmediato con la renovación de su contraseña.` : ''}
 
 Agradecemos su confianza y le aseguramos que cada una de sus estadías será memorable.
 
@@ -1021,14 +1019,6 @@ El Equipo de Hospitalidad de Roomia PMS.`;
         <div style="padding: 24px 0; line-height: 1.6;">
           <h2 style="color: #0f172a; font-size: 18px; margin-top: 0;">¡Hola, ${user.nombre} ${user.apellido}!</h2>
           <p>Le damos una cálida bienvenida a <strong>Roomia PMS</strong>. Su cuenta ha sido creada exitosamente en nuestra plataforma.</p>
-          
-          ${user.debeCambiarPassword ? `
-          <div style="background-color: #fef2f2; border-left: 4px solid #ef4444; padding: 14px 16px; border-radius: 6px; margin: 20px 0;">
-            <p style="margin: 0; color: #991b1b; font-weight: 700; font-size: 13px;">⚠️ ACCIÓN REQUERIDA - CLAVE TEMPORAL</p>
-            <p style="margin: 6px 0 0 0; color: #7f1d1d; font-size: 13px;">Su contraseña temporal es: <strong style="background-color: #fee2e2; padding: 2px 8px; border-radius: 4px; font-family: monospace;">${user.password}</strong></p>
-            <p style="margin: 6px 0 0 0; color: #991b1b; font-size: 12px;">Al iniciar sesión por primera vez se le solicitará cambiar su clave por motivos de seguridad.</p>
-          </div>
-          ` : ''}
 
           <div style="background-color: #f8fafc; border-radius: 8px; padding: 16px; margin: 20px 0;">
             <h3 style="margin-top: 0; font-size: 14px; color: #334155; text-transform: uppercase; letter-spacing: 0.5px;">Detalles de la Cuenta</h3>
@@ -1533,9 +1523,12 @@ El Equipo de Hospitalidad de Roomia PMS.`;
     const emailBody = `Estimado/a ${targetUser.nombre} ${targetUser.apellido},
 
 Le informamos que su contraseña de acceso para Roomia PMS ha sido actualizada exitosamente.
+
 ${changedByAdmin 
-  ? `Su contraseña ha sido restablecida por el personal de administración.\n\nSu nueva contraseña de acceso es: \n👉  ${newPass}  👈\n\nPor favor, guarde esta información de manera confidencial y proceda a ingresar al sistema.` 
-  : `La modificación se realizó de forma conforme desde su propio perfil de usuario.\n\nContraseña actualizada: ${newPass}\n\nSi usted no realizó esta acción, por favor comuníquese de inmediato con recepción para proteger su cuenta.`}
+  ? `Su contraseña ha sido restablecida por el personal de administración. Por motivos de ciberseguridad no enviamos contraseñas en texto plano.` 
+  : `La modificación se realizó de forma conforme desde su propio perfil de usuario.`}
+
+Si usted no solicitó ni realizó este cambio, por favor comuníquese de inmediato con recepción o soporte para proteger su cuenta.
 
 Atentamente,
 El Equipo de Hospitalidad de Roomia PMS.`;
