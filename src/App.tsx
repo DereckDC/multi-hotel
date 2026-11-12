@@ -145,6 +145,32 @@ export default function App() {
 
   // Listen to Supabase auth state changes to synchronize active user session and isLoggedOut status
   useEffect(() => {
+    // Una cuenta de Supabase Auth (id con formato UUID) sin sesión válida ya no puede
+    // leer ni guardar datos: en vez de dejarla "conectada" con la pantalla vacía, se
+    // cierra la sesión y se pide volver a entrar. No actúa sin conexión ni ante fallos
+    // de red, para no expulsar a nadie por un corte momentáneo.
+    const closeSessionIfExpired = async (savedId: string) => {
+      const isAuthAccount = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(savedId);
+      if (!isAuthAccount) return;
+      if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        if (data?.session) return;
+        const status = (error as any)?.status;
+        if (error && (error.name === 'AuthRetryableFetchError' || status === 0 || (typeof status === 'number' && status >= 500))) {
+          return;
+        }
+      } catch {
+        return;
+      }
+      localStorage.removeItem('aura_hotel_pms_current_user_id');
+      switchSessionUserRef.current('');
+      setIsLoggedOut(true);
+      window.dispatchEvent(new CustomEvent('aura-toast', {
+        detail: { message: '🔒 Tu sesión expiró. Inicia sesión nuevamente para continuar.' }
+      }));
+    };
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log(`🔑 Supabase Auth Event: ${event}`);
       if (session?.user) {
@@ -166,6 +192,10 @@ export default function App() {
             if (parsed) {
               switchSessionUserRef.current(parsed);
               setIsLoggedOut(false);
+              if (event === 'INITIAL_SESSION' && typeof parsed === 'string') {
+                // Fuera del callback: Supabase desaconseja llamar a su API dentro de él
+                setTimeout(() => { closeSessionIfExpired(parsed); }, 0);
+              }
             } else {
               setIsLoggedOut(true);
             }
@@ -522,7 +552,7 @@ export default function App() {
 
   const handleProfileSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    updateUserProfile(activeUser.id, {
+    await updateUserProfile(activeUser.id, {
       nombre: profileNombre,
       apellido: profileApellido,
       telefono: profileTelefono,

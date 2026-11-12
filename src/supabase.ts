@@ -293,6 +293,14 @@ export function mapReservationFromDb(db: any): Reservation {
   let montoPendiente: number | undefined;
   let cleanNotes = rawNotes;
 
+  let createdAtIso: string | undefined;
+  if (db.created_at) {
+    const parsedCreated = new Date(db.created_at);
+    if (!isNaN(parsedCreated.getTime())) {
+      createdAtIso = parsedCreated.toISOString();
+    }
+  }
+
   const paymentMatch = rawNotes.match(/\[PAYMENT_INFO:(.*?)\]/);
   if (paymentMatch) {
     try {
@@ -330,9 +338,68 @@ export function mapReservationFromDb(db: any): Reservation {
     montoPagado,
     montoPendiente,
     cambiadoPorId: db.cambiadoporid !== undefined ? db.cambiadoporid : (db.cambiadoPorId || undefined),
-    fechaRegistro: db.fecharegistro !== undefined ? db.fecharegistro : (db.fechaRegistro || new Date().toISOString().split('T')[0]),
+    // La tabla no tiene columna "fecharegistro": la fecha real de creación es created_at.
+    // Sin esto, cada recarga hacía parecer que la reserva se creó hoy y el límite de
+    // 24 h para pagar no llegaba a cumplirse nunca.
+    fechaRegistro: db.fecharegistro !== undefined
+      ? db.fecharegistro
+      : (db.fechaRegistro || (createdAtIso ? createdAtIso.split('T')[0] : new Date().toISOString().split('T')[0])),
+    fechaRegistroTimestamp: db.fechaRegistroTimestamp || createdAtIso,
     reservationType: db.reservation_type || 'hospedaje'
   } as any;
+}
+
+/**
+ * Rangos ocupados por reservas de OTROS huéspedes (sin datos personales).
+ * Se obtienen de la función get_busy_ranges() y se devuelven con forma de Reservation
+ * para que los calendarios y la validación de solapamiento los traten igual que una reserva.
+ * Devuelve null si la función aún no existe en la base de datos o no hay red.
+ */
+export const BUSY_PLACEHOLDER_GUEST_ID = '__ocupado__';
+
+export async function fetchBusyRanges(): Promise<Reservation[] | null> {
+  try {
+    const { data, error } = await supabase.rpc('get_busy_ranges');
+    if (error || !Array.isArray(data)) {
+      return null;
+    }
+    return data
+      .filter((row: any) => row && row.fecha_entrada && row.fecha_salida)
+      .map((row: any, idx: number): Reservation => ({
+        id: `busy-${row.room_id || row.hotel_id}-${row.fecha_entrada}-${row.fecha_salida}-${idx}`,
+        hotelId: row.hotel_id || '',
+        roomId: row.room_id || null,
+        guestId: BUSY_PLACEHOLDER_GUEST_ID,
+        fechaEntrada: row.fecha_entrada,
+        fechaSalida: row.fecha_salida,
+        serviciosAdicionales: [],
+        subtotal: 0,
+        impuestos: 0,
+        total: 0,
+        qrCode: '',
+        // Siempre "confirmada": son marcadores de ocupación, no reservas gestionables
+        estado: 'confirmada',
+        fechaRegistro: row.fecha_entrada
+      }));
+  } catch (err) {
+    return null;
+  }
+}
+
+/**
+ * Indica si un correo ya tiene cuenta, sin leer la tabla de usuarios.
+ * Devuelve null si no se pudo comprobar (función inexistente o sin red).
+ */
+export async function isEmailRegistered(email: string): Promise<boolean | null> {
+  try {
+    const { data, error } = await supabase.rpc('is_email_registered', { p_email: email });
+    if (error || typeof data !== 'boolean') {
+      return null;
+    }
+    return data;
+  } catch (err) {
+    return null;
+  }
 }
 
 
@@ -546,7 +613,7 @@ export async function syncUserToSupabase(user: User): Promise<{ success: boolean
 /**
  * Uploads/Syncs a single reservation to Supabase
  */
-export async function syncReservationToSupabase(res: Reservation): Promise<{ success: boolean; error?: string }> {
+export async function syncReservationToSupabase(res: Reservation): Promise<{ success: boolean; error?: string; overlap?: boolean }> {
   try {
     const { error } = await supabase
       .from('reservations')
@@ -554,7 +621,9 @@ export async function syncReservationToSupabase(res: Reservation): Promise<{ suc
 
     if (error) {
       console.warn('Supabase syncReservation error:', error);
-      return { success: false, error: error.message };
+      // La base de datos rechaza reservas que se solapan con otra activa de la misma habitación
+      const overlap = error.code === '23P01' || (error.message || '').includes('RESERVA_SOLAPADA');
+      return { success: false, error: error.message, overlap };
     }
     return { success: true };
   } catch (err: any) {
@@ -567,9 +636,12 @@ export async function syncReservationToSupabase(res: Reservation): Promise<{ suc
  */
 export async function syncLogToSupabase(log: ActivityLog): Promise<{ success: boolean; error?: string }> {
   try {
+    // insert (no upsert): un upsert exige además permiso de lectura sobre la fila, y los
+    // logs solo los pueden leer los administradores. Con insert, huéspedes y recepción
+    // siguen registrando actividad aunque no puedan consultarla.
     const { error } = await supabase
       .from('logs')
-      .upsert({
+      .insert({
         id: log.id,
         timestamp: log.timestamp,
         user: log.user,
@@ -579,6 +651,9 @@ export async function syncLogToSupabase(log: ActivityLog): Promise<{ success: bo
       });
 
     if (error) {
+      if (error.code === '23505') {
+        return { success: true }; // el log ya estaba guardado
+      }
       if (error.code !== '42501') {
         console.warn('Supabase syncLog error:', error);
       }

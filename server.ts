@@ -5,6 +5,7 @@ import { Server as SocketIOServer } from "socket.io";
 import { createServer as createViteServer } from "vite";
 import nodemailer from "nodemailer";
 import dotenv from "dotenv";
+import { validateEmailRequest, buildFallbackHtml } from "./emailGuard";
 
 dotenv.config();
 
@@ -93,8 +94,9 @@ async function startServer() {
     next();
   });
 
-  // Use JSON middleware to parse requests
-  app.use(express.json());
+  // Use JSON middleware to parse requests.
+  // 1mb: margen para los correos HTML de reserva (el límite por defecto es 100kb).
+  app.use(express.json({ limit: "1mb" }));
 
   // Static endpoints for SEO, Crawlers, and AI Agents to avoid SPA fallback HTML
   const publicDir = path.join(process.cwd(), "public");
@@ -200,16 +202,25 @@ async function startServer() {
         });
       }
 
-      const { to, subject, html, text } = req.body;
-      if (!to || (!subject && !text && !html)) {
-        return res.status(400).json({ error: "Faltan datos obligatorios (destinatario, asunto)" });
+      // Un único destinatario válido, tamaños acotados y asunto sin saltos de línea
+      const validated = validateEmailRequest(req.body);
+      if (validated.ok === false) {
+        return res.status(400).json({ error: validated.error });
       }
+      const { to, subject, html, text } = validated;
 
       const smtpHost = process.env.SMTP_HOST || "smtp.gmail.com";
       const smtpPort = parseInt(process.env.SMTP_PORT || "587");
       const smtpUser = process.env.SMTP_USER || "";
       const smtpPass = process.env.SMTP_PASS || "";
       const smtpFrom = process.env.SMTP_FROM || `Roomia PMS <${smtpUser || "noreply@roomia.com"}>`;
+
+      // Modo de pruebas: con EMAIL_DRY_RUN=true no se envía ningún correo real, solo se
+      // registra en consola. Sirve para probar reservas sin escribir a hoteles ni huéspedes.
+      if (process.env.EMAIL_DRY_RUN === "true") {
+        console.log(`[EMAIL DRY RUN] To: ${to} | Subject: ${subject}`);
+        return res.json({ success: true, simulated: true, message: "EMAIL_DRY_RUN activo: correo no enviado." });
+      }
 
       // Self-healing / graceful logging if SMTP is missing
       if (!smtpUser || !smtpPass) {
@@ -241,14 +252,9 @@ async function startServer() {
         to,
         subject,
         text,
-        html: html || (text ? `
-          <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px; color: #1e293b;">
-            <h2 style="color: #0f172a; margin-bottom: 16px; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px;">Roomia PMS</h2>
-            <div style="line-height: 1.6; white-space: pre-wrap;">${text}</div>
-            <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
-            <p style="font-size: 12px; color: #64748b;">Este correo fue generado automáticamente por Roomia PMS Server.</p>
-          </div>
-        ` : undefined)
+        html: html || (text
+          ? buildFallbackHtml(text, "Este correo fue generado automáticamente por Roomia PMS Server.")
+          : undefined)
       });
 
       console.log(`[SMTP MAIL SENT] Mail dispatched successfully to: ${to} | Msg ID: ${info.messageId}`);

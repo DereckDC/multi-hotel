@@ -22,7 +22,7 @@ interface ReceptionViewProps {
   onUpdateRoomStatus: (roomId: string, status: RoomStatus) => void;
   users: User[];
   onAddLog: (action: string, details: string) => void;
-  onCreateReservation?: (newRes: Reservation) => void;
+  onCreateReservation?: (newRes: Reservation) => void | Promise<boolean | void>;
   onRegisterUser?: (newUser: User) => Promise<any> | void;
   onUpdateReservationStatus?: (
     resId: string,
@@ -493,8 +493,12 @@ export default function ReceptionView({
     };
 
     if (onCreateReservation) {
-      await onCreateReservation(newRes);
-      
+      const created = await onCreateReservation(newRes);
+      if (created === false) {
+        alert('❌ Error: La habitación acaba de ser reservada en las fechas seleccionadas. Elige otro rango de fechas.');
+        return;
+      }
+
       if (bookStatus === 'ocupada') {
         onUpdateRoomStatus(bookRoomId, 'ocupado');
       }

@@ -128,7 +128,7 @@ interface ClientViewProps {
   reservations: Reservation[];
   users?: User[];
   activeUser: User;
-  onCreateReservation: (res: Reservation) => void;
+  onCreateReservation: (res: Reservation) => void | Promise<boolean | void>;
   onCancelReservation: (resId: string) => void;
   onDeleteReservation?: (resId: string) => void;
   transactions?: any[];
@@ -774,7 +774,7 @@ export default function ClientView({
     }
   };
 
-  const handleCreateBooking = (e: React.FormEvent) => {
+  const handleCreateBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!bookingRoom) return;
 
@@ -880,8 +880,14 @@ export default function ClientView({
       notas: bookingNote
     };
 
-    // Registrar reservación como pendiente de pago
-    onCreateReservation(newRes);
+    // Registrar reservación como pendiente de pago.
+    // La base de datos tiene la última palabra: si alguien reservó esas fechas un
+    // instante antes, devuelve false y no se continúa al pago.
+    const created = await onCreateReservation(newRes);
+    if (created === false) {
+      setBookingError("La habitación acaba de ser reservada por otra persona en las fechas seleccionadas. Por favor elija un rango de fechas diferente.");
+      return;
+    }
 
     // Abrir ventana con instrucciones de pago
     setSelectedResForPayment(newRes);

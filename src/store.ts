@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { getSocket } from './services/socket';
 import { sortMessagesChronologically } from './utils/chatUtils';
 import { Hotel, Room, User, Reservation, RoomStatus, ReservationStatus, UserRole, ChatMessage, PaymentTransaction, Review, RoomPriceVariation } from './types';
@@ -32,7 +32,8 @@ import {
   syncReviewToSupabase,
   mapRoomPriceVariationFromDb,
   syncRoomPriceVariationToSupabase,
-  deleteRoomPriceVariationFromSupabase
+  deleteRoomPriceVariationFromSupabase,
+  fetchBusyRanges
 } from './supabase';
 
 // Safe standard local storage storage key constants
@@ -620,6 +621,55 @@ export function useHotelStore() {
   const activeUser = currentUserId
     ? (users && users.find(u => u && u.id === currentUserId)) || null
     : null;
+
+  // --- DISPONIBILIDAD DE TERCEROS (sin datos personales) ---
+  // El personal ve todas las reservas. Un huésped o un visitante solo puede leer las
+  // suyas, así que la ocupación del resto llega como rangos anónimos desde
+  // get_busy_ranges() y se añade a la lista que usan los calendarios y la validación.
+  const isStaffSession = !!activeUser && activeUser.rol !== 'cliente';
+  const [busyRanges, setBusyRanges] = useState<Reservation[]>([]);
+
+  useEffect(() => {
+    if (isStaffSession) {
+      setBusyRanges([]);
+      return;
+    }
+
+    let cancelled = false;
+    const loadBusyRanges = async () => {
+      const ranges = await fetchBusyRanges();
+      if (!cancelled && ranges) {
+        setBusyRanges(ranges);
+      }
+    };
+
+    loadBusyRanges();
+    const busyInterval = setInterval(() => {
+      if (typeof document === 'undefined' || document.visibilityState === 'visible') {
+        loadBusyRanges();
+      }
+    }, 60000);
+    const onRefreshRequested = () => { loadBusyRanges(); };
+    window.addEventListener('roomia-refresh-busy', onRefreshRequested);
+
+    return () => {
+      cancelled = true;
+      clearInterval(busyInterval);
+      window.removeEventListener('roomia-refresh-busy', onRefreshRequested);
+    };
+  }, [currentUserId, isStaffSession]);
+
+  const reservationsWithBusy = useMemo(() => {
+    if (isStaffSession || busyRanges.length === 0) return reservations;
+    const rangeKey = (r: Reservation) => `${r.roomId || ''}|${r.hotelId}|${r.fechaEntrada}|${r.fechaSalida}`;
+    const alreadyKnown = new Set(
+      reservations
+        .filter(r => r.estado !== 'cancelada' && r.estado !== 'finalizada')
+        .map(rangeKey)
+    );
+    const extra = busyRanges.filter(b => !alreadyKnown.has(rangeKey(b)));
+    return extra.length > 0 ? [...reservations, ...extra] : reservations;
+  }, [reservations, busyRanges, isStaffSession]);
 
   const addLog = async (user: string, role: string, action: string, detalles: string) => {
     const newLog: ActivityLog = {
@@ -1358,11 +1408,15 @@ El Equipo de Hospitalidad de Roomia PMS.`;
   };
 
   // --- FLOW RESERVATIONS ---
-  const createReservation = async (newRes: Reservation) => {
+  const createReservation = async (newRes: Reservation): Promise<boolean> => {
     const resToSave: Reservation = {
       ...newRes,
       fechaRegistroTimestamp: newRes.fechaRegistroTimestamp || new Date().toISOString()
     };
+
+    // Estado previo, por si la base de datos rechaza la reserva por solapamiento
+    const previousRes = reservations.find(r => r.id === resToSave.id);
+    const previousRoomStatus = rooms.find(r => r.id === resToSave.roomId)?.estado;
 
     setReservations(prev => {
       const exists = prev.some(r => r.id === resToSave.id);
@@ -1374,7 +1428,25 @@ El Equipo de Hospitalidad de Roomia PMS.`;
     setRooms(prev => prev.map(r => r.id === resToSave.roomId ? { ...r, estado: 'reservado' } : r));
 
     try {
-      await syncReservationToSupabase(resToSave);
+      const syncResult = await syncReservationToSupabase(resToSave);
+
+      if (!syncResult.success && syncResult.overlap) {
+        // Otra persona reservó esas fechas primero: se deshace el cambio local y se avisa
+        setReservations(prev => previousRes
+          ? prev.map(r => r.id === resToSave.id ? previousRes : r)
+          : prev.filter(r => r.id !== resToSave.id));
+        if (previousRoomStatus) {
+          setRooms(prev => prev.map(r => r.id === resToSave.roomId ? { ...r, estado: previousRoomStatus } : r));
+        }
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('aura-toast', {
+            detail: { message: '❌ La habitación acaba de ser reservada por otra persona en esas fechas. Elige un rango diferente.' }
+          }));
+          window.dispatchEvent(new Event('roomia-refresh-busy'));
+        }
+        return false;
+      }
+
       const matchedRoom = rooms.find(r => r.id === resToSave.roomId);
       if (matchedRoom) {
         await syncRoomToSupabase({ ...matchedRoom, estado: 'reservado' });
@@ -1385,7 +1457,19 @@ El Equipo de Hospitalidad de Roomia PMS.`;
 
     const parentHotel = hotels.find(h => h.id === newRes.hotelId);
     const room = rooms.find(r => r.id === newRes.roomId);
-    const guestUser = users.find(u => u.id === newRes.guestId);
+    let guestUser = users.find(u => u.id === newRes.guestId);
+    if (!guestUser && newRes.guestId) {
+      // Un huésped recién registrado en recepción todavía no está en la lista en memoria.
+      // Sin esto, su correo de confirmación se enviaba al recepcionista en vez de a él.
+      try {
+        const { data: guestRow } = await supabase.from('users').select('*').eq('id', newRes.guestId).maybeSingle();
+        if (guestRow) {
+          guestUser = mapUserFromDb(guestRow);
+        }
+      } catch (guestErr) {
+        console.warn("No se pudo cargar el huésped de la reserva:", guestErr);
+      }
+    }
 
     addLog(
       `${activeUser.nombre} ${activeUser.apellido}`,
@@ -1405,6 +1489,8 @@ El Equipo de Hospitalidad de Roomia PMS.`;
     if (!oldResVal && newRes.estado === 'pendiente') {
       sendPendingReservationAdminNotification(newRes, parentHotel, room, guestUser);
     }
+
+    return true;
   };
 
   const cancelReservation = async (resId: string) => {
@@ -1459,9 +1545,66 @@ El Equipo de Hospitalidad de Roomia PMS.`;
     );
   };
 
-  const updateUserProfile = async (userId: string, updatedData: Partial<User>) => {
-    setUsers(prev => prev.map(u => u.id === userId ? { ...u, ...updatedData } : u));
+  const updateUserProfile = async (userId: string, incomingData: Partial<User>) => {
     const targetUser = users.find(u => u.id === userId);
+    const updatedData: Partial<User> = { ...incomingData };
+
+    // --- CAMBIO DE CORREO ---
+    // El correo con el que se inicia sesión vive en Supabase Auth, no en la tabla users.
+    // Antes solo se cambiaba en la tabla, y la persona ya no podía entrar con el correo
+    // nuevo. Ahora el cambio se pide a Supabase Auth y la tabla solo se actualiza cuando
+    // Auth lo ha aceptado.
+    const notify = (message: string) => {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('aura-toast', { detail: { message } }));
+      }
+    };
+    const requestedEmail = typeof incomingData.email === 'string' ? incomingData.email.trim().toLowerCase() : '';
+    const currentEmail = (targetUser?.email || '').trim().toLowerCase();
+
+    if (targetUser && requestedEmail && requestedEmail !== currentEmail) {
+      if (userId !== currentUserId) {
+        // El correo de acceso de otra persona no se puede cambiar desde el navegador
+        updatedData.email = targetUser.email;
+        notify('⚠️ El correo de acceso solo puede cambiarlo el propio usuario desde su perfil.');
+      } else {
+        let hasAuthSession = false;
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          hasAuthSession = !!session;
+        } catch (sessionErr) {
+          hasAuthSession = false;
+        }
+
+        if (hasAuthSession) {
+          try {
+            const { data, error } = await supabase.auth.updateUser({ email: requestedEmail });
+            if (error) {
+              updatedData.email = targetUser.email;
+              const alreadyUsed = /already|registered|exists/i.test(error.message || '');
+              notify(alreadyUsed
+                ? '❌ Ese correo ya pertenece a otra cuenta. Tu correo no se ha cambiado.'
+                : `❌ No se pudo cambiar el correo: ${error.message}`);
+            } else if ((data?.user?.email || '').toLowerCase() === requestedEmail) {
+              // Cambio inmediato (el proyecto no exige confirmar el correo)
+              updatedData.email = requestedEmail;
+              notify('✅ Correo actualizado. Usa el nuevo correo para iniciar sesión.');
+            } else {
+              // Supabase envió un enlace de confirmación: hasta confirmarlo sigue valiendo el anterior
+              updatedData.email = targetUser.email;
+              notify(`📧 Te enviamos un enlace de confirmación a ${requestedEmail}. Hasta que lo confirmes, sigue entrando con ${targetUser.email}.`);
+            }
+          } catch (emailErr: any) {
+            updatedData.email = targetUser.email;
+            notify(`❌ No se pudo cambiar el correo: ${emailErr?.message || 'error de conexión'}`);
+          }
+        } else {
+          updatedData.email = requestedEmail;
+        }
+      }
+    }
+
+    setUsers(prev => prev.map(u => u.id === userId ? { ...u, ...updatedData } : u));
 
     if (targetUser) {
       try {
@@ -2208,7 +2351,7 @@ El Equipo de Hospitalidad de Roomia PMS.`;
     hotels,
     rooms,
     users,
-    reservations,
+    reservations: reservationsWithBusy,
     logs,
     messages,
     transactions,

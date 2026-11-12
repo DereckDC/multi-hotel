@@ -7,7 +7,7 @@ import React, { useState } from 'react';
 import { User } from '../types';
 import { Mail, Sparkles, Check, Chrome, ShieldAlert, KeyRound, Loader2, ArrowRight, Inbox, RefreshCw, LogOut, Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { supabase, syncUserToSupabase, mapUserFromDb } from '../supabase';
+import { supabase, syncUserToSupabase, mapUserFromDb, isEmailRegistered } from '../supabase';
 import { getApiBaseUrl } from '../store';
 import { BrandLogo } from './BrandLogo';
 
@@ -239,7 +239,12 @@ export default function LoginView({
     }
 
     const emailLower = trimmedEmail.toLowerCase();
-    const emailExists = users.some(u => u && u.email && u.email.toLowerCase() === emailLower);
+    let emailExists = users.some(u => u && u.email && u.email.toLowerCase() === emailLower);
+    if (!emailExists) {
+      // Sin sesión no se puede leer la tabla de usuarios: se consulta al servidor,
+      // que solo responde si el correo existe o no.
+      emailExists = (await isEmailRegistered(emailLower)) === true;
+    }
     if (emailExists) {
       setErrorMsg('Este correo electrónico ya está registrado en nuestro portal. Por favor, inicia sesión o recupera tu contraseña.');
       return;
