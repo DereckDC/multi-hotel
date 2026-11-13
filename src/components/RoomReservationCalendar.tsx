@@ -1,29 +1,29 @@
 import React, { useState, useMemo } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { 
-  Calendar as CalendarIcon, 
-  ChevronLeft, 
-  ChevronRight, 
-  User, 
-  Clock, 
-  Building2, 
-  Sparkles, 
-  Filter, 
-  CheckCircle2, 
-  XCircle, 
-  AlertCircle, 
-  Phone, 
-  Mail, 
-  FileText, 
-  Check, 
-  Users, 
-  BedDouble, 
-  TrendingUp, 
+import {
+  Calendar as CalendarIcon,
+  ChevronLeft,
+  ChevronRight,
+  User,
+  Clock,
+  CheckCircle2,
+  AlertCircle,
+  Phone,
+  Mail,
+  FileText,
+  BedDouble,
+  TrendingUp,
   Sparkle
 } from 'lucide-react';
 import { Hotel, Room, Reservation, User as StoreUser, RoomStatus, RoomPriceVariation, ExternalBlock } from '../types';
+import { occupiedNights, isRangeFree } from '../utils/availability';
 
 const PLATFORM_NAMES: Record<string, string> = { airbnb: 'Airbnb', booking: 'Booking.com', otro: 'Otro calendario' };
+
+const MONTH_NAMES = [
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+];
+const DAYS_SHORT = ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sá'];
 
 interface RoomReservationCalendarProps {
   hotels: Hotel[];
@@ -35,7 +35,7 @@ interface RoomReservationCalendarProps {
   forceHotelId?: string;
   forceRoomId?: string;
   roomPriceVariations?: RoomPriceVariation[];
-  
+
   // Optional date selection props
   checkInDate?: string;
   checkOutDate?: string;
@@ -47,13 +47,15 @@ interface RoomReservationCalendarProps {
   externalBlocks?: ExternalBlock[];
 }
 
+const toYmd = (y: number, m0: number, d: number) =>
+  `${y}-${String(m0 + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+
 export function RoomReservationCalendar({
   hotels,
   rooms,
   reservations,
   users,
   activeUser,
-  onUpdateRoomStatus,
   forceHotelId,
   forceRoomId,
   roomPriceVariations = [],
@@ -64,35 +66,25 @@ export function RoomReservationCalendar({
   isAlquiler = false,
   externalBlocks = []
 }: RoomReservationCalendarProps) {
-  // Today string YYYY-MM-DD
   const todayStr = useMemo(() => {
-    const today = new Date();
-    const mm = String(today.getMonth() + 1).padStart(2, '0');
-    const dd = String(today.getDate()).padStart(2, '0');
-    return `${today.getFullYear()}-${mm}-${dd}`;
+    const t = new Date();
+    return toYmd(t.getFullYear(), t.getMonth(), t.getDate());
   }, []);
 
   // 1. STATE VARIABLES
   const [currentYear, setCurrentYear] = useState(() => new Date().getFullYear());
   const [currentMonth, setCurrentMonth] = useState(() => new Date().getMonth()); // 0-indexed
-  const [selectedDateStr, setSelectedDateStr] = useState<string>(() => {
-    const today = new Date();
-    const mm = String(today.getMonth() + 1).padStart(2, '0');
-    const dd = String(today.getDate()).padStart(2, '0');
-    return `${today.getFullYear()}-${mm}-${dd}`;
-  });
+  const [selectedDateStr, setSelectedDateStr] = useState<string>(todayStr);
+  const [hoverDate, setHoverDate] = useState<string | null>(null);
 
   // Filter selections
   const [selectedHotelId, setSelectedHotelId] = useState<string>(() => {
     if (forceHotelId) return forceHotelId;
-    // If user is a receptionist or assigned to a hotel, default to that
     if (activeUser.hotelId) return activeUser.hotelId;
     return hotels[0]?.id || '';
   });
 
-  const hotelRooms = useMemo(() => {
-    return rooms.filter(r => r.hotelId === selectedHotelId);
-  }, [rooms, selectedHotelId]);
+  const hotelRooms = useMemo(() => rooms.filter(r => r.hotelId === selectedHotelId), [rooms, selectedHotelId]);
 
   const [selectedRoomId, setSelectedRoomId] = useState<string>(() => {
     if (forceRoomId) return forceRoomId;
@@ -124,82 +116,65 @@ export function RoomReservationCalendar({
     }
   }, [activeUser, hotels, selectedHotelId, forceHotelId]);
 
-  // Months localized name list
-  const MONTHS = [
-    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
-  ];
+  const selectedRoomObj = selectedRoomId !== 'all' ? rooms.find(r => r.id === selectedRoomId) : undefined;
+  const isStaff = activeUser.rol !== 'cliente';
 
-  const DAYS_OF_WEEK = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+  // 2. DISPONIBILIDAD (misma regla de noches que el calendario del huésped: el día de salida queda libre)
+  const isActive = (res: Reservation) => res.estado !== 'cancelada' && res.estado !== 'finalizada';
 
-  // 2. LOGICAL CALCULATIONS FOR THE CALENDAR GRID
+  const matchesFilter = (hotelId: string, roomId: string | null | undefined) =>
+    hotelId === selectedHotelId && (selectedRoomId === 'all' || roomId === selectedRoomId);
+
+  // Noches ocupadas de la unidad elegida, para validar la selección de fechas
+  const selectionNights = useMemo(() => {
+    if (selectedRoomId === 'all') return null;
+    const stays = [
+      ...reservations.filter(r => isActive(r) && r.roomId === selectedRoomId),
+      ...externalBlocks
+        .filter(b => b.roomId === selectedRoomId)
+        .map(b => ({ fechaEntrada: b.fechaInicio, fechaSalida: b.fechaFin }))
+    ];
+    return occupiedNights(stays as Array<{ fechaEntrada: string; fechaSalida: string }>);
+  }, [reservations, externalBlocks, selectedRoomId]);
+
+  const nightsFor = (dateStr: string) => ({
+    stays: reservations.filter(r => isActive(r) && matchesFilter(r.hotelId, r.roomId) && dateStr >= r.fechaEntrada && dateStr < r.fechaSalida),
+    blocks: externalBlocks.filter(b => matchesFilter(b.hotelId, b.roomId) && dateStr >= b.fechaInicio && dateStr < b.fechaFin)
+  });
+
+  // Reservas que tocan el día (llegadas, estadías y salidas) para el detalle
+  const touchingDate = (dateStr: string) =>
+    reservations.filter(r =>
+      r.estado !== 'cancelada' && matchesFilter(r.hotelId, r.roomId) &&
+      dateStr >= r.fechaEntrada && dateStr <= r.fechaSalida
+    );
+
+  const arrivalsAndDepartures = (dateStr: string) => ({
+    arrivals: reservations.filter(r => r.hotelId === selectedHotelId && r.fechaEntrada === dateStr && r.estado !== 'cancelada'),
+    departures: reservations.filter(r => r.hotelId === selectedHotelId && r.fechaSalida === dateStr && r.estado !== 'cancelada')
+  });
+
+  // 3. CALENDAR GRID (domingo primero, igual que el del huésped)
   const calendarDays = useMemo(() => {
-    // First day of currentMonth
-    const firstDayIndex = new Date(currentYear, currentMonth, 1).getDay();
-    // Convert JS Sunday-first day index to Monday-first
-    // JS Sunday = 0, Monday = 1 ... Saturday = 6
-    // target list: Mon=0, Tue=1, ... Sun=6
-    const offset = firstDayIndex === 0 ? 6 : firstDayIndex - 1;
-
-    // Last day of currentMonth
-    const totalDaysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-    // Last day of previous month
-    const totalDaysInPrevMonth = new Date(currentYear, currentMonth, 0).getDate();
-
-    const daysList: { day: number; isCurrentMonth: boolean; dateStr: string }[] = [];
-
-    // Fill previous month trailing days
-    for (let i = offset - 1; i >= 0; i--) {
-      const prevDay = totalDaysInPrevMonth - i;
-      const prevMonth = currentMonth === 0 ? 11 : currentMonth - 1;
-      const prevYear = currentMonth === 0 ? currentYear - 1 : currentYear;
-      const mm = String(prevMonth + 1).padStart(2, '0');
-      const dd = String(prevDay).padStart(2, '0');
-      daysList.push({
-        day: prevDay,
-        isCurrentMonth: false,
-        dateStr: `${prevYear}-${mm}-${dd}`
+    const first = new Date(currentYear, currentMonth, 1).getDay();
+    const inMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+    const total = Math.ceil((first + inMonth) / 7) * 7;
+    const cells: Array<{ day: number; dateStr: string; isCurrentMonth: boolean }> = [];
+    for (let i = 0; i < total; i++) {
+      const d = new Date(currentYear, currentMonth, 1 - first + i);
+      cells.push({
+        day: d.getDate(),
+        dateStr: toYmd(d.getFullYear(), d.getMonth(), d.getDate()),
+        isCurrentMonth: d.getMonth() === currentMonth
       });
     }
-
-    // Fill current month days
-    for (let d = 1; d <= totalDaysInMonth; d++) {
-      const mm = String(currentMonth + 1).padStart(2, '0');
-      const dd = String(d).padStart(2, '0');
-      daysList.push({
-        day: d,
-        isCurrentMonth: true,
-        dateStr: `${currentYear}-${mm}-${dd}`
-      });
-    }
-
-    // Fill next month leading days to complete grid multiplier of 7 (usually 35 or 42 slots)
-    const remainingSlots = (7 - (daysList.length % 7)) % 7;
-    for (let n = 1; n <= remainingSlots + (daysList.length <= 35 ? 7 : 0); n++) {
-      const nextMonth = currentMonth === 11 ? 0 : currentMonth + 1;
-      const nextYear = currentMonth === 11 ? currentYear + 1 : currentYear;
-      const mm = String(nextMonth + 1).padStart(2, '0');
-      const dd = String(n).padStart(2, '0');
-      daysList.push({
-        day: n,
-        isCurrentMonth: false,
-        dateStr: `${nextYear}-${mm}-${dd}`
-      });
-    }
-
-    return daysList;
+    return cells;
   }, [currentYear, currentMonth]);
 
-  // Navigate Months (blocking past months)
+  const canGoPrev = currentYear > new Date().getFullYear() || (currentYear === new Date().getFullYear() && currentMonth > new Date().getMonth());
+
   const handlePrevMonth = () => {
-    const today = new Date();
-    const todayYear = today.getFullYear();
-    const todayMonth = today.getMonth();
-
-    if (currentYear < todayYear || (currentYear === todayYear && currentMonth <= todayMonth)) {
-      return; // Blocked
-    }
-
+    if (!canGoPrev) return;
     if (currentMonth === 0) {
       setCurrentMonth(11);
       setCurrentYear(prev => prev - 1);
@@ -217,711 +192,468 @@ export function RoomReservationCalendar({
     }
   };
 
-  // Dynamic Date Selection on Calendar Clicks
+  const goToToday = () => {
+    const t = new Date();
+    setCurrentYear(t.getFullYear());
+    setCurrentMonth(t.getMonth());
+    setSelectedDateStr(todayStr);
+  };
+
+  // 4. SELECCIÓN DE FECHAS (recepción / walk-in)
+  const isNightTaken = (dateStr: string) => !!selectionNights && selectionNights.has(dateStr);
+
+  const isCheckoutCandidate = (dateStr: string) =>
+    !isAlquiler && !!checkInDate && !checkOutDate && dateStr > checkInDate &&
+    !!selectionNights && isRangeFree(selectionNights, checkInDate, dateStr);
+
   const handleDateClick = (dateStr: string) => {
-    if (dateStr < todayStr) return; // Strictly block clicking past dates
-
+    if (dateStr < todayStr) return;
     setSelectedDateStr(dateStr);
+    if (!setCheckInDate) return;
 
-    if (setCheckInDate) {
-      if (isAlquiler) {
-        // Renting property: only select check-in date
-        setCheckInDate(dateStr);
-      } else {
-        // Hotel room booking:
-        // First selection (or if both were already set) -> set as Check-In
-        if (!checkInDate || (checkInDate && checkOutDate)) {
-          setCheckInDate(dateStr);
-          if (setCheckOutDate) setCheckOutDate('');
-        } else {
-          // Check-Out selection must be at least 1 day after Check-In
-          if (dateStr > checkInDate) {
-            if (setCheckOutDate) setCheckOutDate(dateStr);
-          } else {
-            // Clicked before Check-In: reset Check-In to this earlier date
-            setCheckInDate(dateStr);
-            if (setCheckOutDate) setCheckOutDate('');
-          }
-        }
-      }
-    }
-  };
-
-  // Helper: Find reservations for a specific date and filters
-  const getReservationsForDate = (dateStr: string) => {
-    return reservations.filter(res => {
-      // Exclude cancelled bookings for calendar availability checking
-      if (res.estado === 'cancelada') return false;
-
-      // Filter by hotel
-      if (res.hotelId !== selectedHotelId) return false;
-
-      // Filter by room if specific room is selected
-      if (selectedRoomId !== 'all' && res.roomId !== selectedRoomId) return false;
-
-      // Check date overlaps/touches (inclusive range)
-      return dateStr >= res.fechaEntrada && dateStr <= res.fechaSalida;
-    });
-  };
-
-  // Bloqueos de plataformas externas para un día. La fecha de fin es EXCLUSIVA (día de salida libre).
-  const getBlocksForDate = (dateStr: string) => {
-    return externalBlocks.filter(b =>
-      b.hotelId === selectedHotelId &&
-      (selectedRoomId === 'all' || b.roomId === selectedRoomId) &&
-      dateStr >= b.fechaInicio && dateStr < b.fechaFin
-    );
-  };
-
-  // Helper: Check-in arrivals and Check-out departures for a specific date
-  // This is highly useful for receptionist scheduling logic
-  const getArrivalsAndDepartures = (dateStr: string) => {
-    const dayArrivals = reservations.filter(r => r.hotelId === selectedHotelId && r.fechaEntrada === dateStr && r.estado !== 'cancelada');
-    const dayDepartures = reservations.filter(r => r.hotelId === selectedHotelId && r.fechaSalida === dateStr && r.estado !== 'cancelada');
-    return { dayArrivals, dayDepartures };
-  };
-
-  // 3. STAT GENERATIONS FOR DETAILED ROLES
-  const selectedDayReservations = useMemo(() => {
-    return getReservationsForDate(selectedDateStr);
-  }, [selectedDateStr, reservations, selectedHotelId, selectedRoomId]);
-
-  const selectedDayBlocks = useMemo(() => {
-    return getBlocksForDate(selectedDateStr);
-  }, [selectedDateStr, externalBlocks, selectedHotelId, selectedRoomId]);
-
-  const visibleReservations = useMemo(() => {
-    if (activeUser.rol === 'cliente') {
-      return selectedDayReservations.filter(res => res.guestId === activeUser.id);
-    }
-    return selectedDayReservations;
-  }, [selectedDayReservations, activeUser]);
-
-  const monthStats = useMemo(() => {
-    const totalDaysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-    let occupiedSlotsCount = 0;
-    
-    // Count days in month with at least one active reservation for the filtered setting
-    for (let d = 1; d <= totalDaysInMonth; d++) {
-      const mm = String(currentMonth + 1).padStart(2, '0');
-      const dd = String(d).padStart(2, '0');
-      const dateStr = `${currentYear}-${mm}-${dd}`;
-      const dayRes = getReservationsForDate(dateStr);
-      if (dayRes.length > 0 || getBlocksForDate(dateStr).length > 0) occupiedSlotsCount++;
-    }
-
-    const occupancyRate = Math.round((occupiedSlotsCount / totalDaysInMonth) * 100);
-    return {
-      ocupacionPorcentaje: occupancyRate,
-      diasOcupados: occupiedSlotsCount,
-      diasLibres: totalDaysInMonth - occupiedSlotsCount
+    const taken = isNightTaken(dateStr);
+    // Una noche ocupada solo puede elegirse como día de salida de una estancia que termina ese día
+    if (taken && !isCheckoutCandidate(dateStr)) return;
+    const startNewStay = () => {
+      if (taken) return;
+      setCheckInDate(dateStr);
+      if (setCheckOutDate) setCheckOutDate('');
     };
+
+    if (isAlquiler) {
+      setCheckInDate(dateStr);
+      return;
+    }
+
+    if (!checkInDate || (checkInDate && checkOutDate)) {
+      startNewStay();
+    } else if (dateStr > checkInDate) {
+      if (!selectionNights || isRangeFree(selectionNights, checkInDate, dateStr)) {
+        if (setCheckOutDate) setCheckOutDate(dateStr);
+      } else {
+        startNewStay();
+      }
+    } else {
+      startNewStay();
+    }
+  };
+
+  // 5. ESTADÍSTICAS DEL MES (solo administradores)
+  const monthStats = useMemo(() => {
+    const total = new Date(currentYear, currentMonth + 1, 0).getDate();
+    let busy = 0;
+    for (let d = 1; d <= total; d++) {
+      const dateStr = toYmd(currentYear, currentMonth, d);
+      const { stays, blocks } = nightsFor(dateStr);
+      if (stays.length > 0 || blocks.length > 0) busy++;
+    }
+    return { pct: Math.round((busy / total) * 100), busy, free: total - busy };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentYear, currentMonth, reservations, externalBlocks, selectedHotelId, selectedRoomId]);
 
-  const getRoomPriceForDate = (room: Room, dateStr: string) => {
-    // Check if there is an exact date match in variations or an annual re-occurring one ("Always" - matching MM-DD)
-    const exactMatch = roomPriceVariations.find(v => {
-      if (v.roomId !== room.id) return false;
-      if (v.isWeekend) return false;
-      if (!v.fecha) return false;
+  const getPriceForDate = (room: Room, dateStr: string) => {
+    const exact = roomPriceVariations.find(v => {
+      if (v.roomId !== room.id || v.isWeekend || !v.fecha) return false;
       if (v.fecha === dateStr) return true;
-      if (v.isAlways && v.fecha.substring(5) === dateStr.substring(5)) return true;
-      return false;
+      return !!v.isAlways && v.fecha.substring(5) === dateStr.substring(5);
     });
-
-    if (exactMatch) {
-      return { precio: exactMatch.precio, motivo: exactMatch.motivo || 'Fecha Especial', isVariable: true };
-    }
-    
-    const d = new Date(dateStr + 'T12:00:00');
-    const day = d.getDay(); // 5: Friday, 6: Saturday
+    if (exact) return { precio: exact.precio, variable: true };
+    const day = new Date(dateStr + 'T12:00:00').getDay();
     if (day === 5 || day === 6) {
-      const wkMatch = roomPriceVariations.find(v => v.roomId === room.id && v.isWeekend);
-      if (wkMatch) {
-        return { precio: wkMatch.precio, motivo: wkMatch.motivo || 'Tarifa de Fin de Semana', isVariable: true };
-      }
+      const weekend = roomPriceVariations.find(v => v.roomId === room.id && v.isWeekend);
+      if (weekend) return { precio: weekend.precio, variable: true };
     }
-    
-    return { precio: room.precio, motivo: 'Tarifa Estándar', isVariable: false };
+    return { precio: room.precio, variable: false };
   };
 
-  return (
-    <div className="bg-white rounded-2xl border border-neutral-200/90 shadow-sm overflow-hidden font-sans">
-      
-      {/* 4. INTEGRATED CALENDAR HEADER WITH BRIEFING BAR */}
-      <div className="bg-neutral-900 text-white p-5 md:p-6 space-y-4">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-          <div className="space-y-1">
-            <h3 className="text-lg md:text-xl font-display font-bold flex items-center gap-2">
-              <CalendarIcon className="w-5 h-5 text-teal-400" />
-              <span>Calendario de Disponibilidad y Reservas</span>
-            </h3>
-            <p className="text-xs text-neutral-400 font-medium font-sans">
-              Visualice, audite y gestione reservas en tiempo real.
-            </p>
-          </div>
+  // 6. DETALLE DEL DÍA
+  const dayTouching = touchingDate(selectedDateStr);
+  const dayBlocks = nightsFor(selectedDateStr).blocks;
+  const visibleReservations = isStaff ? dayTouching : dayTouching.filter(res => res.guestId === activeUser.id);
+  const isRoomBusyThatNight = nightsFor(selectedDateStr).stays.length > 0 || dayBlocks.length > 0;
 
-          {/* Month Navigator controllers */}
-          <div className="flex items-center gap-1.5 self-end sm:self-auto bg-neutral-800 p-1 rounded-xl border border-neutral-700">
-            {(() => {
-              const today = new Date();
-              const isPrevDisabled = currentYear < today.getFullYear() || (currentYear === today.getFullYear() && currentMonth <= today.getMonth());
-              return (
-                <button
-                  onClick={handlePrevMonth}
-                  disabled={isPrevDisabled}
-                  type="button"
-                  className={`p-1.5 rounded-lg text-neutral-300 transition-colors ${
-                    isPrevDisabled 
-                      ? 'opacity-30 cursor-not-allowed text-neutral-500' 
-                      : 'hover:bg-neutral-700 hover:text-white cursor-pointer'
-                  }`}
-                  title={isPrevDisabled ? "Meses pasados bloqueados" : "Mes Anterior"}
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-              );
-            })()}
-            <span className="text-xs font-bold px-3 uppercase tracking-wider min-w-[110px] text-center select-none text-neutral-200 font-mono">
-              {MONTHS[currentMonth]} {currentYear}
+  return (
+    <div className="w-full flex flex-col lg:flex-row gap-4 items-start font-sans">
+      {/* ===================== CALENDARIO ===================== */}
+      <div className="w-full lg:w-[390px] shrink-0 bg-white rounded-2xl border border-neutral-200/90 shadow-xs overflow-hidden">
+        {/* Filtros compactos */}
+        {!(forceHotelId || forceRoomId) && (
+          <div className="grid grid-cols-2 gap-2 px-3 py-2.5 bg-neutral-50/80 border-b border-neutral-200">
+            <label className="space-y-0.5 min-w-0">
+              <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-wider">Establecimiento</span>
+              <select
+                disabled={!!activeUser.hotelId}
+                value={selectedHotelId}
+                onChange={(e) => setSelectedHotelId(e.target.value)}
+                className="w-full text-[11px] bg-white border border-neutral-200 text-neutral-800 px-2 py-1.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-500 cursor-pointer font-medium text-ellipsis disabled:opacity-80"
+              >
+                {hotels.map(h => <option key={h.id} value={h.id}>{h.nombre}</option>)}
+              </select>
+            </label>
+            <label className="space-y-0.5 min-w-0">
+              <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-wider">Habitación</span>
+              <select
+                value={selectedRoomId}
+                onChange={(e) => setSelectedRoomId(e.target.value)}
+                className="w-full text-[11px] bg-white border border-neutral-200 text-neutral-800 px-2 py-1.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-500 cursor-pointer font-medium text-ellipsis"
+              >
+                <option value="all">Todas juntas</option>
+                {hotelRooms.map(r => <option key={r.id} value={r.id}>N° {r.numero} · {r.nombre}</option>)}
+              </select>
+            </label>
+          </div>
+        )}
+
+        {/* Encabezado del mes */}
+        <div className="flex items-center justify-between px-4 py-3 bg-neutral-50/80 border-b border-neutral-200">
+          <div className="flex items-center gap-2">
+            <CalendarIcon className="w-4 h-4 text-teal-600" />
+            <span className="text-sm font-bold text-neutral-800">
+              {MONTH_NAMES[currentMonth]} <span className="font-mono text-teal-700">{currentYear}</span>
             </span>
+          </div>
+          <div className="flex items-center gap-1">
             <button
-              onClick={handleNextMonth}
               type="button"
-              className="p-1.5 hover:bg-neutral-700 rounded-lg text-neutral-300 hover:text-white cursor-pointer transition-colors"
-              title="Mes Siguiente"
+              onClick={goToToday}
+              className="px-2 py-1 mr-1 rounded-lg text-[10px] font-bold text-teal-700 hover:bg-teal-50 cursor-pointer"
+            >
+              Hoy
+            </button>
+            <button
+              type="button"
+              onClick={handlePrevMonth}
+              disabled={!canGoPrev}
+              className={`p-1.5 rounded-lg border transition-all ${
+                canGoPrev
+                  ? 'border-neutral-200 bg-white hover:bg-neutral-100 text-neutral-700 cursor-pointer shadow-xs'
+                  : 'border-neutral-100 bg-neutral-100 text-neutral-300 cursor-not-allowed opacity-50'
+              }`}
+              aria-label="Mes anterior"
+              title={canGoPrev ? 'Mes anterior' : 'Meses pasados bloqueados'}
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={handleNextMonth}
+              className="p-1.5 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-100 text-neutral-700 cursor-pointer shadow-xs transition-all"
+              aria-label="Mes siguiente"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
         </div>
 
-        {/* 5. MULTI-ROLE COHESIVE FILTER BOX */}
-        {!(forceHotelId || forceRoomId) && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-neutral-850 p-3.5 rounded-xl border border-neutral-800">
-            
-            {/* Hotel Filter selection */}
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest flex items-center gap-1">
-                <Building2 className="w-3 h-3 text-teal-400" />
-                <span>Establecimiento</span>
-              </label>
-              <select
-                disabled={!!activeUser.hotelId} // Force user to their assigned hotel if receptionist/admin
-                value={selectedHotelId}
-                onChange={(e) => setSelectedHotelId(e.target.value)}
-                className="w-full text-xs bg-neutral-900 border border-neutral-750 text-white p-2 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-500 cursor-pointer text-ellipsis font-medium"
-              >
-                {hotels.map(h => (
-                  <option key={h.id} value={h.id}>{h.nombre} ({h.ubicacion})</option>
-                ))}
-              </select>
-            </div>
+        {/* Días de la semana */}
+        <div className="grid grid-cols-7 text-center border-b border-neutral-100 bg-neutral-50/40 py-1.5">
+          {DAYS_SHORT.map((d, idx) => (
+            <span key={d} className={`text-[11px] font-bold font-mono ${idx === 0 || idx === 6 ? 'text-amber-700' : 'text-neutral-500'}`}>
+              {d}
+            </span>
+          ))}
+        </div>
 
-            {/* Room Filter Selection */}
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest flex items-center gap-1">
-                <Filter className="w-3 h-3 text-teal-400" />
-                <span>Filtrar por Habitación</span>
-              </label>
-              <select
-                value={selectedRoomId}
-                onChange={(e) => setSelectedRoomId(e.target.value)}
-                className="w-full text-xs bg-neutral-900 border border-neutral-750 text-white p-2 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-500 cursor-pointer font-medium"
-              >
-                <option value="all">Todas las habitaciones juntas</option>
-                {hotelRooms.map(r => (
-                  <option key={r.id} value={r.id}>N° {r.numero} - {r.nombre} ({r.tipo})</option>
-                ))}
-              </select>
-            </div>
+        {/* Cuadrícula */}
+        <div className="grid grid-cols-7 gap-1 p-2 sm:p-2.5">
+          {calendarDays.map(cell => {
+            const isPast = cell.dateStr < todayStr;
+            const { stays, blocks } = nightsFor(cell.dateStr);
+            const inHouse = stays.some(r => r.estado === 'ocupada');
+            const reserved = stays.length > 0;
+            const blocked = blocks.length > 0;
+            const conflict = blocks.some(b => b.conflict);
+            const { arrivals, departures } = arrivalsAndDepartures(cell.dateStr);
 
+            const isCheckIn = checkInDate === cell.dateStr;
+            const isCheckOut = checkOutDate === cell.dateStr;
+            const inRange = !!checkInDate && !!checkOutDate && cell.dateStr > checkInDate && cell.dateStr < checkOutDate;
+            const inHoverRange = !!checkInDate && !checkOutDate && !!hoverDate && cell.dateStr > checkInDate && cell.dateStr <= hoverDate;
+            const isSelectedDay = selectedDateStr === cell.dateStr;
+
+            const taken = isNightTaken(cell.dateStr);
+            const selectableCheckout = taken && (isCheckoutCandidate(cell.dateStr) || isCheckOut);
+            const lockedForSelection = !!setCheckInDate && taken && !selectableCheckout;
+
+            // Mismos colores que el calendario del huésped; ámbar = reservada, rosa = ocupada, violeta = otra plataforma
+            let style = 'bg-white text-neutral-800 hover:bg-teal-50/60 hover:border-teal-300 border-neutral-200/70';
+            if (!cell.isCurrentMonth) {
+              style = 'bg-neutral-50/60 text-neutral-400 border-transparent opacity-60';
+            } else if (conflict) {
+              style = 'bg-red-50 text-red-800 border-red-300 hover:bg-red-100/70 font-semibold';
+            } else if (inHouse) {
+              style = 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100/70 font-semibold';
+            } else if (reserved) {
+              style = 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100/70 font-semibold';
+            } else if (blocked) {
+              style = 'bg-violet-50 text-violet-800 border-violet-200 hover:bg-violet-100/70 font-semibold';
+            }
+            if (isPast) {
+              style = 'bg-neutral-100/60 text-neutral-400 border-transparent cursor-not-allowed opacity-40';
+            } else if (isCheckIn || isCheckOut) {
+              style = 'bg-teal-700 text-white font-bold border-teal-700 shadow-sm scale-[1.02] z-10';
+            } else if (inRange || inHoverRange) {
+              style = 'bg-teal-50/90 text-teal-900 border-teal-200 font-semibold';
+            }
+
+            const price = selectedRoomObj && !isPast && cell.isCurrentMonth && !reserved && !blocked
+              ? getPriceForDate(selectedRoomObj, cell.dateStr)
+              : null;
+
+            const label = `Día ${cell.day}${conflict ? ' (Conflicto con una reserva de Roomia)' : blocked ? ' (Bloqueado por otra plataforma)' : inHouse ? ' (Ocupado)' : reserved ? ' (Reservado)' : ''}`;
+
+            return (
+              <button
+                key={cell.dateStr}
+                type="button"
+                disabled={isPast || lockedForSelection}
+                onClick={() => handleDateClick(cell.dateStr)}
+                onMouseEnter={() => !isPast && setHoverDate(cell.dateStr)}
+                onMouseLeave={() => setHoverDate(null)}
+                aria-label={label}
+                title={isPast ? 'Fecha pasada' : cell.dateStr}
+                className={`relative h-10 sm:h-11 rounded-xl flex flex-col items-center justify-center border transition-all text-xs select-none ${
+                  isPast || lockedForSelection ? 'cursor-not-allowed' : 'cursor-pointer'
+                } ${style} ${isSelectedDay && !isPast && !isCheckIn && !isCheckOut ? 'ring-2 ring-teal-500/70' : ''}`}
+              >
+                <span className={`text-xs font-semibold leading-none ${isCheckIn || isCheckOut ? 'text-white' : ''}`}>{cell.day}</span>
+
+                {price && (
+                  <span className={`text-[9px] font-mono leading-tight mt-0.5 ${price.variable ? 'text-teal-700 font-bold' : 'text-neutral-400'}`}>
+                    ${price.precio}
+                  </span>
+                )}
+                {!price && selectedRoomId === 'all' && stays.length > 1 && !isPast && (
+                  <span className="text-[9px] font-mono font-bold leading-tight mt-0.5 text-amber-700">×{stays.length}</span>
+                )}
+
+                {/* Llegadas, salidas y bloqueos externos (solo personal) */}
+                {isStaff && !isPast && (arrivals.length > 0 || departures.length > 0 || blocked) && (
+                  <span className="absolute bottom-0.5 flex gap-0.5">
+                    {arrivals.length > 0 && <i className="w-1.5 h-1.5 rounded-full bg-emerald-500" title={`${arrivals.length} llegada(s)`} />}
+                    {departures.length > 0 && <i className="w-1.5 h-1.5 rounded-full bg-red-400" title={`${departures.length} salida(s)`} />}
+                    {blocked && (
+                      <i
+                        className={`w-1.5 h-1.5 rounded-full ${conflict ? 'bg-red-600' : 'bg-violet-500'}`}
+                        title={`Bloqueado por ${[...new Set(blocks.map(b => PLATFORM_NAMES[b.platform] || b.platform))].join(', ')}${conflict ? ' (conflicto con una reserva de Roomia)' : ''}`}
+                      />
+                    )}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Leyenda */}
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-3 py-2 bg-neutral-50 border-t border-neutral-100 text-[10px] text-neutral-600 font-medium">
+          <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-white border border-neutral-300" /><span>Disponible</span></div>
+          <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-amber-300" /><span>Reservada</span></div>
+          <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-rose-400" /><span>Ocupada</span></div>
+          {externalBlocks.length > 0 && (
+            <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-violet-400" /><span>Airbnb / Booking</span></div>
+          )}
+          {setCheckInDate && (
+            <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-teal-700" /><span>Seleccionado</span></div>
+          )}
+          {selectedRoomObj && (
+            <div className="flex items-center gap-1 text-teal-700 font-bold"><TrendingUp className="w-3 h-3" /><span>Tarifa en USD</span></div>
+          )}
+          {isStaff && (
+            <div className="flex items-center gap-2">
+              <span className="flex items-center gap-1"><i className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />Llegada</span>
+              <span className="flex items-center gap-1"><i className="w-1.5 h-1.5 rounded-full bg-red-400 inline-block" />Salida</span>
+            </div>
+          )}
+        </div>
+
+        {(activeUser.rol === 'super_admin' || activeUser.rol === 'hotel_admin') && (
+          <div className="px-3 py-2.5 border-t border-neutral-100 bg-white flex items-center gap-3">
+            <TrendingUp className="w-4 h-4 text-teal-600 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="flex justify-between text-[10.5px] font-semibold text-neutral-600">
+                <span>Ocupación del mes ({MONTH_NAMES[currentMonth]})</span>
+                <span className="font-mono text-teal-700">{monthStats.pct}%</span>
+              </div>
+              <div className="w-full bg-neutral-100 h-1 rounded-full overflow-hidden mt-1">
+                <div className="bg-teal-600 h-full rounded-full" style={{ width: `${monthStats.pct}%` }} />
+              </div>
+              <span className="text-[9.5px] text-neutral-400">{monthStats.busy} días con ocupación · {monthStats.free} libres</span>
+            </div>
           </div>
         )}
       </div>
 
-      {/* 6. MAIN CALENDAR GRID & DETAIL CARD */}
-      <div className="p-4 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        
-        {/* Left Side: Calendar Elements Grid (7 columns) */}
-        <div className="lg:col-span-7 space-y-4">
-          
-          {/* Grid Headers representing Day numbers */}
-          <div className="grid grid-cols-7 gap-1 text-center">
-            {DAYS_OF_WEEK.map(d => (
-              <div key={d} className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider py-1 font-mono">
-                {d}
-              </div>
-            ))}
-          </div>
-
-          {/* Calendar Day Tiles Grid */}
-          <div className="grid grid-cols-7 gap-1.5">
-            {calendarDays.map((cell, index) => {
-              const dayRes = getReservationsForDate(cell.dateStr);
-              const { dayArrivals, dayDepartures } = getArrivalsAndDepartures(cell.dateStr);
-              const isSelected = selectedDateStr === cell.dateStr;
-              const hasActiveReservations = dayRes.length > 0;
-              const dayBlocks = getBlocksForDate(cell.dateStr);
-              const hasBlocks = dayBlocks.length > 0;
-
-              const selectedRoomObj = selectedRoomId !== 'all' ? rooms.find(r => r.id === selectedRoomId) : null;
-              const priceInfo = selectedRoomObj ? getRoomPriceForDate(selectedRoomObj, cell.dateStr) : null;
-              
-              const isPastDate = cell.dateStr < todayStr;
-
-              // Dynamic coloration classes
-              let bgClass = 'bg-white text-neutral-800 hover:bg-neutral-50 border-neutral-200';
-              let borderClass = 'border';
-
-              if (!cell.isCurrentMonth) {
-                bgClass = 'bg-neutral-50 text-neutral-950 font-bold opacity-85 border-neutral-100 hover:bg-neutral-100';
-              }
-
-              // Overriding styling if we have reservations on this date
-              if (hasActiveReservations) {
-                // If specific room selected, color code cleanly
-                if (selectedRoomId !== 'all') {
-                  const status = dayRes[0].estado;
-                  if (status === 'ocupada') {
-                    bgClass = 'bg-red-50 text-red-800 border-red-200 hover:bg-red-100/70 font-semibold';
-                  } else if (status === 'confirmada' || status === 'pendiente') {
-                    bgClass = 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100/70 font-semibold';
-                  } else {
-                    bgClass = 'bg-neutral-100 text-neutral-700 border-neutral-250 hover:bg-neutral-150';
-                  }
-                } else {
-                  // General view - indicator badges logic
-                  bgClass = 'bg-indigo-50/70 text-indigo-900 border-indigo-200 hover:bg-indigo-100/60 font-semibold';
-                }
-              }
-
-              // Día bloqueado solo por una plataforma externa (Airbnb/Booking)
-              if (hasBlocks && !hasActiveReservations) {
-                bgClass = dayBlocks.some(b => b.conflict)
-                  ? 'bg-red-50 text-red-800 border-red-300 hover:bg-red-100/70 font-semibold'
-                  : 'bg-violet-50 text-violet-900 border-violet-200 hover:bg-violet-100/70 font-semibold';
-              }
-
-              // Highlight check-in/out and range selection visually
-              const isCheckIn = checkInDate === cell.dateStr;
-              const isCheckOut = checkOutDate === cell.dateStr;
-              const isWithinRange = checkInDate && checkOutDate && cell.dateStr > checkInDate && cell.dateStr < checkOutDate;
-
-              if (isCheckIn) {
-                bgClass = 'bg-teal-600 text-white font-bold border-teal-600 shadow-md hover:bg-teal-600';
-              } else if (isCheckOut) {
-                bgClass = 'bg-teal-800 text-white font-bold border-teal-800 shadow-md hover:bg-teal-800';
-              } else if (isWithinRange) {
-                bgClass = 'bg-teal-50 text-teal-900 border-teal-200 font-semibold hover:bg-teal-100/70';
-              }
-
-              // Overwrite with past blocked styling
-              if (isPastDate) {
-                bgClass = 'bg-neutral-100 text-neutral-400 opacity-30 border-neutral-200 cursor-not-allowed line-through pointer-events-none';
-              }
-
-              // Highlight selected date border glowingly (if not past date)
-              if (isSelected && !isPastDate) {
-                borderClass = 'border-[2px] border-teal-500 ring-2 ring-teal-500/10 scale-105 z-10';
-              }
-
-              // Simple indicator triggers for the receptionist/admin view
-              const showArrivalDot = dayArrivals.length > 0;
-              const showDepartureDot = dayDepartures.length > 0;
-
-              return (
-                <button
-                  key={index}
-                  onClick={() => handleDateClick(cell.dateStr)}
-                  disabled={isPastDate}
-                  type="button"
-                  className={`relative p-2 rounded-xl flex flex-col justify-between items-center aspect-square text-xs transition-all duration-200 shadow-sm ${
-                    isPastDate ? 'cursor-not-allowed' : 'cursor-pointer'
-                  } ${bgClass} ${borderClass}`}
-                  title={isPastDate ? 'Fecha pasada bloqueada' : `Fecha: ${cell.dateStr}`}
-                >
-                  <div className="flex flex-col items-center">
-                    <span className={`font-mono font-bold text-xs ${isCheckIn || isCheckOut ? 'text-white' : ''}`}>{cell.day}</span>
-                    {priceInfo && (
-                      <span className={`text-[10px] font-bold mt-0.5 font-mono px-1 rounded ${
-                        isCheckIn || isCheckOut
-                          ? 'text-white bg-teal-950/20'
-                          : priceInfo.isVariable ? 'text-teal-700 bg-teal-50 border border-teal-100' : 'text-neutral-500 font-normal'
-                      }`}>
-                        ${priceInfo.precio}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Little custom notification pills/indicators overlay inside the calendar box */}
-                  <div className="flex gap-1 justify-center items-center w-full mt-1 shrink-0 h-2.5">
-                    {/* Specific room is selected visual indicators */}
-                    {selectedRoomId !== 'all' && hasActiveReservations && (
-                      <span className={`w-1.5 h-1.5 rounded-full ${
-                        dayRes[0].estado === 'ocupada' ? 'bg-red-500' : 'bg-amber-500'
-                      }`} />
-                    )}
-
-                    {/* General multi-colored tags inside the cell representing counts */}
-                    {selectedRoomId === 'all' && dayRes.length > 0 && (
-                      <span className="text-[8px] font-mono font-bold bg-indigo-600 text-white min-w-4 px-1 rounded-md text-center scale-95 uppercase leading-[1.25]">
-                        {dayRes.length}
-                      </span>
-                    )}
-
-                    {/* Bloqueo de Airbnb / Booking */}
-                    {hasBlocks && (
-                      <span
-                        className={`w-1.5 h-1.5 rounded-full ${dayBlocks.some(b => b.conflict) ? 'bg-red-600' : 'bg-violet-500'}`}
-                        title={`Bloqueado por ${[...new Set(dayBlocks.map(b => PLATFORM_NAMES[b.platform] || b.platform))].join(', ')}${dayBlocks.some(b => b.conflict) ? ' (conflicto con una reserva de Roomia)' : ''}`}
-                      />
-                    )}
-
-                    {/* Check In / Out Dots for Staff alerts */}
-                    {(activeUser.rol === 'recepcionista' || activeUser.rol === 'super_admin' || activeUser.rol === 'hotel_admin') && (
-                      <>
-                        {showArrivalDot && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" title={`${dayArrivals.length} Llegadas de Clientes`} />
-                        )}
-                        {showDepartureDot && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-red-400" title={`${dayDepartures.length} Salidas (Check-Outs)`} />
-                        )}
-                      </>
-                    )}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* 7. LEGEND & HIGHLIGHTED ADVISORIES */}
-          <div className="flex flex-wrap items-center justify-around gap-3 pt-3 p-3 bg-neutral-50 rounded-xl border border-neutral-150 text-[10px] font-bold text-neutral-500 tracking-wider">
-            <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded bg-white border border-neutral-200 inline-block" />
-              <span>Disponible</span>
+      {/* ===================== DETALLE DEL DÍA ===================== */}
+      <div className="flex-1 min-w-0 w-full space-y-3">
+        <div className="bg-white rounded-2xl border border-neutral-200/90 shadow-xs p-4 space-y-3">
+          <div className="flex justify-between items-center pb-2 border-b border-neutral-100">
+            <div className="flex items-center gap-2">
+              <CalendarIcon className="w-4 h-4 text-teal-600" />
+              <span className="text-xs font-bold text-neutral-800 uppercase tracking-wide">Bitácora: {selectedDateStr}</span>
             </div>
-            {selectedRoomId !== 'all' ? (
-              <>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-3 h-3 rounded bg-amber-50 border border-amber-200 inline-block" />
-                  <span>Reservado (Pendiente/Confirmado)</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-3 h-3 rounded bg-red-50 border border-red-200 inline-block" />
-                  <span>Ocupado (En Estancia)</span>
-                </div>
-              </>
-            ) : (
-              <div className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded bg-indigo-50/70 border border-indigo-200 inline-block" />
-                <span>Habitaciones Reservadas</span>
-              </div>
-            )}
-            
-            {externalBlocks.length > 0 && (
-              <div className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded bg-violet-50 border border-violet-200 inline-block" />
-                <span>Bloqueado (Airbnb / Booking)</span>
-              </div>
-            )}
-
-            {/* Show receptionist explicit key codes */}
-            {(activeUser.rol === 'recepcionista' || activeUser.rol === 'super_admin' || activeUser.rol === 'hotel_admin') && (
-              <div className="flex items-center gap-2 border-l border-neutral-300 pl-3">
-                <div className="flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
-                  <span>Llegada</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-red-400 inline-block" />
-                  <span>Salida</span>
-                </div>
-              </div>
-            )}
+            <span className="text-[10px] text-neutral-400 font-mono font-bold bg-neutral-100 px-2 py-0.5 rounded">
+              {selectedDateStr === todayStr ? 'Hoy' : `Día ${selectedDateStr.split('-')[2]}`}
+            </span>
           </div>
 
-          {/* Monthly percentage occupancy heatmap metrics for admin */}
-          {(activeUser.rol === 'super_admin' || activeUser.rol === 'hotel_admin') && (
-            <div className="bg-gradient-to-r from-teal-50 to-emerald-50 border border-teal-150 p-4 rounded-xl flex items-center justify-between dark:from-neutral-900/10">
-              <div className="space-y-1">
-                <h5 className="font-bold text-neutral-800 text-xs flex items-center gap-1">
-                  <TrendingUp className="w-4 h-4 text-teal-600" />
-                  <span>Ocupación Estimada del Mes ({MONTHS[currentMonth]})</span>
-                </h5>
-                <p className="text-[10px] text-neutral-500 font-medium">Calculando promedio de días ocupados sobre capacidad de la vista actual</p>
+          {selectedRoomObj && (
+            <div className="bg-neutral-50 p-2.5 rounded-xl border border-neutral-100 flex gap-2.5 items-center">
+              <div className="p-1.5 bg-white rounded-lg shrink-0 border border-neutral-100"><BedDouble className="w-4 h-4 text-neutral-600" /></div>
+              <div className="min-w-0 flex-1">
+                <h4 className="text-xs font-bold text-neutral-800 truncate">N° {selectedRoomObj.numero} · {selectedRoomObj.nombre}</h4>
+                <p className="text-[10px] text-neutral-400 font-semibold truncate">{selectedRoomObj.tipo} · {selectedRoomObj.capacidad} huéspedes</p>
               </div>
-              <div className="text-right">
-                <span className="text-2xl font-mono font-bold text-teal-700">{monthStats.ocupacionPorcentaje}%</span>
-                <span className="text-[9px] text-neutral-400 block font-semibold">{monthStats.diasOcupados} Días Reservados</span>
-              </div>
+              <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase ${
+                isRoomBusyThatNight ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+              }`}>
+                {isRoomBusyThatNight ? 'Ocupada' : 'Disponible'}
+              </span>
             </div>
           )}
 
-        </div>
-
-        {/* Right Side: Reservation Information Sheet & Inspection panel */}
-        <div className="lg:col-span-5 space-y-4">
-          
-          {/* Day overview Card Header */}
-          <div className="bg-neutral-50 rounded-2xl border border-neutral-200 p-4 space-y-3.5">
-            <div className="flex justify-between items-center pb-2 border-b border-neutral-200">
-              <div className="flex items-center gap-2">
-                <CalendarIcon className="w-4 h-4 text-teal-600" />
-                <span className="text-xs font-bold text-neutral-800 uppercase tracking-wide">
-                  Bitácora: {selectedDateStr}
-                </span>
+          {/* Bloqueos de Airbnb / Booking */}
+          {isStaff && dayBlocks.map(b => {
+            const blockRoom = rooms.find(r => r.id === b.roomId);
+            return (
+              <div key={b.id} className={`p-3 rounded-xl border text-xs space-y-1.5 ${b.conflict ? 'bg-red-50 border-red-200' : 'bg-violet-50/70 border-violet-200'}`}>
+                <div className="flex justify-between items-center gap-2">
+                  <span className="text-[9px] font-bold uppercase px-2 py-0.5 rounded-full bg-violet-600 text-white">{PLATFORM_NAMES[b.platform] || b.platform}</span>
+                  {b.conflict && <span className="text-[9px] font-bold uppercase text-red-700">⚠ Conflicto con una reserva de Roomia</span>}
+                </div>
+                {blockRoom && selectedRoomId === 'all' && (
+                  <p className="text-[11px] font-bold text-neutral-700">Habitación {blockRoom.numero} · {blockRoom.nombre}</p>
+                )}
+                <p className="font-mono text-[11px] text-neutral-600">
+                  {b.fechaInicio} → {b.fechaFin} <span className="text-neutral-400 font-sans">(calendario externo)</span>
+                </p>
               </div>
-              <span className="text-[10px] text-neutral-400 font-mono font-bold bg-neutral-200/60 px-2 py-0.5 rounded">
-                Día {selectedDateStr.split('-')[2]}
-              </span>
+            );
+          })}
+
+          <h5 className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest pl-0.5">
+            {dayTouching.length === 0
+              ? 'Sin reservaciones para este día'
+              : !isStaff
+                ? (visibleReservations.length > 0 ? 'Su reservación' : 'Estado de ocupación')
+                : `Reservas del día (${dayTouching.length})`}
+          </h5>
+
+          {dayTouching.length === 0 && dayBlocks.length === 0 ? (
+            <div className="p-4 bg-emerald-50/50 border border-emerald-100 rounded-xl text-center space-y-1">
+              <CheckCircle2 className="w-7 h-7 text-emerald-600 mx-auto" />
+              <p className="text-xs font-bold text-emerald-900">Día 100% libre</p>
+              <p className="text-[10px] text-emerald-700 max-w-xs mx-auto leading-normal">
+                {isStaff ? 'No hay huéspedes registrados para este día con los filtros activos.' : 'Esta fecha está totalmente disponible para tu hospedaje.'}
+              </p>
             </div>
-
-            {/* General state panel for current room details */}
-            {selectedRoomId !== 'all' && (
-              (() => {
-                const roomSelected = rooms.find(r => r.id === selectedRoomId);
-                const isCurrentlyReserved = selectedDayReservations.length > 0 || selectedDayBlocks.length > 0;
+          ) : !isStaff && visibleReservations.length === 0 && dayTouching.length > 0 ? (
+            <div className="p-4 bg-amber-50/50 border border-amber-100 rounded-xl text-center space-y-1">
+              <AlertCircle className="w-7 h-7 text-amber-600 mx-auto" />
+              <p className="text-xs font-bold text-amber-950">Fecha reservada u ocupada</p>
+              <p className="text-[10px] text-amber-700 max-w-xs mx-auto leading-normal">
+                Por privacidad, los detalles del hospedaje de terceros están protegidos.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              {visibleReservations.map(res => {
+                const client = users.find(u => u.id === res.guestId);
+                const roomInfo = rooms.find(r => r.id === res.roomId);
+                const nights = Math.max(1, Math.round((new Date(res.fechaSalida).getTime() - new Date(res.fechaEntrada).getTime()) / 86400000));
                 return (
-                  <div className="bg-white p-3 rounded-xl border border-neutral-200 flex gap-3 items-center">
-                    <div className="p-2 bg-neutral-100 rounded-lg shrink-0">
-                      <BedDouble className="w-5 h-5 text-neutral-600" />
+                  <div key={res.id} className="p-3 bg-white rounded-xl border border-neutral-200 shadow-xs space-y-2.5">
+                    <div className="flex justify-between items-start gap-2">
+                      <span className="text-[9px] font-mono font-bold bg-neutral-900 text-white px-2 py-0.5 rounded uppercase">Código: {res.id.slice(0, 8)}</span>
+                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase border ${
+                        res.estado === 'confirmada' ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                        : res.estado === 'ocupada' ? 'bg-blue-50 text-blue-800 border-blue-200'
+                        : res.estado === 'pendiente' ? 'bg-amber-50 text-amber-800 border-amber-200'
+                        : 'bg-neutral-50 text-neutral-600 border-neutral-200'
+                      }`}>{res.estado}</span>
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <h4 className="text-xs font-bold text-neutral-800 truncate">
-                        N° {roomSelected?.numero} - {roomSelected?.nombre}
-                      </h4>
-                      <p className="text-[10px] text-neutral-400 font-semibold truncate">
-                        {roomSelected?.tipo} • Capacidad: {roomSelected?.capacidad} huéspedes
-                      </p>
+
+                    {selectedRoomId === 'all' && roomInfo && (
+                      <div className="text-[11px] font-bold text-neutral-700 bg-neutral-50 px-2 py-1 rounded border border-neutral-200 flex items-center justify-between gap-2">
+                        <span className="truncate">Habitación {roomInfo.numero} · {roomInfo.nombre}</span>
+                        <span className="text-[10px] text-teal-600 font-medium shrink-0">{roomInfo.tipo}</span>
+                      </div>
+                    )}
+
+                    <div className="space-y-1.5 text-xs text-neutral-600">
+                      <div className="flex items-center gap-1.5 font-bold text-neutral-800">
+                        <User className="w-3.5 h-3.5 text-neutral-500" />
+                        <span className="truncate">{client ? `${client.nombre} ${client.apellido}` : 'Huésped'}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[11px] text-neutral-500 font-mono">
+                        <Clock className="w-3.5 h-3.5 text-neutral-400" />
+                        <span>Estadía de {nights} {nights === 1 ? 'noche' : 'noches'}</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-[10px] font-semibold bg-neutral-50 p-2 rounded-lg border border-neutral-100">
+                        <div>
+                          <span className="text-neutral-400 block text-[8px] uppercase tracking-wider font-bold">Llegada</span>
+                          <span className="text-emerald-700 font-mono">{res.fechaEntrada}</span>
+                        </div>
+                        <div>
+                          <span className="text-neutral-400 block text-[8px] uppercase tracking-wider font-bold">Salida</span>
+                          <span className="text-red-600 font-mono">{res.fechaSalida}</span>
+                        </div>
+                      </div>
                     </div>
-                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase ${
-                      isCurrentlyReserved 
-                        ? 'bg-amber-100 text-amber-800 border border-amber-200' 
-                        : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                    }`}>
-                      {isCurrentlyReserved ? 'Ocupada' : 'Disponible'}
-                    </span>
-                  </div>
-                );
-              })()
-            )}
 
-            {/* List of bookings/reservations touchable on the selected day */}
-            <h5 className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest pl-1">
-              {(() => {
-                if (selectedDayReservations.length === 0) {
-                  return 'Sin reservaciones registradas para hoy';
-                }
-                if (activeUser.rol === 'cliente') {
-                  return visibleReservations.length > 0 ? 'Su Reservación' : 'Estado de Ocupación';
-                }
-                return `Reservas Concurrentes (${selectedDayReservations.length})`;
-              })()}
-            </h5>
-
-            <div className="space-y-3">
-              {selectedDayBlocks.length > 0 && activeUser.rol !== 'cliente' && (
-                <div className="space-y-2">
-                  {selectedDayBlocks.map(b => {
-                    const blockRoom = rooms.find(r => r.id === b.roomId);
-                    return (
-                      <div
-                        key={b.id}
-                        className={`p-3 rounded-xl border text-xs space-y-1.5 ${b.conflict ? 'bg-red-50 border-red-200' : 'bg-violet-50/70 border-violet-200'}`}
-                      >
-                        <div className="flex justify-between items-center gap-2">
-                          <span className="text-[9px] font-bold uppercase px-2 py-0.5 rounded-full bg-violet-600 text-white">
-                            {PLATFORM_NAMES[b.platform] || b.platform}
-                          </span>
-                          {b.conflict && (
-                            <span className="text-[9px] font-bold uppercase text-red-700">⚠ Conflicto con una reserva de Roomia</span>
+                    {isStaff && (
+                      <div className="pt-2 border-t border-neutral-100 space-y-2">
+                        <div className="flex flex-wrap gap-1.5 text-[10px] text-neutral-500">
+                          {client?.telefono && (
+                            <a href={`tel:${client.telefono}`} className="flex items-center gap-1 hover:text-teal-600 bg-neutral-100 hover:bg-teal-50 px-2 py-1 rounded transition-colors">
+                              <Phone className="w-3 h-3 text-neutral-400" /><span>{client.telefono}</span>
+                            </a>
+                          )}
+                          {client?.email && (
+                            <a href={`mailto:${client.email}`} className="flex items-center gap-1 hover:text-teal-600 bg-neutral-100 hover:bg-teal-50 px-2 py-1 rounded transition-colors overflow-hidden max-w-full">
+                              <Mail className="w-3 h-3 text-neutral-400 shrink-0" /><span className="truncate">{client.email}</span>
+                            </a>
                           )}
                         </div>
-                        {blockRoom && selectedRoomId === 'all' && (
-                          <p className="text-[11px] font-bold text-neutral-700">Habitación {blockRoom.numero} - {blockRoom.nombre}</p>
+                        {res.notas && (
+                          <div className="bg-amber-50/60 p-2 rounded border border-amber-100 text-[10px] text-amber-900 leading-normal italic flex gap-1 items-start">
+                            <FileText className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                            <span>"{res.notas}"</span>
+                          </div>
                         )}
-                        <p className="font-mono text-[11px] text-neutral-600">
-                          {b.fechaInicio} → {b.fechaFin}{' '}
-                          <span className="text-neutral-400 font-sans">(fechas bloqueadas por un calendario externo)</span>
-                        </p>
                       </div>
-                    );
-                  })}
-                </div>
-              )}
-              <AnimatePresence mode="popLayout">
-                {selectedDayReservations.length === 0 && selectedDayBlocks.length === 0 ? (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="p-4 bg-emerald-50/50 border border-emerald-150 rounded-xl text-center space-y-1.5"
-                  >
-                    <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto" />
-                    <p className="text-xs font-bold text-emerald-900 font-sans">
-                      Día 100% Libre
-                    </p>
-                    <p className="text-[10px] text-emerald-700 font-sans max-w-xs mx-auto leading-normal">
-                      {activeUser.rol === 'cliente' 
-                        ? '¡Sensacional! Esta espléndida fecha está totalmente disponible para tu hospedaje boutique.'
-                        : 'No hay huéspedes registrados en este rango de fecha para los filtros activos.'
-                      }
-                    </p>
-                  </motion.div>
-                ) : activeUser.rol === 'cliente' && visibleReservations.length === 0 ? (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="p-4 bg-amber-50/50 border border-amber-150 rounded-xl text-center space-y-1.5"
-                  >
-                    <AlertCircle className="w-8 h-8 text-amber-600 mx-auto" />
-                    <p className="text-xs font-bold text-amber-950 font-sans">
-                      Fecha Reservada / Ocupada
-                    </p>
-                    <p className="text-[10px] text-amber-700 font-sans max-w-xs mx-auto leading-normal">
-                      Esta fecha ya se encuentra reservada u ocupada por otro huésped. Por políticas de privacidad de la plataforma, los detalles del hospedaje de terceros están protegidos.
-                    </p>
-                  </motion.div>
-                ) : (
-                  visibleReservations.map((res) => {
-                    const client = users.find(u => u.id === res.guestId);
-                    const roomInfo = rooms.find(r => r.id === res.roomId);
-                    const durationInDays = Math.ceil(
-                      (new Date(res.fechaSalida).getTime() - new Date(res.fechaEntrada).getTime()) / (1000 * 3600 * 24)
-                    );
+                    )}
 
-                    return (
-                      <motion.div
-                        key={res.id}
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.95 }}
-                        className="p-4 bg-white rounded-xl border border-neutral-210 shadow-sm relative space-y-3 hover:shadow-md transition-shadow"
-                      >
-                        {/* Header metadata tag of reservation block */}
-                        <div className="flex justify-between items-start gap-2">
-                          <span className="text-[9px] font-mono font-bold bg-neutral-900 text-white px-2 py-0.5 rounded tracking-wide uppercase">
-                            Código: {res.id.slice(0, 8)}
-                          </span>
-                          <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase border ${
-                            res.estado === 'confirmada' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' :
-                            res.estado === 'ocupada' ? 'bg-blue-50 text-blue-800 border-blue-200' :
-                            res.estado === 'pendiente' ? 'bg-amber-50 text-amber-800 border-amber-200' :
-                            'bg-neutral-50 text-neutral-600 border-neutral-200'
-                          }`}>
-                            {res.estado}
-                          </span>
-                        </div>
-
-                        {/* Room indicator reference */}
-                        {selectedRoomId === 'all' && roomInfo && (
-                          <div className="text-[11px] font-bold text-neutral-700 bg-neutral-50 px-2 py-1 rounded border border-neutral-200 flex items-center justify-between">
-                            <span>Habitación {roomInfo.numero} - {roomInfo.nombre}</span>
-                            <span className="text-[10px] text-teal-600 font-medium">{roomInfo.tipo}</span>
-                          </div>
-                        )}
-
-                        {/* Guest names and basic data */}
-                        <div className="space-y-1.5 text-xs text-neutral-600 font-sans">
-                          <div className="flex items-center gap-1.5 font-bold text-neutral-800">
-                            <User className="w-3.5 h-3.5 text-neutral-500" />
-                            <span>{client ? `${client.nombre} ${client.apellido}` : 'Huésped Boutique'}</span>
-                            <span className="text-[9px] text-neutral-400 font-normal">({client?.rol === 'cliente' ? 'Cliente' : 'Usuario'})</span>
-                          </div>
-
-                          <div className="flex items-center gap-1.5 font-medium leading-none text-[11px] text-neutral-500 font-mono">
-                            <Clock className="w-3.5 h-3.5 text-neutral-400" />
-                            <span>Estadía de {durationInDays} Noches</span>
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-2 text-[10px] font-semibold bg-neutral-50 p-2.5 rounded-lg border border-neutral-100">
-                            <div>
-                              <span className="text-neutral-400 block text-[8px] uppercase tracking-wider font-bold">Llegada / Check-In</span>
-                              <span className="text-emerald-700 font-mono">{res.fechaEntrada}</span>
-                            </div>
-                            <div>
-                              <span className="text-neutral-400 block text-[8px] uppercase tracking-wider font-bold">Salida / Check-Out</span>
-                              <span className="text-red-650 font-mono">{res.fechaSalida}</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Conditional content based on ROLE */}
-                        {/* 1. RECEPTIONIST VIEW - showing client notes, email/phone to contact them */}
-                        {(activeUser.rol === 'recepcionista' || activeUser.rol === 'super_admin' || activeUser.rol === 'hotel_admin') && (
-                          <div className="pt-2 border-t border-neutral-150 space-y-2">
-                            <div className="flex flex-wrap gap-2 text-[10px] text-neutral-500">
-                              {client?.telefono && (
-                                <a href={`tel:${client.telefono}`} className="flex items-center gap-1 hover:text-teal-600 bg-neutral-100 hover:bg-teal-50 px-2 py-1 rounded transition-colors">
-                                  <Phone className="w-3 h-3 text-neutral-400" />
-                                  <span>{client.telefono}</span>
-                                </a>
-                              )}
-                              {client?.email && (
-                                <a href={`mailto:${client.email}`} className="flex items-center gap-1 hover:text-teal-600 bg-neutral-100 hover:bg-teal-50 px-2 py-1 rounded transition-colors whitespace-nowrap overflow-hidden text-ellipsis max-w-[180px]">
-                                  <Mail className="w-3 h-3 text-neutral-400" />
-                                  <span>{client.email}</span>
-                                </a>
-                              )}
-                            </div>
-                            {res.notas && (
-                              <div className="bg-amber-50/55 p-2 rounded border border-amber-100 text-[10px] text-amber-900 leading-normal font-sans italic flex gap-1 items-start">
-                                <FileText className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
-                                <span>"{res.notas}"</span>
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {/* 2. CLIENT VIEW - showing clean greeting & reassurance */}
-                        {activeUser.rol === 'cliente' && (
-                          <div className="pt-1.5 border-t border-neutral-150 text-[10px] text-teal-700 font-semibold flex items-center gap-1">
-                            <Sparkle className="w-3 h-3 text-teal-500 shrink-0" />
-                            <span>Código Seguro • Tu habitación te espera con amenidades de cortesía.</span>
-                          </div>
-                        )}
-
-                      </motion.div>
-                    );
-                  })
-                )}
-              </AnimatePresence>
+                    {!isStaff && (
+                      <div className="pt-1.5 border-t border-neutral-100 text-[10px] text-teal-700 font-semibold flex items-center gap-1">
+                        <Sparkle className="w-3 h-3 text-teal-500 shrink-0" />
+                        <span>Código seguro · Tu habitación te espera con amenidades de cortesía.</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-
-            {/* Special alert notification on the bottom */}
-            {activeUser.rol === 'recepcionista' && (
-              (() => {
-                const today = new Date();
-                const mm = String(today.getMonth() + 1).padStart(2, '0');
-                const dd = String(today.getDate()).padStart(2, '0');
-                const formattedToday = `${today.getFullYear()}-${mm}-${dd}`;
-                const { dayArrivals, dayDepartures } = getArrivalsAndDepartures(formattedToday);
-
-                if (dayArrivals.length > 0 || dayDepartures.length > 0) {
-                  return (
-                    <div className="bg-amber-50 border border-amber-200 p-3 rounded-xl space-y-1.5 text-[11px] text-amber-900 leading-normal">
-                      <div className="flex items-center gap-1.5 font-bold">
-                        <AlertCircle className="w-4 h-4 text-amber-600" />
-                        <span>Notificación de Operaciones Hoy</span>
-                      </div>
-                      <p className="font-sans">
-                        Tienes registró de <strong className="text-neutral-800">{dayArrivals.length} llegadas</strong> y <strong className="text-neutral-800">{dayDepartures.length} salidas</strong> previstas para el día de hoy ({formattedToday}). Asegúrese de tener listos los kits de llaves y amenidades.
-                      </p>
-                    </div>
-                  );
-                }
-                return null;
-              })()
-            )}
-
-          </div>
-
+          )}
         </div>
 
+        {/* Aviso de operaciones del día (recepción) */}
+        {activeUser.rol === 'recepcionista' && (() => {
+          const { arrivals, departures } = arrivalsAndDepartures(todayStr);
+          if (arrivals.length === 0 && departures.length === 0) return null;
+          return (
+            <div className="bg-amber-50 border border-amber-200 p-3 rounded-xl space-y-1 text-[11px] text-amber-900 leading-normal">
+              <div className="flex items-center gap-1.5 font-bold">
+                <AlertCircle className="w-4 h-4 text-amber-600" />
+                <span>Operaciones de hoy</span>
+              </div>
+              <p>
+                <strong className="text-neutral-800">{arrivals.length} llegadas</strong> y <strong className="text-neutral-800">{departures.length} salidas</strong> previstas para hoy ({todayStr}).
+              </p>
+            </div>
+          );
+        })()}
       </div>
-
     </div>
   );
 }

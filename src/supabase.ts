@@ -6,6 +6,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { Hotel, Room, User, Reservation, ChatMessage, PaymentTransaction, Review, RoomPriceVariation, IcalFeed, ExternalBlock } from './types';
 import { ActivityLog } from './store';
+import { FULL_PROPERTY_ROOM_PREFIX, fullPropertyRoomId, isFullPropertyRoomId } from './utils/availability';
 
 // Credentials are loaded strictly from secure environment variables (via dynamic endpoint/window first, fallback to process/meta) to comply with OWASP Top 10 and prevent hardcoded secrets.
 const win = typeof window !== 'undefined' ? (window as any) : {};
@@ -253,9 +254,7 @@ export function mapUserFromDb(db: any): User {
  * `roomid` NULO (la columna es una clave foránea a `rooms`, y un id sintético se rechazaba,
  * con lo que la reserva nunca llegaba a guardarse).
  */
-export const FULL_PROPERTY_ROOM_PREFIX = 'room-full-';
-export const fullPropertyRoomId = (hotelId: string): string => `${FULL_PROPERTY_ROOM_PREFIX}${hotelId}`;
-export const isFullPropertyRoomId = (id?: string | null): boolean => !!id && id.startsWith(FULL_PROPERTY_ROOM_PREFIX);
+export { FULL_PROPERTY_ROOM_PREFIX, fullPropertyRoomId, isFullPropertyRoomId };
 
 export function mapReservationToDb(res: Reservation): any {
   const entrada = new Date(res.fechaEntrada);

@@ -18,6 +18,38 @@ export function shiftDate(ymd: string, days: number): string {
   return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`;
 }
 
+/**
+ * Las casas y departamentos completos no tienen habitaciones: la app los reserva con una
+ * habitación "sintética" `room-full-<hotelId>`. En la base de datos esas reservas guardan
+ * `roomid` NULO (la columna es una clave foránea a `rooms`).
+ */
+export const FULL_PROPERTY_ROOM_PREFIX = 'room-full-';
+export const fullPropertyRoomId = (hotelId: string): string => `${FULL_PROPERTY_ROOM_PREFIX}${hotelId}`;
+export const isFullPropertyRoomId = (id?: string | null): boolean => !!id && id.startsWith(FULL_PROPERTY_ROOM_PREFIX);
+
+/** Días entre dos fechas "YYYY-MM-DD" (b - a). */
+export function daysBetween(a: string, b: string): number {
+  const [ay, am, ad] = a.split('-').map(Number);
+  const [by, bm, bd] = b.split('-').map(Number);
+  return Math.round((Date.UTC(by, bm - 1, bd) - Date.UTC(ay, am - 1, ad)) / 86400000);
+}
+
+/** Todas las fechas de [from, to], ambas incluidas. */
+export function eachDay(from: string, to: string): string[] {
+  const out: string[] = [];
+  const total = daysBetween(from, to);
+  for (let i = 0; i <= total && i < 4000; i++) out.push(shiftDate(from, i));
+  return out;
+}
+
+/** Noches de la estancia [start, end) que caen dentro de [from, toInclusive]. */
+export function overlapNights(start: string, end: string, from: string, toInclusive: string): number {
+  const a = start > from ? start : from;
+  const lastExclusive = shiftDate(toInclusive, 1);
+  const b = end < lastExclusive ? end : lastExclusive;
+  return b > a ? daysBetween(a, b) : 0;
+}
+
 export interface StayRange {
   fechaEntrada: string;
   fechaSalida: string;
