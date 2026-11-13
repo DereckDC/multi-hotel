@@ -1,10 +1,12 @@
 import { io, Socket } from "socket.io-client";
+import { isNativeApp, PRODUCTION_ORIGIN } from "../utils/platform";
 
 let socket: Socket | null = null;
 
 export function getSocket(): Socket {
   if (!socket && typeof window !== 'undefined') {
-    const url = window.location.origin;
+    // En la app nativa el origen es https://localhost y no hay servidor de sockets: se apunta a producción
+    const url = isNativeApp() ? PRODUCTION_ORIGIN : window.location.origin;
     socket = io(url, {
       transports: ['polling', 'websocket'],
       autoConnect: true,

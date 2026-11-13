@@ -38,6 +38,8 @@ import {
   fetchExternalBlocks
 } from './supabase';
 
+import { isNativeApp, PRODUCTION_ORIGIN } from './utils/platform';
+
 // Safe standard local storage storage key constants
 const STORAGE_PREFIX = 'aura_hotel_pms_';
 
@@ -45,13 +47,13 @@ const STORAGE_PREFIX = 'aura_hotel_pms_';
 export function getApiBaseUrl(): string {
   if (typeof window !== 'undefined' && window.location && window.location.origin) {
     const origin = window.location.origin;
-    // Mobile Capacitor / WebView environment
-    if (origin.startsWith('capacitor:') || origin.startsWith('file:')) {
+    // Mobile Capacitor / WebView environment: el origen interno (https://localhost) no sirve el API, se usa producción
+    if (isNativeApp()) {
       try {
         const saved = localStorage.getItem('roomia_api_origin');
-        if (saved) return saved;
+        if (saved && saved !== origin && /^https?:\/\//.test(saved) && !/\/\/localhost(:|\/|$)/.test(saved)) return saved;
       } catch (e) {}
-      return 'https://ais-pre-x2bbmoykvbb2j2cvvu5ybf-300435593784.us-east5.run.app';
+      return PRODUCTION_ORIGIN;
     }
     // Web environments (Vercel, Localhost, Cloud Run, Custom Domains)
     try {

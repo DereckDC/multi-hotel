@@ -7,12 +7,13 @@ const config: CapacitorConfig = {
   server: {
     androidScheme: 'https',
     allowNavigation: [
-      'https://ais-pre-x2bbmoykvbb2j2cvvu5ybf-300435593784.us-east5.run.app',
-      'https://ais-dev-x2bbmoykvbb2j2cvvu5ybf-300435593784.us-east5.run.app'
+      'roomiapms.site',
+      '*.roomiapms.site',
+      '*.supabase.co'
     ]
   },
   android: {
-    allowMixedContent: true
+    allowMixedContent: false
   }
 };
 
