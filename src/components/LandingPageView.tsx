@@ -1,816 +1,425 @@
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
+ *
  */
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  Building2, 
-  CheckCircle, 
-  ArrowLeft, 
-  QrCode, 
-  Sparkles, 
-  TrendingUp, 
-  Clock, 
-  Workflow, 
-  Users,
-  Phone,
-  Mail,
-  MapPin,
-  AlertTriangle,
-  ArrowRight,
-  ShieldCheck,
-  CheckCircle2,
-  Settings,
-  Layers,
-  Calendar,
-  ChevronDown,
-  ChevronUp,
-  Star,
-  Lock,
-  MessageCircle,
-  MessagesSquare
+import {
+  ArrowRight, Calendar, CheckCircle2, ChevronDown, Globe, Lock, Mail, MapPin,
+  Menu, MessageCircle, AlertTriangle, MessagesSquare, ArrowUp, Clock, Building2, ChevronUp, QrCode, RefreshCw, ShieldCheck, TrendingUp, Users, X, Home, Wallet, BarChart3, Wrench
 } from 'lucide-react';
+import { BrandLogo } from './BrandLogo';
 import { InteractiveContainer } from './InteractiveContainer';
 import { GlobalTrailCursor } from './GlobalTrailCursor';
-import { BrandLogo } from './BrandLogo';
 
-interface LandingPageViewProps {
+interface Props {
   onClose: () => void;
   onOpenLegal?: (type: 'terminos' | 'privacidad' | 'cancelaciones') => void;
 }
 
-export default function LandingPageView({ onClose, onOpenLegal }: LandingPageViewProps) {
+const WHATSAPP = '593984056660';
+const EMAIL = 'roomia.admincontact@gmail.com';
+
+const NAV = [
+  { id: 'problemas', label: 'Soluciones' },
+  { id: 'como-funciona', label: 'Cómo funciona' },
+  { id: 'funciones', label: 'Funciones' },
+  { id: 'precios', label: 'Precios' },
+  { id: 'preguntas', label: 'Preguntas' }
+];
+
+const FAQ = [
+  { q: '¿Cómo se conecta con Airbnb y Booking?', a: 'Pegas el enlace de calendario (iCal) que te da cada plataforma, por cada propiedad. Roomia lo lee de forma periódica y bloquea esas fechas en tu calendario y en tu página de reservas directas. No necesitas dar tu contraseña de Airbnb ni de Booking.' },
+  { q: '¿Se pueden dar dobles reservas?', a: 'Roomia bloquea las fechas ocupadas en otras plataformas y avisa si detecta un cruce. Como iCal se actualiza cada cierto tiempo y no es instantáneo, recomendamos mantener también tus calendarios de Airbnb/Booking importando el de Roomia.' },
+  { q: '¿Qué es una "propiedad" en los planes?', a: 'Una propiedad es un establecimiento: un hotel, una casa o un edificio de departamentos. Dentro de ella puedes crear todas las habitaciones o unidades que necesites.' },
+  { q: '¿Cómo cobro las reservas directas?', a: 'Puedes registrar pagos en efectivo o transferencia desde el panel, y cobrar con tarjeta en línea. Solo en los pagos con tarjeta se aplica una tarifa del 5 %; la suscripción es fija.' },
+  { q: '¿Necesito instalar algo o capacitar a mi equipo?', a: 'No. Funciona desde el navegador, en computadora o celular. Tu personal de recepción tiene su propia vista, simple, para check-in y registro de huéspedes.' },
+  { q: '¿Puedo cancelar cuando quiera?', a: 'Sí. La suscripción es mensual, sin contratos de permanencia. El precio fundador se mantiene mientras tu suscripción siga activa.' }
+];
+
+// Calendario de ejemplo del hero (días 1..30)
+const DAY_STATE: Record<number, 'airbnb' | 'booking' | 'direct'> = {};
+[3, 4, 5, 6].forEach(d => (DAY_STATE[d] = 'airbnb'));
+[10, 11, 12, 13, 14].forEach(d => (DAY_STATE[d] = 'booking'));
+[18, 19, 20].forEach(d => (DAY_STATE[d] = 'direct'));
+[24, 25, 26, 27].forEach(d => (DAY_STATE[d] = 'airbnb'));
+const STATE_STYLE = {
+  airbnb: 'bg-rose-500/20 text-rose-200 border-rose-400/30',
+  booking: 'bg-blue-500/20 text-blue-200 border-blue-400/30',
+  direct: 'bg-teal-500/25 text-teal-100 border-teal-400/40'
+};
+
+export default function LandingPageView({ onClose, onOpenLegal }: Props) {
+  const [menuOpen, setMenuOpen] = useState(false);
   const [showAllTiers, setShowAllTiers] = useState(false);
-  const [copiedEmail, setCopiedEmail] = useState(false);
+  const [showTop, setShowTop] = useState(false);
+  React.useEffect(() => {
+    const onScroll = () => setShowTop(window.scrollY > 500);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+  const [openFaq, setOpenFaq] = useState<number | null>(0);
+  const [form, setForm] = useState({ nombre: '', tipo: 'Casa o departamento', unidades: '1', plataformas: 'Airbnb' });
 
-  const openWhatsApp = (customMessage?: string) => {
-    const text = encodeURIComponent(
-      customMessage || "Hola, quisiera solicitar una demostración e información personalizada de Roomia PMS para mis propiedades."
+  const openWhatsApp = (message: string) => {
+    const url = `https://wa.me/${WHATSAPP}?text=${encodeURIComponent(message)}`;
+    if (typeof window !== 'undefined' && (window as any).Capacitor) window.open(url, '_system');
+    else window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const goTo = (id: string) => {
+    setMenuOpen(false);
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const submitDemo = (e: React.FormEvent) => {
+    e.preventDefault();
+    openWhatsApp(
+      `Hola, soy ${form.nombre || 'un anfitrión'}. Administro: ${form.tipo}, ${form.unidades} unidad(es), uso ${form.plataformas}. Quisiera una demo de Roomia PMS.`
     );
-    const url = `https://wa.me/593984056660?text=${text}`;
-    if (typeof window !== 'undefined' && (window as any).Capacitor) {
-      window.open(url, "_system");
-    } else {
-      window.open(url, "_blank", "noopener,noreferrer");
-    }
   };
 
-  const handleCopyEmail = () => {
-    navigator.clipboard.writeText('roomia.admincontact@gmail.com');
-    setCopiedEmail(true);
-    setTimeout(() => setCopiedEmail(false), 2000);
-  };
+  const field = 'w-full bg-slate-950 border border-slate-700 focus:border-brand-cyan focus:outline-none rounded-xl px-3.5 py-3 text-sm text-white placeholder:text-slate-500';
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans animate-fade-in relative">
+    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans relative">
       <GlobalTrailCursor />
-      
-      {/* Sticky Top Navbar */}
-      <nav className="bg-slate-950/95 border-b border-slate-900 sticky top-0 z-40 backdrop-blur-md">
-        <div className="max-w-7xl mx-auto px-4 md:px-6 h-20 flex items-center justify-between gap-4">
+
+      {/* NAV */}
+      <nav className="sticky top-0 z-40 bg-slate-950/90 backdrop-blur-md border-b border-slate-900">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 h-16 flex items-center justify-between gap-4">
+          <BrandLogo size="lg" showText={true} lightText={true} />
+          <div className="hidden md:flex items-center gap-7 text-sm font-medium text-slate-300">
+            {NAV.map(n => (
+              <a key={n.id} href={`#${n.id}`} onClick={(e) => { e.preventDefault(); goTo(n.id); }} className="hover:text-brand-cyan transition-colors">{n.label}</a>
+            ))}
+          </div>
           <div className="flex items-center gap-2.5">
-            <BrandLogo size="lg" showText={true} lightText={true} />
-          </div>
-
-          <div className="hidden md:flex items-center gap-6 text-xs font-semibold text-slate-300">
-            <button 
-              onClick={() => document.getElementById('problemas')?.scrollIntoView({ behavior: 'smooth' })}
-              className="hover:text-brand-cyan transition-colors cursor-pointer"
-            >
-              Soluciones
+            <button onClick={onClose} className="hidden sm:block px-4 py-2 text-sm font-semibold text-slate-200 hover:text-white border border-slate-700 hover:border-slate-500 rounded-xl cursor-pointer">
+              Ingresar
             </button>
-            <button 
-              onClick={() => document.getElementById('funciones')?.scrollIntoView({ behavior: 'smooth' })}
-              className="hover:text-brand-cyan transition-colors cursor-pointer"
-            >
-              Funciones
-            </button>
-            <button 
-              onClick={() => document.getElementById('para-quien')?.scrollIntoView({ behavior: 'smooth' })}
-              className="hover:text-brand-cyan transition-colors cursor-pointer"
-            >
-              ¿Para quién?
-            </button>
-            <button 
-              onClick={() => document.getElementById('precios')?.scrollIntoView({ behavior: 'smooth' })}
-              className="hover:text-brand-cyan transition-colors cursor-pointer text-brand-cyan font-bold"
-            >
-              Precios y Planes
-            </button>
-          </div>
-
-          <div className="flex items-center gap-3">
             <button
-              onClick={() => openWhatsApp("Hola, quisiera solicitar una demostración por WhatsApp de Roomia PMS.")}
+              onClick={() => openWhatsApp('Hola, quisiera solicitar una demostración por WhatsApp de Roomia PMS.')}
               className="hidden sm:flex px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-extrabold rounded-xl transition-all shadow-md shadow-emerald-500/10 items-center gap-2 cursor-pointer active:scale-95"
             >
               <MessageCircle className="w-4 h-4 fill-slate-950" />
               <span>Solicitar Demo</span>
             </button>
-
-            <button
-              onClick={onClose}
-              className="px-4 py-2 bg-[#0E2A47] hover:bg-[#133A62] border border-brand-cyan/30 text-white text-xs font-semibold rounded-xl transition-all shadow-md shadow-brand-cyan/5 flex items-center gap-2 cursor-pointer active:scale-95"
-            >
-              <ArrowLeft className="w-4 h-4 text-brand-cyan" />
-              <span>Volver</span>
+            <button onClick={() => setMenuOpen(o => !o)} className="md:hidden p-2 text-slate-200 cursor-pointer" aria-label="Menú">
+              {menuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
           </div>
         </div>
+        {menuOpen && (
+          <div className="md:hidden border-t border-slate-900 bg-slate-950 px-4 py-3 space-y-1">
+            {NAV.map(n => (
+              <a key={n.id} href={`#${n.id}`} onClick={(e) => { e.preventDefault(); goTo(n.id); }} className="block py-2.5 text-sm font-medium text-slate-200">{n.label}</a>
+            ))}
+            <button onClick={onClose} className="block w-full text-left py-2.5 text-sm font-medium text-brand-cyan cursor-pointer">Ingresar a mi cuenta</button>
+          </div>
+        )}
       </nav>
 
-      {/* 1. HERO SECTION */}
-      <InteractiveContainer as="header" className="bg-slate-950 py-10 md:py-20 px-4 md:px-6 border-b border-slate-900">
-        <div className="absolute top-0 right-1/4 w-[500px] h-[500px] bg-brand-cyan/10 rounded-full blur-[120px] pointer-events-none" />
-        <div className="absolute bottom-1/4 left-10 w-[300px] h-[300px] bg-brand-cyan/5 rounded-full blur-[100px] pointer-events-none" />
-
-        <div className="max-w-7xl mx-auto relative z-10">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-16 items-center">
-            
-            {/* Left Column Text & Immediate CTA */}
-            <div className="lg:col-span-7 space-y-4 md:space-y-6 text-left font-sans">
-              <h1 className="text-3xl md:text-5.5xl lg:text-6xl font-serif font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-[#23B4E6] via-white to-slate-200 leading-[1.1] pr-2">
-                Deja de perder reservas en WhatsApp, cuadernos y Excel
-              </h1>
-
-              <p className="text-xs md:text-base text-[#A8B2BD] max-w-xl leading-relaxed">
-                Roomia es la plataforma integral en la nube para administrar reservas, habitaciones, huéspedes e ingresos en tiempo real. Automatice su recepción y tome el control total de su hospedaje desde cualquier dispositivo.
-              </p>
-
-              {/* Action Buttons - CTA #1 visible without scroll */}
-              <div className="flex flex-wrap gap-3 pt-2">
-                <button
-                  onClick={() => openWhatsApp("Hola, quiero solicitar una demo por WhatsApp de Roomia PMS.")}
-                  className="px-6 py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs md:text-sm rounded-xl shadow-xl shadow-emerald-500/20 hover:shadow-emerald-500/30 transition-all hover:scale-[1.03] active:scale-95 cursor-pointer flex items-center gap-2.5"
-                >
-                  <MessageCircle className="w-4 h-4 fill-slate-950" />
-                  <span>Solicitar demo por WhatsApp</span>
-                </button>
-
-                <button
-                  onClick={() => document.getElementById('precios')?.scrollIntoView({ behavior: 'smooth' })}
-                  className="px-5 py-3.5 bg-[#0E2A47] hover:bg-[#133A62] text-white font-bold text-xs md:text-sm rounded-xl border border-brand-cyan/20 transition-all active:scale-95 cursor-pointer flex items-center gap-2"
-                >
-                  <span>Ver planes y precios</span>
-                  <ArrowRight className="w-4 h-4 text-brand-cyan" />
-                </button>
-              </div>
-
-              <div className="pt-2 flex items-center gap-4 text-[11px] text-slate-400 font-medium">
-                <span className="flex items-center gap-1.5">
-                  <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
-                  Demo rápida de 15 min
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
-                  Sin compromisos ni tarjetas
-                </span>
-              </div>
+      {/* HERO */}
+      <InteractiveContainer as="header" className="border-b border-slate-900">
+        <div className="absolute -top-24 right-1/4 w-[520px] h-[520px] bg-brand-cyan/10 rounded-full blur-[110px] pointer-events-none" />
+        <div className="max-w-7xl mx-auto px-4 md:px-6 py-12 md:py-20 grid lg:grid-cols-12 gap-10 lg:gap-14 items-center relative">
+          <div className="lg:col-span-7 space-y-6">
+            <h1 className="text-4xl md:text-6xl font-serif font-black tracking-tight leading-[1.08] text-white">
+              Un solo calendario para <span className="text-brand-cyan">Airbnb, Booking</span> y tus reservas directas
+            </h1>
+            <p className="text-base md:text-lg text-slate-400 max-w-xl leading-relaxed">
+              Evita las dobles reservas, recibe huéspedes directamente sin pagar comisión por cada uno y mira cuánto gana realmente tu alojamiento, todo desde un panel hecho para anfitriones.
+            </p>
+            <div className="flex flex-wrap gap-3 pt-2">
+              <button
+                onClick={() => openWhatsApp('Hola, quiero solicitar una demo por WhatsApp de Roomia PMS.')}
+                className="px-6 py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs md:text-sm rounded-xl shadow-xl shadow-emerald-500/20 hover:shadow-emerald-500/30 transition-all hover:scale-[1.03] active:scale-95 cursor-pointer flex items-center gap-2.5"
+              >
+                <MessageCircle className="w-4 h-4 fill-slate-950" />
+                <span>Solicitar demo por WhatsApp</span>
+              </button>
+              <button
+                onClick={() => goTo('precios')}
+                className="px-5 py-3.5 bg-[#0E2A47] hover:bg-[#133A62] text-white font-bold text-xs md:text-sm rounded-xl border border-brand-cyan/20 transition-all active:scale-95 cursor-pointer flex items-center gap-2"
+              >
+                <span>Ver planes y precios</span>
+                <ArrowRight className="w-4 h-4 text-brand-cyan" />
+              </button>
             </div>
+            <ul className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-slate-400">
+              {['Demo de 15 minutos', 'Sin tarjeta ni contrato', 'Configuración con ayuda en español'].map(t => (
+                <li key={t} className="flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4 text-emerald-400" />{t}</li>
+              ))}
+            </ul>
+          </div>
 
-            {/* Right Column Product Visual Mockup */}
-            <div className="lg:col-span-5 relative group">
-              <div className="absolute inset-0 bg-gradient-to-r from-brand-cyan/20 to-indigo-500/20 rounded-3xl blur-2xl group-hover:scale-105 transition-transform duration-500" />
-              
-              <div className="relative bg-slate-900 border border-slate-800 rounded-3xl p-5 md:p-6 shadow-2xl backdrop-blur-md">
-                <div className="flex justify-between items-center border-b border-slate-800 pb-3 mb-4">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-red-500" />
-                    <span className="w-2.5 h-2.5 rounded-full bg-yellow-500" />
-                    <span className="w-2.5 h-2.5 rounded-full bg-green-500" />
-                    <span className="text-[10px] text-slate-400 font-mono ml-2 uppercase tracking-wider">PANEL EN TIEMPO REAL</span>
-                  </div>
-                  <div className="px-2 py-0.5 bg-brand-cyan/10 text-brand-cyan rounded text-[9px] font-bold tracking-wider font-mono">
-                    ROOMIA PMS
-                  </div>
+          {/* Maqueta del dashboard con datos demo */}
+          <div className="lg:col-span-5">
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 md:p-5 shadow-2xl space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-red-500" /><span className="w-2.5 h-2.5 rounded-full bg-yellow-500" /><span className="w-2.5 h-2.5 rounded-full bg-green-500" />
+                  <span className="text-[10px] text-slate-400 font-mono ml-2 uppercase tracking-wider">Panel de control</span>
                 </div>
-
-                <div className="space-y-3.5">
-                  <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-1">
-                    <div className="flex justify-between items-center">
-                      <span className="text-[10px] text-brand-cyan font-mono uppercase tracking-wider">Propiedad Activa</span>
-                      <span className="text-[10px] text-emerald-400 font-mono font-bold uppercase">Sincronizado</span>
-                    </div>
-                    <p className="text-xs font-bold text-white flex items-center gap-2">
-                      <Building2 className="w-3.5 h-3.5 text-brand-cyan" />
-                      <span>Hotel Vista Mar & Resort</span>
-                    </p>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div className="p-2.5 bg-slate-950 border border-emerald-500/20 rounded-xl flex flex-col space-y-1">
-                      <div className="flex justify-between items-center">
-                        <span className="font-bold text-slate-200">Cuarto 101</span>
-                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                      </div>
-                      <p className="text-[10px] text-slate-400 truncate">Doble Luxury</p>
-                      <span className="text-[9px] font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded mr-auto uppercase">Disponible</span>
-                    </div>
-
-                    <div className="p-2.5 bg-slate-950 border border-indigo-500/20 rounded-xl flex flex-col space-y-1">
-                      <div className="flex justify-between items-center">
-                        <span className="font-bold text-slate-200">Cuarto 102</span>
-                        <span className="w-2 h-2 rounded-full bg-indigo-400" />
-                      </div>
-                      <p className="text-[10px] text-slate-400 truncate">Suite VIP</p>
-                      <span className="text-[9px] font-bold text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded mr-auto uppercase">Ocupada</span>
-                    </div>
-
-                    <div className="p-2.5 bg-slate-950 border border-amber-500/20 rounded-xl flex flex-col space-y-1">
-                      <div className="flex justify-between items-center">
-                        <span className="font-bold text-slate-200">Cuarto 103</span>
-                        <span className="w-2 h-2 rounded-full bg-amber-400" />
-                      </div>
-                      <p className="text-[10px] text-slate-400 truncate">Familiar Sea View</p>
-                      <span className="text-[9px] font-bold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded mr-auto uppercase">Mantenimiento</span>
-                    </div>
-
-                    <div className="p-2.5 bg-slate-950 border border-rose-500/20 rounded-xl flex flex-col space-y-1">
-                      <div className="flex justify-between items-center">
-                        <span className="font-bold text-slate-200">Cuarto 104</span>
-                        <span className="w-2 h-2 rounded-full bg-rose-400" />
-                      </div>
-                      <p className="text-[10px] text-slate-400 truncate">Boutique Single</p>
-                      <span className="text-[9px] font-bold text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded mr-auto uppercase">Limpieza</span>
-                    </div>
-                  </div>
-
-                  <div className="bg-[#1E2E3E]/40 border border-brand-cyan/20 rounded-xl p-3 flex gap-2.5 items-start">
-                    <QrCode className="w-4 h-4 text-brand-cyan shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-[11px] font-bold text-white leading-tight">Check-in rápido con QR</p>
-                      <p className="text-[10px] text-slate-400 leading-normal">Valide el ingreso del huésped en segundos escaneando su voucher digital.</p>
-                    </div>
-                  </div>
-
+                <div className="flex gap-1 text-[10px] font-semibold">
+                  {['Hoy', '7 días', 'Este mes'].map((p, i) => (
+                    <span key={p} className={`px-2 py-0.5 rounded-md ${i === 2 ? 'bg-brand-cyan text-slate-950' : 'bg-slate-800 text-slate-400'}`}>{p}</span>
+                  ))}
                 </div>
               </div>
-            </div>
 
+              <div className="grid grid-cols-4 gap-2">
+                {[
+                  { l: 'Ocupación', v: '72%', d: '+8 pts', up: true, s: '4,6,5,7,8,7,9,10' },
+                  { l: 'Ingresos', v: '$3.2k', d: '+14%', up: true, s: '3,5,4,6,8,7,9,11' },
+                  { l: 'Por cobrar', v: '$180', d: '2 reservas', up: false, s: '4,4,5,5,4,4,5,5' },
+                  { l: 'Canceladas', v: '4%', d: '-2 pts', up: true, s: '9,8,8,6,6,5,4,3' }
+                ].map(k => (
+                  <div key={k.l} className="bg-slate-950 border border-slate-800 rounded-xl p-2.5">
+                    <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wide">{k.l}</p>
+                    <p className="text-lg font-black text-white leading-tight">{k.v}</p>
+                    <p className={`text-[10px] font-bold ${k.up ? 'text-emerald-400' : 'text-amber-400'}`}>{k.d}</p>
+                    <svg viewBox="0 0 70 18" className="w-full h-4 mt-1" preserveAspectRatio="none">
+                      <polyline fill="none" stroke={k.up ? '#2dd4bf' : '#fbbf24'} strokeWidth="1.6" points={k.s.split(',').map((v, i) => `${i * 10},${18 - Number(v) * 1.5}`).join(' ')} />
+                    </svg>
+                  </div>
+                ))}
+              </div>
+
+              <div className="bg-slate-950 border border-slate-800 rounded-xl p-3">
+                <div className="flex justify-between items-center mb-1.5">
+                  <p className="text-[11px] font-bold text-slate-200">Ocupación diaria y previsión</p>
+                  <span className="text-[9px] text-slate-500 flex items-center gap-2"><i className="w-2 h-0.5 bg-teal-400 inline-block" />Real <i className="w-2 h-0.5 bg-teal-400/40 inline-block" />Prevista</span>
+                </div>
+                <svg viewBox="0 0 300 80" className="w-full h-16" preserveAspectRatio="none">
+                  <path d="M0,50 L25,42 L50,46 L75,34 L100,38 L125,26 L150,30" fill="none" stroke="#2dd4bf" strokeWidth="2" />
+                  <path d="M150,30 L175,36 L200,24 L225,28 L250,18 L275,22 L300,14" fill="none" stroke="#2dd4bf" strokeOpacity="0.45" strokeWidth="2" strokeDasharray="4 3" />
+                  <line x1="150" x2="150" y1="0" y2="80" stroke="#475569" strokeDasharray="2 3" />
+                </svg>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-1.5">
+                  <p className="text-[11px] font-bold text-slate-200">Origen de reservas</p>
+                  {[['Directas', 46, 'bg-teal-400'], ['Airbnb', 38, 'bg-rose-400'], ['Booking', 16, 'bg-blue-400']].map(([n, v, c]) => (
+                    <div key={String(n)}>
+                      <div className="flex justify-between text-[9px] text-slate-400"><span>{n}</span><span>{v}%</span></div>
+                      <div className="h-1.5 rounded-full bg-slate-800 overflow-hidden"><div className={`h-full ${c}`} style={{ width: `${v}%` }} /></div>
+                    </div>
+                  ))}
+                </div>
+                <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-1.5">
+                  <p className="text-[11px] font-bold text-slate-200">Hoy</p>
+                  <div className="grid grid-cols-2 gap-1 text-center">
+                    {[['3', 'Llegadas'], ['2', 'Salidas'], ['5', 'En casa'], ['1', 'Mantenim.']].map(([v, l]) => (
+                      <div key={l} className="bg-slate-900 rounded-md py-1"><p className="text-sm font-black text-white leading-none">{v}</p><p className="text-[8px] text-slate-500">{l}</p></div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <p className="text-[10px] text-slate-600 text-center">Datos de ejemplo</p>
+            </div>
           </div>
         </div>
       </InteractiveContainer>
 
-      {/* 2. ¿QUÉ PROBLEMAS RESUELVE ROOMIA? (Exactamente 4 tarjetas) */}
-      <InteractiveContainer id="problemas" className="bg-slate-950 text-white py-14 px-4 md:px-6 border-b border-slate-900">
-        <div className="max-w-5xl mx-auto relative z-10 space-y-10">
+      {/* ¿QUÉ PROBLEMAS RESUELVE ROOMIA? + antes/después */}
+      <InteractiveContainer id="problemas" className="py-16 px-4 md:px-6 border-b border-slate-900 scroll-mt-20">
+        <div className="max-w-5xl mx-auto space-y-10">
           <div className="text-center space-y-3">
-            <h2 className="text-2xl md:text-4xl font-serif font-black tracking-tight text-white">
-              ¿Qué problemas resuelve Roomia?
-            </h2>
-            <p className="text-xs md:text-sm text-[#A8B2BD] max-w-xl mx-auto leading-relaxed">
-              La administración de un hospedaje no tiene por qué ser compleja ni desordenada. Así es como Roomia elimina los cuellos de botella más comunes:
-            </p>
+            <h2 className="text-3xl md:text-4xl font-serif font-black text-white">¿Qué problemas resuelve Roomia?</h2>
+            <p className="text-slate-400 max-w-2xl mx-auto">Administrar a mano te cuesta reservas y dinero. Así elimina Roomia los cuellos de botella más comunes:</p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            
-            {/* Problema 1 */}
-            <div className="p-6 bg-slate-900/50 hover:bg-slate-900 border border-slate-800 hover:border-brand-cyan/35 rounded-2xl transition-all duration-300 group">
-              <div className="w-10 h-10 rounded-xl bg-brand-cyan/10 text-brand-cyan flex items-center justify-center mb-4">
-                <AlertTriangle className="w-5 h-5 pointer-events-none" />
+          <div className="grid md:grid-cols-2 gap-6">
+            {[
+              { i: AlertTriangle, t: 'Reservas desordenadas entre Airbnb, Booking, WhatsApp y cuadernos', d: 'Centraliza toda la información en un solo calendario. Evita las dobles reservas, la pérdida de datos de huéspedes y el desgaste de coordinar varios canales a mano.', tile: 'bg-brand-cyan/10 text-brand-cyan', title: 'text-brand-cyan', hover: 'hover:border-brand-cyan/35' },
+              { i: Clock, t: 'Recepción lenta y procesos manuales', d: 'Acelera la llegada de huéspedes con registro ágil y validación mediante código QR. Reduce las esperas a segundos y ofrece un servicio profesional.', tile: 'bg-indigo-500/10 text-indigo-400', title: 'text-indigo-300', hover: 'hover:border-indigo-500/35' },
+              { i: Building2, t: 'Falta de control sobre habitaciones y limpieza', d: 'Mira al instante el estado de cada habitación: disponible, ocupada, en limpieza o en mantenimiento. Evita asignaciones incorrectas y mantén al equipo sincronizado.', tile: 'bg-emerald-500/10 text-emerald-400', title: 'text-emerald-300', hover: 'hover:border-emerald-500/35' },
+              { i: TrendingUp, t: 'Cobros desorganizados y falta de reportes', d: 'Lleva el registro de cada abono, saldo pendiente e ingreso por reserva. Obtén ocupación, tarifa media y RevPAR en tiempo real para decidir mejor.', tile: 'bg-amber-500/10 text-amber-400', title: 'text-amber-300', hover: 'hover:border-amber-500/35' }
+            ].map(p => (
+              <div key={p.t} className={`p-6 bg-slate-900/50 hover:bg-slate-900 border border-slate-800 ${p.hover} rounded-2xl transition-all duration-300`}>
+                <div className={`w-10 h-10 rounded-xl ${p.tile} flex items-center justify-center mb-4`}><p.i className="w-5 h-5" /></div>
+                <h3 className={`text-sm md:text-base font-bold ${p.title} mb-2`}>{p.t}</h3>
+                <p className="text-xs md:text-sm text-[#A8B2BD] leading-relaxed">{p.d}</p>
               </div>
-              <h3 className="text-sm md:text-base font-bold text-brand-cyan mb-2">
-                Reservas desordenadas entre WhatsApp, cuadernos y Excel
-              </h3>
-              <p className="text-xs text-[#A8B2BD] leading-relaxed">
-                Centralice toda la información en un solo lugar. Evite la duplicidad de reservas, la pérdida de datos de huéspedes y el desgaste de coordinar múltiples canales de forma manual.
-              </p>
-            </div>
+            ))}
+          </div>
 
-            {/* Problema 2 */}
-            <div className="p-6 bg-slate-900/50 hover:bg-slate-900 border border-slate-800 hover:border-brand-cyan/35 rounded-2xl transition-all duration-300 group">
-              <div className="w-10 h-10 rounded-xl bg-brand-cyan/10 text-brand-cyan flex items-center justify-center mb-4">
-                <Clock className="w-5 h-5 pointer-events-none" />
-              </div>
-              <h3 className="text-sm md:text-base font-bold text-brand-cyan mb-2">
-                Recepción lenta y procesos manuales
-              </h3>
-              <p className="text-xs text-[#A8B2BD] leading-relaxed">
-                Acelere la llegada de huéspedes con registro ágil de datos y validación rápida mediante código QR. Reduzca las filas de espera a segundos y brinde un servicio profesional.
-              </p>
+          <div className="grid md:grid-cols-2 gap-5 pt-2">
+            <div className="rounded-2xl border border-rose-500/20 bg-rose-500/5 hover:bg-rose-500/10 hover:border-rose-500/40 p-6 space-y-4 transition-all duration-300">
+              <h3 className="font-bold text-rose-300">Sin Roomia</h3>
+              {[
+                { i: MessagesSquare, t: 'Revisas Airbnb, Booking, WhatsApp y un cuaderno' },
+                { i: AlertTriangle, t: 'Una reserva doble te obliga a cancelar a un huésped' },
+                { i: TrendingUp, t: 'No sabes cuánto ganas realmente por noche' },
+                { i: Wallet, t: 'Cobros y abonos anotados en distintos sitios' },
+                { i: Wrench, t: 'Tu equipo pregunta por mensaje qué cuarto está listo' }
+              ].map(({ i: Icon, t }) => (
+                <div key={t} className="flex items-center gap-3 group">
+                  <div className="w-10 h-10 rounded-xl bg-red-500/10 text-red-500 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform"><Icon className="w-5 h-5" /></div>
+                  <p className="text-sm text-slate-300 leading-snug">{t}</p>
+                </div>
+              ))}
             </div>
-
-            {/* Problema 3 */}
-            <div className="p-6 bg-slate-900/50 hover:bg-slate-900 border border-slate-800 hover:border-brand-cyan/35 rounded-2xl transition-all duration-300 group">
-              <div className="w-10 h-10 rounded-xl bg-brand-cyan/10 text-brand-cyan flex items-center justify-center mb-4">
-                <Building2 className="w-5 h-5 pointer-events-none" />
-              </div>
-              <h3 className="text-sm md:text-base font-bold text-brand-cyan mb-2">
-                Falta de control sobre habitaciones y limpieza
-              </h3>
-              <p className="text-xs text-[#A8B2BD] leading-relaxed">
-                Monitoree al instante el estado de cada habitación: disponible, ocupada, en limpieza o en mantenimiento. Evite asignaciones incorrectas y mantenga al equipo sincronizado.
-              </p>
+            <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/5 hover:bg-emerald-500/10 hover:border-emerald-500/45 p-6 space-y-4 transition-all duration-300">
+              <h3 className="font-bold text-emerald-300">Con Roomia</h3>
+              {[
+                { i: Calendar, t: 'Un calendario con todas tus fechas ocupadas', c: 'bg-brand-cyan/10 text-brand-cyan' },
+                { i: RefreshCw, t: 'Las fechas de Airbnb y Booking se bloquean solas', c: 'bg-indigo-500/10 text-indigo-400' },
+                { i: BarChart3, t: 'Ocupación, tarifa media y RevPAR en tiempo real', c: 'bg-amber-500/10 text-amber-400' },
+                { i: Wallet, t: 'Pagos y saldos pendientes por reserva', c: 'bg-emerald-500/10 text-emerald-400' },
+                { i: Users, t: 'Estado de cada habitación visible para todo el equipo', c: 'bg-sky-500/10 text-sky-400' }
+              ].map(({ i: Icon, t, c }) => (
+                <div key={t} className="flex items-center gap-3 group">
+                  <div className={`w-10 h-10 rounded-xl ${c} flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform`}><Icon className="w-5 h-5" /></div>
+                  <p className="text-sm text-slate-200 leading-snug">{t}</p>
+                </div>
+              ))}
             </div>
-
-            {/* Problema 4 */}
-            <div className="p-6 bg-slate-900/50 hover:bg-slate-900 border border-slate-800 hover:border-brand-cyan/35 rounded-2xl transition-all duration-300 group">
-              <div className="w-10 h-10 rounded-xl bg-brand-cyan/10 text-brand-cyan flex items-center justify-center mb-4">
-                <TrendingUp className="w-5 h-5 pointer-events-none" />
-              </div>
-              <h3 className="text-sm md:text-base font-bold text-brand-cyan mb-2">
-                Cobros desorganizados y falta de reportes
-              </h3>
-              <p className="text-xs text-[#A8B2BD] leading-relaxed">
-                Lleve un registro riguroso de cada abono, saldo pendiente e ingresos por reserva. Obtenga métricas consolidadas en tiempo real con reportes claros para tomar mejores decisiones.
-              </p>
-            </div>
-
           </div>
         </div>
       </InteractiveContainer>
 
-      {/* 3. ¿CÓMO FUNCIONA? (3 pasos) */}
-      <InteractiveContainer className="bg-slate-950 py-14 px-4 md:px-6 border-b border-slate-900">
-        <div className="max-w-5xl mx-auto space-y-12">
+      {/* CÓMO FUNCIONA */}
+      <InteractiveContainer id="como-funciona" className="py-16 px-4 md:px-6 border-b border-slate-900 scroll-mt-20">
+        <div className="max-w-5xl mx-auto space-y-10">
           <div className="text-center space-y-3">
-            <h2 className="text-2xl md:text-4xl font-serif font-black tracking-tight text-white">
-              ¿Cómo funciona?
-            </h2>
-            <p className="text-xs md:text-sm text-slate-400 max-w-lg mx-auto leading-relaxed">
-              Modernice la administración de su propiedad en tres sencillos pasos:
-            </p>
+            <h2 className="text-3xl md:text-4xl font-serif font-black text-white">Listo en tres pasos</h2>
+            <p className="text-slate-400">Sin instalar nada. Te ayudamos a configurarlo.</p>
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative">
-            
-            {/* Step 1 */}
-            <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-800 hover:border-brand-cyan/35 transition-all flex flex-col space-y-4 shadow-xl relative z-10">
-              <div className="w-12 h-12 rounded-xl bg-brand-cyan/10 text-brand-cyan flex items-center justify-center shadow-sm font-bold text-lg font-mono">
-                1
+          <div className="grid md:grid-cols-3 gap-5">
+            {[
+              { n: '1', t: 'Crea tu propiedad', d: 'Registra tu casa, departamento u hotel con sus habitaciones, fotos y tarifas.', c: 'text-brand-cyan bg-brand-cyan/10' },
+              { n: '2', t: 'Conecta tus calendarios', d: 'Pega el enlace iCal de Airbnb y Booking. Las fechas ocupadas se bloquean automáticamente.', c: 'text-indigo-300 bg-indigo-500/10' },
+              { n: '3', t: 'Recibe y controla', d: 'Acepta reservas directas, registra pagos y revisa tu rendimiento en el panel.', c: 'text-emerald-300 bg-emerald-500/10' }
+            ].map(s => (
+              <div key={s.n} className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-3">
+                <div className={`w-11 h-11 rounded-xl flex items-center justify-center font-mono font-black text-lg ${s.c}`}>{s.n}</div>
+                <h3 className="font-bold text-white">{s.t}</h3>
+                <p className="text-sm text-slate-400 leading-relaxed">{s.d}</p>
               </div>
-              <h3 className="font-bold text-white text-sm md:text-base">Configure su propiedad</h3>
-              <p className="text-xs text-slate-400 leading-normal">
-                Registre sus habitaciones, tipos de alojamiento, tarifas por temporada y datos principales en pocos minutos.
-              </p>
-            </div>
-
-            {/* Step 2 */}
-            <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-800 hover:border-indigo-500/35 transition-all flex flex-col space-y-4 shadow-xl relative z-10">
-              <div className="w-12 h-12 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center shadow-sm font-bold text-lg font-mono">
-                2
-              </div>
-              <h3 className="font-bold text-white text-sm md:text-base">Gestione reservas y operación diaria</h3>
-              <p className="text-xs text-slate-400 leading-normal">
-                Realice check-ins con QR, registre huéspedes, controle cobros, estados de habitaciones y calendario de ocupación.
-              </p>
-            </div>
-
-            {/* Step 3 */}
-            <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-800 hover:border-emerald-500/35 transition-all flex flex-col space-y-4 shadow-xl relative z-10">
-              <div className="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center shadow-sm font-bold text-lg font-mono">
-                3
-              </div>
-              <h3 className="font-bold text-white text-sm md:text-base">Controle su negocio con reportes</h3>
-              <p className="text-xs text-slate-400 leading-normal">
-                Consulte la ocupación, los ingresos acumulados, noches vendidas y el rendimiento general con gráficos en tiempo real.
-              </p>
-            </div>
-
+            ))}
           </div>
         </div>
       </InteractiveContainer>
 
-      {/* 4. FUNCIONES CLAVE (Fusionada con "por qué eligen Roomia PMS") */}
-      <InteractiveContainer id="funciones" className="py-14 px-4 md:px-6 border-b border-slate-900">
-        <div className="max-w-7xl mx-auto space-y-10">
-          <div className="text-center space-y-2">
-            <h2 className="text-2xl md:text-4xl font-serif font-black tracking-tight text-white">
-              Funciones clave para una operación más rápida, ordenada y rentable
-            </h2>
-            <p className="text-xs md:text-sm text-slate-400 max-w-2xl mx-auto leading-relaxed">
-              Todo lo que su hospedaje necesita para ahorrar tiempo, evitar errores operativos y maximizar ingresos en un solo sistema:
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            
-            <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-800 hover:border-brand-cyan/35 hover:bg-slate-900 transition-all flex flex-col justify-between">
-              <div className="space-y-3">
-                <div className="w-10 h-10 rounded-xl bg-brand-cyan/10 text-brand-cyan flex items-center justify-center">
-                  <Building2 className="w-5 h-5" />
-                </div>
-                <h3 className="font-bold text-white text-sm md:text-base">Gestión multi-propiedad centralizada</h3>
-                <p className="text-xs text-slate-400 leading-normal">
-                  Administre uno o varios hospedajes desde la misma cuenta. Configure habitaciones, tarifas y disponibilidad sin cambiar de sistema.
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-800 hover:border-indigo-500/35 hover:bg-slate-900 transition-all flex flex-col justify-between">
-              <div className="space-y-3">
-                <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center">
-                  <QrCode className="w-5 h-5" />
-                </div>
-                <h3 className="font-bold text-white text-sm md:text-base">Check-in más ágil con código QR</h3>
-                <p className="text-xs text-slate-400 leading-normal">
-                  Genere un código QR por reserva para validar la llegada del huésped en segundos. Reduzca filas y agilice el ingreso.
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-800 hover:border-emerald-500/35 hover:bg-slate-900 transition-all flex flex-col justify-between">
-              <div className="space-y-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
-                  <Users className="w-5 h-5" />
-                </div>
-                <h3 className="font-bold text-white text-sm md:text-base">Recepción y registro en un solo flujo</h3>
-                <p className="text-xs text-slate-400 leading-normal">
-                  Registre huéspedes, walk-ins sin reserva previa, asigne habitaciones y cargue pagos desde un panel unificado.
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-800 hover:border-amber-500/35 hover:bg-slate-900 transition-all flex flex-col justify-between">
-              <div className="space-y-3">
-                <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center">
-                  <TrendingUp className="w-5 h-5" />
-                </div>
-                <h3 className="font-bold text-white text-sm md:text-base">Reportes de ocupación e ingresos</h3>
-                <p className="text-xs text-slate-400 leading-normal">
-                  Consulte en tiempo real la ocupación, noches reservadas, ingresos por propiedad y analítica de rendimiento clara.
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-800 hover:border-rose-500/35 hover:bg-slate-900 transition-all flex flex-col justify-between">
-              <div className="space-y-3">
-                <div className="w-10 h-10 rounded-xl bg-rose-500/10 text-rose-400 flex items-center justify-center">
-                  <Clock className="w-5 h-5" />
-                </div>
-                <h3 className="font-bold text-white text-sm md:text-base">Control de limpieza y mantenimiento</h3>
-                <p className="text-xs text-slate-400 leading-normal">
-                  Cambie estados de habitaciones a sucia, en limpieza o mantenimiento en tiempo real para evitar errores de asignación.
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-800 hover:border-brand-cyan/35 hover:bg-slate-900 transition-all flex flex-col justify-between">
-              <div className="space-y-3">
-                <div className="w-10 h-10 rounded-xl bg-brand-cyan/10 text-brand-cyan flex items-center justify-center">
-                  <Calendar className="w-5 h-5" />
-                </div>
-                <h3 className="font-bold text-white text-sm md:text-base">Calendario visual de reservas</h3>
-                <p className="text-xs text-slate-400 leading-normal">
-                  Visualice la ocupación por fechas, check-ins, check-outs y carga operativa de cada propiedad en una sola vista.
-                </p>
-              </div>
-            </div>
-
-          </div>
-
-        </div>
-      </InteractiveContainer>
-
-      {/* 5. CTA INTERMEDIO + ¿POR QUÉ ELIGEN ROOMIA? (Unificado en un solo contenedor izquierda / derecha) */}
-      <InteractiveContainer className="bg-slate-950 py-12 px-4 md:px-6 border-b border-slate-900">
-        <div className="max-w-6xl mx-auto bg-gradient-to-br from-[#0E2A47] via-slate-900 to-[#0B1E33] border border-brand-cyan/30 rounded-3xl p-6 md:p-10 shadow-2xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-48 h-48 bg-brand-cyan/10 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute bottom-0 left-0 w-48 h-48 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
-          
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-center relative z-10">
-            
-            {/* Columna Izquierda: Razones por las que eligen Roomia */}
-            <div className="lg:col-span-7 space-y-5">
-              <div className="space-y-2">
-                <h3 className="text-xl md:text-2xl lg:text-3xl font-serif font-black text-white leading-tight">
-                  ¿Por qué los propietarios eligen Roomia?
-                </h3>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-xs text-slate-300">
-                <div className="p-3.5 rounded-2xl bg-slate-950/50 border border-slate-800/80 space-y-1.5 hover:border-brand-cyan/30 transition-colors">
-                  <div className="flex items-center gap-2 text-white font-bold">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Fácil e intuitivo</span>
-                  </div>
-                  <p className="text-slate-400 leading-relaxed text-[11px]">
-                    Diseñado para operar desde el primer día sin capacitaciones largas ni complicaciones.
-                  </p>
-                </div>
-
-                <div className="p-3.5 rounded-2xl bg-slate-950/50 border border-slate-800/80 space-y-1.5 hover:border-brand-cyan/30 transition-colors">
-                  <div className="flex items-center gap-2 text-white font-bold">
-                    <MessagesSquare className="w-4 h-4 text-brand-cyan shrink-0" />
-                    <span>Chat en tiempo real</span>
-                  </div>
-                  <p className="text-slate-400 leading-relaxed text-[11px]">
-                    Canal directo para coordinar al equipo interno y responder preguntas de clientes y huéspedes al instante.
-                  </p>
-                </div>
-
-                <div className="p-3.5 rounded-2xl bg-slate-950/50 border border-slate-800/80 space-y-1.5 hover:border-brand-cyan/30 transition-colors">
-                  <div className="flex items-center gap-2 text-white font-bold">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Transparente</span>
-                  </div>
-                  <p className="text-slate-400 leading-relaxed text-[11px]">
-                    Suscripción mensual fija. Tarifa del 5% solo al procesar pagos con tarjeta en línea.
-                  </p>
-                </div>
-
-                <div className="p-3.5 rounded-2xl bg-slate-950/50 border border-slate-800/80 space-y-1.5 hover:border-brand-cyan/30 transition-colors">
-                  <div className="flex items-center gap-2 text-white font-bold">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Seguridad y respaldo</span>
-                  </div>
-                  <p className="text-slate-400 leading-relaxed text-[11px]">
-                    Datos respaldados en la nube con acceso protegido y soporte técnico en español.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Divisor Visual en móvil */}
-            <div className="lg:hidden h-px bg-slate-800 w-full" />
-
-            {/* Columna Derecha: Llamado a la Acción (CTA Demo) */}
-            <div className="lg:col-span-5 flex flex-col justify-center space-y-5 bg-slate-950/70 p-6 md:p-7 rounded-2xl border border-brand-cyan/25 shadow-xl text-center lg:text-left">
-              <div className="space-y-2.5">
-                <h2 className="text-xl md:text-2xl font-serif font-black text-white leading-tight">
-                  ¿Listo para transformar la gestión de su negocio?
-                </h2>
-                <p className="text-xs text-slate-300 leading-relaxed">
-                  Solicite una demostración personalizada de 15 minutos y descubra cómo Roomia se adapta exactamente a su tipo de propiedad.
-                </p>
-              </div>
-
-              <div className="pt-1">
-                <button
-                  onClick={() => openWhatsApp("Hola, quiero solicitar una demo por WhatsApp de Roomia PMS.")}
-                  className="w-full py-3.5 px-6 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs md:text-sm rounded-xl shadow-xl shadow-emerald-500/20 hover:shadow-emerald-500/30 transition-all hover:scale-[1.02] active:scale-95 cursor-pointer flex items-center justify-center gap-2.5"
-                >
-                  <MessageCircle className="w-5 h-5 fill-slate-950" />
-                  <span>Solicitar demo por WhatsApp</span>
-                </button>
-              </div>
-            </div>
-
-          </div>
-        </div>
-      </InteractiveContainer>
-
-      {/* 6. ¿PARA QUIÉN ES ROOMIA? (Una sola vez: fusión completa) */}
-      <InteractiveContainer id="para-quien" className="bg-slate-950 text-white py-14 px-4 md:px-6 border-b border-slate-900">
+      {/* FUNCIONES */}
+      <InteractiveContainer id="funciones" className="py-16 px-4 md:px-6 border-b border-slate-900 scroll-mt-20">
         <div className="max-w-6xl mx-auto space-y-10">
           <div className="text-center space-y-3">
-            <h2 className="text-2xl md:text-4xl font-serif font-black tracking-tight text-white">
-              ¿Para quién es Roomia?
-            </h2>
-            <p className="text-xs md:text-sm text-slate-400 max-w-xl mx-auto leading-relaxed">
-              Un PMS flexible diseñado para adaptarse a las dimensiones y necesidades específicas de cada tipo de hospedaje:
-            </p>
+            <h2 className="text-3xl md:text-4xl font-serif font-black text-white">Todo lo que necesita un anfitrión</h2>
+            <p className="text-slate-400 max-w-2xl mx-auto">Pensado para casas, departamentos, cabañas y hoteles pequeños.</p>
           </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            
-            <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex flex-col items-center text-center space-y-3 hover:border-brand-cyan/40 transition-colors group">
-              <div className="w-10 h-10 rounded-xl bg-brand-cyan/10 text-brand-cyan flex items-center justify-center group-hover:scale-105 transition-transform">
-                <Building2 className="w-5 h-5" />
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {[
+              { i: RefreshCw, t: 'Sincronización con Airbnb y Booking', d: 'Importa sus calendarios por propiedad y evita que dos huéspedes reserven la misma noche.', c: 'text-rose-300 bg-rose-500/10' },
+              { i: Globe, t: 'Página de reservas directas', d: 'Tu propio enlace donde los huéspedes ven disponibilidad y precios y reservan sin comisión de terceros.', c: 'text-brand-cyan bg-brand-cyan/10' },
+              { i: BarChart3, t: 'Panel con métricas claras', d: 'Ocupación, tarifa media, RevPAR, ingresos, cancelaciones y previsión de los próximos 30 días.', c: 'text-amber-300 bg-amber-500/10' },
+              { i: Wallet, t: 'Pagos y saldos', d: 'Registra abonos, ve lo pendiente por cobrar y cobra con tarjeta en línea cuando lo necesites.', c: 'text-emerald-300 bg-emerald-500/10' },
+              { i: QrCode, t: 'Check-in con QR', d: 'Cada reserva genera un código para validar la llegada del huésped en segundos.', c: 'text-indigo-300 bg-indigo-500/10' },
+              { i: Wrench, t: 'Limpieza y mantenimiento', d: 'Marca habitaciones como disponibles, sucias o en mantenimiento y mantén al equipo sincronizado.', c: 'text-sky-300 bg-sky-500/10' },
+              { i: Users, t: 'Equipo y recepción', d: 'Da acceso a recepcionistas con una vista simple, sin mostrarles tus finanzas.', c: 'text-teal-300 bg-teal-500/10' },
+              { i: Home, t: 'Varias propiedades', d: 'Administra todas tus casas, departamentos y hoteles desde la misma cuenta.', c: 'text-violet-300 bg-violet-500/10' },
+              { i: ShieldCheck, t: 'Datos protegidos', d: 'Información respaldada en la nube con acceso por roles y soporte técnico en español.', c: 'text-lime-300 bg-lime-500/10' }
+            ].map(f => (
+              <div key={f.t} className="bg-slate-900/60 hover:bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-2xl p-6 space-y-3 transition-colors">
+                <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${f.c}`}><f.i className="w-5 h-5" /></div>
+                <h3 className="font-bold text-white">{f.t}</h3>
+                <p className="text-sm text-slate-400 leading-relaxed">{f.d}</p>
               </div>
-              <h3 className="font-extrabold text-xs text-slate-200 leading-snug">Hoteles y hostales</h3>
-              <p className="text-[11px] text-slate-400">Establecimientos boutique, urbanos o albergues.</p>
-            </div>
-
-            <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex flex-col items-center text-center space-y-3 hover:border-indigo-500/40 transition-colors group">
-              <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center group-hover:scale-105 transition-transform">
-                <Sparkles className="w-5 h-5" />
-              </div>
-              <h3 className="font-extrabold text-xs text-slate-200 leading-snug">Glampings y cabañas</h3>
-              <p className="text-[11px] text-slate-400">Sitios ecológicos y experiencias al aire libre.</p>
-            </div>
-
-            <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex flex-col items-center text-center space-y-3 hover:border-rose-500/40 transition-colors group">
-              <div className="w-10 h-10 rounded-xl bg-rose-500/10 text-rose-400 flex items-center justify-center group-hover:scale-105 transition-transform">
-                <MapPin className="w-5 h-5" />
-              </div>
-              <h3 className="font-extrabold text-xs text-slate-200 leading-snug">Suites y departamentos</h3>
-              <p className="text-[11px] text-slate-400">Alquileres temporales, departamentos y villas.</p>
-            </div>
-
-            <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex flex-col items-center text-center space-y-3 hover:border-emerald-500/40 transition-colors group">
-              <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center group-hover:scale-105 transition-transform">
-                <Layers className="w-5 h-5" />
-              </div>
-              <h3 className="font-extrabold text-xs text-slate-200 leading-snug">Una o varias propiedades</h3>
-              <p className="text-[11px] text-slate-400">Negocios con 1 sede o múltiples propiedades.</p>
-            </div>
-
-            <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex flex-col items-center text-center space-y-3 hover:border-amber-500/40 transition-colors group sm:col-span-2 lg:col-span-1">
-              <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center group-hover:scale-105 transition-transform">
-                <Users className="w-5 h-5" />
-              </div>
-              <h3 className="font-extrabold text-xs text-slate-200 leading-snug">Administradores</h3>
-              <p className="text-[11px] text-slate-400">Que necesitan profesionalizar su recepción.</p>
-            </div>
-
+            ))}
           </div>
         </div>
       </InteractiveContainer>
 
-      {/* 7. SECCIÓN DE PRECIOS Y PLANES (NUEVA) */}
-      <InteractiveContainer id="precios" className="bg-slate-950 py-16 px-4 md:px-6 border-b border-slate-900">
-        <div className="max-w-6xl mx-auto space-y-12">
-          
-          <div className="text-center space-y-3">
-            <h2 className="text-3xl md:text-5xl font-serif font-black tracking-tight text-white">
-              Planes y Precios
-            </h2>
-            <p className="text-xs md:text-sm text-slate-400 max-w-xl mx-auto leading-relaxed">
-              Elija el plan adecuado según la cantidad de propiedades que administra. Todos los planes incluyen el 100% de las funciones de Roomia.
+      {/* RESERVAS DIRECTAS + CTA */}
+      <InteractiveContainer className="py-16 px-4 md:px-6 border-b border-slate-900">
+        <div className="max-w-6xl mx-auto rounded-3xl border border-brand-cyan/25 bg-gradient-to-br from-[#0E2A47] via-slate-900 to-slate-950 p-6 md:p-10 grid lg:grid-cols-12 gap-8 lg:gap-10 items-center">
+          <div className="lg:col-span-7 space-y-5">
+            <h2 className="text-2xl md:text-3xl font-serif font-black text-white leading-tight">Cada reserva directa es dinero que no le dejas a una plataforma</h2>
+            <p className="text-slate-300 text-sm leading-relaxed">
+              Las plataformas cobran comisión por cada reserva. Con tu propia página de reservas conectada a tu calendario, los huéspedes que ya te conocen reservan contigo y tú decides tus precios.
             </p>
+            <ul className="space-y-3 text-sm text-slate-200">
+              {['Tu enlace propio para compartir en redes y WhatsApp', 'Disponibilidad siempre al día con Airbnb y Booking', 'Tarifas por temporada y fin de semana', 'Políticas de cancelación y reembolso claras'].map(t => (
+                <li key={t} className="flex gap-2.5"><CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />{t}</li>
+              ))}
+            </ul>
           </div>
 
-          {/* Pricing Grid - 3 Plans */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch">
-            
-            {/* Plan 1: Roomia 1 */}
-            <div className="bg-slate-900/60 border border-slate-800 hover:border-slate-700 rounded-3xl p-6 md:p-8 flex flex-col justify-between space-y-6 transition-all">
-              <div className="space-y-4">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider font-mono">1 PROPIEDAD</span>
-                <h3 className="text-2xl font-black text-white">Roomia 1</h3>
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  Ideal para hoteles, hostales o cabañas independientes que buscan profesionalizar su recepción.
-                </p>
-
-                <div className="pt-2 border-t border-slate-800/80">
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-slate-500 line-through text-sm font-semibold">$39/mes</span>
-                    <span className="text-3xl font-black text-brand-cyan">$29</span>
-                    <span className="text-xs text-slate-400 font-medium">/ mes</span>
-                  </div>
-                  <span className="text-[10px] text-emerald-400 font-bold block mt-1">✓ Precio Fundador Congelado</span>
-                </div>
-
-                <ul className="space-y-2.5 pt-4 text-xs text-slate-300">
-                  <li className="flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span><strong>1 Propiedad</strong> registrada</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Chat en tiempo real (equipo y huéspedes)</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Reservas y huéspedes ilimitados</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Módulo de recepción y Check-in QR</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Calendario e inventario de cuartos</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Reportes de ocupación e ingresos</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Soporte directo en español</span>
-                  </li>
-                </ul>
-              </div>
-
-              <button
-                onClick={() => openWhatsApp("Hola, me interesa el Plan Roomia 1 ($29/mes) para 1 propiedad.")}
-                className="w-full py-3.5 bg-slate-800 hover:bg-slate-700 text-white font-extrabold text-xs rounded-xl transition-all cursor-pointer text-center block border border-slate-700 active:scale-95"
-              >
-                Solicitar Plan Roomia 1
-              </button>
+          <div className="lg:col-span-5 flex flex-col justify-center space-y-5 bg-slate-950/70 p-6 md:p-7 rounded-2xl border border-brand-cyan/25 shadow-xl text-center lg:text-left">
+            <div className="space-y-2.5">
+              <h3 className="text-xl md:text-2xl font-serif font-black text-white leading-tight">Prueba Roomia con tu propio alojamiento</h3>
+              <p className="text-sm text-slate-300 leading-relaxed">
+                En una demo de 15 minutos conectamos tu calendario de Airbnb o Booking y te mostramos el panel con tus habitaciones y tarifas reales. Sin tarjeta y sin compromiso.
+              </p>
             </div>
+            <button
+              onClick={() => openWhatsApp('Hola, quiero solicitar una demo por WhatsApp de Roomia PMS.')}
+              className="w-full py-3.5 px-6 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs md:text-sm rounded-xl shadow-xl shadow-emerald-500/20 hover:shadow-emerald-500/30 transition-all hover:scale-[1.02] active:scale-95 cursor-pointer flex items-center justify-center gap-2.5"
+            >
+              <MessageCircle className="w-5 h-5 fill-slate-950" />
+              <span>Solicitar demo por WhatsApp</span>
+            </button>
+          </div>
+        </div>
+      </InteractiveContainer>
 
-            {/* Plan 2: Roomia 3 (Destacado "Más Elegido") */}
-            <div className="bg-slate-900 border-2 border-brand-cyan rounded-3xl p-6 md:p-8 flex flex-col justify-between space-y-6 shadow-2xl shadow-brand-cyan/10 relative transform md:-translate-y-2 transition-all">
-              <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-brand-cyan text-slate-950 text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full shadow-md">
-                MÁS ELEGIDO
-              </div>
-
-              <div className="space-y-4">
-                <span className="text-[11px] font-bold text-brand-cyan uppercase tracking-wider font-mono">3 PROPIEDADES</span>
-                <h3 className="text-2xl font-black text-white">Roomia 3</h3>
-                <p className="text-xs text-slate-300 leading-relaxed">
-                  Perfecto para administradores con hasta 3 sedes o complejos turísticos en expansión.
-                </p>
-
-                <div className="pt-2 border-t border-slate-800">
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-slate-500 line-through text-sm font-semibold">$89/mes</span>
-                    <span className="text-3xl font-black text-brand-cyan">$69</span>
-                    <span className="text-xs text-slate-400 font-medium">/ mes</span>
-                  </div>
-                  <span className="text-[10px] text-emerald-400 font-bold block mt-1">✓ Precio Fundador Congelado</span>
-                </div>
-
-                <ul className="space-y-2.5 pt-4 text-xs text-slate-200">
-                  <li className="flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-brand-cyan shrink-0" />
-                    <span><strong>Hasta 3 Propiedades</strong> o sedes</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-brand-cyan shrink-0" />
-                    <span>Chat en tiempo real (equipo y huéspedes)</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-brand-cyan shrink-0" />
-                    <span>Gestión multi-propiedad centralizada</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-brand-cyan shrink-0" />
-                    <span>Reservas y huéspedes ilimitados</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-brand-cyan shrink-0" />
-                    <span>Módulo de recepción y Check-in QR</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-brand-cyan shrink-0" />
-                    <span>Reportes consolidados por propiedad</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-brand-cyan shrink-0" />
-                    <span>Soporte prioritario en español</span>
-                  </li>
-                </ul>
-              </div>
-
-              <button
-                onClick={() => openWhatsApp("Hola, me interesa el Plan Roomia 3 ($69/mes) para 3 propiedades.")}
-                className="w-full py-3.5 bg-brand-cyan hover:bg-[#3fc2f0] text-slate-950 font-black text-xs rounded-xl transition-all cursor-pointer text-center block shadow-lg shadow-brand-cyan/20 active:scale-95"
-              >
-                Solicitar Plan Roomia 3
-              </button>
-            </div>
-
-            {/* Plan 3: Roomia 5 */}
-            <div className="bg-slate-900/60 border border-slate-800 hover:border-slate-700 rounded-3xl p-6 md:p-8 flex flex-col justify-between space-y-6 transition-all">
-              <div className="space-y-4">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider font-mono">5 PROPIEDADES</span>
-                <h3 className="text-2xl font-black text-white">Roomia 5</h3>
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  Diseñado para grupos hoteleros, redes de departamentos o empresas de gestión turística.
-                </p>
-
-                <div className="pt-2 border-t border-slate-800/80">
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-slate-500 line-through text-sm font-semibold">$139/mes</span>
-                    <span className="text-3xl font-black text-brand-cyan">$109</span>
-                    <span className="text-xs text-slate-400 font-medium">/ mes</span>
-                  </div>
-                  <span className="text-[10px] text-emerald-400 font-bold block mt-1">✓ Precio Fundador Congelado</span>
-                </div>
-
-                <ul className="space-y-2.5 pt-4 text-xs text-slate-300">
-                  <li className="flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span><strong>Hasta 5 Propiedades</strong> o sedes</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Chat en tiempo real (equipo y huéspedes)</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Gestión multi-propiedad avanzada</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Reservas y huéspedes ilimitados</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Módulo de recepción y Check-in QR</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Reportes financieros consolidados</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Asesoría y soporte personalizado</span>
-                  </li>
-                </ul>
-              </div>
-
-              <button
-                onClick={() => openWhatsApp("Hola, me interesa el Plan Roomia 5 ($109/mes) para 5 propiedades.")}
-                className="w-full py-3.5 bg-slate-800 hover:bg-slate-700 text-white font-extrabold text-xs rounded-xl transition-all cursor-pointer text-center block border border-slate-700 active:scale-95"
-              >
-                Solicitar Plan Roomia 5
-              </button>
-            </div>
-
+      {/* PRECIOS */}
+      <InteractiveContainer id="precios" className="py-16 px-4 md:px-6 border-b border-slate-900 scroll-mt-20">
+        <div className="max-w-6xl mx-auto space-y-10">
+          <div className="text-center space-y-3">
+            <h2 className="text-3xl md:text-5xl font-serif font-black text-white">Planes y precios</h2>
+            <p className="text-slate-400 max-w-2xl mx-auto">Todos los planes incluyen las mismas funciones. Solo cambia la cantidad de propiedades y el nivel de soporte.</p>
           </div>
 
-          {/* Bloque: Programa de Clientes Fundadores (Diseño horizontal, título grande, expansión hacia abajo) */}
+          <div className="grid md:grid-cols-3 gap-6 items-stretch">
+            {[
+              { name: 'Roomia 1', props: '1 propiedad', price: 29, old: 39, desc: 'Para una casa, departamento o hotel independiente.', soporte: 'Soporte en español', featured: false },
+              { name: 'Roomia 3', props: 'Hasta 3 propiedades', price: 69, old: 89, desc: 'Para anfitriones que ya manejan varias propiedades.', soporte: 'Soporte prioritario', featured: true },
+              { name: 'Roomia 5', props: 'Hasta 5 propiedades', price: 109, old: 139, desc: 'Para redes de departamentos o gestores turísticos.', soporte: 'Asesoría personalizada', featured: false }
+            ].map(p => (
+              <div key={p.name} className={`relative rounded-3xl p-7 flex flex-col justify-between gap-6 ${p.featured ? 'bg-slate-900 border-2 border-brand-cyan shadow-2xl shadow-brand-cyan/10 md:-translate-y-2' : 'bg-slate-900/60 border border-slate-800'}`}>
+                {p.featured && <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-brand-cyan text-slate-950 text-[11px] font-black uppercase tracking-wider px-3 py-1 rounded-full">Más elegido</span>}
+                <div className="space-y-4">
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-400">{p.props}</p>
+                  <h3 className="text-2xl font-black text-white">{p.name}</h3>
+                  <p className="text-sm text-slate-400">{p.desc}</p>
+                  <div className="border-t border-slate-800 pt-4">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-slate-500 line-through text-sm">${p.old}</span>
+                      <span className="text-4xl font-black text-brand-cyan">${p.price}</span>
+                      <span className="text-sm text-slate-400">/ mes</span>
+                    </div>
+                    <p className="text-xs text-emerald-400 font-semibold mt-1">Precio fundador, congelado de por vida</p>
+                  </div>
+                  <ul className="space-y-2.5 text-sm text-slate-200 pt-1">
+                    {['Habitaciones, reservas y huéspedes ilimitados', 'Sincronización con Airbnb y Booking', 'Página de reservas directas', 'Panel de métricas y reportes', 'Recepción y check-in con QR', p.soporte].map(t => (
+                      <li key={t} className="flex gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />{t}</li>
+                    ))}
+                  </ul>
+                </div>
+                <button
+                  onClick={() => openWhatsApp(`Hola, me interesa el plan ${p.name} ($${p.price}/mes).`)}
+                  className={`w-full py-3.5 rounded-xl text-sm font-extrabold cursor-pointer active:scale-95 transition ${p.featured ? 'bg-brand-cyan text-slate-950 hover:bg-[#3fc2f0]' : 'bg-slate-800 text-white hover:bg-slate-700 border border-slate-700'}`}
+                >
+                  Elegir {p.name}
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <p className="text-center text-sm text-slate-400">
+            Suscripción mensual fija, sin contrato de permanencia. Tarifa del 5 % solo en pagos con tarjeta en línea.
+          </p>
+
+          {/* Programa de clientes fundadores (el original) */}
           <div className="bg-gradient-to-br from-slate-900 via-slate-900/95 to-slate-950 border border-brand-cyan/35 rounded-3xl p-6 md:p-8 max-w-5xl mx-auto shadow-2xl shadow-brand-cyan/10 relative overflow-hidden">
-            
-            {/* Header del Programa (Horizontal, Título destacado, sin ícono de estrella) */}
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
               <div className="space-y-2 max-w-2xl">
                 <h3 className="text-xl md:text-2xl font-black text-white tracking-tight flex items-center gap-2">
@@ -820,22 +429,15 @@ export default function LandingPageView({ onClose, onOpenLegal }: LandingPageVie
                   Los primeros 20 clientes obtienen hasta un <strong className="text-brand-cyan">22% de descuento permanente</strong> en su plan Roomia. Tu precio queda protegido mientras mantengas activa tu suscripción.
                 </p>
               </div>
-
-              {/* Botón de toggle desplegable hacia abajo */}
               <button
                 onClick={() => setShowAllTiers(!showAllTiers)}
                 className="inline-flex items-center justify-center gap-2.5 px-5 py-3 rounded-2xl bg-brand-cyan text-slate-950 hover:bg-[#3fc2f0] font-extrabold text-xs md:text-sm tracking-wide transition-all cursor-pointer shrink-0 active:scale-95 shadow-lg shadow-brand-cyan/20"
               >
-                <span>{showAllTiers ? "Contraer franjas" : "Ver todas las franjas"}</span>
-                {showAllTiers ? (
-                  <ChevronUp className="w-4 h-4" />
-                ) : (
-                  <ChevronDown className="w-4 h-4" />
-                )}
+                <span>{showAllTiers ? 'Contraer franjas' : 'Ver todas las franjas'}</span>
+                {showAllTiers ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
               </button>
             </div>
 
-            {/* Vista Desplegable hacia abajo (Las 3 franjas aparecen solo al hacer click) */}
             <AnimatePresence>
               {showAllTiers && (
                 <motion.div
@@ -845,107 +447,56 @@ export default function LandingPageView({ onClose, onOpenLegal }: LandingPageVie
                   transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
                   className="pt-6 border-t border-slate-800/80 space-y-5 overflow-hidden"
                 >
-                  {/* Grid Horizontal de las 3 Franjas */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    
-                    {/* FRANJA 1: ACTIVA AHORA */}
                     <div className="p-4 md:p-5 bg-brand-cyan/10 border-2 border-brand-cyan/50 rounded-2xl flex flex-col justify-between gap-4 shadow-lg shadow-brand-cyan/10 relative overflow-hidden">
-                      <div className="absolute -right-6 -bottom-6 w-24 h-24 bg-brand-cyan/10 rounded-full blur-xl pointer-events-none" />
-                      
                       <div className="space-y-1.5 relative z-10">
                         <div className="flex items-center justify-between gap-2">
-                          <span className="text-[10px] font-black text-brand-cyan uppercase font-mono tracking-wider">
-                            FRANJA 1 (ACTIVA)
-                          </span>
-                          <span className="px-2 py-0.5 bg-brand-cyan text-slate-950 font-black text-[9px] rounded-md uppercase tracking-wider animate-pulse">
-                            Cupos Abiertos
-                          </span>
+                          <span className="text-[10px] font-black text-brand-cyan uppercase font-mono tracking-wider">FRANJA 1 (ACTIVA)</span>
+                          <span className="px-2 py-0.5 bg-brand-cyan text-slate-950 font-black text-[9px] rounded-md uppercase tracking-wider animate-pulse">Cupos Abiertos</span>
                         </div>
                         <h4 className="text-base font-black text-white">Clientes 1 – 20</h4>
                         <p className="text-[11px] text-emerald-400 font-bold">Ahorro hasta 22% permanente</p>
                       </div>
-
                       <div className="pt-2.5 border-t border-brand-cyan/20 space-y-1.5 text-xs text-slate-200 font-mono relative z-10">
-                        <div className="flex justify-between">
-                          <span className="text-slate-400">Roomia 1:</span>
-                          <span className="font-bold text-white">$29 <span className="text-[10px] text-slate-400">/mes</span></span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-400">Roomia 3:</span>
-                          <span className="font-bold text-brand-cyan">$69 <span className="text-[10px] text-slate-400">/mes</span></span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-400">Roomia 5:</span>
-                          <span className="font-bold text-white">$109 <span className="text-[10px] text-slate-400">/mes</span></span>
-                        </div>
+                        <div className="flex justify-between"><span className="text-slate-400">Roomia 1:</span><span className="font-bold text-white">$29 <span className="text-[10px] text-slate-400">/mes</span></span></div>
+                        <div className="flex justify-between"><span className="text-slate-400">Roomia 3:</span><span className="font-bold text-brand-cyan">$69 <span className="text-[10px] text-slate-400">/mes</span></span></div>
+                        <div className="flex justify-between"><span className="text-slate-400">Roomia 5:</span><span className="font-bold text-white">$109 <span className="text-[10px] text-slate-400">/mes</span></span></div>
                       </div>
                     </div>
 
-                    {/* FRANJA 2: Próxima */}
                     <div className="p-4 md:p-5 bg-slate-950/80 border border-slate-800 rounded-2xl flex flex-col justify-between gap-4 opacity-85">
                       <div className="space-y-1.5">
                         <div className="flex items-center justify-between gap-2">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase font-mono tracking-wider">
-                            FRANJA 2 (Siguiente)
-                          </span>
-                          <span className="px-2 py-0.5 bg-slate-800 text-slate-400 font-bold text-[9px] rounded-md uppercase">
-                            Próxima
-                          </span>
+                          <span className="text-[10px] font-bold text-slate-400 uppercase font-mono tracking-wider">FRANJA 2 (Siguiente)</span>
+                          <span className="px-2 py-0.5 bg-slate-800 text-slate-400 font-bold text-[9px] rounded-md uppercase">Próxima</span>
                         </div>
                         <h4 className="text-base font-bold text-slate-200">Clientes 21 – 50</h4>
                         <p className="text-[11px] text-slate-400">Ahorro hasta 12% permanente</p>
                       </div>
-
                       <div className="pt-2.5 border-t border-slate-800 space-y-1.5 text-xs text-slate-300 font-mono">
-                        <div className="flex justify-between">
-                          <span className="text-slate-500">Roomia 1:</span>
-                          <span className="font-semibold text-slate-200">$34 <span className="text-[10px] text-slate-500">/mes</span></span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-500">Roomia 3:</span>
-                          <span className="font-semibold text-slate-200">$79 <span className="text-[10px] text-slate-500">/mes</span></span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-500">Roomia 5:</span>
-                          <span className="font-semibold text-slate-200">$124 <span className="text-[10px] text-slate-500">/mes</span></span>
-                        </div>
+                        <div className="flex justify-between"><span className="text-slate-500">Roomia 1:</span><span className="font-semibold text-slate-200">$34 <span className="text-[10px] text-slate-500">/mes</span></span></div>
+                        <div className="flex justify-between"><span className="text-slate-500">Roomia 3:</span><span className="font-semibold text-slate-200">$79 <span className="text-[10px] text-slate-500">/mes</span></span></div>
+                        <div className="flex justify-between"><span className="text-slate-500">Roomia 5:</span><span className="font-semibold text-slate-200">$124 <span className="text-[10px] text-slate-500">/mes</span></span></div>
                       </div>
                     </div>
 
-                    {/* FRANJA 3: Oficial */}
                     <div className="p-4 md:p-5 bg-slate-950/60 border border-slate-800/80 rounded-2xl flex flex-col justify-between gap-4 opacity-65">
                       <div className="space-y-1.5">
                         <div className="flex items-center justify-between gap-2">
-                          <span className="text-[10px] font-bold text-slate-500 uppercase font-mono tracking-wider">
-                            FRANJA 3 (Tarifa Final)
-                          </span>
-                          <span className="px-2 py-0.5 bg-slate-850 text-slate-500 font-bold text-[9px] rounded-md uppercase">
-                            Precio Oficial
-                          </span>
+                          <span className="text-[10px] font-bold text-slate-500 uppercase font-mono tracking-wider">FRANJA 3 (Tarifa Final)</span>
+                          <span className="px-2 py-0.5 bg-slate-800 text-slate-500 font-bold text-[9px] rounded-md uppercase">Precio Oficial</span>
                         </div>
                         <h4 className="text-base font-bold text-slate-300">Clientes 51+</h4>
                         <p className="text-[11px] text-slate-500">Tarifa regular de mercado</p>
                       </div>
-
-                      <div className="pt-2.5 border-t border-slate-850 space-y-1.5 text-xs text-slate-400 font-mono">
-                        <div className="flex justify-between">
-                          <span className="text-slate-600">Roomia 1:</span>
-                          <span className="text-slate-300">$39 <span className="text-[10px] text-slate-600">/mes</span></span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-600">Roomia 3:</span>
-                          <span className="text-slate-300">$89 <span className="text-[10px] text-slate-600">/mes</span></span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-600">Roomia 5:</span>
-                          <span className="text-slate-300">$139 <span className="text-[10px] text-slate-600">/mes</span></span>
-                        </div>
+                      <div className="pt-2.5 border-t border-slate-800 space-y-1.5 text-xs text-slate-400 font-mono">
+                        <div className="flex justify-between"><span className="text-slate-600">Roomia 1:</span><span className="text-slate-300">$39 <span className="text-[10px] text-slate-600">/mes</span></span></div>
+                        <div className="flex justify-between"><span className="text-slate-600">Roomia 3:</span><span className="text-slate-300">$89 <span className="text-[10px] text-slate-600">/mes</span></span></div>
+                        <div className="flex justify-between"><span className="text-slate-600">Roomia 5:</span><span className="text-slate-300">$139 <span className="text-[10px] text-slate-600">/mes</span></span></div>
                       </div>
                     </div>
-
                   </div>
 
-                  {/* Garantía de Precio Congelado */}
                   <div className="p-3.5 bg-brand-cyan/10 border border-brand-cyan/20 rounded-2xl flex items-center justify-center gap-2 text-center">
                     <Lock className="w-4 h-4 text-brand-cyan shrink-0" />
                     <p className="text-xs md:text-sm font-bold text-brand-cyan leading-relaxed">
@@ -955,104 +506,81 @@ export default function LandingPageView({ onClose, onOpenLegal }: LandingPageVie
                 </motion.div>
               )}
             </AnimatePresence>
-
           </div>
-
         </div>
       </InteractiveContainer>
 
-      {/* 8. CONTACTO / CTA FINAL */}
-      <InteractiveContainer as="footer" id="contacto" className="py-14 px-4 md:px-6 bg-slate-950 text-white border-t border-slate-900 space-y-10">
-        
-        <div className="max-w-4xl mx-auto relative z-10 text-center space-y-4">
-          <h2 className="text-2xl md:text-4xl font-serif font-black text-white">
-            ¿Listo para modernizar la gestión de su propiedad?
-          </h2>
-          <p className="text-xs md:text-sm text-slate-400 max-w-lg mx-auto leading-relaxed">
-            Consiga su cupo fundador o resuelva dudas conectando de inmediato con nuestro equipo.
-          </p>
+      {/* PREGUNTAS */}
+      <InteractiveContainer id="preguntas" className="py-16 px-4 md:px-6 border-b border-slate-900 scroll-mt-20">
+        <div className="max-w-3xl mx-auto space-y-8">
+          <h2 className="text-3xl md:text-4xl font-serif font-black text-white text-center">Preguntas frecuentes</h2>
+          <div className="space-y-3">
+            {FAQ.map((item, i) => (
+              <div key={item.q} className="bg-slate-900/60 border border-slate-800 rounded-2xl overflow-hidden">
+                <button onClick={() => setOpenFaq(openFaq === i ? null : i)} className="w-full flex items-center justify-between gap-4 text-left px-5 py-4 cursor-pointer" aria-expanded={openFaq === i}>
+                  <span className="font-semibold text-white text-sm md:text-base">{item.q}</span>
+                  <ChevronDown className={`w-5 h-5 text-slate-400 shrink-0 transition-transform ${openFaq === i ? 'rotate-180' : ''}`} />
+                </button>
+                {openFaq === i && <p className="px-5 pb-5 text-sm text-slate-400 leading-relaxed">{item.a}</p>}
+              </div>
+            ))}
+          </div>
+        </div>
+      </InteractiveContainer>
 
-          {/* CTA #3 */}
-          <div className="pt-2 flex justify-center">
-            <button
-              onClick={() => openWhatsApp("Hola, quisiera solicitar información y demostración de Roomia PMS.")}
-              className="px-8 py-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs md:text-sm rounded-xl shadow-xl shadow-emerald-500/20 hover:shadow-emerald-500/30 transition-all hover:scale-[1.03] active:scale-95 cursor-pointer flex items-center gap-3"
-            >
-              <MessageCircle className="w-5 h-5 fill-slate-950" />
-              <span>Solicitar demo por WhatsApp</span>
+      {/* DEMO / CONTACTO */}
+      <InteractiveContainer id="demo" className="py-16 px-4 md:px-6 scroll-mt-20">
+        <div className="max-w-5xl mx-auto grid md:grid-cols-2 gap-10 items-start">
+          <div className="space-y-5">
+            <h2 className="text-3xl md:text-4xl font-serif font-black text-white leading-tight">Cuéntanos de tu alojamiento y te mostramos cómo se vería en Roomia</h2>
+            <p className="text-slate-400 text-sm leading-relaxed">En 15 minutos te enseñamos el panel con tu caso, sin compromiso. Al enviar el formulario se abre WhatsApp con tus datos ya escritos.</p>
+            <div className="space-y-3 text-sm text-slate-300">
+              <p className="flex items-center gap-3"><MessageCircle className="w-4 h-4 text-emerald-400" /> +593 98 405 6660</p>
+              <a href={`mailto:${EMAIL}`} className="flex items-center gap-3 hover:text-brand-cyan"><Mail className="w-4 h-4 text-brand-cyan" /> {EMAIL}</a>
+              <p className="flex items-center gap-3"><MapPin className="w-4 h-4 text-indigo-300" /> Hecho en Santa Elena, Ecuador</p>
+            </div>
+          </div>
+
+          <form onSubmit={submitDemo} className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4">
+            <label className="block space-y-1.5">
+              <span className="text-xs font-semibold text-slate-400">Tu nombre</span>
+              <input className={field} placeholder="Ej. María Pérez" value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })} />
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block space-y-1.5">
+                <span className="text-xs font-semibold text-slate-400">Tipo de alojamiento</span>
+                <select className={field} value={form.tipo} onChange={e => setForm({ ...form, tipo: e.target.value })}>
+                  {['Casa o departamento', 'Cabaña o glamping', 'Hotel u hostal', 'Varios tipos'].map(o => <option key={o}>{o}</option>)}
+                </select>
+              </label>
+              <label className="block space-y-1.5">
+                <span className="text-xs font-semibold text-slate-400">N.º de unidades</span>
+                <input type="number" min={1} className={field} value={form.unidades} onChange={e => setForm({ ...form, unidades: e.target.value })} />
+              </label>
+            </div>
+            <label className="block space-y-1.5">
+              <span className="text-xs font-semibold text-slate-400">¿Dónde publicas hoy?</span>
+              <select className={field} value={form.plataformas} onChange={e => setForm({ ...form, plataformas: e.target.value })}>
+                {['Airbnb', 'Booking', 'Airbnb y Booking', 'Solo reservas directas'].map(o => <option key={o}>{o}</option>)}
+              </select>
+            </label>
+            <button type="submit" className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-sm rounded-xl flex items-center justify-center gap-2.5 cursor-pointer active:scale-95 transition">
+              <MessageCircle className="w-5 h-5" /> Pedir demo por WhatsApp
             </button>
-          </div>
+          </form>
         </div>
-
-        {/* Contact Info Cards */}
-        <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6 relative z-10 text-left pt-6">
-          
-          {/* Card WhatsApp */}
-          <button 
-            onClick={() => openWhatsApp()}
-            className="bg-slate-900 hover:bg-slate-850 border border-slate-800 hover:border-emerald-500/30 p-5 rounded-2xl transition-all group flex items-start gap-4 text-left cursor-pointer w-full"
-          >
-            <div className="w-10 h-10 bg-emerald-500/10 text-emerald-400 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-              <Phone className="w-5 h-5" />
-            </div>
-            <div className="space-y-1 select-none">
-              <span className="text-[10px] font-bold text-slate-500 block uppercase font-mono">WhatsApp Directo</span>
-              <span className="text-white group-hover:text-emerald-400 font-extrabold text-xs md:text-sm tracking-wide block">
-                +593 98 405 6660
-              </span>
-              <p className="text-[10px] text-slate-400">Atención comercial inmediata.</p>
-            </div>
-          </button>
-
-          {/* Card Email */}
-          <a 
-            href="mailto:roomia.admincontact@gmail.com"
-            onClick={(e) => {
-              if (typeof window !== 'undefined' && (window as any).Capacitor) {
-                e.preventDefault();
-                window.open("mailto:roomia.admincontact@gmail.com", "_system");
-              }
-            }}
-            className="bg-slate-900 hover:bg-slate-850 border border-slate-800 hover:border-brand-cyan/30 p-5 rounded-2xl transition-all group flex items-start gap-4 w-full"
-          >
-            <div className="w-10 h-10 bg-brand-cyan/10 text-brand-cyan rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-              <Mail className="w-5 h-5" />
-            </div>
-            <div className="space-y-1 min-w-0 flex-1">
-              <span className="text-[10px] font-bold text-slate-500 block uppercase font-mono">Correo Administrativo</span>
-              <span className="text-white group-hover:text-brand-cyan font-bold text-[11px] md:text-xs block truncate">
-                roomia.admincontact@gmail.com
-              </span>
-              <p className="text-[10px] text-slate-400">Soporte y cotizaciones.</p>
-            </div>
-          </a>
-
-          {/* Card Location */}
-          <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex items-start gap-4 w-full">
-            <div className="w-10 h-10 bg-indigo-500/10 text-indigo-400 rounded-xl flex items-center justify-center shrink-0">
-              <MapPin className="w-5 h-5" />
-            </div>
-            <div className="space-y-1">
-              <span className="text-[10px] font-bold text-slate-500 block uppercase font-mono">Matriz de Operaciones</span>
-              <span className="text-white font-extrabold text-xs md:text-sm block">
-                Santa Elena - Ecuador
-              </span>
-              <p className="text-[10px] text-slate-400">SaaS cloud con acceso global.</p>
-            </div>
-          </div>
-
-        </div>
-
-        {/* Short Security Note */}
-        <div className="text-center pt-2">
-          <p className="text-[11px] text-slate-400 flex items-center justify-center gap-1.5 font-medium">
-            <Lock className="w-3.5 h-3.5 text-brand-cyan" />
-            <span>Datos respaldados en la nube con acceso protegido</span>
-          </p>
-        </div>
-
       </InteractiveContainer>
 
+      {/* Botón para volver arriba (aparece al hacer scroll) */}
+      <button
+        type="button"
+        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+        aria-label="Volver arriba"
+        title="Volver arriba"
+        className={`fixed bottom-6 right-6 z-50 w-12 h-12 rounded-full bg-brand-cyan text-slate-950 shadow-xl shadow-brand-cyan/30 flex items-center justify-center cursor-pointer hover:bg-[#3fc2f0] active:scale-90 transition-all duration-300 ${showTop ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}
+      >
+        <ArrowUp className="w-5 h-5" />
+      </button>
     </div>
   );
 }

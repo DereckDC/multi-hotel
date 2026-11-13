@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 import { Hotel, Room, User, Reservation, RoomStatus, UserRole, Review, RoomPriceVariation, IcalFeed, ExternalBlock } from '../types';
 import { RoomReservationCalendar } from './RoomReservationCalendar';
 import IcalSyncModal from './IcalSyncModal';
+import { StepPanel, StepIndicator, StepActions, useFormStepper } from './FormStepper';
 import DashboardView from './DashboardView';
 import { fetchPropertyDetails } from '../supabase';
 import { compressImage } from '../store';
@@ -101,6 +102,10 @@ interface AdminViewProps {
   externalBlocks?: ExternalBlock[];
   onRefreshIcal?: () => void | Promise<void>;
 }
+
+const STEPS_HOTEL = [{ label: 'Datos básicos' }, { label: 'Contacto y medios' }, { label: 'Servicios y políticas' }];
+const STEPS_PROP = [{ label: 'Tipo y detalles' }, { label: 'Propietario y ubicación' }, { label: 'Servicios y políticas' }];
+const STEPS_ROOM = [{ label: 'Datos básicos' }, { label: 'Tarifa y capacidad' }, { label: 'Servicios y medios' }];
 
 export default function AdminView({
   hotels,
@@ -303,6 +308,12 @@ export default function AdminView({
 
   // Refunds tab states
   const [showRefundModal, setShowRefundModal] = useState(false);
+  const hotelStepper = useFormStepper(3);
+  const propStepper = useFormStepper(3);
+  const roomStepper = useFormStepper(3);
+  React.useEffect(() => { if (showHotelModal) hotelStepper.reset(); }, [showHotelModal]);
+  React.useEffect(() => { if (showPropertyModal) propStepper.reset(); }, [showPropertyModal]);
+  React.useEffect(() => { if (showRoomModal) roomStepper.reset(); }, [showRoomModal]);
   const [selectedResForRefund, setSelectedResForRefund] = useState<Reservation | null>(null);
   const [simulatedRequestDate, setSimulatedRequestDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [refundNote, setRefundNote] = useState<string>('');
@@ -2392,8 +2403,10 @@ export default function AdminView({
               </button>
             </div>
 
-            <form onSubmit={handleHotelSubmit} className="p-6 space-y-4">
+            <StepIndicator steps={STEPS_HOTEL} current={hotelStepper.step} onGo={hotelStepper.goTo} />
+            <form ref={hotelStepper.formRef} onSubmit={hotelStepper.wrapSubmit(handleHotelSubmit)} className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-3">
+                <StepPanel step={1} current={hotelStepper.step}>
                 <div className="col-span-2">
                   <label className="text-[11px] font-semibold text-neutral-500 block mb-1">Tipo de Establecimiento:</label>
                   <select
@@ -2750,7 +2763,9 @@ export default function AdminView({
                     })()}
                   </div>
                 </div>
+                </StepPanel>
 
+                <StepPanel step={2} current={hotelStepper.step}>
                 <div>
                   <label className="text-[11px] font-semibold text-neutral-500 block mb-1">Teléfono:</label>
                   <input
@@ -3002,8 +3017,10 @@ export default function AdminView({
                     </div>
                   )}
                 </div>
+                </StepPanel>
               </div>
 
+              <StepPanel step={3} current={hotelStepper.step}>
               {/* COMPREHENSIVE GENERAL FREE SERVICES SECTION */}
               <div className="col-span-2 space-y-3 bg-neutral-50 p-4 rounded-xl border border-neutral-200 mt-2 font-sans text-xs">
                 <div className="flex justify-between items-center pb-2 border-b border-neutral-200">
@@ -3474,21 +3491,9 @@ export default function AdminView({
                   )}
                 </div>
               </div>
+              </StepPanel>
 
-              <div className="pt-2 flex gap-3">
-                <button
-                  type="button" onClick={() => setShowHotelModal(false)}
-                  className="w-1/2 px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-semibold rounded-xl text-xs cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="w-1/2 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl text-xs cursor-pointer shadow-md"
-                >
-                  Guardar Establecimiento
-                </button>
-              </div>
+              <StepActions step={hotelStepper.step} total={3} onCancel={() => setShowHotelModal(false)} onBack={hotelStepper.back} onNext={hotelStepper.next} submitLabel="Guardar Establecimiento" />
             </form>
           </div>
         </div>
@@ -3510,8 +3515,10 @@ export default function AdminView({
               </button>
             </div>
 
-            <form onSubmit={handlePropertySubmit} className="p-6 space-y-4">
+            <StepIndicator steps={STEPS_PROP} current={propStepper.step} onGo={propStepper.goTo} />
+            <form ref={propStepper.formRef} onSubmit={propStepper.wrapSubmit(handlePropertySubmit)} className="p-6 space-y-4">
               
+              <StepPanel step={1} current={propStepper.step}>
               {/* FINALIDAD Y TIPO */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -3730,7 +3737,9 @@ export default function AdminView({
                   </label>
                 </div>
               </div>
+              </StepPanel>
 
+              <StepPanel step={2} current={propStepper.step}>
               {/* HISTORIAL Y DETALLES DEL PROPIETARIO */}
               <div className="bg-teal-50 border border-teal-150 rounded-xl p-4 space-y-3">
                 <h5 className="text-[10.5px] font-bold text-teal-800 uppercase tracking-wider border-b border-teal-200 pb-1.5 flex items-center gap-1">
@@ -4086,7 +4095,9 @@ export default function AdminView({
                   </div>
                 )}
               </div>
+              </StepPanel>
 
+              <StepPanel step={3} current={propStepper.step}>
               {/* SERVICIOS INCLUIDOS (GRATIS) */}
               <div className="space-y-3 bg-neutral-50 p-4 rounded-xl border border-neutral-200 mt-2 font-sans text-xs">
                 <div className="flex flex-col border-b border-neutral-200 pb-1.5 mb-2">
@@ -4556,23 +4567,10 @@ export default function AdminView({
                   </div>
                 </div>
               )}
+              </StepPanel>
 
               {/* ACCIONES */}
-              <div className="pt-2 flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setShowPropertyModal(false)}
-                  className="w-1/2 px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-semibold rounded-xl text-xs cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="w-1/2 px-4 py-2 bg-neutral-900 hover:bg-neutral-800 text-white font-bold rounded-xl text-xs cursor-pointer shadow-md animate-pulse"
-                >
-                  Publicar Propiedad
-                </button>
-              </div>
+              <StepActions step={propStepper.step} total={3} onCancel={() => setShowPropertyModal(false)} onBack={propStepper.back} onNext={propStepper.next} submitLabel="Publicar Propiedad" />
 
             </form>
           </div>
@@ -4591,9 +4589,11 @@ export default function AdminView({
               </button>
             </div>
 
-            <form onSubmit={handleRoomSubmit} className="p-6 space-y-4">
+            <StepIndicator steps={STEPS_ROOM} current={roomStepper.step} onGo={roomStepper.goTo} />
+            <form ref={roomStepper.formRef} onSubmit={roomStepper.wrapSubmit(handleRoomSubmit)} className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-3.5">
                 
+              <StepPanel step={1} current={roomStepper.step}>
                 <div className="col-span-2">
                   <label className="text-[11px] font-semibold text-neutral-500 block mb-1">Hotel Destinatario:</label>
                   <select
@@ -4659,7 +4659,9 @@ export default function AdminView({
                     className="w-full h-16 text-xs border border-neutral-250 p-2 rounded-lg focus:outline-none"
                   />
                 </div>
+              </StepPanel>
 
+              <StepPanel step={2} current={roomStepper.step}>
                 <div>
                   <label className="text-[11px] font-semibold text-neutral-500 block mb-1">Precio por noche ($ USD):</label>
                   <input
@@ -4719,7 +4721,9 @@ export default function AdminView({
                     </span>
                   </label>
                 </div>
+              </StepPanel>
 
+              <StepPanel step={3} current={roomStepper.step}>
                 {/* Servicios y Comodidades Incluidas en la Habitación */}
                 <div className="col-span-2 space-y-3 bg-neutral-50 p-4 rounded-xl border border-neutral-200">
                   <div className="flex justify-between items-center pb-2 border-b border-neutral-200 font-sans">
@@ -4970,7 +4974,9 @@ export default function AdminView({
                     </div>
                   )}
                 </div>
+              </StepPanel>
 
+              <StepPanel step={2} current={roomStepper.step}>
                 {originalRoomStatus && editingRoom.estado !== originalRoomStatus && (
                   <div className="col-span-2 bg-amber-50 border border-amber-200 p-3 rounded-xl space-y-1.5 animate-fade-in text-xs">
                     <label className="text-[11px] font-bold text-amber-800 block">
@@ -4986,23 +4992,11 @@ export default function AdminView({
                     />
                   </div>
                 )}
+              </StepPanel>
 
               </div>
 
-              <div className="pt-2 flex gap-3">
-                <button
-                  type="button" onClick={() => setShowRoomModal(false)}
-                  className="w-1/2 px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-semibold rounded-xl text-xs cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="w-1/2 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl text-xs cursor-pointer shadow-md"
-                >
-                  Guardar Habitación
-                </button>
-              </div>
+              <StepActions step={roomStepper.step} total={3} onCancel={() => setShowRoomModal(false)} onBack={roomStepper.back} onNext={roomStepper.next} submitLabel="Guardar Habitación" />
             </form>
           </div>
         </div>

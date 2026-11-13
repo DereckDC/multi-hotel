@@ -15,6 +15,7 @@ import { RoomImageGallery } from './RoomImageGallery';
 import { HotelImageGallery } from './HotelImageGallery';
 import { RoomReservationCalendar } from './RoomReservationCalendar';
 import { CompactBookingCalendar } from './CompactBookingCalendar';
+import { Pager, totalPagesOf } from './Pager';
 
 export function getMapEmbedUrl(ubicacion: string, googleMapsUrl?: string): string {
   const cleanUrl = googleMapsUrl ? googleMapsUrl.trim() : '';
@@ -202,6 +203,8 @@ export default function ClientView({
 
   // Selected Hotel details
   const [selectedHotelId, setSelectedHotelId] = useState<string | null>(null);
+  const [roomPage, setRoomPage] = useState(1);
+  const [catalogPage, setCatalogPage] = useState(1);
 
   // Sync internal selectedHotelId with prop from parent
   React.useEffect(() => {
@@ -549,6 +552,16 @@ export default function ClientView({
     return (a.numero || '').localeCompare(b.numero || '', undefined, { numeric: true, sensitivity: 'base' });
   });
 
+  // Paginación: habitaciones de 4 en 4 y catálogo de 9 en 9 (3 filas de 3)
+  const ROOMS_PER_PAGE = 4;
+  const CATALOG_PER_PAGE = 9;
+  const catalogList = activeTab === 'explore' ? filteredHotels : filteredProperties;
+  const safeRoomPage = Math.min(roomPage, totalPagesOf(roomsInActiveHotel.length, ROOMS_PER_PAGE));
+  const safeCatalogPage = Math.min(catalogPage, totalPagesOf(catalogList.length, CATALOG_PER_PAGE));
+  const pagedRooms = roomsInActiveHotel.slice((safeRoomPage - 1) * ROOMS_PER_PAGE, safeRoomPage * ROOMS_PER_PAGE);
+  React.useEffect(() => { setRoomPage(1); }, [selectedHotelId, showOnlyAvailableRooms, roomMaxPrice, roomCapacity, roomTypeFilter, roomSortOrder]);
+  React.useEffect(() => { setCatalogPage(1); }, [activeTab, catalogList.length]);
+
   const myReservations = reservations.filter(r => r.guestId === activeUser.id && !r.eliminadaPorCliente);
 
   // Calculate booking cost
@@ -885,7 +898,7 @@ export default function ClientView({
     // instante antes, devuelve false y no se continúa al pago.
     const created = await onCreateReservation(newRes);
     if (created === false) {
-      setBookingError("La habitación acaba de ser reservada por otra persona en las fechas seleccionadas. Por favor elija un rango de fechas diferente.");
+      setBookingError("La habitación ya no está disponible en las fechas seleccionadas. Por favor elija un rango de fechas diferente.");
       return;
     }
 
@@ -1210,8 +1223,9 @@ export default function ClientView({
                   <p className="text-xs text-neutral-600 font-medium mt-1.5">Intente cambiar la provincia o los filtros de búsqueda.</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 min-h-[520px]">
-                  {(activeTab === 'explore' ? filteredHotels : filteredProperties)
+                <>
+                <div id="catalogo-listado" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 scroll-mt-24">
+                  {catalogList.slice((safeCatalogPage - 1) * CATALOG_PER_PAGE, safeCatalogPage * CATALOG_PER_PAGE)
                     .map((hotel, hotelIdx) => {
                       // Quick lowest room price/property price calculation
                       const hotelRooms = rooms.filter(r => r.hotelId === hotel.id);
@@ -1362,6 +1376,8 @@ export default function ClientView({
                       );
                     })}
                 </div>
+                <Pager page={safeCatalogPage} pageSize={CATALOG_PER_PAGE} total={catalogList.length} onChange={setCatalogPage} scrollToId="catalogo-listado" noun="alojamientos" />
+                </>
               )}
             </div>
           ) : bookingRoom !== null ? (
@@ -2474,7 +2490,7 @@ export default function ClientView({
                     </div>
                   </div>
 
-                  <div className="space-y-4">
+                  <div id="habitaciones-listado" className="space-y-4 scroll-mt-24">
                     {isLoading ? (
                       <div className="space-y-4">
                         <div className="flex items-center gap-2.5 p-3.5 bg-gradient-to-r from-teal-50/90 via-sky-50/70 to-teal-50/90 border border-teal-200/80 rounded-2xl text-xs text-teal-800 shadow-sm">
@@ -2518,7 +2534,8 @@ export default function ClientView({
                         )}
                       </div>
                     ) : (
-                      roomsInActiveHotel.map(room => {
+                      <>
+                        {pagedRooms.map(room => {
                         const isAvailable = room.estado === 'disponible';
                         const isBookable = room.estado !== 'mantenimiento';
                         return (
@@ -2606,7 +2623,9 @@ export default function ClientView({
                             </div>
                           </motion.div>
                         );
-                      })
+                      })}
+                        <Pager page={safeRoomPage} pageSize={ROOMS_PER_PAGE} total={roomsInActiveHotel.length} onChange={setRoomPage} scrollToId="habitaciones-listado" noun="habitaciones" />
+                      </>
                     )}
                   </div>
                 </div>

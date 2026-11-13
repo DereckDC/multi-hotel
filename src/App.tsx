@@ -9,6 +9,7 @@ import { supabase } from './supabase';
 import ClientView from './components/ClientView';
 import LoginView from './components/LoginView';
 import LandingPageView from './components/LandingPageView';
+import { StepPanel, StepIndicator, StepActions, useFormStepper } from './components/FormStepper';
 import type { LegalDocType } from './components/LegalPageView';
 
 const ReceptionView = lazy(() => import('./components/ReceptionView'));
@@ -34,6 +35,8 @@ const slugify = (text: string): string => {
     .replace(/^-+/, '') // trim leading hyphens
     .replace(/-+$/, ''); // trim trailing hyphens
 };
+
+const STEPS_PROFILE = [{ label: 'Foto' }, { label: 'Datos personales' }, { label: 'Seguridad' }];
 
 export default function App() {
   const store = useHotelStore();
@@ -488,6 +491,8 @@ export default function App() {
 
   // Profile Edit Modal States
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const profileStepper = useFormStepper(3);
+  useEffect(() => { if (showProfileModal) profileStepper.reset(); }, [showProfileModal]);
   const [profileNombre, setProfileNombre] = useState('');
   const [profileApellido, setProfileApellido] = useState('');
   const [profileTelefono, setProfileTelefono] = useState('');
@@ -1298,8 +1303,10 @@ export default function App() {
             </div>
 
             {/* Form */}
-            <form onSubmit={handleProfileSubmit} className="p-6 space-y-5">
+            <StepIndicator steps={STEPS_PROFILE} current={profileStepper.step} onGo={profileStepper.goTo} />
+            <form ref={profileStepper.formRef} onSubmit={profileStepper.wrapSubmit(handleProfileSubmit)} className="p-6 space-y-5">
               
+              <StepPanel step={1} current={profileStepper.step}>
               {/* Presets Avatars Picker */}
               <div className="space-y-2.5">
                 <label className="text-[11px] font-bold text-neutral-400 uppercase tracking-wide font-sans block">Foto / Avatar de Perfil:</label>
@@ -1380,9 +1387,11 @@ export default function App() {
                   </div>
                 </div>
               </div>
+              </StepPanel>
 
               {/* Text Fields Grid */}
               <div className="grid grid-cols-2 gap-4">
+                <StepPanel step={2} current={profileStepper.step}>
                 <div>
                   <label className="text-[11px] font-bold text-neutral-400 uppercase tracking-wide block mb-1">Nombre / Primer Nombre:</label>
                   <input
@@ -1437,7 +1446,9 @@ export default function App() {
                     className="w-full text-xs border border-neutral-250 p-2.5 rounded-xl focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-200 font-mono"
                   />
                 </div>
+                </StepPanel>
 
+                <StepPanel step={3} current={profileStepper.step}>
                 <div className="col-span-2 border-t border-neutral-100 pt-3 mt-1">
                   <label className="text-[11px] font-bold text-amber-750 uppercase tracking-wide block mb-1">🔐 Cambiar Clave de Acceso:</label>
                   <div className="relative">
@@ -1458,24 +1469,11 @@ export default function App() {
                   </div>
                   <p className="text-[10px] text-neutral-400 mt-1">Al ingresar una nueva clave, se modificará su acceso y recibirá una notificación de seguridad por correo.</p>
                 </div>
+                </StepPanel>
               </div>
 
               {/* Action Buttons */}
-              <div className="pt-3 flex gap-3">
-                <button
-                  type="button" onClick={() => setShowProfileModal(false)}
-                  className="w-1/2 px-4 py-2.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-semibold rounded-xl text-xs cursor-pointer transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="w-1/2 px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl text-xs cursor-pointer shadow-md transition-colors flex items-center justify-center gap-1.5"
-                >
-                  <Check className="w-4 h-4" />
-                  <span>Guardar Cambios</span>
-                </button>
-              </div>
+              <StepActions step={profileStepper.step} total={3} onCancel={() => setShowProfileModal(false)} onBack={profileStepper.back} onNext={profileStepper.next} submitLabel="Guardar Cambios" />
 
             </form>
           </div>
