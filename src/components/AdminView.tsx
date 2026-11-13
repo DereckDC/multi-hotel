@@ -4,8 +4,9 @@
  */
 
 import React, { useState } from 'react';
-import { Hotel, Room, User, Reservation, RoomStatus, UserRole, Review, RoomPriceVariation } from '../types';
+import { Hotel, Room, User, Reservation, RoomStatus, UserRole, Review, RoomPriceVariation, IcalFeed, ExternalBlock } from '../types';
 import { RoomReservationCalendar } from './RoomReservationCalendar';
+import IcalSyncModal from './IcalSyncModal';
 import { fetchPropertyDetails } from '../supabase';
 import { compressImage } from '../store';
 import InvoicePDF from './InvoicePDF';
@@ -95,6 +96,9 @@ interface AdminViewProps {
   onDeleteRoomPriceVariation?: (id: string) => void;
   adminTab?: 'dashboard' | 'hotels' | 'properties' | 'rooms' | 'users' | 'logs' | 'reservations' | 'refunds' | 'incidents';
   onAdminTabChange?: (tab: 'dashboard' | 'hotels' | 'properties' | 'rooms' | 'users' | 'logs' | 'reservations' | 'refunds' | 'incidents') => void;
+  icalFeeds?: IcalFeed[];
+  externalBlocks?: ExternalBlock[];
+  onRefreshIcal?: () => void | Promise<void>;
 }
 
 export default function AdminView({
@@ -122,7 +126,10 @@ export default function AdminView({
   onSaveRoomPriceVariation,
   onDeleteRoomPriceVariation,
   adminTab: propAdminTab,
-  onAdminTabChange
+  onAdminTabChange,
+  icalFeeds = [],
+  externalBlocks = [],
+  onRefreshIcal
 }: AdminViewProps) {
   // Navigation tabs within Admin: 'dashboard' | 'hotels' | 'rooms' | 'users' | 'logs' | 'reservations' | 'refunds' | 'incidents'
   const [localAdminTab, setLocalAdminTab] = useState<'dashboard' | 'hotels' | 'properties' | 'rooms' | 'users' | 'logs' | 'reservations' | 'refunds' | 'incidents'>('dashboard');
@@ -140,6 +147,23 @@ export default function AdminView({
   // RBAC Access Control checking
   const isSuper = activeUser.rol === 'super_admin';
   const myHotelId = activeUser.hotelId || '';
+
+  // Calendarios iCal (Airbnb / Booking): lo gestiona el super admin o el admin de ese hotel.
+  // La base de datos aplica la misma regla; esto solo evita mostrar botones que no funcionarían.
+  const canManageIcal = (hotelId: string) => isSuper || (activeUser.rol === 'hotel_admin' && activeUser.hotelId === hotelId);
+  const [icalTarget, setIcalTarget] = useState<{ hotel: Hotel; room: Room | null } | null>(null);
+
+  const renderIcalStatus = (hotelId: string, roomId: string | null) => {
+    const unitFeeds = icalFeeds.filter(f => f.hotelId === hotelId && f.roomId === roomId);
+    if (unitFeeds.length === 0) return null;
+    const hasError = unitFeeds.some(f => f.importUrl && f.lastStatus === 'error');
+    return (
+      <span
+        className={`inline-block w-2 h-2 rounded-full ${hasError ? 'bg-red-500' : 'bg-emerald-500'}`}
+        title={hasError ? 'Hay un error de sincronización' : `${unitFeeds.length} plataforma(s) conectada(s)`}
+      />
+    );
+  };
 
   // Limit access vectors
   const allowedHotels = isSuper 
@@ -1367,6 +1391,18 @@ export default function AdminView({
                       </p>
                     </div>
                   </div>
+
+                  {h.finalidad !== 'venta' && canManageIcal(h.id) && (
+                    <button
+                      type="button"
+                      onClick={() => setIcalTarget({ hotel: h, room: null })}
+                      className="w-full flex items-center justify-center gap-2 py-2 bg-violet-50 hover:bg-violet-100 text-violet-800 border border-violet-200 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                    >
+                      <Calendar className="w-3.5 h-3.5" />
+                      <span>Sincronizar calendarios (Airbnb / Booking)</span>
+                      {renderIcalStatus(h.id, null)}
+                    </button>
+                  )}
                 </div>
               ))
             )}
@@ -1488,6 +1524,19 @@ export default function AdminView({
                       }`}>
                         {room.estado}
                       </span>
+
+                      {h && canManageIcal(h.id) && (
+                        <button
+                          type="button"
+                          onClick={() => setIcalTarget({ hotel: h, room })}
+                          className="flex items-center gap-1 p-1 px-2.5 bg-neutral-100 hover:bg-violet-50 hover:text-violet-700 text-neutral-600 rounded text-[10px] font-semibold transition-colors cursor-pointer"
+                          title="Sincronizar con Airbnb / Booking (iCal)"
+                        >
+                          <Calendar className="w-3 h-3 text-violet-600" />
+                          <span>Calendarios</span>
+                          {renderIcalStatus(room.hotelId, room.id)}
+                        </button>
+                      )}
 
                       <button
                         onClick={() => {
@@ -1879,6 +1928,7 @@ export default function AdminView({
               activeUser={activeUser}
               onUpdateRoomStatus={onUpdateRoomStatus}
               roomPriceVariations={roomPriceVariations}
+              externalBlocks={externalBlocks}
             />
           </div>
 
@@ -5812,6 +5862,19 @@ export default function AdminView({
 
           </div>
         </div>
+      )}
+
+      {/* SINCRONIZACIÓN DE CALENDARIOS iCAL (AIRBNB / BOOKING) */}
+      {icalTarget && (
+        <IcalSyncModal
+          hotel={icalTarget.hotel}
+          room={icalTarget.room}
+          feeds={icalFeeds}
+          blocks={externalBlocks}
+          canManage={canManageIcal(icalTarget.hotel.id)}
+          onClose={() => setIcalTarget(null)}
+          onChanged={async () => { if (onRefreshIcal) await onRefreshIcal(); }}
+        />
       )}
 
     </div>

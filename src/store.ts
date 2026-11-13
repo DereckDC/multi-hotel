@@ -6,7 +6,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { getSocket } from './services/socket';
 import { sortMessagesChronologically } from './utils/chatUtils';
-import { Hotel, Room, User, Reservation, RoomStatus, ReservationStatus, UserRole, ChatMessage, PaymentTransaction, Review, RoomPriceVariation } from './types';
+import { Hotel, Room, User, Reservation, RoomStatus, ReservationStatus, UserRole, ChatMessage, PaymentTransaction, Review, RoomPriceVariation, IcalFeed, ExternalBlock } from './types';
 import {
   supabase,
   syncHotelToSupabase,
@@ -33,7 +33,9 @@ import {
   mapRoomPriceVariationFromDb,
   syncRoomPriceVariationToSupabase,
   deleteRoomPriceVariationFromSupabase,
-  fetchBusyRanges
+  fetchBusyRanges,
+  fetchIcalFeeds,
+  fetchExternalBlocks
 } from './supabase';
 
 // Safe standard local storage storage key constants
@@ -658,6 +660,51 @@ export function useHotelStore() {
       window.removeEventListener('roomia-refresh-busy', onRefreshRequested);
     };
   }, [currentUserId, isStaffSession]);
+
+  // --- CALENDARIOS iCAL (Airbnb / Booking) ---
+  // El personal ve los bloqueos importados (con su plataforma) y los admins además gestionan las
+  // conexiones. No se mezclan con `reservations`: no son reservas y falsearían ingresos y estadísticas.
+  // Los huéspedes los reciben ya incluidos en los rangos ocupados anónimos (get_busy_ranges).
+  const [icalFeeds, setIcalFeeds] = useState<IcalFeed[]>([]);
+  const [externalBlocks, setExternalBlocks] = useState<ExternalBlock[]>([]);
+  const canManageIcal = !!activeUser && (activeUser.rol === 'super_admin' || activeUser.rol === 'hotel_admin');
+
+  const refreshIcal = async () => {
+    if (!isStaffSession) return;
+    const blocks = await fetchExternalBlocks();
+    if (blocks) setExternalBlocks(blocks);
+    if (canManageIcal) {
+      const feeds = await fetchIcalFeeds();
+      if (feeds) setIcalFeeds(feeds);
+    }
+  };
+  const refreshIcalRef = useRef(refreshIcal);
+  refreshIcalRef.current = refreshIcal;
+
+  useEffect(() => {
+    if (!isStaffSession) {
+      setExternalBlocks([]);
+      setIcalFeeds([]);
+      return;
+    }
+
+    refreshIcalRef.current();
+    const channel = supabase
+      .channel('ical-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'external_blocks' }, () => refreshIcalRef.current())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ical_feeds' }, () => refreshIcalRef.current())
+      .subscribe();
+    const interval = setInterval(() => {
+      if (typeof document === 'undefined' || document.visibilityState === 'visible') {
+        refreshIcalRef.current();
+      }
+    }, 120000);
+
+    return () => {
+      clearInterval(interval);
+      supabase.removeChannel(channel);
+    };
+  }, [currentUserId, isStaffSession, canManageIcal]);
 
   const reservationsWithBusy = useMemo(() => {
     if (isStaffSession || busyRanges.length === 0) return reservations;
@@ -1430,8 +1477,10 @@ El Equipo de Hospitalidad de Roomia PMS.`;
     try {
       const syncResult = await syncReservationToSupabase(resToSave);
 
-      if (!syncResult.success && syncResult.overlap) {
-        // Otra persona reservó esas fechas primero: se deshace el cambio local y se avisa
+      if (!syncResult.success) {
+        // La base de datos rechazó la reserva (fechas ya tomadas por otra reserva o bloqueadas por
+        // Airbnb/Booking) o no pudo guardarla: se deshace el cambio local y se avisa, en vez de
+        // mostrar como creada una reserva que no existe.
         setReservations(prev => previousRes
           ? prev.map(r => r.id === resToSave.id ? previousRes : r)
           : prev.filter(r => r.id !== resToSave.id));
@@ -1440,7 +1489,11 @@ El Equipo de Hospitalidad de Roomia PMS.`;
         }
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('aura-toast', {
-            detail: { message: '❌ La habitación acaba de ser reservada por otra persona en esas fechas. Elige un rango diferente.' }
+            detail: {
+              message: syncResult.overlap
+                ? '❌ La habitación ya no está disponible en esas fechas. Elige un rango diferente.'
+                : '❌ No se pudo guardar la reserva. Revisa tu conexión e inténtalo de nuevo.'
+            }
           }));
           window.dispatchEvent(new Event('roomia-refresh-busy'));
         }
@@ -2352,6 +2405,9 @@ El Equipo de Hospitalidad de Roomia PMS.`;
     rooms,
     users,
     reservations: reservationsWithBusy,
+    icalFeeds,
+    externalBlocks,
+    refreshIcal,
     logs,
     messages,
     transactions,

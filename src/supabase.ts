@@ -4,7 +4,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
-import { Hotel, Room, User, Reservation, ChatMessage, PaymentTransaction, Review, RoomPriceVariation } from './types';
+import { Hotel, Room, User, Reservation, ChatMessage, PaymentTransaction, Review, RoomPriceVariation, IcalFeed, ExternalBlock } from './types';
 import { ActivityLog } from './store';
 
 // Credentials are loaded strictly from secure environment variables (via dynamic endpoint/window first, fallback to process/meta) to comply with OWASP Top 10 and prevent hardcoded secrets.
@@ -47,7 +47,7 @@ const rawUrl = sanitizedEnv.url;
 const SUPABASE_ANON_KEY = sanitizedEnv.key;
 
 // Sanitize URL to ensure the client-side SDK gets the base address without /rest/v1 suffix and without trailing slash
-const SUPABASE_URL = rawUrl ? rawUrl.replace(/\/rest\/v1\/?$/, '').replace(/\/$/, '').trim() : '';
+export const SUPABASE_URL = rawUrl ? rawUrl.replace(/\/rest\/v1\/?$/, '').replace(/\/$/, '').trim() : '';
 
 // Dynamically compute local storage token key based on project reference subdomain
 const getProjectRef = (url: string) => {
@@ -247,6 +247,16 @@ export function mapUserFromDb(db: any): User {
   };
 }
 
+/**
+ * Las casas y departamentos completos no tienen habitaciones: la app los reserva con una
+ * habitación "sintética" `room-full-<hotelId>`. En la base de datos esas reservas guardan
+ * `roomid` NULO (la columna es una clave foránea a `rooms`, y un id sintético se rechazaba,
+ * con lo que la reserva nunca llegaba a guardarse).
+ */
+export const FULL_PROPERTY_ROOM_PREFIX = 'room-full-';
+export const fullPropertyRoomId = (hotelId: string): string => `${FULL_PROPERTY_ROOM_PREFIX}${hotelId}`;
+export const isFullPropertyRoomId = (id?: string | null): boolean => !!id && id.startsWith(FULL_PROPERTY_ROOM_PREFIX);
+
 export function mapReservationToDb(res: Reservation): any {
   const entrada = new Date(res.fechaEntrada);
   const salida = new Date(res.fechaSalida);
@@ -261,7 +271,7 @@ export function mapReservationToDb(res: Reservation): any {
 
   return {
     id: res.id,
-    roomid: res.roomId || null, // Nullable para estadías completas de casas/departamentos
+    roomid: isFullPropertyRoomId(res.roomId) ? null : (res.roomId || null), // NULL = inmueble completo
     hotelid: res.hotelId,
     guestid: res.guestId,
     fechaentrada: res.fechaEntrada,
@@ -315,7 +325,9 @@ export function mapReservationFromDb(db: any): Reservation {
 
   return {
     id: db.id,
-    roomId: db.roomid !== undefined ? db.roomid : (db.roomId || null),
+    // roomid nulo = inmueble completo: se restaura el id sintético que usan los calendarios
+    roomId: (db.roomid !== undefined ? db.roomid : db.roomId)
+      || ((db.hotelid !== undefined ? db.hotelid : db.hotelId) ? fullPropertyRoomId(db.hotelid !== undefined ? db.hotelid : db.hotelId) : null),
     hotelId: db.hotelid !== undefined ? db.hotelid : (db.hotelId || ''),
     guestId: db.guestid !== undefined ? db.guestid : (db.guestId || ''),
     fechaEntrada: db.fechaentrada !== undefined ? db.fechaentrada : (db.fechaEntrada || ''),
@@ -368,7 +380,7 @@ export async function fetchBusyRanges(): Promise<Reservation[] | null> {
       .map((row: any, idx: number): Reservation => ({
         id: `busy-${row.room_id || row.hotel_id}-${row.fecha_entrada}-${row.fecha_salida}-${idx}`,
         hotelId: row.hotel_id || '',
-        roomId: row.room_id || null,
+        roomId: row.room_id || (row.hotel_id ? fullPropertyRoomId(row.hotel_id) : null),
         guestId: BUSY_PLACEHOLDER_GUEST_ID,
         fechaEntrada: row.fecha_entrada,
         fechaSalida: row.fecha_salida,
@@ -381,6 +393,65 @@ export async function fetchBusyRanges(): Promise<Reservation[] | null> {
         estado: 'confirmada',
         fechaRegistro: row.fecha_entrada
       }));
+  } catch (err) {
+    return null;
+  }
+}
+
+// --- Calendarios iCal (Airbnb / Booking) ---
+
+export function mapIcalFeedFromDb(db: any): IcalFeed {
+  return {
+    id: db.id,
+    hotelId: db.hotel_id,
+    roomId: db.room_id ?? null,
+    platform: db.platform,
+    importUrl: db.import_url ?? null,
+    exportToken: db.export_token,
+    lastStatus: db.last_status || 'pendiente',
+    lastError: db.last_error ?? null,
+    lastEventCount: Number(db.last_event_count || 0),
+    consecutiveFailures: Number(db.consecutive_failures || 0),
+    lastSyncedAt: db.last_synced_at ?? null,
+    lastAttemptAt: db.last_attempt_at ?? null,
+    lastExportAt: db.last_export_at ?? null
+  };
+}
+
+export function mapExternalBlockFromDb(db: any): ExternalBlock {
+  return {
+    id: db.id,
+    feedId: db.feed_id,
+    hotelId: db.hotel_id,
+    roomId: db.room_id || fullPropertyRoomId(db.hotel_id),
+    platform: db.platform,
+    fechaInicio: db.fecha_inicio,
+    fechaFin: db.fecha_fin,
+    summary: db.summary || '',
+    conflict: !!db.conflict
+  };
+}
+
+/** Conexiones iCal visibles para el usuario (solo super_admin y el hotel_admin de cada hotel). */
+export async function fetchIcalFeeds(): Promise<IcalFeed[] | null> {
+  try {
+    const { data, error } = await supabase.from('ical_feeds').select('*').order('created_at', { ascending: true });
+    if (error || !Array.isArray(data)) return null;
+    return data.map(mapIcalFeedFromDb);
+  } catch (err) {
+    return null;
+  }
+}
+
+/** Bloqueos importados (solo personal del hotel y super_admin). Devuelve null si no se pudo leer. */
+export async function fetchExternalBlocks(): Promise<ExternalBlock[] | null> {
+  try {
+    const { data, error } = await supabase
+      .from('external_blocks')
+      .select('*')
+      .order('fecha_inicio', { ascending: true });
+    if (error || !Array.isArray(data)) return null;
+    return data.map(mapExternalBlockFromDb);
   } catch (err) {
     return null;
   }

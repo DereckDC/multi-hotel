@@ -214,5 +214,40 @@ export interface RoomPriceVariation {
   isAlways?: boolean;    // recurrent every year (ignoring the year of the date)
 }
 
+// --- Sincronización de calendarios iCal (Airbnb / Booking / otras plataformas) ---
+
+export type IcalPlatform = 'airbnb' | 'booking' | 'otro';
+
+/** Conexión de una unidad (habitación o inmueble completo) con una plataforma externa. */
+export interface IcalFeed {
+  id: string;
+  hotelId: string;
+  roomId: string | null; // null = inmueble completo
+  platform: IcalPlatform;
+  importUrl: string | null; // enlace del calendario de la plataforma (SECRETO)
+  exportToken: string;      // credencial del enlace que Roomia publica para la plataforma
+  lastStatus: 'pendiente' | 'ok' | 'error';
+  lastError: string | null;
+  lastEventCount: number;
+  consecutiveFailures: number;
+  lastSyncedAt: string | null;
+  lastAttemptAt: string | null;
+  lastExportAt: string | null; // última vez que la plataforma leyó el calendario de Roomia
+}
+
+/** Fechas bloqueadas que llegan desde una plataforma externa. fechaFin es EXCLUSIVA. */
+export interface ExternalBlock {
+  id: string;
+  feedId: string;
+  hotelId: string;
+  /** Id de la habitación, o `room-full-<hotelId>` para un inmueble completo (igual que en las reservas). */
+  roomId: string;
+  platform: IcalPlatform;
+  fechaInicio: string; // YYYY-MM-DD
+  fechaFin: string;    // YYYY-MM-DD (día de salida, no ocupado)
+  summary: string;
+  conflict: boolean;   // choca con una reserva de Roomia
+}
+
 
 

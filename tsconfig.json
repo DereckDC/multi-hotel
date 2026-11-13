@@ -23,5 +23,5 @@
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "exclude": ["android", "node_modules", "dist"]
+  "exclude": ["android", "node_modules", "dist", "supabase/functions/ical/index.ts"]
 }

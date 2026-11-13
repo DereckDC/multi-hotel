@@ -21,7 +21,9 @@ import {
   TrendingUp, 
   Sparkle
 } from 'lucide-react';
-import { Hotel, Room, Reservation, User as StoreUser, RoomStatus, RoomPriceVariation } from '../types';
+import { Hotel, Room, Reservation, User as StoreUser, RoomStatus, RoomPriceVariation, ExternalBlock } from '../types';
+
+const PLATFORM_NAMES: Record<string, string> = { airbnb: 'Airbnb', booking: 'Booking.com', otro: 'Otro calendario' };
 
 interface RoomReservationCalendarProps {
   hotels: Hotel[];
@@ -40,6 +42,9 @@ interface RoomReservationCalendarProps {
   setCheckInDate?: (date: string) => void;
   setCheckOutDate?: (date: string) => void;
   isAlquiler?: boolean;
+
+  // Fechas bloqueadas por Airbnb/Booking (solo las recibe el personal)
+  externalBlocks?: ExternalBlock[];
 }
 
 export function RoomReservationCalendar({
@@ -56,7 +61,8 @@ export function RoomReservationCalendar({
   checkOutDate,
   setCheckInDate,
   setCheckOutDate,
-  isAlquiler = false
+  isAlquiler = false,
+  externalBlocks = []
 }: RoomReservationCalendarProps) {
   // Today string YYYY-MM-DD
   const todayStr = useMemo(() => {
@@ -258,6 +264,15 @@ export function RoomReservationCalendar({
     });
   };
 
+  // Bloqueos de plataformas externas para un día. La fecha de fin es EXCLUSIVA (día de salida libre).
+  const getBlocksForDate = (dateStr: string) => {
+    return externalBlocks.filter(b =>
+      b.hotelId === selectedHotelId &&
+      (selectedRoomId === 'all' || b.roomId === selectedRoomId) &&
+      dateStr >= b.fechaInicio && dateStr < b.fechaFin
+    );
+  };
+
   // Helper: Check-in arrivals and Check-out departures for a specific date
   // This is highly useful for receptionist scheduling logic
   const getArrivalsAndDepartures = (dateStr: string) => {
@@ -270,6 +285,10 @@ export function RoomReservationCalendar({
   const selectedDayReservations = useMemo(() => {
     return getReservationsForDate(selectedDateStr);
   }, [selectedDateStr, reservations, selectedHotelId, selectedRoomId]);
+
+  const selectedDayBlocks = useMemo(() => {
+    return getBlocksForDate(selectedDateStr);
+  }, [selectedDateStr, externalBlocks, selectedHotelId, selectedRoomId]);
 
   const visibleReservations = useMemo(() => {
     if (activeUser.rol === 'cliente') {
@@ -288,7 +307,7 @@ export function RoomReservationCalendar({
       const dd = String(d).padStart(2, '0');
       const dateStr = `${currentYear}-${mm}-${dd}`;
       const dayRes = getReservationsForDate(dateStr);
-      if (dayRes.length > 0) occupiedSlotsCount++;
+      if (dayRes.length > 0 || getBlocksForDate(dateStr).length > 0) occupiedSlotsCount++;
     }
 
     const occupancyRate = Math.round((occupiedSlotsCount / totalDaysInMonth) * 100);
@@ -297,7 +316,7 @@ export function RoomReservationCalendar({
       diasOcupados: occupiedSlotsCount,
       diasLibres: totalDaysInMonth - occupiedSlotsCount
     };
-  }, [currentYear, currentMonth, reservations, selectedHotelId, selectedRoomId]);
+  }, [currentYear, currentMonth, reservations, externalBlocks, selectedHotelId, selectedRoomId]);
 
   const getRoomPriceForDate = (room: Room, dateStr: string) => {
     // Check if there is an exact date match in variations or an annual re-occurring one ("Always" - matching MM-DD)
@@ -443,7 +462,9 @@ export function RoomReservationCalendar({
               const { dayArrivals, dayDepartures } = getArrivalsAndDepartures(cell.dateStr);
               const isSelected = selectedDateStr === cell.dateStr;
               const hasActiveReservations = dayRes.length > 0;
-              
+              const dayBlocks = getBlocksForDate(cell.dateStr);
+              const hasBlocks = dayBlocks.length > 0;
+
               const selectedRoomObj = selectedRoomId !== 'all' ? rooms.find(r => r.id === selectedRoomId) : null;
               const priceInfo = selectedRoomObj ? getRoomPriceForDate(selectedRoomObj, cell.dateStr) : null;
               
@@ -473,6 +494,13 @@ export function RoomReservationCalendar({
                   // General view - indicator badges logic
                   bgClass = 'bg-indigo-50/70 text-indigo-900 border-indigo-200 hover:bg-indigo-100/60 font-semibold';
                 }
+              }
+
+              // Día bloqueado solo por una plataforma externa (Airbnb/Booking)
+              if (hasBlocks && !hasActiveReservations) {
+                bgClass = dayBlocks.some(b => b.conflict)
+                  ? 'bg-red-50 text-red-800 border-red-300 hover:bg-red-100/70 font-semibold'
+                  : 'bg-violet-50 text-violet-900 border-violet-200 hover:bg-violet-100/70 font-semibold';
               }
 
               // Highlight check-in/out and range selection visually
@@ -542,6 +570,14 @@ export function RoomReservationCalendar({
                       </span>
                     )}
 
+                    {/* Bloqueo de Airbnb / Booking */}
+                    {hasBlocks && (
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full ${dayBlocks.some(b => b.conflict) ? 'bg-red-600' : 'bg-violet-500'}`}
+                        title={`Bloqueado por ${[...new Set(dayBlocks.map(b => PLATFORM_NAMES[b.platform] || b.platform))].join(', ')}${dayBlocks.some(b => b.conflict) ? ' (conflicto con una reserva de Roomia)' : ''}`}
+                      />
+                    )}
+
                     {/* Check In / Out Dots for Staff alerts */}
                     {(activeUser.rol === 'recepcionista' || activeUser.rol === 'super_admin' || activeUser.rol === 'hotel_admin') && (
                       <>
@@ -583,6 +619,13 @@ export function RoomReservationCalendar({
               </div>
             )}
             
+            {externalBlocks.length > 0 && (
+              <div className="flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded bg-violet-50 border border-violet-200 inline-block" />
+                <span>Bloqueado (Airbnb / Booking)</span>
+              </div>
+            )}
+
             {/* Show receptionist explicit key codes */}
             {(activeUser.rol === 'recepcionista' || activeUser.rol === 'super_admin' || activeUser.rol === 'hotel_admin') && (
               <div className="flex items-center gap-2 border-l border-neutral-300 pl-3">
@@ -638,7 +681,7 @@ export function RoomReservationCalendar({
             {selectedRoomId !== 'all' && (
               (() => {
                 const roomSelected = rooms.find(r => r.id === selectedRoomId);
-                const isCurrentlyReserved = selectedDayReservations.length > 0;
+                const isCurrentlyReserved = selectedDayReservations.length > 0 || selectedDayBlocks.length > 0;
                 return (
                   <div className="bg-white p-3 rounded-xl border border-neutral-200 flex gap-3 items-center">
                     <div className="p-2 bg-neutral-100 rounded-lg shrink-0">
@@ -678,8 +721,37 @@ export function RoomReservationCalendar({
             </h5>
 
             <div className="space-y-3">
+              {selectedDayBlocks.length > 0 && activeUser.rol !== 'cliente' && (
+                <div className="space-y-2">
+                  {selectedDayBlocks.map(b => {
+                    const blockRoom = rooms.find(r => r.id === b.roomId);
+                    return (
+                      <div
+                        key={b.id}
+                        className={`p-3 rounded-xl border text-xs space-y-1.5 ${b.conflict ? 'bg-red-50 border-red-200' : 'bg-violet-50/70 border-violet-200'}`}
+                      >
+                        <div className="flex justify-between items-center gap-2">
+                          <span className="text-[9px] font-bold uppercase px-2 py-0.5 rounded-full bg-violet-600 text-white">
+                            {PLATFORM_NAMES[b.platform] || b.platform}
+                          </span>
+                          {b.conflict && (
+                            <span className="text-[9px] font-bold uppercase text-red-700">⚠ Conflicto con una reserva de Roomia</span>
+                          )}
+                        </div>
+                        {blockRoom && selectedRoomId === 'all' && (
+                          <p className="text-[11px] font-bold text-neutral-700">Habitación {blockRoom.numero} - {blockRoom.nombre}</p>
+                        )}
+                        <p className="font-mono text-[11px] text-neutral-600">
+                          {b.fechaInicio} → {b.fechaFin}{' '}
+                          <span className="text-neutral-400 font-sans">(fechas bloqueadas por un calendario externo)</span>
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
               <AnimatePresence mode="popLayout">
-                {selectedDayReservations.length === 0 ? (
+                {selectedDayReservations.length === 0 && selectedDayBlocks.length === 0 ? (
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}

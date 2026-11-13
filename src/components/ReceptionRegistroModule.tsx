@@ -1,5 +1,5 @@
 import React from 'react';
-import { Hotel, Room, Reservation, User, RoomPriceVariation } from '../types';
+import { Hotel, Room, Reservation, User, RoomPriceVariation, ExternalBlock } from '../types';
 import { Calendar, Check } from 'lucide-react';
 import { RoomReservationCalendar } from './RoomReservationCalendar';
 
@@ -13,7 +13,8 @@ interface ReceptionRegistroModuleProps {
   receptionistHotel: any;
   roomPriceVariations: RoomPriceVariation[];
   onUpdateRoomStatus: (roomId: string, status: any) => void;
-  
+  externalBlocks?: ExternalBlock[];
+
   // Form states
   resType: 'new' | 'existing';
   setResType: (val: 'new' | 'existing') => void;
@@ -56,6 +57,7 @@ interface ReceptionRegistroModuleProps {
 }
 
 export default function ReceptionRegistroModule({
+  externalBlocks = [],
   hotels,
   rooms,
   reservations,
@@ -143,6 +145,7 @@ export default function ReceptionRegistroModule({
             activeUser={activeUser}
             onUpdateRoomStatus={onUpdateRoomStatus}
             roomPriceVariations={roomPriceVariations}
+            externalBlocks={externalBlocks.filter(b => b.hotelId === targetHotelId)}
             checkInDate={bookCheckIn}
             checkOutDate={bookCheckOut}
             setCheckInDate={setBookCheckIn}

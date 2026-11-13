@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useRef } from 'react';
-import { Hotel, Room, Reservation, User, RoomStatus, ReservationStatus, RoomPriceVariation } from '../types';
+import { Hotel, Room, Reservation, User, RoomStatus, ReservationStatus, RoomPriceVariation, ExternalBlock } from '../types';
 import { Coffee, AlertTriangle } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { ActivityLog } from '../store';
@@ -34,6 +34,7 @@ interface ReceptionViewProps {
   roomPriceVariations?: RoomPriceVariation[];
   activeTab?: 'checkin' | 'registro' | 'incidencias';
   logs?: ActivityLog[];
+  externalBlocks?: ExternalBlock[];
 }
 
 export default function ReceptionView({
@@ -51,7 +52,8 @@ export default function ReceptionView({
   onUpdateReservationStatus,
   roomPriceVariations = [],
   activeTab = 'checkin',
-  logs = []
+  logs = [],
+  externalBlocks = []
 }: ReceptionViewProps) {
   const getTabLabel = () => {
     switch (activeTab) {
@@ -418,6 +420,14 @@ export default function ReceptionView({
       return;
     }
 
+    // Fechas bloqueadas por Airbnb/Booking (calendario externo). La salida es exclusiva.
+    const externalBlock = externalBlocks.find(b => b.roomId === bookRoomId && bookCheckIn < b.fechaFin && bookCheckOut > b.fechaInicio);
+    if (externalBlock) {
+      const platformName = externalBlock.platform === 'airbnb' ? 'Airbnb' : externalBlock.platform === 'booking' ? 'Booking.com' : 'otro calendario externo';
+      alert(`❌ Error: esas fechas están bloqueadas por ${platformName} (${externalBlock.fechaInicio} a ${externalBlock.fechaFin}).`);
+      return;
+    }
+
     let targetGuestId = '';
 
     if (resType === 'new') {
@@ -495,7 +505,7 @@ export default function ReceptionView({
     if (onCreateReservation) {
       const created = await onCreateReservation(newRes);
       if (created === false) {
-        alert('❌ Error: La habitación acaba de ser reservada en las fechas seleccionadas. Elige otro rango de fechas.');
+        alert('❌ Error: La habitación ya no está disponible en las fechas seleccionadas. Elige otro rango de fechas.');
         return;
       }
 
@@ -691,6 +701,7 @@ export default function ReceptionView({
 
       {activeTab === 'registro' && (
         <ReceptionRegistroModule
+          externalBlocks={externalBlocks}
           hotels={hotels}
           rooms={rooms}
           reservations={reservations}

@@ -145,6 +145,41 @@ npm start
 
 ---
 
+## 🔗 Sincronización de calendarios (iCal · Airbnb y Booking)
+
+Cada habitación (o casa/departamento completo) se puede conectar con Airbnb, Booking.com u otra plataforma desde **Panel admin → Habitaciones / Propiedades → "Calendarios"**:
+
+1. **Importar:** el propietario pega el enlace iCal de la plataforma. Roomia lo lee cada 15 minutos y bloquea esas fechas.
+2. **Exportar:** Roomia publica un enlace por plataforma (con las reservas de Roomia y los bloqueos de las *otras* plataformas) que el propietario pega en Airbnb/Booking.
+
+Solo viajan **fechas ocupadas**: nunca nombres, precios ni pagos. La fecha de salida es exclusiva (el día de salida queda libre).
+
+### Piezas
+
+| Pieza | Dónde |
+| :--- | :--- |
+| Tablas, RLS por hotel, triggers y funciones | `supabase_03_ical.sql` (rollback: `supabase_03_ROLLBACK_ical.sql`) |
+| Programación cada 15 min (`pg_cron` + `pg_net`) | `supabase_03b_ical_cron.sql` |
+| Función Edge `ical` (exportación pública, sincronización manual y masiva) | `supabase/functions/ical/` |
+| Parser/generador iCal (puro, con pruebas) | `supabase/functions/ical/ical.ts`, `tests/` (`npm test`) |
+| Interfaz | `src/components/IcalSyncModal.tsx`, `src/services/ical.ts` |
+
+### Puesta en marcha en otro proyecto de Supabase
+
+1. Ejecutar `supabase_01_correcciones_seguras.sql` y luego `supabase_03_ical.sql`.
+2. Desplegar la función: `supabase functions deploy ical --no-verify-jwt` (debe ser pública: Airbnb/Booking no envían sesión; cada ruta valida su propia credencial).
+3. Cambiar la URL del proyecto en `supabase_03b_ical_cron.sql` y ejecutarlo.
+
+### Operación
+
+- **Estado y errores:** en el modal de cada unidad (última sincronización, último error, cuándo leyó la plataforma el calendario de Roomia). Los conflictos con reservas de Roomia quedan en la **Bitácora** (acción "Conflicto iCal").
+- **Si una plataforma falla:** se conservan los bloqueos anteriores y se reintenta (cada 10 min; con 5 fallos seguidos, cada 2 h; con 20, cada 12 h).
+- **Enlace filtrado o comprometido:** "Regenerar enlace de Roomia" invalida el anterior al instante. El enlace de importación de la plataforma se cambia desde su propio panel.
+- **Parar la sincronización automática:** `SELECT cron.unschedule('roomia-ical-sync');`
+- **Límites de iCal:** las plataformas leen el calendario de Roomia cada varias horas (no se puede acelerar), así que siempre existe una ventana de riesgo de doble reserva; los conflictos se detectan y registran en la siguiente sincronización.
+
+---
+
 ## 📱 Compilación para Android (Capacitor)
 
 1. Sincronizar los assets web compilados con el proyecto Android:

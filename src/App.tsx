@@ -73,6 +73,9 @@ export default function App() {
     roomPriceVariations = [],
     saveRoomPriceVariation,
     deleteRoomPriceVariation,
+    icalFeeds = [],
+    externalBlocks = [],
+    refreshIcal,
     isInitialSyncing
   } = store;
 
@@ -1133,6 +1136,7 @@ export default function App() {
                                 roomPriceVariations={roomPriceVariations}
                                 activeTab={receptionActiveTab}
                                 logs={logs}
+                                externalBlocks={externalBlocks}
                               />
                             </Suspense>
                           )}
@@ -1165,6 +1169,9 @@ export default function App() {
                                 onDeleteRoomPriceVariation={deleteRoomPriceVariation}
                                 adminTab={adminActiveTab}
                                 onAdminTabChange={setAdminActiveTab}
+                                icalFeeds={icalFeeds}
+                                externalBlocks={externalBlocks}
+                                onRefreshIcal={refreshIcal}
                               />
                             </Suspense>
                           )}

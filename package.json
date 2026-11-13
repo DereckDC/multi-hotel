@@ -12,6 +12,7 @@
     "start": "node dist/server.cjs",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
+    "test": "node --test \"tests/*.test.ts\"",
     "cap:sync": "npx cap sync",
     "cap:copy": "npx cap copy",
     "cap:open": "npx cap open android",

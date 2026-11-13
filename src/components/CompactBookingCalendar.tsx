@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Check, AlertCircle } from 'lucide-react';
 import { Reservation, Room, RoomPriceVariation } from '../types';
+import { occupiedNights, isRangeFree } from '../utils/availability';
 
 interface CompactBookingCalendarProps {
   room: Room;
@@ -79,24 +80,20 @@ export function CompactBookingCalendar({
     }
   };
 
-  // Occupied dates for this specific room
-  const occupiedDatesSet = useMemo(() => {
-    const set = new Set<string>();
-    reservations.forEach(res => {
-      if (res.roomId !== room.id || res.estado === 'cancelada') return;
-      const start = new Date(res.fechaEntrada + 'T00:00:00');
-      const end = new Date(res.fechaSalida + 'T00:00:00');
-      const cur = new Date(start);
-      while (cur <= end) {
-        const y = cur.getFullYear();
-        const m = String(cur.getMonth() + 1).padStart(2, '0');
-        const d = String(cur.getDate()).padStart(2, '0');
-        set.add(`${y}-${m}-${d}`);
-        cur.setDate(cur.getDate() + 1);
-      }
-    });
-    return set;
-  }, [reservations, room.id]);
+  // NOCHES ocupadas de esta habitación (incluye las reservas de otros huéspedes y los bloqueos de
+  // Airbnb/Booking, que llegan como rangos anónimos). El día de salida queda libre: es la misma
+  // regla que usa la validación de la reserva y la base de datos.
+  const occupiedDatesSet = useMemo(
+    () => occupiedNights(reservations.filter(res =>
+      res.roomId === room.id && res.estado !== 'cancelada' && res.estado !== 'finalizada'
+    )),
+    [reservations, room.id]
+  );
+
+  // El día de salida de otra reserva no se puede elegir como llegada, pero sí como salida
+  // de una estancia que termina ese día, siempre que las noches intermedias estén libres.
+  const isCheckoutCandidate = (dateStr: string) =>
+    !isAlquiler && !!checkInDate && !checkOutDate && dateStr > checkInDate && isRangeFree(occupiedDatesSet, checkInDate, dateStr);
 
   // Calendar matrix calculation
   const calendarDays = useMemo(() => {
@@ -161,45 +158,33 @@ export function CompactBookingCalendar({
 
   // Handle cell click
   const handleDayClick = (dateStr: string, isPast: boolean, isOccupied: boolean) => {
-    if (isPast || isOccupied) return;
+    if (isPast) return;
+    if (isOccupied && !isCheckoutCandidate(dateStr)) return;
+
+    // Una noche ocupada no puede ser el inicio de una estancia
+    const startNewStay = () => {
+      if (!isOccupied) onSelectRange(dateStr, '');
+    };
 
     if (isAlquiler) {
-      onSelectRange(dateStr, '');
+      startNewStay();
       return;
     }
 
     if (!checkInDate || (checkInDate && checkOutDate)) {
       // First click: sets Check-In
-      onSelectRange(dateStr, '');
-    } else {
-      // Second click: sets Check-Out
-      if (dateStr > checkInDate) {
-        // Check if there is any occupied day in between
-        let hasConflict = false;
-        const start = new Date(checkInDate + 'T00:00:00');
-        const end = new Date(dateStr + 'T00:00:00');
-        const cur = new Date(start);
-        while (cur <= end) {
-          const y = cur.getFullYear();
-          const m = String(cur.getMonth() + 1).padStart(2, '0');
-          const d = String(cur.getDate()).padStart(2, '0');
-          if (occupiedDatesSet.has(`${y}-${m}-${d}`)) {
-            hasConflict = true;
-            break;
-          }
-          cur.setDate(cur.getDate() + 1);
-        }
-
-        if (hasConflict) {
-          // Restart with clicked date as new check-in
-          onSelectRange(dateStr, '');
-        } else {
-          onSelectRange(checkInDate, dateStr);
-        }
+      startNewStay();
+    } else if (dateStr > checkInDate) {
+      // Second click: sets Check-Out si todas las noches de la estancia están libres
+      if (isRangeFree(occupiedDatesSet, checkInDate, dateStr)) {
+        onSelectRange(checkInDate, dateStr);
       } else {
-        // Clicked date is earlier than check-in -> set as new check-in
-        onSelectRange(dateStr, '');
+        // Hay una noche ocupada en medio: se reinicia con el día elegido como nueva llegada
+        startNewStay();
       }
+    } else {
+      // Clicked date is earlier than check-in -> set as new check-in
+      startNewStay();
     }
   };
 
@@ -300,13 +285,17 @@ export function CompactBookingCalendar({
             cell.dateStr <= hoverDate &&
             !cell.isOccupied;
 
+          // Noche ocupada que sí se puede elegir como día de salida (o ya está elegida como tal)
+          const selectableCheckout = cell.isOccupied && (isCheckoutCandidate(cell.dateStr) || cell.dateStr === checkOutDate);
+          const isBlockedCell = cell.isPast || (cell.isOccupied && !selectableCheckout);
+
           let cellStyle = 'bg-white text-neutral-800 hover:bg-teal-50/60 hover:border-teal-300 border-neutral-200/70';
 
           if (!cell.isCurrentMonth) {
             cellStyle = 'bg-neutral-50/60 text-neutral-400 border-transparent opacity-60';
           }
 
-          if (cell.isOccupied) {
+          if (cell.isOccupied && !selectableCheckout) {
             cellStyle = 'bg-rose-50 text-rose-700 border-rose-200 opacity-80 cursor-not-allowed line-through';
           } else if (cell.isPast) {
             cellStyle = 'bg-neutral-100/60 text-neutral-350 border-transparent cursor-not-allowed opacity-40';
@@ -322,14 +311,14 @@ export function CompactBookingCalendar({
             <button
               key={cell.dateStr}
               type="button"
-              disabled={cell.isPast || cell.isOccupied}
+              disabled={isBlockedCell}
               onClick={() => handleDayClick(cell.dateStr, cell.isPast, cell.isOccupied)}
-              onMouseEnter={() => !cell.isPast && !cell.isOccupied && setHoverDate(cell.dateStr)}
+              onMouseEnter={() => !isBlockedCell && !cell.isOccupied && setHoverDate(cell.dateStr)}
               onMouseLeave={() => setHoverDate(null)}
               className={`relative h-11 sm:h-12 rounded-xl flex flex-col items-center justify-center border transition-all text-xs select-none ${
-                cell.isPast || cell.isOccupied ? 'cursor-not-allowed' : 'cursor-pointer'
+                isBlockedCell ? 'cursor-not-allowed' : 'cursor-pointer'
               } ${cellStyle}`}
-              aria-label={`Día ${cell.dayNumber} ${cell.isOccupied ? '(Ocupado)' : ''}`}
+              aria-label={`Día ${cell.dayNumber} ${cell.isOccupied ? (selectableCheckout ? '(Ocupado, disponible como día de salida)' : '(Ocupado)') : ''}`}
             >
               <span className={`text-xs font-semibold leading-none ${isCheckIn || isCheckOut ? 'text-white' : ''}`}>
                 {cell.dayNumber}
