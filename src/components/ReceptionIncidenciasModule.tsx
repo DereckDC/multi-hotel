@@ -1,7 +1,7 @@
 import React from 'react';
 import { Room } from '../types';
 import { ActivityLog } from '../store';
-import { Hammer, ShieldAlert } from 'lucide-react';
+import { Hammer, ShieldAlert, Home, MapPin } from 'lucide-react';
 
 interface ReceptionIncidenciasModuleProps {
   rooms: Room[];
@@ -26,6 +26,9 @@ export default function ReceptionIncidenciasModule({
   handleReportIncident,
   hotelIncidents
 }: ReceptionIncidenciasModuleProps) {
+  const isProperty = receptionistHotel?.tipoEstablecimiento === 'casa' || receptionistHotel?.tipoEstablecimiento === 'departamento';
+  const propertyType = receptionistHotel?.tipoEstablecimiento === 'casa' ? 'Casa' : 'Departamento';
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fade-in duration-300" id="reception-incidencias-module">
       
@@ -40,10 +43,25 @@ export default function ReceptionIncidenciasModule({
           <form onSubmit={handleReportIncident} className="space-y-4">
             {incidentSubmitted && (
               <div className="bg-emerald-50 border border-emerald-300 text-emerald-800 p-3 rounded-xl text-xs font-medium">
-                Incidencia guardada con éxito. Habitación colocada en Mantenimiento.
+                {isProperty
+                  ? 'Incidencia de la propiedad guardada con éxito.'
+                  : 'Incidencia guardada con éxito. Habitación colocada en Mantenimiento.'}
               </div>
             )}
 
+            {isProperty ? (
+              <div className="p-3 rounded-xl bg-neutral-50 border border-neutral-200 space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <Home className="w-4 h-4 text-teal-600 shrink-0" />
+                  <span className="text-xs font-bold text-neutral-850 truncate">{receptionistHotel?.nombre}</span>
+                  <span className="ml-auto text-[9px] font-bold uppercase px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 border border-teal-100">{propertyType}</span>
+                </div>
+                {receptionistHotel?.ubicacion && (
+                  <p className="text-[11px] text-neutral-500 flex items-start gap-1.5"><MapPin className="w-3.5 h-3.5 shrink-0 mt-0.5 text-neutral-400" />{receptionistHotel.ubicacion}</p>
+                )}
+                <p className="text-[10px] text-neutral-400">La incidencia se registrará para toda la propiedad.</p>
+              </div>
+            ) : (
             <div>
               <label className="text-xs font-semibold text-neutral-500 block mb-1">Seleccionar Habitación:</label>
               <select
@@ -58,6 +76,7 @@ export default function ReceptionIncidenciasModule({
                 ))}
               </select>
             </div>
+            )}
 
             <div>
               <label className="text-xs font-semibold text-neutral-500 block mb-1">Descripción del desperfecto:</label>
@@ -116,7 +135,7 @@ export default function ReceptionIncidenciasModule({
                   
                   <div className="shrink-0">
                     <span className="px-2 py-1 bg-amber-50 text-amber-700 border border-amber-100 rounded-lg text-[9px] font-mono font-bold uppercase">
-                      Mantenimiento Activo
+                      {isProperty ? 'Reporte de propiedad' : 'Mantenimiento Activo'}
                     </span>
                   </div>
                 </div>

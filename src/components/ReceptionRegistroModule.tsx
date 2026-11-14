@@ -1,6 +1,6 @@
 import React from 'react';
 import { Hotel, Room, Reservation, User, RoomPriceVariation, ExternalBlock } from '../types';
-import { Calendar, Check } from 'lucide-react';
+import { Calendar, Check, Search, CheckCircle2 } from 'lucide-react';
 import { RoomReservationCalendar } from './RoomReservationCalendar';
 
 interface ReceptionRegistroModuleProps {
@@ -120,6 +120,41 @@ export default function ReceptionRegistroModule({
     const dVal = String(dObj.getDate()).padStart(2, '0');
     return `${y}-${m}-${dVal}`;
   };
+
+  // Huéspedes con al menos una reserva en este establecimiento: siempre visibles en la lista
+  const hotelGuests = React.useMemo(() => {
+    const ids = new Set(
+      reservations
+        .filter(r => r.hotelId === targetHotelId && r.guestId && r.guestId !== '__ocupado__')
+        .map(r => r.guestId)
+    );
+    return users
+      .filter(u => u.rol === 'cliente' && ids.has(u.id))
+      .sort((a, b) => `${a.nombre} ${a.apellido}`.localeCompare(`${b.nombre} ${b.apellido}`, 'es'));
+  }, [reservations, users, targetHotelId]);
+
+  // Búsqueda exacta por cédula entre todos los clientes registrados
+  const [docQuery, setDocQuery] = React.useState('');
+  const [docSearched, setDocSearched] = React.useState(false);
+  const normalizeDoc = (v: string) => (v || '').replace(/[\s.-]/g, '').toUpperCase();
+  const docMatch = React.useMemo(() => {
+    const q = normalizeDoc(docQuery);
+    if (!q) return undefined;
+    return users.find(u => u.rol === 'cliente' && normalizeDoc(u.documento || '') === q);
+  }, [docQuery, users]);
+  const searchByDocument = () => {
+    if (!docQuery.trim()) return;
+    setDocSearched(true);
+    if (docMatch) setSelectedGuestId(docMatch.id);
+  };
+
+  // Al cambiar de establecimiento se limpia una selección que ya no aplica
+  React.useEffect(() => {
+    setDocQuery('');
+    setDocSearched(false);
+    if (selectedGuestId && !hotelGuests.some(g => g.id === selectedGuestId)) setSelectedGuestId('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetHotelId]);
 
   const localTodayStr = getLocalTodayString();
   const minCheckOutDate = bookCheckIn ? getNextDayString(bookCheckIn) : getNextDayString(localTodayStr);
@@ -269,21 +304,69 @@ export default function ReceptionRegistroModule({
                 </div>
               </div>
             ) : (
-              <div className="p-3.5 bg-slate-50/50 rounded-2xl border border-slate-100">
-                <label className="text-[10px] font-bold text-neutral-500 block mb-1">Buscar Huésped Registrado *</label>
-                <select
-                  required={resType === 'existing'}
-                  value={selectedGuestId}
-                  onChange={(e) => setSelectedGuestId(e.target.value)}
-                  className="w-full text-xs border border-neutral-250 rounded-lg p-2.5 bg-white focus:ring-1 focus:ring-teal-500 focus:outline-none cursor-pointer text-neutral-800"
-                >
-                  <option value="">-- Elige un huésped registrado --</option>
-                  {users.filter(u => u.rol === 'cliente').map(u => (
-                    <option key={u.id} value={u.id}>
-                      {u.nombre} {u.apellido} ({u.documento} - {u.email})
-                    </option>
-                  ))}
-                </select>
+              <div className="p-3.5 bg-slate-50/50 rounded-2xl border border-slate-100 space-y-3">
+                {/* Búsqueda por cédula entre todos los clientes registrados */}
+                <div>
+                  <label className="text-[10px] font-bold text-neutral-500 block mb-1">Buscar por cédula / pasaporte</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={docQuery}
+                      onChange={(e) => { setDocQuery(e.target.value); setDocSearched(false); }}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); searchByDocument(); } }}
+                      placeholder="Ej: 0912345678"
+                      className="flex-1 min-w-0 text-xs border border-neutral-250 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 bg-white focus:outline-none font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={searchByDocument}
+                      className="px-3 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold flex items-center gap-1 cursor-pointer"
+                    >
+                      <Search className="w-3.5 h-3.5" /> Buscar
+                    </button>
+                  </div>
+                  {docSearched && docMatch && (
+                    <p className="mt-1.5 text-[11px] text-emerald-700 font-semibold flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Huésped encontrado: {docMatch.nombre} {docMatch.apellido}
+                    </p>
+                  )}
+                  {docSearched && !docMatch && (
+                    <div className="mt-2 p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-900 space-y-2">
+                      <p>No hay ningún cliente registrado con esa cédula.</p>
+                      <button
+                        type="button"
+                        onClick={() => { setWalkInDocumento(docQuery.trim()); setResType('new'); setDocSearched(false); }}
+                        className="px-2.5 py-1.5 rounded-md bg-amber-600 hover:bg-amber-700 text-white font-bold cursor-pointer"
+                      >
+                        Registrar nuevo huésped
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Huéspedes que ya reservaron en este establecimiento (solo nombres) */}
+                <div>
+                  <label className="text-[10px] font-bold text-neutral-500 block mb-1">Huésped seleccionado *</label>
+                  <select
+                    required={resType === 'existing'}
+                    value={selectedGuestId}
+                    onChange={(e) => setSelectedGuestId(e.target.value)}
+                    className="w-full text-xs border border-neutral-250 rounded-lg p-2.5 bg-white focus:ring-1 focus:ring-teal-500 focus:outline-none cursor-pointer text-neutral-800"
+                  >
+                    <option value="">-- Elige un huésped de este establecimiento --</option>
+                    {docMatch && docSearched && !hotelGuests.some(g => g.id === docMatch.id) && (
+                      <option value={docMatch.id}>{docMatch.nombre} {docMatch.apellido}</option>
+                    )}
+                    {hotelGuests.map(u => (
+                      <option key={u.id} value={u.id}>{u.nombre} {u.apellido}</option>
+                    ))}
+                  </select>
+                  {hotelGuests.length === 0 && (
+                    <p className="mt-1.5 text-[10px] text-neutral-400">
+                      Aún no hay huéspedes con reservas en este establecimiento. Búscalo por cédula o registra uno nuevo.
+                    </p>
+                  )}
+                </div>
               </div>
             )}
 

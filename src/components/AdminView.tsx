@@ -101,6 +101,7 @@ interface AdminViewProps {
   icalFeeds?: IcalFeed[];
   externalBlocks?: ExternalBlock[];
   onRefreshIcal?: () => void | Promise<void>;
+  onAddLog?: (action: string, details: string) => void;
 }
 
 const STEPS_HOTEL = [{ label: 'Datos básicos' }, { label: 'Contacto y medios' }, { label: 'Servicios y políticas' }];
@@ -135,7 +136,8 @@ export default function AdminView({
   onAdminTabChange,
   icalFeeds = [],
   externalBlocks = [],
-  onRefreshIcal
+  onRefreshIcal,
+  onAddLog
 }: AdminViewProps) {
   // Navigation tabs within Admin: 'dashboard' | 'hotels' | 'rooms' | 'users' | 'logs' | 'reservations' | 'refunds' | 'incidents'
   const [localAdminTab, setLocalAdminTab] = useState<'dashboard' | 'hotels' | 'properties' | 'rooms' | 'users' | 'logs' | 'reservations' | 'refunds' | 'incidents'>('dashboard');
@@ -274,6 +276,9 @@ export default function AdminView({
   const [incidentRoomId, setIncidentRoomId] = useState('');
   const [incidentDesc, setIncidentDesc] = useState('');
   const [incidentHotelFilter, setIncidentHotelFilter] = useState<string>('todos');
+  const isPropertyEstablishment = (h: Hotel) => h.tipoEstablecimiento === 'casa' || h.tipoEstablecimiento === 'departamento';
+  // Propiedad elegida en el filtro de incidencias (no tiene habitaciones: la incidencia es de toda la propiedad)
+  const incidentFilterProperty = allowedOnlyProperties.find(h => h.id === incidentHotelFilter);
 
   // Variable pricing states
   const [selectedRoomForVariations, setSelectedRoomForVariations] = useState<Room | null>(null);
@@ -2156,27 +2161,58 @@ export default function AdminView({
                   Reportar Nueva Novedad / Avería
                 </h5>
                 <p className="text-xs text-neutral-500 leading-relaxed">
-                  Registre un daño técnico o avería operativa. Esto transicionará automáticamente el aposento a estado de <strong className="text-neutral-800 font-bold">Mantenimiento</strong> en los tableros del staff.
+                  {incidentFilterProperty
+                    ? 'Registre un daño técnico o avería de la propiedad. Quedará en la bitácora de incidencias del establecimiento.'
+                    : <>Registre un daño técnico o avería operativa. En habitaciones de hotel, esto transicionará automáticamente el aposento a estado de <strong className="text-neutral-800 font-bold">Mantenimiento</strong> en los tableros del staff.</>}
                 </p>
 
                 <div className="space-y-4 pt-2">
+                  {incidentFilterProperty ? (
+                    // Propiedad (casa/departamento): se alquila completa, la incidencia es de toda la propiedad
+                    <div className="p-3 rounded-xl bg-neutral-50 border border-neutral-200 space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <Home className="w-4 h-4 text-teal-600 shrink-0" />
+                        <span className="text-xs font-bold text-neutral-850 truncate">{incidentFilterProperty.nombre}</span>
+                        <span className="ml-auto text-[9px] font-bold uppercase px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 border border-teal-100">
+                          {incidentFilterProperty.tipoEstablecimiento === 'casa' ? 'Casa' : 'Departamento'}
+                        </span>
+                      </div>
+                      {incidentFilterProperty.ubicacion && (
+                        <p className="text-[11px] text-neutral-500">{incidentFilterProperty.ubicacion}</p>
+                      )}
+                      <p className="text-[10px] text-neutral-400">La incidencia se registrará para toda la propiedad.</p>
+                    </div>
+                  ) : (
                   <div>
-                    <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider block mb-1.5">Seleccionar Habitación Afectada:</label>
+                    <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider block mb-1.5">
+                      {incidentHotelFilter === 'todos' ? 'Habitación o Propiedad Afectada:' : 'Seleccionar Habitación Afectada:'}
+                    </label>
                     <select
                       value={incidentRoomId}
                       onChange={(e) => setIncidentRoomId(e.target.value)}
                       className="w-full text-xs border border-neutral-250 p-3 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-neutral-900 cursor-pointer text-neutral-800 font-medium shadow-sm"
                     >
-                      <option value="">-- Seleccione una Habitación --</option>
-                      {allowedRooms
-                        .filter(r => incidentHotelFilter === 'todos' || r.hotelId === incidentHotelFilter)
-                        .map(r => (
-                          <option key={r.id} value={r.id}>
-                            Habitación N° {r.numero} - {r.nombre} ({r.estado.toUpperCase()})
-                          </option>
-                        ))}
+                      <option value="">{incidentHotelFilter === 'todos' ? '-- Seleccione una habitación o propiedad --' : '-- Seleccione una Habitación --'}</option>
+                      {incidentHotelFilter === 'todos' && allowedHotels.some(isPropertyEstablishment) && (
+                        <optgroup label="Propiedades (completas)">
+                          {allowedHotels.filter(isPropertyEstablishment).map(h => (
+                            <option key={h.id} value={`prop:${h.id}`}>🏡 {h.nombre}</option>
+                          ))}
+                        </optgroup>
+                      )}
+                      <optgroup label="Habitaciones">
+                        {allowedRooms
+                          .filter(r => incidentHotelFilter === 'todos' || r.hotelId === incidentHotelFilter)
+                          .filter(r => !allowedHotels.some(h => h.id === r.hotelId && isPropertyEstablishment(h)))
+                          .map(r => (
+                            <option key={r.id} value={r.id}>
+                              Habitación N° {r.numero} - {r.nombre} ({r.estado.toUpperCase()})
+                            </option>
+                          ))}
+                      </optgroup>
                     </select>
                   </div>
+                  )}
 
                   <div>
                     <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider block mb-1.5">Descripción Detallada del Incidente:</label>
@@ -2192,12 +2228,22 @@ export default function AdminView({
                   <button
                     type="button"
                     onClick={() => {
-                      if (!incidentRoomId) {
-                        notifyToast("⚠️ Alerta: Por favor seleccione la habitación afectada.");
+                      // Propiedad: por el filtro o elegida en la lista ("prop:<id>")
+                      const propertyTarget = incidentFilterProperty
+                        || (incidentRoomId.startsWith('prop:') ? allowedHotels.find(h => h.id === incidentRoomId.slice(5)) : undefined);
+                      if (!propertyTarget && !incidentRoomId) {
+                        notifyToast("⚠️ Alerta: Por favor seleccione la habitación o propiedad afectada.");
                         return;
                       }
                       if (!incidentDesc.trim()) {
                         notifyToast("⚠️ Alerta: Por favor especifique los detalles o motivo de la incidencia.");
+                        return;
+                      }
+                      if (propertyTarget) {
+                        onAddLog?.('Incidencia Registrada', `Propiedad "${propertyTarget.nombre}": ${incidentDesc.trim()}`);
+                        notifyToast(`✅ Incidencia registrada para la propiedad ${propertyTarget.nombre}.`);
+                        setIncidentDesc('');
+                        setIncidentRoomId('');
                         return;
                       }
                       const target = rooms.find(r => r.id === incidentRoomId);

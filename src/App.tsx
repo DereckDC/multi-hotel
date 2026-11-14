@@ -577,17 +577,10 @@ export default function App() {
   // Track state audit metrics
   const stats = store.getStatistics();
 
+  // Registra en la bitácora (estado local + tabla logs de Supabase)
   const handleAddLogSimulated = (action: string, details: string) => {
-    // Helper to log actions within reception
-    const logStr = `${activeUser.nombre} ${activeUser.apellido}`;
-    store.logs.unshift({
-      id: `log-${Date.now()}`,
-      timestamp: new Date().toISOString(),
-      user: logStr,
-      role: activeUser.rol,
-      action: action,
-      detalles: details
-    });
+    const logStr = `${activeUser.nombre} ${activeUser.apellido}`.trim();
+    store.addLog(logStr, activeUser.rol, action, details);
   };
 
   if (activeLegalDoc !== null) {
@@ -1177,6 +1170,7 @@ export default function App() {
                                 icalFeeds={icalFeeds}
                                 externalBlocks={externalBlocks}
                                 onRefreshIcal={refreshIcal}
+                                onAddLog={handleAddLogSimulated}
                               />
                             </Suspense>
                           )}

@@ -11,6 +11,8 @@ import { jsPDF } from 'jspdf';
 import QRCode from 'qrcode';
 import { BrandLogo } from './BrandLogo';
 import RoomiaLogo from '../RoomiaPMSLogoSinFondo.png';
+import { isNativeApp } from '../utils/platform';
+import { savePdfNative, printPdfNative } from '../utils/nativeFiles';
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   let binary = '';
@@ -67,7 +69,8 @@ export default function InvoicePDF({
     return Math.ceil(diff / (1000 * 60 * 60 * 24)) || 1;
   };
 
-  const handleDownload = () => {
+  // En la app Android: 'download' guarda y comparte el PDF; 'print' abre el diálogo de impresión del sistema
+  const generatePdf = (mode: 'download' | 'print') => {
     setDownloading(true);
     setTimeout(async () => {
       try {
@@ -388,9 +391,22 @@ export default function InvoicePDF({
         doc.setTextColor(150, 150, 150);
         doc.text('Este documento es una pre-factura valida de reserva simulada generada por ROOMIA S.A. No posee validez legal externa.', 15, footerY + 4);
 
-        // Save PDF or Share natively via Android/iOS Web Share API inside APK WebViews
-        const pdfBlob = doc.output('blob');
         const pdfFileName = `PreFactura_Roomia_${reservation.id}.pdf`;
+
+        // App Android: el WebView no descarga ni imprime; se usa el sistema de archivos y la impresión nativa
+        if (isNativeApp()) {
+          const base64 = doc.output('datauristring');
+          if (mode === 'print') {
+            await printPdfNative(base64, `PreFactura_Roomia_${reservation.id}`);
+          } else {
+            const inDocs = await savePdfNative(base64, pdfFileName, `Pre-Factura Roomia #${reservation.id}`);
+            if (inDocs) alert('PDF guardado en Documentos/Roomia.');
+          }
+          return;
+        }
+
+        // Save PDF or Share natively via Android/iOS Web Share API inside mobile browsers
+        const pdfBlob = doc.output('blob');
         const pdfFile = new File([pdfBlob], pdfFileName, { type: 'application/pdf' });
 
         if (navigator.share && navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
@@ -416,7 +432,13 @@ export default function InvoicePDF({
     }, 1200);
   };
 
+  const handleDownload = () => generatePdf('download');
+
   const handlePrint = () => {
+    if (isNativeApp()) {
+      generatePdf('print');
+      return;
+    }
     window.print();
   };
 

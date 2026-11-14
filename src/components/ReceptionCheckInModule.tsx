@@ -182,7 +182,7 @@ export default function ReceptionCheckInModule({
                     className="w-full h-9 bg-neutral-850 hover:bg-neutral-800 text-neutral-300 border border-neutral-800 font-semibold rounded-xl text-[11px] transition-all flex items-center justify-center gap-2 cursor-pointer"
                   >
                     <Camera className="w-3.5 h-3.5 text-neutral-400" />
-                    Usar Cámara Real de Dispositivo
+                    Escanear QR
                   </button>
                 ) : (
                   <div className="space-y-2">

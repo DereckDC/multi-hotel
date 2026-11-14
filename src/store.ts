@@ -51,7 +51,7 @@ export function getApiBaseUrl(): string {
     if (isNativeApp()) {
       try {
         const saved = localStorage.getItem('roomia_api_origin');
-        if (saved && saved !== origin && /^https?:\/\//.test(saved) && !/\/\/localhost(:|\/|$)/.test(saved)) return saved;
+        if (saved && saved !== origin && /^https?:\/\//.test(saved) && !/\/\/localhost(:|\/|$)/.test(saved) && !/^https:\/\/roomiapms\.site\/?$/.test(saved)) return saved;
       } catch (e) {}
       return PRODUCTION_ORIGIN;
     }
@@ -2438,6 +2438,7 @@ El Equipo de Hospitalidad de Roomia PMS.`;
     updateReservationStatus,
     performCheckIn,
     performCheckOut,
+    addLog,
     getStatistics,
     syncAllToSupabase,
     refreshCatalogFromSupabase,

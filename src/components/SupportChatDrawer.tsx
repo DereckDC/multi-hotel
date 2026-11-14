@@ -143,47 +143,29 @@ export default function SupportChatDrawer({
     const hotelFilterId = isStaff && activeUser.rol !== 'super_admin' ? (activeUser.hotelId || selectedHotelId) : selectedHotelId;
     if (!hotelFilterId) return [];
     
-    const clientMap = new Map<string, { id: string; name: string; unreadCount: number }>();
+    const clientMap = new Map<string, { id: string; name: string; unreadCount: number; lastAt: number }>();
+    const userById = new Map((users || []).map(u => [u.id, u]));
 
-    // 1. Clientes registrados en el sistema
-    if (users && users.length > 0) {
-      users
-        .filter(u => u.rol === 'cliente')
-        .forEach(u => {
-          const fullName = `${u.nombre} ${u.apellido}`.trim() || u.email;
-          clientMap.set(u.id, { id: u.id, name: fullName, unreadCount: 0 });
-        });
-    }
-
-    // 2. Clientes que han interactuado en el chat del hotel (incluso invitados o anónimos)
+    // Solo clientes que iniciaron una conversación con este establecimiento (enviaron al menos un mensaje)
     messages
-      .filter(m => m.hotelId === hotelFilterId && m.channel !== 'internal')
+      .filter(m => m.hotelId === hotelFilterId && m.channel !== 'internal' && m.senderRole === 'cliente' && m.senderId)
       .forEach(m => {
-        const cId = m.senderRole === 'cliente' ? m.senderId : (m.recipientId || m.customerId);
-        if (cId) {
-          const existing = clientMap.get(cId);
-          if (existing) {
-            if (m.senderRole === 'cliente' && m.senderName && existing.name.startsWith('Huésped')) {
-              existing.name = m.senderName;
-            }
-          } else {
-            const clientName = m.senderRole === 'cliente' ? m.senderName : `Huésped (${cId.substring(0, 8)})`;
-            clientMap.set(cId, { id: cId, name: clientName, unreadCount: 0 });
-          }
+        const at = new Date(m.timestamp || 0).getTime() || 0;
+        let entry = clientMap.get(m.senderId);
+        if (!entry) {
+          const u = userById.get(m.senderId);
+          const name = (u ? `${u.nombre} ${u.apellido}`.trim() : '') || m.senderName || `Huésped (${m.senderId.substring(0, 8)})`;
+          entry = { id: m.senderId, name, unreadCount: 0, lastAt: 0 };
+          clientMap.set(m.senderId, entry);
         }
+        if (!m.read) entry.unreadCount += 1;
+        if (at > entry.lastAt) entry.lastAt = at;
       });
 
-    // 3. Contar mensajes no leídos enviados por cada cliente a este hotel
-    messages
-      .filter(m => m.hotelId === hotelFilterId && m.channel !== 'internal' && m.senderRole === 'cliente' && !m.read)
-      .forEach(m => {
-        const entry = clientMap.get(m.senderId);
-        if (entry) {
-          entry.unreadCount += 1;
-        }
-      });
-
-    return Array.from(clientMap.values());
+    // No leídos primero y luego por el mensaje más reciente
+    return Array.from(clientMap.values())
+      .sort((a, b) => (b.unreadCount > 0 ? 1 : 0) - (a.unreadCount > 0 ? 1 : 0) || b.lastAt - a.lastAt)
+      .map(({ id, name, unreadCount }) => ({ id, name, unreadCount }));
   }, [messages, selectedHotelId, isStaff, activeUser.hotelId, activeUser.rol, users]);
 
   // Get staff team members linked to this hotel

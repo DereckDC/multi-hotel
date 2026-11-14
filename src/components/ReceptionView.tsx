@@ -143,24 +143,21 @@ export default function ReceptionView({
         const html5QrCode = new Html5Qrcode("qr-camera-element");
         html5QrCodeRef.current = html5QrCode;
 
-        // Fetch cameras using Html5Qrcode
-        let currentCamSelection: any = targetCameraId || activeCamId;
-        if (!currentCamSelection) {
+        // Por defecto se usa la cámara trasera; un lente concreto solo cuando el usuario lo elige
+        let currentCamSelection: any = targetCameraId || { facingMode: "environment" };
+        if (targetCameraId) {
+          setActiveCamId(targetCameraId);
+        } else {
           try {
             const devices = await Html5Qrcode.getCameras();
             if (devices && devices.length > 0) {
               setCameras(devices);
-              currentCamSelection = devices[0].id;
-              setActiveCamId(currentCamSelection);
-            } else {
-              currentCamSelection = { facingMode: "environment" };
+              const back = devices.find(d => /back|rear|trasera|environment|posterior/i.test(d.label || ''));
+              setActiveCamId((back || devices[devices.length - 1]).id);
             }
           } catch (camErr) {
-            console.warn("Listing cameras failed. Using high-compatibility constraints fallback:", camErr);
-            currentCamSelection = { facingMode: "environment" };
+            console.warn("No se pudieron listar las cámaras; se usa la trasera por defecto:", camErr);
           }
-        } else if (targetCameraId) {
-          setActiveCamId(targetCameraId);
         }
 
         await html5QrCode.start(
@@ -615,12 +612,19 @@ export default function ReceptionView({
   // Submit Room Incident
   const handleReportIncident = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!incidentRoomId || !incidentText) return;
-    const target = rooms.find(r => r.id === incidentRoomId);
-    if (!target) return;
+    if (!incidentText.trim()) return;
+    const isPropertyHotel = receptionistHotel?.tipoEstablecimiento === 'casa' || receptionistHotel?.tipoEstablecimiento === 'departamento';
 
-    onUpdateRoomStatus(incidentRoomId, 'mantenimiento');
-    onAddLog('Incidencia Registrada', `Habitación N° ${target.numero} puesta en mantenimiento por "${incidentText}"`);
+    if (isPropertyHotel) {
+      // Las propiedades se alquilan completas: la incidencia se registra para toda la propiedad
+      onAddLog('Incidencia Registrada', `Propiedad "${receptionistHotel.nombre}": ${incidentText.trim()}`);
+    } else {
+      if (!incidentRoomId) return;
+      const target = rooms.find(r => r.id === incidentRoomId);
+      if (!target) return;
+      onUpdateRoomStatus(incidentRoomId, 'mantenimiento');
+      onAddLog('Incidencia Registrada', `Habitación N° ${target.numero} puesta en mantenimiento por "${incidentText}"`);
+    }
 
     setIncidentSubmitted(true);
     setIncidentText('');
