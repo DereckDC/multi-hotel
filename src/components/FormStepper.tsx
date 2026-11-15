@@ -166,11 +166,13 @@ export function StepActions({
         </button>
       )}
       {last ? (
-        <button type="submit" className="w-1/2 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl text-xs cursor-pointer shadow-md">
+        // Claves distintas: si React reutiliza el mismo <button> y le cambia el tipo a "submit"
+        // dentro del clic de "Siguiente", el navegador envía el formulario en ese mismo clic.
+        <button key="step-submit" type="submit" className="w-1/2 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl text-xs cursor-pointer shadow-md">
           {submitLabel}
         </button>
       ) : (
-        <button type="button" onClick={onNext} className="w-1/2 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl text-xs cursor-pointer shadow-md flex items-center justify-center gap-1">
+        <button key="step-next" type="button" onClick={onNext} className="w-1/2 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl text-xs cursor-pointer shadow-md flex items-center justify-center gap-1">
           Siguiente <ChevronRight className="w-4 h-4" />
         </button>
       )}

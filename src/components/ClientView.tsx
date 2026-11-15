@@ -16,6 +16,7 @@ import { HotelImageGallery } from './HotelImageGallery';
 import { RoomReservationCalendar } from './RoomReservationCalendar';
 import { CompactBookingCalendar } from './CompactBookingCalendar';
 import { Pager, totalPagesOf } from './Pager';
+import { addMonths, formatRentalMonths, getRentalMinMonths, rentalDurationOptions } from '../utils/rental';
 
 export function getMapEmbedUrl(ubicacion: string, googleMapsUrl?: string): string {
   const cleanUrl = googleMapsUrl ? googleMapsUrl.trim() : '';
@@ -270,16 +271,7 @@ export default function ClientView({
   };
 
   const getDateAfterNMonths = (baseDateStr: string, monthsCount: number) => {
-    if (!baseDateStr) return '';
-    const parts = baseDateStr.split('-');
-    const year = parseInt(parts[0], 10);
-    const month = parseInt(parts[1], 10) - 1;
-    const day = parseInt(parts[2], 10);
-    const date = new Date(year, month + monthsCount, day);
-    const yyyy = date.getFullYear();
-    const mm = String(date.getMonth() + 1).padStart(2, '0');
-    const dd = String(date.getDate()).padStart(2, '0');
-    return `${yyyy}-${mm}-${dd}`;
+    return addMonths(baseDateStr, monthsCount);
   };
 
   const openPayphoneWindow = (e: React.MouseEvent<HTMLAnchorElement | HTMLButtonElement>) => {
@@ -332,7 +324,7 @@ export default function ClientView({
       const bHotel = hotels.find(h => h.id === bookingRoom.hotelId);
       const isAlquiler = bHotel && (bHotel.tipoEstablecimiento === 'casa' || bHotel.tipoEstablecimiento === 'departamento') && bHotel.finalidad === 'alquiler';
       if (isAlquiler) {
-        return getThreeMonthsLaterString(checkInDate);
+        return addMonths(checkInDate, getRentalMinMonths(bHotel));
       }
     }
 
@@ -383,9 +375,10 @@ export default function ClientView({
       const isAlquiler = bHotel && (bHotel.tipoEstablecimiento === 'casa' || bHotel.tipoEstablecimiento === 'departamento') && bHotel.finalidad === 'alquiler';
       if (isAlquiler) {
         const today = getTodayString(0);
+        const minMonths = getRentalMinMonths(bHotel);
         setCheckInDate(today);
-        setRentalMonths(3);
-        setCheckOutDate(getDateAfterNMonths(today, 3));
+        setRentalMonths(minMonths);
+        setCheckOutDate(addMonths(today, minMonths));
       } else {
         setCheckInDate('');
         setCheckOutDate('');
@@ -825,8 +818,9 @@ export default function ClientView({
     const isAlquilerForVal = bHotelForVal && (bHotelForVal.tipoEstablecimiento === 'casa' || bHotelForVal.tipoEstablecimiento === 'departamento') && bHotelForVal.finalidad === 'alquiler';
     if (isAlquilerForVal) {
       const months = getMonthsCount(checkInDate, checkOutDate);
-      if (months < 2.9) {
-        setBookingError("El período de alquiler para este inmueble debe ser de mínimo 3 meses.");
+      const minMonths = getRentalMinMonths(bHotelForVal);
+      if (months < minMonths - 0.1) {
+        setBookingError(`El período de alquiler para este inmueble debe ser de mínimo ${formatRentalMonths(minMonths)}.`);
         return;
       }
     }
@@ -1525,7 +1519,7 @@ export default function ClientView({
                               <span>Contrato de Alquiler Residencial</span>
                             </h4>
                             <p className="text-xs text-neutral-500 mt-0.5">
-                              Seleccione la fecha de inicio y el plazo en meses (mínimo 3 meses reglamentarios).
+                              Seleccione la fecha de inicio y el plazo del alquiler (mínimo {formatRentalMonths(getRentalMinMonths(bHotel))}, definido por el propietario).
                             </p>
                           </div>
 
@@ -1547,7 +1541,7 @@ export default function ClientView({
                               />
                             </div>
                             <div>
-                              <label className="text-xs font-semibold text-neutral-600 block mb-1.5">Duración (Meses de Alquiler)</label>
+                              <label className="text-xs font-semibold text-neutral-600 block mb-1.5">Tiempo de Alquiler</label>
                               <select
                                 value={rentalMonths}
                                 onChange={(e) => {
@@ -1560,18 +1554,9 @@ export default function ClientView({
                                 }}
                                 className="w-full text-xs border border-neutral-200 rounded-xl p-2.5 focus:ring-1 focus:ring-teal-500 focus:outline-none bg-white cursor-pointer font-semibold shadow-xs"
                               >
-                                <option value={3}>3 meses (Mínimo requerido)</option>
-                                <option value={4}>4 meses</option>
-                                <option value={5}>5 meses</option>
-                                <option value={6}>6 meses (Semestral)</option>
-                                <option value={7}>7 meses</option>
-                                <option value={8}>8 meses</option>
-                                <option value={9}>9 meses</option>
-                                <option value={10}>10 meses</option>
-                                <option value={11}>11 meses</option>
-                                <option value={12}>12 meses (Anual)</option>
-                                <option value={18}>18 meses</option>
-                                <option value={24}>24 meses (2 Años)</option>
+                                {rentalDurationOptions(getRentalMinMonths(bHotel)).map(o => (
+                                  <option key={o.months} value={o.months}>{o.label}</option>
+                                ))}
                               </select>
                             </div>
                           </div>
@@ -1925,7 +1910,7 @@ export default function ClientView({
                               <p className="font-bold text-amber-900 uppercase text-[10px] tracking-wider border-b border-amber-200 pb-1 mb-2">Desglose de Contrato de Alquiler</p>
                               <div className="flex justify-between">
                                 <span>Plazo del Alquiler:</span>
-                                <span className="font-semibold text-neutral-800">{getMonthsCount(checkInDate, checkOutDate).toFixed(1)} meses (mínimo 3)</span>
+                                <span className="font-semibold text-neutral-800">{formatRentalMonths(rentalMonths)} (mínimo {formatRentalMonths(getRentalMinMonths(hotels.find(h => h.id === bookingRoom.hotelId)))})</span>
                               </div>
                               <div className="flex justify-between">
                                 <span>Valor Mensual de Renta:</span>
@@ -2103,7 +2088,7 @@ export default function ClientView({
                         <span className="text-[10.5px] text-neutral-500 block mt-1 leading-normal">
                           {activeHotel.finalidad === 'venta' 
                             ? 'Sujeto a escritura pública y negociación directa' 
-                            : 'Estadía mensual estándar (Contrato mín. 3 meses)'}
+                            : `Estadía mensual estándar (Contrato mín. ${formatRentalMonths(getRentalMinMonths(activeHotel))})`}
                         </span>
                       </div>
                     </div>
@@ -2360,7 +2345,7 @@ export default function ClientView({
                                 <span className="text-[10px] text-neutral-400 block font-bold uppercase tracking-wider">VALOR DE ESTA UNIDAD</span>
                                 <span className="font-mono font-extrabold text-teal-850 text-2xl">${activeHotel.detallesInmueble?.precio || 150} USD</span>
                                 <span className="text-[10px] text-neutral-500 block">
-                                  Valor mensual (mín. 3 meses) • <span className={isIvaAdded ? 'text-teal-700 font-semibold' : 'text-amber-700 font-semibold'}>{isIvaAdded ? '+16% IVA' : 'IVA incluido'}</span>
+                                  Valor mensual (mín. {formatRentalMonths(getRentalMinMonths(activeHotel))}) •<span className={isIvaAdded ? 'text-teal-700 font-semibold' : 'text-amber-700 font-semibold'}>{isIvaAdded ? '+16% IVA' : 'IVA incluido'}</span>
                                 </span>
                               </div>
 

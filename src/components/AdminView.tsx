@@ -9,6 +9,7 @@ import { RoomReservationCalendar } from './RoomReservationCalendar';
 import IcalSyncModal from './IcalSyncModal';
 import { StepPanel, StepIndicator, StepActions, useFormStepper } from './FormStepper';
 import DashboardView from './DashboardView';
+import { RENTAL_MIN_CHOICES, formatRentalMonths, getRentalMinMonths } from '../utils/rental';
 import { fetchPropertyDetails } from '../supabase';
 import { compressImage } from '../store';
 import InvoicePDF from './InvoicePDF';
@@ -1084,6 +1085,11 @@ export default function AdminView({
                       <div className="col-span-2 flex items-center gap-1 text-[10px] text-neutral-400 mt-1 pt-1 border-t border-dashed border-neutral-200 font-sans">
                         <span>🚘 Estacionamiento:</span> <strong className="text-neutral-605 font-semibold">{h.detallesInmueble.tieneEstacionamiento ? 'Sí, privado' : 'No cuenta'}</strong>
                       </div>
+                      {h.finalidad !== 'venta' && (
+                        <div className="col-span-2 flex items-center gap-1 text-[10px] text-neutral-400 font-sans">
+                          <span>⏱️ Alquiler mínimo:</span> <strong className="text-neutral-605 font-semibold">{formatRentalMonths(getRentalMinMonths(h))}</strong>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -3748,6 +3754,30 @@ export default function AdminView({
                     </label>
                   </div>
                 </div>
+
+                {(editingProperty.finalidad || 'alquiler') === 'alquiler' && (
+                  <div className="pt-1">
+                    <label className="text-[9.5px] font-bold text-neutral-500 block mb-1 font-sans">Tiempo mínimo de alquiler:</label>
+                    <select
+                      value={getRentalMinMonths(editingProperty)}
+                      onChange={(e) => setEditingProperty({
+                        ...editingProperty,
+                        detallesInmueble: {
+                          ...(editingProperty.detallesInmueble || { habitaciones: 0, banos: 0 }),
+                          minimoMesesAlquiler: parseInt(e.target.value, 10)
+                        }
+                      })}
+                      className="w-full text-xs font-semibold border border-neutral-250 p-2 rounded-lg focus:outline-none bg-white cursor-pointer text-neutral-800"
+                    >
+                      {RENTAL_MIN_CHOICES.map(n => (
+                        <option key={n} value={n}>Mínimo {formatRentalMonths(n)}</option>
+                      ))}
+                    </select>
+                    <p className="text-[10px] text-neutral-400 mt-1 font-sans">
+                      El cliente solo podrá contratar desde este plazo en adelante, en el portal y en el walk-in.
+                    </p>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-3 pt-1.5">
                   <label className="flex items-center gap-2 text-xs font-medium text-neutral-650 cursor-pointer select-none">

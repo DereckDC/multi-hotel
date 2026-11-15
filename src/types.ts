@@ -80,6 +80,7 @@ export interface Hotel {
     tieneEstacionamiento?: boolean;
     precio?: number; // Precio mensual de alquiler o valor de venta
     adicionarIva?: boolean; // If false, the property price already includes IVA
+    minimoMesesAlquiler?: number; // Plazo mínimo de alquiler que fija el dueño (meses). Por defecto 3
   };
 }
 

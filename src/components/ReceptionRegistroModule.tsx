@@ -1,7 +1,9 @@
 import React from 'react';
 import { Hotel, Room, Reservation, User, RoomPriceVariation, ExternalBlock } from '../types';
-import { Calendar, Check, Search, CheckCircle2 } from 'lucide-react';
+import { Calendar, Check, Search, CheckCircle2, ChevronLeft, ChevronRight, Home } from 'lucide-react';
 import { RoomReservationCalendar } from './RoomReservationCalendar';
+import { StepIndicator, useFormStepper } from './FormStepper';
+import { formatRentalMonths, isPropertyHotel, rentalDurationOptions } from '../utils/rental';
 
 interface ReceptionRegistroModuleProps {
   hotels: Hotel[];
@@ -54,6 +56,13 @@ interface ReceptionRegistroModuleProps {
   selectedRoom: Room | undefined;
   resSuccessMsg: string | null;
   handleCreatePresencialRes: (e: React.FormEvent) => void;
+
+  // Alquiler de inmueble completo (casa / departamento)
+  isRental?: boolean;
+  rentalMonths?: number;
+  setRentalMonths?: (val: number) => void;
+  rentalMinMonths?: number;
+  rentalBilling?: { mensualidad: number; garantia: number; subtotal: number; tax: number; total: number } | null;
 }
 
 export default function ReceptionRegistroModule({
@@ -100,7 +109,12 @@ export default function ReceptionRegistroModule({
   isIvaAddedForSelectedRoom,
   selectedRoom,
   resSuccessMsg,
-  handleCreatePresencialRes
+  handleCreatePresencialRes,
+  isRental = false,
+  rentalMonths = 3,
+  setRentalMonths = () => {},
+  rentalMinMonths = 3,
+  rentalBilling = null
 }: ReceptionRegistroModuleProps) {
   // Date helpers for walk-in to prevent past dates and force minimum 1 night
   const getLocalTodayString = () => {
@@ -156,6 +170,26 @@ export default function ReceptionRegistroModule({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [targetHotelId]);
 
+  // Formulario en 3 pasos
+  const stepper = useFormStepper(3);
+  const walkInSteps = [{ label: 'Huésped' }, { label: isRental ? 'Alquiler' : 'Estadía' }, { label: 'Confirmación' }];
+  React.useEffect(() => { stepper.reset(); }, [targetHotelId]); // eslint-disable-line react-hooks/exhaustive-deps
+  React.useEffect(() => { if (resSuccessMsg) stepper.reset(); }, [resSuccessMsg]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const isSaleProperty = isPropertyHotel(receptionistHotel) && !isRental;
+
+  const selectedGuest = users.find(u => u.id === selectedGuestId);
+  const guestSummary = resType === 'new'
+    ? `${walkInNombre} ${walkInApellido}`.trim()
+    : (selectedGuest ? `${selectedGuest.nombre} ${selectedGuest.apellido}` : '');
+
+  // Choque con otra reserva activa: en alquiler cuenta cualquier reserva de la propiedad
+  const hasDateConflict = !!bookCheckIn && !!bookCheckOut && reservations.some(res =>
+    (isRental ? res.hotelId === targetHotelId : (!!bookRoomId && res.roomId === bookRoomId)) &&
+    res.estado !== 'cancelada' && res.estado !== 'finalizada' &&
+    bookCheckIn < res.fechaSalida && bookCheckOut > res.fechaEntrada
+  );
+
   const localTodayStr = getLocalTodayString();
   const minCheckOutDate = bookCheckIn ? getNextDayString(bookCheckIn) : getNextDayString(localTodayStr);
 
@@ -185,7 +219,7 @@ export default function ReceptionRegistroModule({
             checkOutDate={bookCheckOut}
             setCheckInDate={setBookCheckIn}
             setCheckOutDate={setBookCheckOut}
-            isAlquiler={receptionistHotel && (receptionistHotel.tipoEstablecimiento === 'casa' || receptionistHotel.tipoEstablecimiento === 'departamento') && receptionistHotel.finalidad === 'alquiler'}
+            isAlquiler={isRental}
             forceRoomId={bookRoomId || undefined}
           />
         </div>
@@ -204,13 +238,26 @@ export default function ReceptionRegistroModule({
             </span>
           </div>
 
-          <form onSubmit={handleCreatePresencialRes} className="space-y-4 font-sans">
+          {isSaleProperty ? (
+            <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-900 leading-relaxed">
+              <p className="font-bold mb-1">Esta propiedad está publicada en venta.</p>
+              <p>Las propiedades en venta no admiten reservas ni alquileres. Para registrar un alquiler, cambia su finalidad a "En Alquiler" desde Propiedades.</p>
+            </div>
+          ) : (
+          <>
+          <div className="-mx-6 -mt-2">
+            <StepIndicator steps={walkInSteps} current={stepper.step} onGo={stepper.goTo} />
+          </div>
+
+          <form ref={stepper.formRef} noValidate onSubmit={stepper.wrapSubmit(handleCreatePresencialRes)} className="space-y-4 font-sans">
             {resSuccessMsg && (
               <div className="bg-emerald-50 border border-emerald-300 text-emerald-800 p-3 rounded-xl text-xs font-semibold animate-fade-in">
                 {resSuccessMsg}
               </div>
             )}
 
+            {/* PASO 1: HUÉSPED */}
+            <div data-step={1} className={stepper.step === 1 ? 'space-y-4' : 'hidden'}>
             {/* Guest Selection Mode Toggle */}
             <div className="grid grid-cols-2 gap-2 bg-neutral-50 p-1 rounded-xl border border-neutral-150">
               <button
@@ -370,10 +417,69 @@ export default function ReceptionRegistroModule({
               </div>
             )}
 
-            {/* Booking Parameters */}
+            </div>
+
+            {/* PASO 2: ESTADÍA O ALQUILER */}
+            <div data-step={2} className={stepper.step === 2 ? 'space-y-4' : 'hidden'}>
+            {isRental ? (
+              <div className="space-y-3 p-3.5 bg-indigo-50/30 rounded-2xl border border-indigo-100/40">
+                <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest leading-none">Alquiler de la propiedad</p>
+
+                <div className="flex items-start gap-2.5 p-2.5 bg-white rounded-xl border border-neutral-200">
+                  <div className="w-8 h-8 shrink-0 rounded-lg bg-teal-50 text-teal-700 flex items-center justify-center">
+                    <Home className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-neutral-800 truncate">{receptionistHotel?.nombre}</p>
+                    <p className="text-[10px] text-neutral-500">
+                      {receptionistHotel?.tipoEstablecimiento === 'casa' ? 'Casa completa' : 'Departamento completo'} · ${selectedRoom?.precio || 0}/mes · mínimo {formatRentalMonths(rentalMinMonths)}
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold text-neutral-500 block mb-1">Fecha de inicio del alquiler *</label>
+                  <input
+                    type="date"
+                    required
+                    min={localTodayStr}
+                    value={bookCheckIn}
+                    onChange={(e) => setBookCheckIn(e.target.value)}
+                    className="w-full text-xs border border-neutral-250 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 bg-white"
+                  />
+                  <p className="text-[10px] text-neutral-400 mt-1">También puedes tocar el día en el calendario.</p>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold text-neutral-500 block mb-1">Tiempo de alquiler *</label>
+                  <select
+                    required
+                    value={rentalMonths}
+                    onChange={(e) => setRentalMonths(parseInt(e.target.value, 10))}
+                    className="w-full text-xs border border-neutral-250 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 focus:outline-none bg-white cursor-pointer font-semibold"
+                  >
+                    {rentalDurationOptions(rentalMinMonths).map(o => (
+                      <option key={o.months} value={o.months}>{o.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="text-[11px] text-teal-800 bg-teal-50/70 p-2.5 rounded-xl border border-teal-100 flex justify-between items-center gap-2 font-semibold">
+                  <span>Finaliza el:</span>
+                  <strong className="font-mono text-neutral-900">{bookCheckIn ? bookCheckOut : 'Elige la fecha de inicio'}</strong>
+                </div>
+
+                {hasDateConflict && (
+                  <p className="text-[10px] font-bold text-red-650 flex items-center gap-1 bg-red-50 p-1.5 rounded border border-red-100">
+                    <span>❌ Conflicto de fechas:</span>
+                    <span>la propiedad ya está alquilada o reservada dentro de ese período.</span>
+                  </p>
+                )}
+              </div>
+            ) : (
             <div className="space-y-3 p-3.5 bg-indigo-50/30 rounded-2xl border border-indigo-100/40">
               <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest leading-none">Habitación & Estadía</p>
-              
+
               <div>
                 <label className="text-[10px] font-bold text-neutral-500 block mb-1">Seleccionar Habitación *</label>
                 <select
@@ -391,11 +497,7 @@ export default function ReceptionRegistroModule({
                       </option>
                     ))}
                 </select>
-                {selectedRoom && reservations.filter(res => 
-                  res.roomId === bookRoomId &&
-                  res.estado !== 'cancelada' &&
-                  res.estado !== 'finalizada'
-                ).some(res => bookCheckIn < res.fechaSalida && bookCheckOut > res.fechaEntrada) && (
+                {hasDateConflict && (
                   <p className="text-[10px] font-bold text-red-650 mt-1 flex items-center gap-1 bg-red-50 p-1.5 rounded border border-red-100">
                     <span>❌ Conflicto de Fechas:</span>
                     <span>El aposento está ocupado o reservado en este rango.</span>
@@ -440,6 +542,30 @@ export default function ReceptionRegistroModule({
                     className="w-full text-xs border border-neutral-250 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 bg-white"
                   />
                 </div>
+              </div>
+            </div>
+            )}
+            </div>
+
+            {/* PASO 3: SERVICIOS Y CONFIRMACIÓN */}
+            <div data-step={3} className={stepper.step === 3 ? 'space-y-4' : 'hidden'}>
+            {isRental ? (
+              <div className="p-3.5 bg-amber-50/50 rounded-2xl border border-amber-200/80 space-y-1.5 text-[11px] text-neutral-700">
+                <p className="font-bold text-amber-900 uppercase text-[10px] tracking-wider border-b border-amber-200 pb-1 mb-1.5">Resumen del contrato de alquiler</p>
+                <div className="flex justify-between gap-2"><span>Huésped:</span><span className="font-semibold text-neutral-800 text-right">{guestSummary || '—'}</span></div>
+                <div className="flex justify-between gap-2"><span>Plazo:</span><span className="font-semibold text-neutral-800">{formatRentalMonths(rentalMonths)}</span></div>
+                <div className="flex justify-between gap-2"><span>Período:</span><span className="font-mono font-semibold text-neutral-800">{bookCheckIn || '—'} → {bookCheckIn ? bookCheckOut : '—'}</span></div>
+                <div className="flex justify-between gap-2"><span>Mensualidad:</span><span className="font-mono font-semibold text-neutral-800">${(rentalBilling?.mensualidad || 0).toFixed(2)} / mes</span></div>
+                <div className="flex justify-between gap-2"><span>Depósito de garantía (reembolsable):</span><span className="font-mono font-semibold text-amber-700">${(rentalBilling?.garantia || 0).toFixed(2)}</span></div>
+                <div className="flex justify-between gap-2"><span>IVA 16% {isIvaAddedForSelectedRoom ? '' : '(incluido)'}:</span><span className="font-mono font-semibold text-neutral-800">${(rentalBilling?.tax || 0).toFixed(2)}</span></div>
+                <p className="text-[10px] text-neutral-500 pt-1">Al inicio se cobra la primera mensualidad más el depósito de garantía.</p>
+              </div>
+            ) : (
+            <div className="space-y-3 p-3.5 bg-indigo-50/30 rounded-2xl border border-indigo-100/40">
+              <div className="text-[11px] text-neutral-600 bg-white rounded-xl border border-neutral-200 p-2.5 space-y-0.5">
+                <div className="flex justify-between gap-2"><span>Huésped:</span><span className="font-semibold text-neutral-800 text-right">{guestSummary || '—'}</span></div>
+                <div className="flex justify-between gap-2"><span>Habitación:</span><span className="font-semibold text-neutral-800 text-right">{selectedRoom ? `Hab. ${selectedRoom.numero} - ${selectedRoom.nombre}` : '—'}</span></div>
+                <div className="flex justify-between gap-2"><span>Fechas:</span><span className="font-mono font-semibold text-neutral-800">{bookCheckIn || '—'} → {bookCheckOut || '—'}</span></div>
               </div>
 
               {/* WALK-IN SERVICES SELECTOR */}
@@ -538,6 +664,7 @@ export default function ReceptionRegistroModule({
                 )}
               </div>
             </div>
+            )}
 
             <div className="grid grid-cols-2 gap-2.5">
               <div>
@@ -553,7 +680,7 @@ export default function ReceptionRegistroModule({
               </div>
               
               <div className="bg-slate-900 rounded-xl p-2.5 text-right text-white space-y-0.5 shadow-inner">
-                <span className="text-[9px] text-slate-400 font-medium block">Total Estimado ({nights} N):</span>
+                <span className="text-[9px] text-slate-400 font-medium block">{isRental ? 'Total a pagar al inicio:' : `Total Estimado (${nights} N):`}</span>
                 <p className="text-[11px] text-[#6ECCAF] font-bold font-mono">
                   ${calculatedTotal} USD 
                   <span className="text-[8px] text-slate-400 font-sans block leading-none">
@@ -573,13 +700,42 @@ export default function ReceptionRegistroModule({
               />
             </div>
 
-            <button
-              type="submit"
-              className="w-full bg-[#344D67] hover:bg-[#1E2E3E] text-[#6ECCAF] font-bold py-2.5 rounded-xl text-xs transition-all tracking-wide cursor-pointer shadow-md text-center active:scale-95"
-            >
-              Registrar Reserva Presencial 🛎️📝
-            </button>
+            </div>
+
+            {/* Navegación entre pasos */}
+            <div className="flex gap-2.5 pt-1">
+              {stepper.step > 1 && (
+                <button
+                  type="button"
+                  onClick={stepper.back}
+                  className="w-1/3 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-semibold py-2.5 rounded-xl text-xs cursor-pointer flex items-center justify-center gap-1"
+                >
+                  <ChevronLeft className="w-4 h-4" /> Atrás
+                </button>
+              )}
+              {stepper.step < 3 ? (
+                <button
+                  key="walkin-next"
+                  type="button"
+                  onClick={stepper.next}
+                  className="flex-1 bg-[#344D67] hover:bg-[#1E2E3E] text-[#6ECCAF] font-bold py-2.5 rounded-xl text-xs transition-all tracking-wide cursor-pointer shadow-md flex items-center justify-center gap-1 active:scale-95"
+                >
+                  Siguiente <ChevronRight className="w-4 h-4" />
+                </button>
+              ) : (
+                // Clave distinta para que React no convierta el botón "Siguiente" en "submit" durante el clic
+                <button
+                  key="walkin-submit"
+                  type="submit"
+                  className="flex-1 bg-[#344D67] hover:bg-[#1E2E3E] text-[#6ECCAF] font-bold py-2.5 rounded-xl text-xs transition-all tracking-wide cursor-pointer shadow-md text-center active:scale-95"
+                >
+                  {isRental ? 'Registrar Alquiler 🔑' : 'Registrar Reserva Presencial 🛎️📝'}
+                </button>
+              )}
+            </div>
           </form>
+          </>
+          )}
         </div>
       </div>
 

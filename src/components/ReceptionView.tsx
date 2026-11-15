@@ -8,6 +8,8 @@ import { Hotel, Room, Reservation, User, RoomStatus, ReservationStatus, RoomPric
 import { Coffee, AlertTriangle } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { ActivityLog } from '../store';
+import { fullPropertyRoomId } from '../utils/availability';
+import { addMonths, formatRentalMonths, getRentalMinMonths, isRentalProperty, rentalPricing } from '../utils/rental';
 import ReceptionCheckInModule from './ReceptionCheckInModule';
 import ReceptionRegistroModule from './ReceptionRegistroModule';
 import ReceptionIncidenciasModule from './ReceptionIncidenciasModule';
@@ -244,10 +246,22 @@ export default function ReceptionView({
   const [walkInDocumento, setWalkInDocumento] = useState('');
 
   // Booking details
-  const [bookRoomId, setBookRoomId] = useState('');
+  const [bookRoomIdRaw, setBookRoomId] = useState('');
   const [bookCheckIn, setBookCheckIn] = useState('');
-  const [bookCheckOut, setBookCheckOut] = useState('');
+  const [bookCheckOutRaw, setBookCheckOut] = useState('');
   const [bookNotas, setBookNotas] = useState('');
+
+  // Alquiler de inmueble completo: solo se elige la fecha de inicio y el plazo en meses.
+  // La unidad es la propiedad entera y la fecha de fin se calcula sola.
+  const isRental = isRentalProperty(receptionistHotel);
+  const rentalMinMonths = getRentalMinMonths(receptionistHotel);
+  const [rentalMonths, setRentalMonths] = useState(rentalMinMonths);
+  React.useEffect(() => {
+    setRentalMonths(rentalMinMonths);
+  }, [targetHotelId, rentalMinMonths]);
+
+  const bookRoomId = isRental && receptionistHotel ? fullPropertyRoomId(receptionistHotel.id) : bookRoomIdRaw;
+  const bookCheckOut = isRental ? addMonths(bookCheckIn, Math.max(rentalMonths, rentalMinMonths)) : bookCheckOutRaw;
 
   // Limpiar fechas de check-in / check-out cuando cambie de habitación o de hotel
   React.useEffect(() => {
@@ -262,8 +276,27 @@ export default function ReceptionView({
   const [walkInSelectedServices, setWalkInSelectedServices] = useState<string[]>([]);
   const [walkInServicePeopleCount, setWalkInServicePeopleCount] = useState<Record<string, number>>({});
 
-  const selectedRoom = rooms.find(r => r.id === bookRoomId);
-  
+  const rentalIvaAdded = receptionistHotel?.detallesInmueble?.adicionarIva !== undefined
+    ? receptionistHotel.detallesInmueble.adicionarIva !== false
+    : receptionistHotel?.adicionarIva !== false;
+  const selectedRoom: Room | undefined = isRental && receptionistHotel
+    ? {
+        id: bookRoomId,
+        hotelId: receptionistHotel.id,
+        numero: 'Full',
+        nombre: receptionistHotel.nombre,
+        descripcion: receptionistHotel.descripcion,
+        precio: receptionistHotel.detallesInmueble?.precio || 0,
+        capacidad: (receptionistHotel.detallesInmueble?.habitaciones || 1) * 2,
+        camas: receptionistHotel.detallesInmueble?.habitaciones || 1,
+        tipo: 'Suite',
+        imagenes: receptionistHotel.imagenes || [],
+        servicios: receptionistHotel.servicios || [],
+        estado: 'disponible',
+        adicionarIva: rentalIvaAdded
+      }
+    : rooms.find(r => r.id === bookRoomId);
+
   let nights = 1;
   if (bookCheckIn && bookCheckOut) {
     const diff = new Date(bookCheckOut).getTime() - new Date(bookCheckIn).getTime();
@@ -367,6 +400,14 @@ export default function ReceptionView({
     calculatedTotal = parseFloat((calculatedSubtotal + calculatedImpuestos).toFixed(2));
   }
 
+  // Alquiler: al inicio se cobra la primera mensualidad + depósito de garantía (igual que en el portal)
+  const rentalBilling = isRental && selectedRoom ? rentalPricing(selectedRoom.precio, rentalIvaAdded) : null;
+  if (rentalBilling) {
+    calculatedSubtotal = parseFloat(rentalBilling.subtotal.toFixed(2));
+    calculatedImpuestos = parseFloat(rentalBilling.tax.toFixed(2));
+    calculatedTotal = parseFloat(rentalBilling.total.toFixed(2));
+  }
+
   const handleCreatePresencialRes = async (e: React.FormEvent) => {
     e.preventDefault();
     setResSuccessMsg('');
@@ -379,6 +420,21 @@ export default function ReceptionView({
     if (!receptionistHotel) {
       alert('Error: Debe estar enlazado a un hotel válido.');
       return;
+    }
+
+    if (isRental) {
+      if (!bookCheckIn) {
+        alert('Por favor selecciona la fecha de inicio del alquiler.');
+        return;
+      }
+      if (rentalMonths < rentalMinMonths) {
+        alert(`El plazo mínimo de alquiler de esta propiedad es de ${formatRentalMonths(rentalMinMonths)}.`);
+        return;
+      }
+      if (!selectedRoom || !selectedRoom.precio) {
+        alert('Esta propiedad no tiene un precio mensual definido. Edítala y agrega el precio antes de alquilarla.');
+        return;
+      }
     }
 
     if (!bookCheckIn || !bookCheckOut) {
@@ -402,8 +458,8 @@ export default function ReceptionView({
       return;
     }
 
-    const activeReservations = reservations.filter(res => 
-      res.roomId === bookRoomId &&
+    const activeReservations = reservations.filter(res =>
+      (isRental ? res.hotelId === receptionistHotel.id : res.roomId === bookRoomId) &&
       res.estado !== 'cancelada' &&
       res.estado !== 'finalizada'
     );
@@ -413,7 +469,9 @@ export default function ReceptionView({
     );
 
     if (hasOverlap) {
-      alert('❌ Error: La habitación ya está reservada u ocupada en las fechas seleccionadas.');
+      alert(isRental
+        ? '❌ Error: La propiedad ya está alquilada o reservada dentro de ese período. Elige otra fecha de inicio o un plazo distinto.'
+        : '❌ Error: La habitación ya está reservada u ocupada en las fechas seleccionadas.');
       return;
     }
 
@@ -469,7 +527,7 @@ export default function ReceptionView({
     const generatedResId = 'RES-' + Math.floor(10000 + Math.random() * 90000);
 
     const detailedList = receptionistHotel.serviciosDetallados || [];
-    const mappedServices = walkInSelectedServices.map(srvId => {
+    const mappedServices = (isRental ? [] : walkInSelectedServices).map(srvId => {
       const srv = detailedList.find(s => s.id === srvId);
       if (srv) {
         const count = walkInServicePeopleCount[srvId] || 1;
@@ -495,7 +553,9 @@ export default function ReceptionView({
       qrCode: 'PRESENTIAL-' + Date.now(),
       estado: bookStatus,
       fechaRegistro: new Date().toISOString().split('T')[0],
-      notas: bookNotas.trim() || 'Reserva ingresada presencialmente por Taquilla de recepción.',
+      notas: isRental
+        ? `Alquiler por ${formatRentalMonths(rentalMonths)} registrado presencialmente.${bookNotas.trim() ? ' ' + bookNotas.trim() : ''}`
+        : (bookNotas.trim() || 'Reserva ingresada presencialmente por Taquilla de recepción.'),
       recepcionistaId: activeUser.id
     };
 
@@ -506,13 +566,20 @@ export default function ReceptionView({
         return;
       }
 
-      if (bookStatus === 'ocupada') {
+      if (bookStatus === 'ocupada' && !isRental) {
         onUpdateRoomStatus(bookRoomId, 'ocupado');
       }
 
-      setResSuccessMsg(`¡Reserva presencial ${generatedResId} creada de forma exitosa!`);
-      onAddLog('Reserva Presencial', `Se registró la reserva presencial N° ${generatedResId} para la Habitación ${selectedRoom?.numero}`);
-      
+      if (isRental) {
+        setResSuccessMsg(`¡Alquiler ${generatedResId} registrado de forma exitosa! (${formatRentalMonths(rentalMonths)}, del ${bookCheckIn} al ${bookCheckOut})`);
+        onAddLog('Reserva Presencial', `Se registró el alquiler presencial N° ${generatedResId} de la Propiedad "${receptionistHotel.nombre}" por ${formatRentalMonths(rentalMonths)}`);
+        setBookCheckIn('');
+        setRentalMonths(rentalMinMonths);
+      } else {
+        setResSuccessMsg(`¡Reserva presencial ${generatedResId} creada de forma exitosa!`);
+        onAddLog('Reserva Presencial', `Se registró la reserva presencial N° ${generatedResId} para la Habitación ${selectedRoom?.numero}`);
+      }
+
       // Reset walk-in form
       setWalkInNombre('');
       setWalkInApellido('');
@@ -749,6 +816,11 @@ export default function ReceptionView({
           selectedRoom={selectedRoom}
           resSuccessMsg={resSuccessMsg}
           handleCreatePresencialRes={handleCreatePresencialRes}
+          isRental={isRental}
+          rentalMonths={rentalMonths}
+          setRentalMonths={setRentalMonths}
+          rentalMinMonths={rentalMinMonths}
+          rentalBilling={rentalBilling}
         />
       )}
 
