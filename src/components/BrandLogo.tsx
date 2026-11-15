@@ -39,7 +39,8 @@ export function BrandLogo({ size = 'md', showText = false, lightText = false }: 
   );
 
   let iconSizeClass = "w-9 h-9 rounded-xl";
-  let textSizeClass = "text-neutral-200 text-xs leading-none";
+  // Sin color aquí: el color lo pone `lightText` (antes el gris le ganaba al azul y el texto no se veía)
+  let textSizeClass = "text-xs leading-none";
   let letterSize = "w-9 h-9";
 
   if (size === 'sm') {

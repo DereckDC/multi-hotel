@@ -5,7 +5,7 @@ import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
 
 interface RoomiaPrintPlugin {
-  printPdf(options: { base64: string; name: string }): Promise<void>;
+  printPdf(options: { base64: string; name: string; widthMm?: number; heightMm?: number }): Promise<void>;
 }
 
 const RoomiaPrint = registerPlugin<RoomiaPrintPlugin>('RoomiaPrint');
@@ -38,7 +38,10 @@ export async function savePdfNative(base64: string, fileName: string, title: str
   return savedInDocuments;
 }
 
-/** Abre el diálogo de impresión de Android con el PDF */
-export async function printPdfNative(base64: string, jobName: string): Promise<void> {
-  await RoomiaPrint.printPdf({ base64: cleanBase64(base64), name: jobName });
+/**
+ * Abre el diálogo de impresión de Android con el PDF.
+ * `size` propone el tamaño de papel (ticket térmico); sin él se usa el predeterminado de la impresora.
+ */
+export async function printPdfNative(base64: string, jobName: string, size?: { widthMm: number; heightMm: number }): Promise<void> {
+  await RoomiaPrint.printPdf({ base64: cleanBase64(base64), name: jobName, ...(size || {}) });
 }

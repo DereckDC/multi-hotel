@@ -32,6 +32,8 @@ public class RoomiaPrintPlugin extends Plugin {
     public void printPdf(PluginCall call) {
         String base64 = call.getString("base64");
         final String jobName = call.getString("name", "Roomia");
+        final double widthMm = call.getDouble("widthMm", 0.0);
+        final double heightMm = call.getDouble("heightMm", 0.0);
         if (base64 == null || base64.isEmpty()) {
             call.reject("No se recibió el PDF");
             return;
@@ -73,7 +75,17 @@ public class RoomiaPrintPlugin extends Plugin {
                         }
                     }
                 };
-                printManager.print(jobName, adapter, null);
+                // Ticket térmico: se propone el tamaño de papel del PDF (ancho x alto en mm)
+                PrintAttributes attributes = null;
+                if (widthMm > 0 && heightMm > 0) {
+                    int widthMils = (int) Math.round(widthMm / 25.4 * 1000);
+                    int heightMils = (int) Math.round(heightMm / 25.4 * 1000);
+                    attributes = new PrintAttributes.Builder()
+                            .setMediaSize(new PrintAttributes.MediaSize("roomia_ticket", "Ticket " + Math.round(widthMm) + " mm", widthMils, heightMils))
+                            .setMinMargins(PrintAttributes.Margins.NO_MARGINS)
+                            .build();
+                }
+                printManager.print(jobName, adapter, attributes);
                 call.resolve();
             } catch (Exception e) {
                 call.reject("No se pudo abrir la impresión: " + e.getMessage());

@@ -17,7 +17,7 @@ import EmojiPicker from 'emoji-picker-react';
 import { ECUADOR_PROVINCES, getProvincesList, getCitiesForProvince, getParroquiasForCity } from '../data/ecuador';
 
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, AreaChart, Area } from 'recharts';
-import { Plus, Edit3, Trash2, Shield, Users, HotelIcon, List, LayoutDashboard, Calendar, DollarSign, Percent, TrendingUp, AlertCircle, MapPin, EyeOff, ClipboardList, ToggleLeft, ToggleRight, Check, X, Upload, Database, Sparkles, Copy, Key, Building, Home, Star, Wrench, ChevronDown } from 'lucide-react';
+import { Plus, Edit3, Trash2, Shield, Users, HotelIcon, List, LayoutDashboard, Calendar, DollarSign, Percent, TrendingUp, AlertCircle, MapPin, EyeOff, ClipboardList, ToggleLeft, ToggleRight, Check, X, Upload, Download, Database, Sparkles, Copy, Key, Building, Home, Star, Wrench, ChevronDown } from 'lucide-react';
 
 const notifyToast = (msg: string) => {
   if (typeof window !== 'undefined') {
@@ -1722,6 +1722,12 @@ export default function AdminView({
 
           {/* TABLE OF RESERVATIONS */}
           <div className="bg-white rounded-2xl border border-neutral-200 overflow-hidden shadow-sm">
+            <div className="flex items-center gap-2 px-4 py-2.5 bg-teal-50/60 border-b border-teal-100 text-[11px] text-teal-900">
+              <span className="w-5 h-5 shrink-0 rounded-md bg-teal-600 text-white flex items-center justify-center">
+                <Download className="w-3 h-3" />
+              </span>
+              <span>Haz clic en el <strong>ID de la reserva</strong> para ver, descargar o imprimir su prefactura.</span>
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
@@ -1754,10 +1760,14 @@ export default function AdminView({
                             <button
                               type="button"
                               onClick={() => setPreviewingRes(res)}
-                              className="font-mono font-bold text-neutral-800 hover:text-brand-cyan cursor-pointer transition-colors text-left focus:outline-none focus:underline"
-                              title="Ver prefactura / recibo de la reserva"
+                              className="group inline-flex items-center gap-1.5 font-mono font-bold text-neutral-800 hover:text-teal-700 cursor-pointer transition-colors text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 rounded-md whitespace-nowrap"
+                              title="Ver, descargar o imprimir la prefactura"
+                              aria-label={`Ver y descargar la prefactura de la reserva ${res.id}`}
                             >
-                              {res.id}
+                              <span className="w-6 h-6 shrink-0 rounded-md bg-teal-50 text-teal-700 border border-teal-100 flex items-center justify-center group-hover:bg-teal-600 group-hover:text-white group-hover:border-teal-600 transition-colors">
+                                <Download className="w-3.5 h-3.5" />
+                              </span>
+                              <span className="group-hover:underline">{res.id}</span>
                             </button>
                           </td>
                           <td className="p-4 space-y-0.5">
