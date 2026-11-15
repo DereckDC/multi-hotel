@@ -23,6 +23,17 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- App Links: los enlaces a roomiapms.site (por ejemplo en los correos) abren la app si está instalada.
+                 Android lo verifica con https://www.roomiapms.site/.well-known/assetlinks.json -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" />
+                <!-- Solo con www: roomiapms.site redirige (308) y Android no sigue redirecciones al verificar -->
+                <data android:host="www.roomiapms.site" />
+            </intent-filter>
+
         </activity>
 
         <provider

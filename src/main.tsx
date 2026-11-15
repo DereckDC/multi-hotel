@@ -2,6 +2,10 @@ import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
+import { initDeepLinks } from './utils/deepLinks';
+
+// En la app Android: abrir dentro de la app los enlaces de roomiapms.site (correos, recuperar contraseña)
+initDeepLinks();
 
 // Intercept and swallow injected web3 / metamask errors or random network 'Failed to fetch' errors gracefully
 if (typeof window !== 'undefined') {

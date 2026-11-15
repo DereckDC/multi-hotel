@@ -38,7 +38,7 @@ import {
   fetchExternalBlocks
 } from './supabase';
 
-import { isNativeApp, PRODUCTION_ORIGIN } from './utils/platform';
+import { getPublicOrigin, isNativeApp, PRODUCTION_ORIGIN } from './utils/platform';
 
 // Safe standard local storage storage key constants
 const STORAGE_PREFIX = 'aura_hotel_pms_';
@@ -1130,7 +1130,7 @@ El Equipo de Hospitalidad de Roomia PMS.`;
           </div>
 
           <div style="text-align: center; margin: 30px 0;">
-            <a href="${typeof window !== 'undefined' ? window.location.origin : ''}" style="background-color: #0f172a; color: #2dd4bf; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-weight: bold; font-size: 14px; display: inline-block;">
+            <a href="${getPublicOrigin()}" style="background-color: #0f172a; color: #2dd4bf; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-weight: bold; font-size: 14px; display: inline-block;">
               Ingresar a Roomia PMS
             </a>
           </div>

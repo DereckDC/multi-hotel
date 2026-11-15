@@ -9,6 +9,7 @@ import { Mail, Sparkles, Check, Chrome, ShieldAlert, KeyRound, Loader2, ArrowRig
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase, syncUserToSupabase, mapUserFromDb, isEmailRegistered } from '../supabase';
 import { getApiBaseUrl } from '../store';
+import { getPublicOrigin } from '../utils/platform';
 import { BrandLogo } from './BrandLogo';
 
 interface LoginViewProps {
@@ -76,7 +77,7 @@ export default function LoginView({
     try {
       // Trigger official secure reset link via Supabase Auth without sending plain-text passwords
       const { error } = await supabase.auth.resetPasswordForEmail(trimmedEmail, {
-        redirectTo: `${window.location.origin}`
+        redirectTo: getPublicOrigin()
       });
 
       if (error) {

@@ -10,3 +10,14 @@ export function isNativeApp(): boolean {
   const origin = window.location?.origin || '';
   return origin.startsWith('capacitor:') || origin.startsWith('file:');
 }
+
+/**
+ * Dirección pública de Roomia para enlaces que salen de la app (correos, recuperar contraseña).
+ * En el APK el origen es https://localhost, que no sirve fuera del teléfono; se usa el dominio real.
+ * Android abre estos enlaces en la app si está instalada (App Links) y si no, en el navegador.
+ */
+export function getPublicOrigin(): string {
+  if (typeof window === 'undefined') return PRODUCTION_ORIGIN;
+  if (isNativeApp()) return PRODUCTION_ORIGIN;
+  return window.location?.origin || PRODUCTION_ORIGIN;
+}

@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.roomia.pms",
+      "sha256_cert_fingerprints": [
+        "71:8B:F5:68:9D:9B:E7:6F:A1:30:1E:57:EF:6C:51:95:9D:80:EC:9A:5F:A0:6D:B1:51:64:4D:D7:AD:DF:BB:AF"
+      ]
+    }
+  }
+]
