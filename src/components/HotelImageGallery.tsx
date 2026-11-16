@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronLeft, ChevronRight, Maximize2, X, Image as ImageIcon } from 'lucide-react';
 import { isVideoUrl, getMediaEmbed } from './RoomImageGallery';
+import { onImageError } from '../utils/images';
 
 interface HotelImageGalleryProps {
   imagenes: string[];
@@ -177,7 +178,7 @@ export function HotelImageGallery({ imagenes, portada, hotelNombre, badgeTitle, 
                   <span className="text-sm">🎥</span>
                 </div>
               ) : (
-                <img src={img} alt={`Perspectiva ${idx + 1}`} className="w-full h-full object-cover select-none" referrerPolicy="no-referrer" />
+                <img src={img} alt={`Perspectiva ${idx + 1}`} className="w-full h-full object-cover select-none" referrerPolicy="no-referrer" onError={onImageError} />
               )}
               <div className={`absolute inset-0 bg-teal-900/10 transition-opacity duration-3000 ${idx === activeIndex ? 'opacity-100' : 'opacity-0'}`} />
             </button>
@@ -274,7 +275,7 @@ export function HotelImageGallery({ imagenes, portada, hotelNombre, badgeTitle, 
                           <span className="text-sm">🎥</span>
                         </div>
                       ) : (
-                        <img src={img} alt={`Thumb ${idx + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                        <img src={img} alt={`Thumb ${idx + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" onError={onImageError} />
                       )}
                     </button>
                   );

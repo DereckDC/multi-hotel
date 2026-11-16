@@ -16,6 +16,7 @@ import { HotelImageGallery } from './HotelImageGallery';
 import { RoomReservationCalendar } from './RoomReservationCalendar';
 import { CompactBookingCalendar } from './CompactBookingCalendar';
 import { Pager, totalPagesOf } from './Pager';
+import { onImageError } from '../utils/images';
 import { addMonths, formatRentalMonths, getRentalMinMonths, rentalDurationOptions } from '../utils/rental';
 
 export function getMapEmbedUrl(ubicacion: string, googleMapsUrl?: string): string {
@@ -1252,6 +1253,7 @@ export default function ClientView({
                           <div className="relative w-full h-52 sm:h-56 overflow-hidden bg-neutral-100 shrink-0">
                             <img
                               src={hotel.portada}
+                              onError={onImageError}
                               alt={`Fotografía exterior de ${hotel.nombre}`}
                               loading={hotelIdx === 0 ? "eager" : "lazy"}
                               decoding="async"

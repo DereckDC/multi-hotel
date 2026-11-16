@@ -11,7 +11,7 @@ import { StepPanel, StepIndicator, StepActions, useFormStepper } from './FormSte
 import DashboardView from './DashboardView';
 import { RENTAL_MIN_CHOICES, formatRentalMonths, getRentalMinMonths } from '../utils/rental';
 import { fetchPropertyDetails } from '../supabase';
-import { compressImage } from '../store';
+import { imageFolder, importImageFromUrl, isVideoLink, uploadImageFile, onImageError } from '../utils/images';
 import InvoicePDF from './InvoicePDF';
 import EmojiPicker from 'emoji-picker-react';
 import { ECUADOR_PROVINCES, getProvincesList, getCitiesForProvince, getParroquiasForCity } from '../data/ecuador';
@@ -495,62 +495,71 @@ export default function AdminView({
     setEditingHotel(null);
   };
 
-  // Handle local image file upload and converting to base64
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, target: 'hotel' | 'room' | 'property') => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // --- FOTOS: todas se guardan en el almacenamiento de Roomia (src/utils/images.ts) ---
+  const [imageBusy, setImageBusy] = useState<null | 'hotel' | 'room' | 'property'>(null);
 
-    if (file.size > 15 * 1024 * 1024) {
-      notifyToast("⚠️ Para un rendimiento óptimo de carga, por favor elija un archivo menor a 15MB.");
+  const imagesOf = (target: 'hotel' | 'room' | 'property') =>
+    (target === 'hotel' ? editingHotel?.imagenes : target === 'property' ? editingProperty?.imagenes : editingRoom?.imagenes) || [];
+
+  const folderOf = (target: 'hotel' | 'room' | 'property') =>
+    target === 'room'
+      ? imageFolder('rooms', editingRoom?.id)
+      : imageFolder('hotels', target === 'hotel' ? editingHotel?.id : editingProperty?.id);
+
+  /** Agrega una dirección ya guardada en Roomia (o un video) a la lista, con tope de 15 */
+  const appendImage = (target: 'hotel' | 'room' | 'property', url: string) => {
+    const add = (list?: string[]) => [...(list || []), url].slice(0, 15);
+    if (target === 'hotel') setEditingHotel(prev => (prev ? { ...prev, imagenes: add(prev.imagenes) } : prev));
+    else if (target === 'property') setEditingProperty(prev => (prev ? { ...prev, imagenes: add(prev.imagenes) } : prev));
+    else setEditingRoom(prev => (prev ? { ...prev, imagenes: add(prev.imagenes) } : prev));
+  };
+
+  // Foto desde el dispositivo: se reduce y se sube al almacenamiento de Roomia
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, target: 'hotel' | 'room' | 'property') => {
+    const input = e.target;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    if (imagesOf(target).length >= 15) {
+      notifyToast("⚠️ Ya has alcanzado el límite de 15 fotos o videos.");
       return;
     }
+    if (file.size > 25 * 1024 * 1024) {
+      notifyToast("⚠️ La foto pesa más de 25 MB. Elige una más liviana.");
+      return;
+    }
+    setImageBusy(target);
+    try {
+      const url = await uploadImageFile(file, folderOf(target));
+      appendImage(target, url);
+      notifyToast("✅ Foto subida.");
+    } catch (err: any) {
+      notifyToast(`⚠️ ${err?.message || 'No se pudo subir la foto.'}`);
+    } finally {
+      setImageBusy(null);
+    }
+  };
 
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      const rawDataUrl = event.target?.result as string;
-      if (rawDataUrl) {
-        // Compress the image/video to a compact size
-        const dataUrl = await compressImage(rawDataUrl, 1000, 1000, 0.75);
-        if (target === 'hotel') {
-          if (editingHotel) {
-            const currentImgs = editingHotel.imagenes || [];
-            if (currentImgs.length >= 15) {
-              notifyToast("⚠️ Ya has alcanzado el límite de 15 fotos o videos.");
-              return;
-            }
-            setEditingHotel({
-              ...editingHotel,
-              imagenes: [...currentImgs, dataUrl].slice(0, 15)
-            });
-          }
-        } else if (target === 'property') {
-          if (editingProperty) {
-            const currentImgs = editingProperty.imagenes || [];
-            if (currentImgs.length >= 15) {
-              notifyToast("⚠️ Ya has alcanzado el límite de 15 fotos o videos.");
-              return;
-            }
-            setEditingProperty({
-              ...editingProperty,
-              imagenes: [...currentImgs, dataUrl].slice(0, 15)
-            });
-          }
-        } else {
-          if (editingRoom) {
-            const currentImgs = editingRoom.imagenes || [];
-            if (currentImgs.length >= 15) {
-              notifyToast("⚠️ Ya has alcanzado el límite de 15 de fotos u videos.");
-              return;
-            }
-            setEditingRoom({
-              ...editingRoom,
-              imagenes: [...currentImgs, dataUrl].slice(0, 15)
-            });
-          }
-        }
-      }
-    };
-    reader.readAsDataURL(file);
+  // Foto por enlace: Roomia la copia a su almacenamiento (los videos se guardan como enlace)
+  const addImageLink = async (target: 'hotel' | 'room' | 'property', raw: string): Promise<boolean> => {
+    const value = raw.trim();
+    if (!value) return false;
+    if (imagesOf(target).length >= 15) {
+      notifyToast("⚠️ Ya has alcanzado el límite de 15 fotos o videos.");
+      return false;
+    }
+    setImageBusy(target);
+    try {
+      const url = await importImageFromUrl(value, folderOf(target));
+      appendImage(target, url);
+      notifyToast(isVideoLink(value) ? "✅ Video agregado." : "✅ Imagen copiada a Roomia.");
+      return true;
+    } catch (err: any) {
+      notifyToast(`⚠️ ${err?.message || 'No se pudo copiar la imagen.'}`);
+      return false;
+    } finally {
+      setImageBusy(null);
+    }
   };
 
   // Handle Room Save submit form
@@ -2971,9 +2980,7 @@ export default function AdminView({
                               const input = e.currentTarget;
                               const val = input.value.trim();
                               if (val) {
-                                const currentImgs = editingHotel.imagenes || [];
-                                setEditingHotel({ ...editingHotel, imagenes: [...currentImgs, val].slice(0, 15) });
-                                input.value = '';
+                                addImageLink('hotel', val).then(ok => { if (ok) input.value = ''; });
                               }
                             }
                           }}
@@ -2984,26 +2991,25 @@ export default function AdminView({
                             const input = document.getElementById('new-hotel-image-input') as HTMLInputElement;
                             const val = input?.value?.trim();
                             if (val) {
-                              const currentImgs = editingHotel.imagenes || [];
-                              setEditingHotel({ ...editingHotel, imagenes: [...currentImgs, val].slice(0, 15) });
-                              if (input) input.value = '';
+                              addImageLink('hotel', val).then(ok => { if (ok && input) input.value = ''; });
                             }
                           }}
                           className="px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-lg text-xs cursor-pointer shadow-sm animate-fade-in"
                         >
-                          Agregar Link
+                          {imageBusy ? 'Copiando…' : 'Agregar Link'}
                         </button>
                       </div>
 
                       {/* Direct file upload from internal storage */}
                       <div className="flex items-center justify-between gap-2 p-2 bg-white rounded-lg border border-dashed border-neutral-300">
-                        <span className="text-[10px] font-bold text-neutral-500">¿Subir foto o video local? (Máx 15MB)</span>
+                        <span className="text-[10px] font-bold text-neutral-500">¿Subir foto desde el dispositivo? Se guarda en Roomia</span>
                         <label className="flex items-center gap-1 py-1 px-2.5 bg-neutral-900 text-white hover:bg-teal-600 rounded-md text-[10px] font-bold cursor-pointer transition-all shadow-sm">
                           <Upload className="w-3 h-3" />
-                          <span>Elegir Archivo</span>
+                          <span>{imageBusy ? 'Subiendo…' : 'Elegir Archivo'}</span>
                           <input
                             type="file"
-                            accept="image/*,video/*"
+                            accept="image/*"
+                            disabled={!!imageBusy}
                             className="hidden"
                             onChange={(e) => handleImageUpload(e, 'hotel')}
                           />
@@ -3028,8 +3034,7 @@ export default function AdminView({
                                 type="button"
                                 disabled={alreadyHas}
                                 onClick={() => {
-                                  const currentImgs = editingHotel.imagenes || [];
-                                  setEditingHotel({ ...editingHotel, imagenes: [...currentImgs, suggest.url].slice(0, 15) });
+                                  addImageLink('hotel', suggest.url);
                                 }}
                                 className={`px-2 py-1 rounded text-[9px] font-semibold border transition-all cursor-pointer ${
                                   alreadyHas
@@ -4114,9 +4119,7 @@ export default function AdminView({
                             const input = e.currentTarget;
                             const val = input.value.trim();
                             if (val) {
-                              const currentImgs = editingProperty.imagenes || [];
-                              setEditingProperty({ ...editingProperty, imagenes: [...currentImgs, val].slice(0, 15) });
-                              input.value = '';
+                              addImageLink('property', val).then(ok => { if (ok) input.value = ''; });
                             }
                           }
                         }}
@@ -4127,26 +4130,25 @@ export default function AdminView({
                           const input = document.getElementById('new-property-image-input') as HTMLInputElement;
                           const val = input?.value?.trim();
                           if (val) {
-                            const currentImgs = editingProperty.imagenes || [];
-                            setEditingProperty({ ...editingProperty, imagenes: [...currentImgs, val].slice(0, 15) });
-                            if (input) input.value = '';
+                            addImageLink('property', val).then(ok => { if (ok && input) input.value = ''; });
                           }
                         }}
                         className="px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-lg text-xs cursor-pointer shadow-sm"
                       >
-                        Agregar Link
+                        {imageBusy ? 'Copiando…' : 'Agregar Link'}
                       </button>
                     </div>
 
                     {/* Local File upload element */}
                     <div className="flex items-center justify-between gap-2 p-2 bg-white rounded-lg border border-dashed border-neutral-300">
-                      <span className="text-[10px] font-bold text-neutral-500">¿Subir foto o video local? (Máx 15MB)</span>
+                      <span className="text-[10px] font-bold text-neutral-500">¿Subir foto desde el dispositivo? Se guarda en Roomia</span>
                       <label className="flex items-center gap-1 py-1 px-2.5 bg-neutral-900 text-white hover:bg-teal-600 rounded-md text-[10px] font-bold cursor-pointer transition-all shadow-sm">
                         <Upload className="w-3 h-3" />
-                        <span>Elegir Archivo</span>
+                        <span>{imageBusy ? 'Subiendo…' : 'Elegir Archivo'}</span>
                         <input
                           type="file"
-                          accept="image/*,video/*"
+                          accept="image/*"
+                          disabled={!!imageBusy}
                           className="hidden"
                           onChange={(e) => handleImageUpload(e, 'property')}
                         />
@@ -4170,8 +4172,7 @@ export default function AdminView({
                               type="button"
                               disabled={alreadyHas}
                               onClick={() => {
-                                const currentImgs = editingProperty.imagenes || [];
-                                setEditingProperty({ ...editingProperty, imagenes: [...currentImgs, suggest.url].slice(0, 15) });
+                                addImageLink('property', suggest.url);
                               }}
                               className={`px-2 py-1 rounded text-[9px] font-semibold border transition-all cursor-pointer ${
                                 alreadyHas
@@ -4992,9 +4993,7 @@ export default function AdminView({
                               const input = e.currentTarget;
                               const val = input.value.trim();
                               if (val) {
-                                const currentImgs = editingRoom.imagenes || [];
-                                setEditingRoom({ ...editingRoom, imagenes: [...currentImgs, val].slice(0, 15) });
-                                input.value = '';
+                                addImageLink('room', val).then(ok => { if (ok) input.value = ''; });
                               }
                             }
                           }}
@@ -5005,26 +5004,25 @@ export default function AdminView({
                             const input = document.getElementById('new-room-image-input') as HTMLInputElement;
                             const val = input?.value?.trim();
                             if (val) {
-                              const currentImgs = editingRoom.imagenes || [];
-                              setEditingRoom({ ...editingRoom, imagenes: [...currentImgs, val].slice(0, 15) });
-                              if (input) input.value = '';
+                              addImageLink('room', val).then(ok => { if (ok && input) input.value = ''; });
                             }
                           }}
                           className="px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-lg text-xs cursor-pointer shadow-sm animate-fade-in"
                         >
-                          Agregar Link
+                          {imageBusy ? 'Copiando…' : 'Agregar Link'}
                         </button>
                       </div>
 
                       {/* Direct file upload from internal storage */}
                       <div className="flex items-center justify-between gap-2 p-2 bg-white rounded-lg border border-dashed border-neutral-300">
-                        <span className="text-[10px] font-bold text-neutral-500">¿Subir foto o video local? (Máx 15MB)</span>
+                        <span className="text-[10px] font-bold text-neutral-500">¿Subir foto desde el dispositivo? Se guarda en Roomia</span>
                         <label className="flex items-center gap-1 py-1 px-2.5 bg-neutral-900 text-white hover:bg-teal-600 rounded-md text-[10px] font-bold cursor-pointer transition-all shadow-sm">
                           <Upload className="w-3 h-3" />
-                          <span>Elegir Archivo</span>
+                          <span>{imageBusy ? 'Subiendo…' : 'Elegir Archivo'}</span>
                           <input
                             type="file"
-                            accept="image/*,video/*"
+                            accept="image/*"
+                            disabled={!!imageBusy}
                             className="hidden"
                             onChange={(e) => handleImageUpload(e, 'room')}
                           />
@@ -5049,8 +5047,7 @@ export default function AdminView({
                                 type="button"
                                 disabled={alreadyHas}
                                 onClick={() => {
-                                  const currentImgs = editingRoom.imagenes || [];
-                                  setEditingRoom({ ...editingRoom, imagenes: [...currentImgs, suggest.url].slice(0, 15) });
+                                  addImageLink('room', suggest.url);
                                 }}
                                 className={`px-2 py-1 rounded text-[9px] font-semibold border transition-all cursor-pointer ${
                                   alreadyHas
