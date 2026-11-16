@@ -285,12 +285,25 @@ export function saveToLocalStorage<T>(key: string, value: T): void {
   }
 }
 
+/** Del propietario solo se guarda en el catálogo lo público (nombre y teléfono). Correo y cédula van aparte. */
+const publicOwner = (p: Hotel['propietario']): Hotel['propietario'] =>
+  p ? { nombre: p.nombre || '', telefono: p.telefono || '' } : p;
+
 export const sanitizeHotels = (list: Hotel[]): Hotel[] => {
   return (list || []).map(h => ({
     ...h,
+    propietario: publicOwner(h.propietario),
     serviciosDetallados: h.serviciosDetallados || []
   }));
 };
+
+/** Datos privados del propietario (tabla hotel_owners): solo los leen superadmin y admin de hotel */
+export interface HotelOwnerPrivate {
+  nombre?: string | null;
+  telefono?: string | null;
+  email?: string | null;
+  documento?: string | null;
+}
 
 export function useHotelStore() {
   const [hotels, setHotels] = useState<Hotel[]>(() => sanitizeHotels(loadFromLocalStorage(KEYS.HOTELS, [])));
@@ -626,6 +639,46 @@ export function useHotelStore() {
     ? (users && users.find(u => u && u.id === currentUserId)) || null
     : null;
 
+  // --- DATOS PRIVADOS DEL PROPIETARIO ---
+  // Correo y cédula del propietario están en hotel_owners, que solo pueden leer superadmin y
+  // admin de hotel. Se combinan con el catálogo en memoria y nunca se guardan en localStorage.
+  const [hotelOwners, setHotelOwners] = useState<Record<string, HotelOwnerPrivate>>({});
+  const canSeeOwners = activeUser?.rol === 'super_admin' || activeUser?.rol === 'hotel_admin';
+
+  const loadHotelOwners = async () => {
+    const { data, error } = await supabase.from('hotel_owners').select('hotel_id, nombre, telefono, email, documento');
+    if (error) {
+      console.warn('No se pudieron cargar los datos privados de propietarios:', error.message);
+      return;
+    }
+    const map: Record<string, HotelOwnerPrivate> = {};
+    (data || []).forEach((o: any) => { map[o.hotel_id] = { nombre: o.nombre, telefono: o.telefono, email: o.email, documento: o.documento }; });
+    setHotelOwners(map);
+  };
+
+  useEffect(() => {
+    if (canSeeOwners) loadHotelOwners();
+    else setHotelOwners({});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canSeeOwners, currentUserId]);
+
+  const hotelsWithOwners = useMemo(() => {
+    if (!canSeeOwners) return hotels;
+    return hotels.map(h => {
+      const o = hotelOwners[h.id];
+      if (!o) return h;
+      return {
+        ...h,
+        propietario: {
+          nombre: h.propietario?.nombre || o.nombre || '',
+          telefono: h.propietario?.telefono || o.telefono || '',
+          email: o.email || '',
+          documento: o.documento || ''
+        }
+      };
+    });
+  }, [hotels, hotelOwners, canSeeOwners]);
+
   // --- DISPONIBILIDAD DE TERCEROS (sin datos personales) ---
   // El personal ve todas las reservas. Un huésped o un visitante solo puede leer las
   // suyas, así que la ocupación del resto llega como rangos anónimos desde
@@ -788,16 +841,35 @@ export function useHotelStore() {
 
   // --- CRUD HOTELS ---
   const saveHotel = async (hotel: Hotel) => {
+    // En el catálogo solo queda lo público del propietario; correo y cédula, en hotelOwners
+    const publicHotel: Hotel = { ...hotel, propietario: publicOwner(hotel.propietario) };
     setHotels(prev => {
       const exists = prev.some(h => h.id === hotel.id);
       if (exists) {
-        return prev.map(h => h.id === hotel.id ? hotel : h);
+        return prev.map(h => h.id === hotel.id ? publicHotel : h);
       } else {
-        return [...prev, hotel];
+        return [...prev, publicHotel];
       }
     });
+    if (hotel.propietario) {
+      const p = hotel.propietario;
+      // Igual que el trigger de la base: un valor vacío no borra el guardado
+      setHotelOwners(prev => {
+        const old = prev[hotel.id] || {};
+        return {
+          ...prev,
+          [hotel.id]: {
+            nombre: p.nombre?.trim() || old.nombre,
+            telefono: p.telefono?.trim() || old.telefono,
+            email: p.email?.trim() || old.email,
+            documento: p.documento?.trim() || old.documento
+          }
+        };
+      });
+    }
 
     try {
+      // Se envía completo: el trigger de la base separa lo privado en hotel_owners
       const syncRes = await syncHotelToSupabase(hotel);
       if (hotel.tipoEstablecimiento === 'casa' || hotel.tipoEstablecimiento === 'departamento') {
         await syncPropertyDetailsToSupabase(hotel);
@@ -1320,7 +1392,8 @@ El Equipo de Hospitalidad de Roomia PMS.`;
     roomObj: Room | undefined,
     guestObj: User | undefined
   ) => {
-    // 1. Gather all admin recipient emails
+    // Los destinatarios los calcula el servidor (función notify-reservation), que incluye el
+    // correo privado del propietario. Esta lista (sin el propietario) solo se usa si la función falla.
     const recipientEmails: string[] = [];
 
     // Find all users who are hotel administrators for this hotel
@@ -1337,11 +1410,6 @@ El Equipo de Hospitalidad de Roomia PMS.`;
     // Also include the hotel contact email
     if (hotelObj?.contacto?.email && !recipientEmails.includes(hotelObj.contacto.email)) {
       recipientEmails.push(hotelObj.contacto.email);
-    }
-
-    // Also include the property owner email (for vacation rentals / houses / apartments)
-    if (hotelObj?.propietario?.email && !recipientEmails.includes(hotelObj.propietario.email)) {
-      recipientEmails.push(hotelObj.propietario.email);
     }
 
     // If still no recipients found, fallback to system support
@@ -1430,22 +1498,31 @@ El Equipo de Hospitalidad de Roomia PMS.`;
       </div>
     `;
 
+    const textBody = `Roomia PMS Notificación Administrativa: Nueva reserva pendiente ${resObj.id} para ${hotelObj?.nombre || 'tu propiedad'} por parte del cliente ${guestName} ($${resObj.total.toFixed(2)} USD).`;
+
+    // 1. El servidor envía el aviso (admins, correo del establecimiento y propietario)
+    try {
+      const { data, error } = await supabase.functions.invoke('notify-reservation', {
+        body: { reservationId: resObj.id, subject, html: htmlBody, text: textBody }
+      });
+      if (!error && data && typeof data.sent === 'number') {
+        console.log(`[PENDING NOTIFICATION] Aviso enviado por el servidor a ${data.sent} de ${data.total ?? data.sent} destinatarios.`);
+        return;
+      }
+      console.warn('[PENDING NOTIFICATION] La función de avisos no respondió bien, se usa el envío de respaldo:', error?.message || data);
+    } catch (fnErr) {
+      console.warn('[PENDING NOTIFICATION] Función de avisos no disponible, se usa el envío de respaldo:', fnErr);
+    }
+
+    // 2. Respaldo: admins y correo del establecimiento (sin el propietario, cuyo correo es privado)
     try {
       const apiEndpoint = `${getApiBaseUrl()}/api/send-email`;
-      console.log(`[PENDING NOTIFICATION TRIGGER] Dispatching to: ${recipientEmails.join(', ')}`);
-      
-      // Dispatch emails in parallel for all recipients
       await Promise.all(recipientEmails.map(async (email) => {
         try {
           await fetch(apiEndpoint, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              to: email,
-              subject,
-              html: htmlBody,
-              text: `Roomia PMS Notificación Administrativa: Nueva reserva pendiente ${resObj.id} para ${hotelObj?.nombre || 'tu propiedad'} por parte del cliente ${guestName} ($${resObj.total.toFixed(2)} USD).`
-            })
+            body: JSON.stringify({ to: email, subject, html: htmlBody, text: textBody })
           });
         } catch (singleErr) {
           console.error(`[PENDING NOTIFICATION SINGLE ERR] Email to ${email} failed:`, singleErr);
@@ -2376,6 +2453,7 @@ El Equipo de Hospitalidad de Roomia PMS.`;
         const sanitized = sanitizeHotels(mappedHotels);
         setHotels(sanitized);
         saveToLocalStorage(KEYS.HOTELS, sanitized);
+        if (canSeeOwners) loadHotelOwners();
       }
 
       if (roomsRes.status === 'fulfilled' && roomsRes.value.data) {
@@ -2403,7 +2481,7 @@ El Equipo de Hospitalidad de Roomia PMS.`;
   };
 
   return {
-    hotels,
+    hotels: hotelsWithOwners,
     rooms,
     users,
     reservations: reservationsWithBusy,

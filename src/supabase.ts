@@ -495,8 +495,9 @@ export async function syncPropertyDetailsToSupabase(hotel: Hotel): Promise<{ suc
       parking: !!hotel.detallesInmueble?.tieneEstacionamiento,
       owner_name: hotel.propietario?.nombre || null,
       owner_phone: hotel.propietario?.telefono || null,
-      owner_email: hotel.propietario?.email || null,
-      owner_document: hotel.propietario?.documento || null,
+      // property_details es de lectura pública: correo y cédula del propietario van solo a hotel_owners
+      owner_email: null,
+      owner_document: null,
       price: hotel.detallesInmueble?.precio || 0
     };
 

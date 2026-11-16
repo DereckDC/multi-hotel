@@ -2174,22 +2174,13 @@ export default function ClientView({
                                 <span className="text-neutral-400 block text-[9px] uppercase font-bold">Propietario:</span>
                                 <span className="text-neutral-805 font-bold block">{activeHotel.propietario.nombre}</span>
                               </div>
-                              <div className="grid grid-cols-2 gap-2">
-                                <div className={activeHotel.propietario.documento && activeHotel.propietario.documento.trim() !== '' ? "" : "col-span-2"}>
+                              {/* Solo datos públicos del propietario: correo y cédula son privados */}
+                              {activeHotel.propietario.telefono && (
+                                <div>
                                   <span className="text-neutral-400 block text-[9px] uppercase font-bold">Teléfono Móvil:</span>
                                   <a href={`tel:${activeHotel.propietario.telefono}`} className="text-teal-700 font-black hover:underline font-mono">{activeHotel.propietario.telefono}</a>
                                 </div>
-                                {activeHotel.propietario.documento && activeHotel.propietario.documento.trim() !== '' && (
-                                  <div>
-                                    <span className="text-neutral-400 block text-[9px] uppercase font-bold">Doc. Identidad:</span>
-                                    <span className="text-neutral-600 font-mono text-[10.5px]">{activeHotel.propietario.documento}</span>
-                                  </div>
-                                )}
-                              </div>
-                              <div>
-                                <span className="text-neutral-400 block text-[9px] uppercase font-bold">Correo de Contacto:</span>
-                                <span className="text-neutral-805 font-medium block truncate select-all font-mono text-[10px] bg-white border border-teal-50 px-1.5 py-0.5 rounded">{activeHotel.propietario.email}</span>
-                              </div>
+                              )}
                             </div>
                           ) : (
                             <p className="text-neutral-400 text-xs mt-1 italic">Detalles de propietario no registrados.</p>
@@ -2287,27 +2278,7 @@ export default function ClientView({
                               📞 {activeHotel.propietario.telefono}
                             </a>
                           </div>
-                          {activeHotel.propietario.documento && activeHotel.propietario.documento.trim() !== '' && (
-                            <div className="col-span-1 sm:col-span-2 p-3 bg-white border border-neutral-200/60 rounded-xl shadow-xs text-left">
-                              <span className="text-neutral-400 block text-[9px] uppercase font-bold tracking-wider mb-0.5">Doc. Identidad / Cédula</span>
-                              <span className="text-neutral-805 text-xs font-mono font-bold block">{activeHotel.propietario.documento}</span>
-                            </div>
-                          )}
-                          <div className="col-span-1 sm:col-span-2 p-3 bg-white border border-neutral-200/60 rounded-xl shadow-xs text-left truncate">
-                            <span className="text-neutral-400 block text-[9px] uppercase font-bold tracking-wider mb-0.5">Correo de Contacto</span>
-                            <a 
-                              href={`mailto:${activeHotel.propietario.email}`} 
-                              onClick={(e) => {
-                                if (typeof window !== 'undefined' && (window as any).Capacitor) {
-                                  e.preventDefault();
-                                  window.open(`mailto:${activeHotel.propietario.email}`, "_system");
-                                }
-                              }}
-                              className="text-teal-650 hover:text-teal-700 font-mono text-[11px] block truncate text-center select-all cursor-pointer"
-                            >
-                              {activeHotel.propietario.email}
-                            </a>
-                          </div>
+                          {/* Correo y cédula del propietario son privados: no se muestran al público */}
                         </div>
                       ) : (
                         <p className="text-neutral-400 text-xs italic">La información de contacto no está disponible actualmente.</p>

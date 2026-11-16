@@ -68,7 +68,9 @@ export interface Hotel {
   propietario?: {
     nombre: string;
     telefono: string;
-    email: string;
+    /** Privado (tabla hotel_owners): solo llega a superadmin y admin de hotel */
+    email?: string;
+    /** Privado (tabla hotel_owners): solo llega a superadmin y admin de hotel */
     documento?: string;
   };
   adicionarIva?: boolean; // If false, the property price already includes IVA
