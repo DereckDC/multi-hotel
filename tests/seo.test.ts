@@ -56,8 +56,10 @@ test('isBot: bots de buscadores y vistas previas sí, navegadores no', () => {
 
 test('la regla de vercel.json reconoce lo mismo que isBot', () => {
   const cfg = JSON.parse(read('vercel.json'));
+  // La portada "/" la sirve Vercel desde dist/index.html antes de las reglas; solo /:slug pasa por la función
   const rules = cfg.rewrites.filter((r: any) => r.has);
-  assert.equal(rules.length, 2);
+  assert.equal(rules.length, 1);
+  assert.equal(rules[0].source, '/:slug');
   for (const rule of rules) {
     const re = new RegExp(`^${rule.has[0].value}$`);
     UAS.bots.forEach(ua => assert.equal(re.test(ua), true, `vercel.json no reconoce: ${ua}`));

@@ -6,11 +6,6 @@
     { "source": "/politica-de-cancelaciones-y-reembolsos", "destination": "/politica-de-cancelaciones-y-reembolsos.html" },
     { "source": "/sitemap.xml", "destination": "/api/seo?kind=sitemap" },
     {
-      "source": "/",
-      "has": [{ "type": "header", "key": "user-agent", "value": ".*([Bb]ot|BOT|[Cc]rawl|[Ss]pider|[Ss]lurp|facebookexternalhit|[Ff]acebot|[Ww]hats[Aa]pp|[Tt]elegram|[Ss]lack|[Dd]iscord|[Ll]inked[Ii]n|[Tt]witter|[Pp]interest|[Ee]mbedly|[Ss]kype[Uu]ri[Pp]review|vk[Ss]hare|[Aa]pplebot|[Gg]oogle-[Ii]nspection[Tt]ool|[Bb]ing[Pp]review|[Yy]andex|[Bb]aidu|[Dd]uck[Dd]uck).*" }],
-      "destination": "/api/seo?path=/"
-    },
-    {
       "source": "/:slug",
       "has": [{ "type": "header", "key": "user-agent", "value": ".*([Bb]ot|BOT|[Cc]rawl|[Ss]pider|[Ss]lurp|facebookexternalhit|[Ff]acebot|[Ww]hats[Aa]pp|[Tt]elegram|[Ss]lack|[Dd]iscord|[Ll]inked[Ii]n|[Tt]witter|[Pp]interest|[Ee]mbedly|[Ss]kype[Uu]ri[Pp]review|vk[Ss]hare|[Aa]pplebot|[Gg]oogle-[Ii]nspection[Tt]ool|[Bb]ing[Pp]review|[Yy]andex|[Bb]aidu|[Dd]uck[Dd]uck).*" }],
       "destination": "/api/seo?path=/:slug"
