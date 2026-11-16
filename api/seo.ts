@@ -346,16 +346,32 @@ export function renderSitemap(hotels: SeoHotel[], today: string): string {
 const FALLBACK_SUPABASE_URL = 'https://fyreapnukipdvcebvokj.supabase.co';
 const FALLBACK_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ5cmVhcG51a2lwZHZjZWJ2b2tqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ1OTcwMTIsImV4cCI6MjEwMDE3MzAxMn0.diZTbHx-8jDDGSJEG34ae1-HD-i_PLY-RWsCQUxlNAU';
 
-const supabaseBase = () =>
-  (process.env.VITE_SUPABASE_URL || FALLBACK_SUPABASE_URL).replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
+const cleanBase = (url: string) => url.replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
+
+/**
+ * Primero las mismas credenciales que usa la app en el navegador (public/supabase-env.js);
+ * las variables de entorno de Vercel solo si esas fallan.
+ */
+function credentials(): Array<{ url: string; key: string }> {
+  const list = [{ url: FALLBACK_SUPABASE_URL, key: FALLBACK_ANON_KEY }];
+  if (process.env.VITE_SUPABASE_URL && process.env.VITE_SUPABASE_ANON_KEY) {
+    list.push({ url: cleanBase(process.env.VITE_SUPABASE_URL), key: process.env.VITE_SUPABASE_ANON_KEY });
+  }
+  return list.filter((c, i, all) => all.findIndex(o => o.url === c.url && o.key === c.key) === i);
+}
 
 async function supabaseGet<T>(query: string): Promise<T> {
-  const key = process.env.VITE_SUPABASE_ANON_KEY || FALLBACK_ANON_KEY;
-  const res = await fetch(`${supabaseBase()}/rest/v1/${query}`, {
-    headers: { apikey: key, Authorization: `Bearer ${key}` }
-  });
-  if (!res.ok) throw new Error(`Supabase ${res.status}`);
-  return res.json() as Promise<T>;
+  let lastError = '';
+  for (const { url, key } of credentials()) {
+    try {
+      const res = await fetch(`${cleanBase(url)}/rest/v1/${query}`, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
+      if (res.ok) return (await res.json()) as T;
+      lastError = `Supabase ${res.status} en ${url}: ${(await res.text()).slice(0, 200)}`;
+    } catch (err: any) {
+      lastError = `Supabase sin conexión en ${url}: ${err?.message || err}`;
+    }
+  }
+  throw new Error(lastError);
 }
 
 const HOTEL_FIELDS = 'id,nombre,descripcion,ubicacion,ciudad,provincia,estado,tipo:contacto->>tipoEstablecimiento,finalidad:contacto->>finalidad,precio:contacto->detallesInmueble->>precio';
@@ -373,6 +389,8 @@ async function loadIndexHtml(req: VercelRequest): Promise<string> {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Permite comprobar desde fuera que la regla de bots de vercel.json llegó a esta función
+  res.setHeader('X-Roomia-Seo', 'bot');
   try {
     if (req.query.kind === 'sitemap') {
       const hotels = await supabaseGet<SeoHotel[]>(`hotels?select=${HOTEL_FIELDS}`);
@@ -406,6 +424,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (err: any) {
     // Si falla la base de datos, el bot recibe la página normal en lugar de un error
     console.error('SEO error:', err?.message || err);
+    res.setHeader('X-Roomia-Seo-Error', String(err?.message || err).replace(/[^\x20-\x7E]/g, '').slice(0, 200));
     res.setHeader('Cache-Control', 'public, s-maxage=60');
     if (req.query.kind === 'sitemap') {
       res.setHeader('Content-Type', 'application/xml; charset=utf-8');
