@@ -1237,9 +1237,15 @@ export default function AdminView({
             }).map(room => {
               const h = allowedHotels.find(ht => ht.id === room.hotelId);
               return (
-                <div key={room.id} className="bg-white rounded-xl p-4 border border-neutral-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:shadow-sm transition-all shadow-inner">
-                  <div className="flex gap-4">
-                    <img src={room.imagenes[0]} alt="Room thumbnail" className="w-14 h-14 object-cover rounded-lg border border-neutral-150 shrink-0 self-center" />
+                <div key={room.id} className="bg-white rounded-xl p-4 border border-neutral-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:shadow-sm transition-all shadow-inner min-w-0">
+                  <div className="flex gap-4 min-w-0">
+                    <img
+                      src={room.imagenes[0]}
+                      alt="Room thumbnail"
+                      // Si la foto no carga, se muestra un recuadro neutro en vez del texto alternativo
+                      onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = "data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 56 56'%3E%3Crect width='56' height='56' fill='%23f1f5f9'/%3E%3Cpath d='M12 38v-9a3 3 0 0 1 3-3h26a3 3 0 0 1 3 3v9M12 38h32M16 26v-4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v4' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"; }}
+                      className="w-14 h-14 object-cover rounded-lg border border-neutral-150 shrink-0 self-center"
+                    />
                     <div>
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="text-[9px] bg-neutral-100 px-1.5 py-0.5 rounded font-mono font-bold">Cuarto {room.numero}</span>
@@ -1251,13 +1257,14 @@ export default function AdminView({
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-5 w-full md:w-auto justify-between md:justify-end">
+                  {/* En el teléfono los botones pasan a otra línea en vez de salirse de la tarjeta */}
+                  <div className="flex flex-wrap items-center gap-x-5 gap-y-3 w-full md:w-auto justify-between md:justify-end min-w-0">
                     <div className="text-left md:text-right">
                       <span className="text-[9px] text-neutral-400 block font-medium">PRECIO</span>
                       <span className="font-mono font-bold text-teal-700 text-sm">${room.precio} USD</span>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2 min-w-0">
                       <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${
                         room.estado === 'disponible' ? 'bg-emerald-50 text-emerald-700' :
                         room.estado === 'ocupado' ? 'bg-amber-50 text-amber-700' :
@@ -2147,7 +2154,7 @@ export default function AdminView({
               </h4>
               <p className="text-xs text-neutral-400 mt-0.5">Reporte, seguimiento de mantenimiento y bitácora de novedades técnicas por habitación.</p>
             </div>
-            <div className="flex items-center gap-2 text-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2 text-xs w-full sm:w-auto min-w-0">
               <span className="text-neutral-500 font-medium whitespace-nowrap">Filtrar Establecimiento:</span>
               <select
                 value={incidentHotelFilter}
@@ -2155,7 +2162,7 @@ export default function AdminView({
                   setIncidentHotelFilter(e.target.value);
                   setIncidentRoomId('');
                 }}
-                className="bg-white border border-neutral-200 hover:border-neutral-300 rounded-xl text-xs font-semibold py-1.5 px-3 focus:outline-none cursor-pointer text-[#0E2A47] shadow-sm transition-colors"
+                className="w-full sm:w-auto min-w-0 bg-white border border-neutral-200 hover:border-neutral-300 rounded-xl text-xs font-semibold py-1.5 px-3 focus:outline-none cursor-pointer text-[#0E2A47] shadow-sm transition-colors"
               >
                 <option value="todos" className="text-neutral-800 font-semibold">Todos los Establecimientos</option>
                 {allowedHotels.map(h => (

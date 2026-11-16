@@ -8,8 +8,11 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   ArrowRight, Calendar, CheckCircle2, ChevronDown, Globe, Lock, Mail, MapPin,
-  Menu, MessageCircle, AlertTriangle, MessagesSquare, ArrowUp, Clock, Building2, ChevronUp, QrCode, RefreshCw, ShieldCheck, TrendingUp, Users, X, Home, Wallet, BarChart3, Wrench
+  Menu, MessageCircle, AlertTriangle, MessagesSquare, ArrowUp, Clock, Building2, ChevronUp, QrCode, RefreshCw, ShieldCheck, TrendingUp, Users, X, Home, Wallet, BarChart3, Wrench, Gift, Receipt
 } from 'lucide-react';
+import {
+  PLANS, TRIAL_DAYS, SETUP_FEE, ANNUAL_FREE_MONTHS, annualPrice, annualPerMonth, annualSavings, usd, usd2, type Plan
+} from '../utils/plans';
 import { BrandLogo } from './BrandLogo';
 import { InteractiveContainer } from './InteractiveContainer';
 import { GlobalTrailCursor } from './GlobalTrailCursor';
@@ -33,10 +36,14 @@ const NAV = [
 const FAQ = [
   { q: '¿Cómo se conecta con Airbnb y Booking?', a: 'Pegas el enlace de calendario (iCal) que te da cada plataforma, por cada propiedad. Roomia lo lee de forma periódica y bloquea esas fechas en tu calendario y en tu página de reservas directas. No necesitas dar tu contraseña de Airbnb ni de Booking.' },
   { q: '¿Se pueden dar dobles reservas?', a: 'Roomia bloquea las fechas ocupadas en otras plataformas y avisa si detecta un cruce. Como iCal se actualiza cada cierto tiempo y no es instantáneo, recomendamos mantener también tus calendarios de Airbnb/Booking importando el de Roomia.' },
-  { q: '¿Qué es una "propiedad" en los planes?', a: 'Una propiedad es un establecimiento: un hotel, una casa o un edificio de departamentos. Dentro de ella puedes crear todas las habitaciones o unidades que necesites.' },
-  { q: '¿Cómo cobro las reservas directas?', a: 'Puedes registrar pagos en efectivo o transferencia desde el panel, y cobrar con tarjeta en línea. Solo en los pagos con tarjeta se aplica una tarifa del 5 %; la suscripción es fija.' },
+  { q: '¿Qué es una "propiedad" y qué es una "unidad"?', a: 'Una propiedad es un establecimiento: un hotel, una casa o un edificio de departamentos. Una unidad es cada habitación o departamento que alquilas dentro de ella; una casa completa cuenta como 1 unidad. Cada plan incluye un número de propiedades y de unidades.' },
+  { q: '¿Cómo cobro las reservas directas?', a: 'Puedes registrar pagos en efectivo o transferencia desde el panel, y cobrar con tarjeta en línea. Roomia no cobra comisión por tus reservas: pagas solo la suscripción, que es fija. Si usas una pasarela de pago con tarjeta, esa pasarela puede aplicar su propia tarifa.' },
   { q: '¿Necesito instalar algo o capacitar a mi equipo?', a: 'No. Funciona desde el navegador, en computadora o celular. Tu personal de recepción tiene su propia vista, simple, para check-in y registro de huéspedes.' },
-  { q: '¿Puedo cancelar cuando quiera?', a: 'Sí. La suscripción es mensual, sin contratos de permanencia. El precio fundador se mantiene mientras tu suscripción siga activa.' }
+  { q: '¿Cómo funciona la prueba gratis de 15 días?', a: `Usas Roomia con todas sus funciones durante ${TRIAL_DAYS} días, antes de pagar tu primera suscripción. Para empezar, la puesta en marcha tiene un pago único de ${usd(SETUP_FEE)}: cargamos la información de tus unidades en la plataforma y capacitamos a tu personal.` },
+  { q: '¿Qué pasa si tengo más unidades de las que incluye mi plan?', a: `Cada unidad adicional se cobra aparte, por mes: ${usd2(PLANS[0].extraUnit)} en ${PLANS[0].name}, ${usd2(PLANS[1].extraUnit)} en ${PLANS[1].name} y ${usd2(PLANS[2].extraUnit)} en ${PLANS[2].name}. Cuantas más unidades tienes, más conviene pasar al plan siguiente.` },
+  { q: '¿Puedo cancelar cuando quiera?', a: `Sí. El plan mensual no tiene contrato de permanencia y el precio fundador se mantiene mientras tu suscripción siga activa. El plan anual se paga por adelantado y te ahorra ${ANNUAL_FREE_MONTHS} meses.` },
+  { q: '¿Emiten facturas electrónicas del SRI?', a: 'Todavía no. Hoy Roomia genera una pre-factura informativa en PDF y en ticket para impresora. La emisión de facturas electrónicas del SRI será un complemento opcional que estamos preparando; escríbenos y te avisamos cuando esté lista.' },
+  { q: '¿Cómo funciona el programa de referidos?', a: 'Recomiendas Roomia a otro anfitrión. Cuando se suscribe y menciona tu nombre, tú ganas 1 mes gratis de tu plan y él no paga los $30 de puesta en marcha.' }
 ];
 
 // Calendario de ejemplo del hero (días 1..30)
@@ -64,6 +71,22 @@ export default function LandingPageView({ onClose, onOpenLegal }: Props) {
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [form, setForm] = useState({ nombre: '', tipo: 'Casa o departamento', unidades: '1', plataformas: 'Airbnb' });
 
+  // Precios: mensual o anual, plan elegido para empezar la prueba y quién lo recomendó
+  const [billing, setBilling] = useState<'mensual' | 'anual'>('mensual');
+  const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
+  const [wantsInvoice, setWantsInvoice] = useState(false);
+  const [referido, setReferido] = useState('');
+  const annual = billing === 'anual';
+  const shown = (monthly: number) => (annual ? annualPrice(monthly) : monthly);
+  const per = annual ? '/ año' : '/ mes';
+
+  React.useEffect(() => {
+    if (!selectedPlan) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setSelectedPlan(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selectedPlan]);
+
   const openWhatsApp = (message: string) => {
     const url = `https://wa.me/${WHATSAPP}?text=${encodeURIComponent(message)}`;
     if (typeof window !== 'undefined' && (window as any).Capacitor) window.open(url, '_system');
@@ -78,8 +101,23 @@ export default function LandingPageView({ onClose, onOpenLegal }: Props) {
   const submitDemo = (e: React.FormEvent) => {
     e.preventDefault();
     openWhatsApp(
-      `Hola, soy ${form.nombre || 'un anfitrión'}. Administro: ${form.tipo}, ${form.unidades} unidad(es), uso ${form.plataformas}. Quisiera una demo de Roomia PMS.`
+      `Hola, soy ${form.nombre || 'un anfitrión'}. Administro: ${form.tipo}, ${form.unidades} unidad(es), uso ${form.plataformas}. Quisiera una demo de Roomia PMS.${referido.trim() ? ` Me recomendó ${referido.trim()}.` : ''}`
     );
+  };
+
+  // Empezar la prueba gratis del plan elegido: se abre WhatsApp con el resumen ya escrito
+  const startTrial = () => {
+    if (!selectedPlan) return;
+    const periodo = annual
+      ? `plan anual, ${usd(annualPrice(selectedPlan.price))} al año`
+      : `plan mensual, ${usd(selectedPlan.price)} al mes`;
+    openWhatsApp(
+      `Hola, quiero empezar la prueba gratis de ${TRIAL_DAYS} días del plan ${selectedPlan.name} (${periodo}). ` +
+      `Entiendo que incluye un pago único de ${usd(SETUP_FEE)} por la carga de mis unidades y la capacitación de mi personal.` +
+      `${wantsInvoice ? ' Quiero que me avisen cuando esté la facturación electrónica del SRI.' : ''}` +
+      `${referido.trim() ? ` Me recomendó ${referido.trim()}.` : ''}`
+    );
+    setSelectedPlan(null);
   };
 
   const field = 'w-full bg-slate-950 border border-slate-700 focus:border-brand-cyan focus:outline-none rounded-xl px-3.5 py-3 text-sm text-white placeholder:text-slate-500';
@@ -99,7 +137,7 @@ export default function LandingPageView({ onClose, onOpenLegal }: Props) {
           </div>
           <div className="flex items-center gap-2.5">
             <button onClick={onClose} className="hidden sm:block px-4 py-2 text-sm font-semibold text-slate-200 hover:text-white border border-slate-700 hover:border-slate-500 rounded-xl cursor-pointer">
-              Ingresar
+              Volver
             </button>
             <button
               onClick={() => openWhatsApp('Hola, quisiera solicitar una demostración por WhatsApp de Roomia PMS.')}
@@ -118,7 +156,7 @@ export default function LandingPageView({ onClose, onOpenLegal }: Props) {
             {NAV.map(n => (
               <a key={n.id} href={`#${n.id}`} onClick={(e) => { e.preventDefault(); goTo(n.id); }} className="block py-2.5 text-sm font-medium text-slate-200">{n.label}</a>
             ))}
-            <button onClick={onClose} className="block w-full text-left py-2.5 text-sm font-medium text-brand-cyan cursor-pointer">Ingresar a mi cuenta</button>
+            <button onClick={onClose} className="block w-full text-left py-2.5 text-sm font-medium text-brand-cyan cursor-pointer">Volver</button>
           </div>
         )}
       </nav>
@@ -375,47 +413,127 @@ export default function LandingPageView({ onClose, onOpenLegal }: Props) {
         <div className="max-w-6xl mx-auto space-y-10">
           <div className="text-center space-y-3">
             <h2 className="text-3xl md:text-5xl font-serif font-black text-white">Planes y precios</h2>
-            <p className="text-slate-400 max-w-2xl mx-auto">Todos los planes incluyen las mismas funciones. Solo cambia la cantidad de propiedades y el nivel de soporte.</p>
+            <p className="text-slate-400 max-w-2xl mx-auto">Todos los planes incluyen las mismas funciones. Cambian las propiedades, las unidades incluidas y el nivel de soporte.</p>
+            <p className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-400/30 text-emerald-300 text-xs font-bold">
+              <Clock className="w-3.5 h-3.5" /> {TRIAL_DAYS} días de prueba gratis en cualquier plan
+            </p>
+          </div>
+
+          {/* Mensual / Anual */}
+          <div className="flex justify-center">
+            <div role="group" aria-label="Periodo de facturación" className="inline-flex p-1 rounded-full bg-slate-900 border border-slate-800 text-sm font-bold">
+              {([['mensual', 'Mensual'], ['anual', `Anual · ${ANNUAL_FREE_MONTHS} meses gratis`]] as const).map(([k, label]) => (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => setBilling(k)}
+                  aria-pressed={billing === k}
+                  className={`px-4 sm:px-5 py-2 rounded-full cursor-pointer transition ${billing === k ? 'bg-brand-cyan text-slate-950' : 'text-slate-300 hover:text-white'}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="grid md:grid-cols-3 gap-6 items-stretch">
-            {[
-              { name: 'Roomia 1', props: '1 propiedad', price: 29, old: 39, desc: 'Para una casa, departamento o hotel independiente.', soporte: 'Soporte en español', featured: false },
-              { name: 'Roomia 3', props: 'Hasta 3 propiedades', price: 69, old: 89, desc: 'Para anfitriones que ya manejan varias propiedades.', soporte: 'Soporte prioritario', featured: true },
-              { name: 'Roomia 5', props: 'Hasta 5 propiedades', price: 109, old: 139, desc: 'Para redes de departamentos o gestores turísticos.', soporte: 'Asesoría personalizada', featured: false }
-            ].map(p => (
-              <div key={p.name} className={`relative rounded-3xl p-7 flex flex-col justify-between gap-6 ${p.featured ? 'bg-slate-900 border-2 border-brand-cyan shadow-2xl shadow-brand-cyan/10 md:-translate-y-2' : 'bg-slate-900/60 border border-slate-800'}`}>
+            {PLANS.map(p => (
+              <div key={p.id} className={`relative rounded-3xl p-7 flex flex-col justify-between gap-6 ${p.featured ? 'bg-slate-900 border-2 border-brand-cyan shadow-2xl shadow-brand-cyan/10 md:-translate-y-2' : 'bg-slate-900/60 border border-slate-800'}`}>
                 {p.featured && <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-brand-cyan text-slate-950 text-[11px] font-black uppercase tracking-wider px-3 py-1 rounded-full">Más elegido</span>}
                 <div className="space-y-4">
-                  <p className="text-xs font-bold uppercase tracking-wider text-slate-400">{p.props}</p>
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-400">{p.props === 1 ? '1 propiedad' : `Hasta ${p.props} propiedades`}</p>
                   <h3 className="text-2xl font-black text-white">{p.name}</h3>
                   <p className="text-sm text-slate-400">{p.desc}</p>
                   <div className="border-t border-slate-800 pt-4">
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-slate-500 line-through text-sm">${p.old}</span>
-                      <span className="text-4xl font-black text-brand-cyan">${p.price}</span>
-                      <span className="text-sm text-slate-400">/ mes</span>
+                    <div className="flex items-baseline gap-2 flex-wrap">
+                      <span className="text-slate-500 line-through text-sm">{usd(shown(p.old))}</span>
+                      <span className="text-4xl font-black text-brand-cyan">{usd(shown(p.price))}</span>
+                      <span className="text-sm text-slate-400">{per}</span>
                     </div>
+                    {annual && (
+                      <p className="text-xs text-slate-300 mt-1">
+                        Equivale a <strong className="text-white">{usd(annualPerMonth(p.price))} / mes</strong> · ahorras {usd(annualSavings(p.price))}
+                      </p>
+                    )}
                     <p className="text-xs text-emerald-400 font-semibold mt-1">Precio fundador, congelado de por vida</p>
                   </div>
+
+                  {/* Límite de unidades y valor de cada unidad adicional */}
+                  <div className="rounded-xl bg-slate-950/70 border border-slate-800 p-3 space-y-1.5 text-xs">
+                    <div className="flex justify-between gap-3"><span className="text-slate-400">Unidades incluidas</span><span className="font-bold text-white">{p.units}</span></div>
+                    <div className="flex justify-between gap-3"><span className="text-slate-400">Cada unidad adicional</span><span className="font-bold text-brand-cyan">{usd2(p.extraUnit)} / mes</span></div>
+                  </div>
+
                   <ul className="space-y-2.5 text-sm text-slate-200 pt-1">
-                    {['Habitaciones, reservas y huéspedes ilimitados', 'Sincronización con Airbnb y Booking', 'Página de reservas directas', 'Panel de métricas y reportes', 'Recepción y check-in con QR', p.soporte].map(t => (
+                    {[`Hasta ${p.units} unidades incluidas`, 'Reservas y huéspedes ilimitados', 'Sincronización con Airbnb y Booking', 'Página de reservas directas', 'Panel de métricas y reportes', 'Recepción y check-in con QR', p.soporte].map(t => (
                       <li key={t} className="flex gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />{t}</li>
                     ))}
                   </ul>
                 </div>
                 <button
-                  onClick={() => openWhatsApp(`Hola, me interesa el plan ${p.name} ($${p.price}/mes).`)}
+                  onClick={() => setSelectedPlan(p)}
                   className={`w-full py-3.5 rounded-xl text-sm font-extrabold cursor-pointer active:scale-95 transition ${p.featured ? 'bg-brand-cyan text-slate-950 hover:bg-[#3fc2f0]' : 'bg-slate-800 text-white hover:bg-slate-700 border border-slate-700'}`}
                 >
-                  Elegir {p.name}
+                  Probar {TRIAL_DAYS} días gratis
                 </button>
               </div>
             ))}
           </div>
 
+          <p className="text-center text-xs text-slate-500 max-w-3xl mx-auto">
+            Una unidad es una habitación o un departamento; una casa completa cuenta como 1 unidad. Si superas las unidades de tu plan se cobran las adicionales, y cuantas más tienes, más conviene el plan siguiente.
+          </p>
+
+          {/* Qué incluye empezar */}
+          <div className="grid sm:grid-cols-3 gap-4 max-w-5xl mx-auto">
+            {[
+              { i: Clock, t: `${TRIAL_DAYS} días de prueba gratis`, d: 'Usa Roomia con todas sus funciones antes de pagar tu primera suscripción.', c: 'text-emerald-300 bg-emerald-500/10' },
+              { i: Wrench, t: `Puesta en marcha: ${usd(SETUP_FEE)} único`, d: 'Cargamos la información de tus unidades en la plataforma y capacitamos a tu personal.', c: 'text-brand-cyan bg-brand-cyan/10' },
+              { i: ShieldCheck, t: 'Sin comisión por reservas', d: 'Pagas solo tu suscripción: no cobramos un porcentaje de lo que reservan tus huéspedes.', c: 'text-amber-300 bg-amber-500/10' }
+            ].map(({ i: Icon, t, d, c }) => (
+              <div key={t} className="flex gap-3 p-4 bg-slate-900/50 border border-slate-800 rounded-2xl">
+                <div className={`w-10 h-10 shrink-0 rounded-xl flex items-center justify-center ${c}`}><Icon className="w-5 h-5" /></div>
+                <div>
+                  <p className="text-sm font-bold text-white">{t}</p>
+                  <p className="text-xs text-slate-400 leading-relaxed mt-0.5">{d}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Complemento: facturación electrónica (próximamente) */}
+          <div className="max-w-5xl mx-auto bg-slate-900/60 border border-violet-400/30 rounded-3xl p-6 md:p-7 space-y-5">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex gap-4">
+                <div className="w-11 h-11 shrink-0 rounded-xl bg-violet-500/15 text-violet-300 flex items-center justify-center"><Receipt className="w-5 h-5" /></div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-lg font-black text-white">Facturación electrónica del SRI</h3>
+                    <span className="px-2 py-0.5 rounded-md bg-violet-500/20 text-violet-200 text-[10px] font-black uppercase tracking-wider">Próximamente</span>
+                  </div>
+                  <p className="text-sm text-slate-400 max-w-xl">Complemento opcional para emitir facturas electrónicas desde tus reservas, sin salir de Roomia. Hoy ya generas la pre-factura en PDF y en ticket para impresora.</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => openWhatsApp('Hola, quiero que me avisen cuando esté disponible la facturación electrónica del SRI en Roomia.')}
+                className="shrink-0 px-5 py-3 rounded-xl bg-violet-500/20 hover:bg-violet-500/30 border border-violet-400/40 text-violet-100 text-sm font-bold cursor-pointer active:scale-95 transition"
+              >
+                Avísame cuando esté lista
+              </button>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              {PLANS.map(p => (
+                <div key={p.id} className="rounded-xl bg-slate-950/70 border border-slate-800 p-3 text-center">
+                  <p className="text-[11px] text-slate-400 font-semibold">{p.name}</p>
+                  <p className="text-lg font-black text-violet-200">+{usd(shown(p.invoice))}<span className="text-[10px] font-semibold text-slate-400"> {per}</span></p>
+                </div>
+              ))}
+            </div>
+          </div>
+
           <p className="text-center text-sm text-slate-400">
-            Suscripción mensual fija, sin contrato de permanencia. Tarifa del 5 % solo en pagos con tarjeta en línea.
+            Sin comisión por tus reservas. El plan mensual no tiene contrato de permanencia.
           </p>
 
           {/* Programa de clientes fundadores (el original) */}
@@ -507,6 +625,43 @@ export default function LandingPageView({ onClose, onOpenLegal }: Props) {
               )}
             </AnimatePresence>
           </div>
+
+          {/* Programa de referidos */}
+          <div id="referidos" className="bg-gradient-to-br from-slate-900 via-slate-900/95 to-slate-950 border border-emerald-400/30 rounded-3xl p-6 md:p-8 max-w-5xl mx-auto shadow-2xl shadow-emerald-500/5 scroll-mt-24">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+              <div className="space-y-2 max-w-2xl">
+                <h3 className="text-xl md:text-2xl font-black text-white tracking-tight flex items-center gap-2.5">
+                  <Gift className="w-6 h-6 text-emerald-300 shrink-0" />
+                  <span>PROGRAMA DE REFERIDOS</span>
+                </h3>
+                <p className="text-xs md:text-sm text-slate-300 leading-relaxed">
+                  Recomienda Roomia a otro anfitrión. Cuando se suscribe y menciona tu nombre, <strong className="text-emerald-300">tú ganas 1 mes gratis</strong> de tu plan y <strong className="text-emerald-300">él no paga los {usd(SETUP_FEE)} de puesta en marcha</strong>.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => openWhatsApp('Hola, quiero referir a un anfitrión a Roomia. ¿Cómo funciona el programa de referidos?')}
+                className="inline-flex items-center justify-center gap-2.5 px-5 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs md:text-sm tracking-wide transition-all cursor-pointer shrink-0 active:scale-95 shadow-lg shadow-emerald-500/20"
+              >
+                <MessageCircle className="w-4 h-4" /> Quiero referir a alguien
+              </button>
+            </div>
+            <ol className="grid sm:grid-cols-3 gap-3 mt-6">
+              {[
+                ['1', 'Recomiendas', 'Le hablas de Roomia a otro anfitrión.'],
+                ['2', 'Se suscribe', 'Pide su prueba gratis y dice que va de tu parte.'],
+                ['3', 'Ambos ganan', 'Tú, 1 mes gratis; él, sin el pago de puesta en marcha.']
+              ].map(([n, t, d]) => (
+                <li key={n} className="flex gap-3 p-3.5 bg-slate-950/60 border border-slate-800 rounded-2xl">
+                  <span className="w-8 h-8 shrink-0 rounded-lg bg-emerald-500/15 text-emerald-300 font-mono font-black flex items-center justify-center">{n}</span>
+                  <div>
+                    <p className="text-sm font-bold text-white">{t}</p>
+                    <p className="text-xs text-slate-400 leading-relaxed">{d}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </div>
         </div>
       </InteractiveContainer>
 
@@ -564,12 +719,97 @@ export default function LandingPageView({ onClose, onOpenLegal }: Props) {
                 {['Airbnb', 'Booking', 'Airbnb y Booking', 'Solo reservas directas'].map(o => <option key={o}>{o}</option>)}
               </select>
             </label>
+            <label className="block space-y-1.5">
+              <span className="text-xs font-semibold text-slate-400">¿Te recomendó alguien? (opcional)</span>
+              <input className={field} placeholder="Nombre de quien te recomendó" value={referido} onChange={e => setReferido(e.target.value)} />
+            </label>
             <button type="submit" className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-sm rounded-xl flex items-center justify-center gap-2.5 cursor-pointer active:scale-95 transition">
               <MessageCircle className="w-5 h-5" /> Pedir demo por WhatsApp
             </button>
           </form>
         </div>
       </InteractiveContainer>
+
+      {/* Resumen del plan elegido: prueba gratis y puesta en marcha */}
+      <AnimatePresence>
+        {selectedPlan && (
+          <motion.div
+            className="fixed inset-0 z-[60] bg-slate-950/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-3 sm:p-6"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setSelectedPlan(null)}
+          >
+            <motion.div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="plan-dialog-title"
+              className="w-full max-w-md max-h-[92vh] overflow-y-auto bg-slate-900 border border-slate-700 rounded-3xl p-6 space-y-5 shadow-2xl"
+              initial={{ y: 24, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 24, opacity: 0 }}
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wider text-emerald-300">Prueba gratis de {TRIAL_DAYS} días</p>
+                  <h3 id="plan-dialog-title" className="text-2xl font-black text-white mt-1">{selectedPlan.name}</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {selectedPlan.props === 1 ? '1 propiedad' : `Hasta ${selectedPlan.props} propiedades`} · {selectedPlan.units} unidades incluidas
+                  </p>
+                </div>
+                <button type="button" onClick={() => setSelectedPlan(null)} aria-label="Cerrar" className="p-1.5 rounded-full text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="rounded-2xl border border-slate-800 divide-y divide-slate-800 text-sm">
+                <div className="flex justify-between gap-4 p-3.5">
+                  <span className="text-slate-300">Prueba gratis</span>
+                  <span className="font-bold text-emerald-300">{TRIAL_DAYS} días</span>
+                </div>
+                <div className="flex justify-between gap-4 p-3.5">
+                  <span className="text-slate-300">Después de la prueba</span>
+                  <span className="font-bold text-white text-right">
+                    {usd(shown(selectedPlan.price))} {per}
+                    {annual && <span className="block text-[11px] font-medium text-slate-400">equivale a {usd(annualPerMonth(selectedPlan.price))} / mes</span>}
+                  </span>
+                </div>
+                <div className="p-3.5 bg-brand-cyan/5">
+                  <div className="flex justify-between gap-4">
+                    <span className="text-slate-100 font-semibold">Puesta en marcha (pago único)</span>
+                    <span className="font-black text-brand-cyan">{usd(SETUP_FEE)}</span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1 leading-relaxed">Incluye subir y cargar la información de tus unidades a la plataforma y capacitar a tu personal.</p>
+                </div>
+                <div className="flex justify-between gap-4 p-3.5">
+                  <span className="text-slate-300">Cada unidad adicional</span>
+                  <span className="font-bold text-white">{usd2(selectedPlan.extraUnit)} / mes</span>
+                </div>
+              </div>
+
+              <label className="flex items-start gap-2.5 text-xs text-slate-300 cursor-pointer select-none">
+                <input type="checkbox" checked={wantsInvoice} onChange={e => setWantsInvoice(e.target.checked)} className="mt-0.5 w-4 h-4 accent-violet-400 cursor-pointer" />
+                <span>Avísame cuando esté la <strong className="text-white">facturación electrónica del SRI</strong> (próximamente, +{usd(shown(selectedPlan.invoice))} {per}).</span>
+              </label>
+
+              <label className="block space-y-1.5">
+                <span className="text-xs font-semibold text-slate-400">¿Te recomendó alguien? (opcional)</span>
+                <input className={field} placeholder="Nombre de quien te recomendó" value={referido} onChange={e => setReferido(e.target.value)} />
+              </label>
+
+              <button
+                type="button"
+                onClick={startTrial}
+                className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-sm rounded-xl flex items-center justify-center gap-2.5 cursor-pointer active:scale-95 transition"
+              >
+                <MessageCircle className="w-5 h-5" /> Continuar por WhatsApp
+              </button>
+              <p className="text-[11px] text-slate-500 text-center">Te escribimos para coordinar la puesta en marcha y el inicio de tu prueba.</p>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Botón para volver arriba (aparece al hacer scroll) */}
       <button
