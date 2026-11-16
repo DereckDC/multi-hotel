@@ -11,7 +11,7 @@ import { StepPanel, StepIndicator, StepActions, useFormStepper } from './FormSte
 import DashboardView from './DashboardView';
 import { RENTAL_MIN_CHOICES, formatRentalMonths, getRentalMinMonths } from '../utils/rental';
 import { fetchPropertyDetails } from '../supabase';
-import { imageFolder, importImageFromUrl, isVideoLink, uploadImageFile, onImageError } from '../utils/images';
+import { imageFolder, importImageFromUrl, isStoredInRoomia, isVideoLink, onImageError, storeImagesOf, uploadImageFile } from '../utils/images';
 import InvoicePDF from './InvoicePDF';
 import EmojiPicker from 'emoji-picker-react';
 import { ECUADOR_PROVINCES, getProvincesList, getCitiesForProvince, getParroquiasForCity } from '../data/ecuador';
@@ -477,7 +477,7 @@ export default function AdminView({
   const currentStats = getFilteredStats();
 
   // Handle Hotel Save submit form
-  const handleHotelSubmit = (e: React.FormEvent) => {
+  const handleHotelSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingHotel) return;
 
@@ -490,9 +490,22 @@ export default function AdminView({
       }
     }
 
-    onSaveHotel(editingHotel);
+    onSaveHotel(await withStoredImages(editingHotel, imageFolder('hotels', editingHotel.id)));
     setShowHotelModal(false);
     setEditingHotel(null);
+  };
+
+  /**
+   * Antes de guardar: pasa a Roomia las fotos que aún sean enlaces externos o base64
+   * (por ejemplo, las que traen por defecto los formularios nuevos).
+   */
+  const withStoredImages = async <T extends { imagenes?: string[]; logo?: string; portada?: string }>(item: T, folder: string): Promise<T> => {
+    const pending = [...(item.imagenes || []), item.logo, item.portada].some(u => !!u && !isStoredInRoomia(u) && !isVideoLink(u));
+    if (!pending) return item;
+    notifyToast('⏳ Guardando las fotos en Roomia…');
+    const { item: stored, failed } = await storeImagesOf(item, folder);
+    if (failed > 0) notifyToast(`⚠️ ${failed} foto(s) no se pudieron copiar a Roomia y quedan como enlace externo.`);
+    return stored;
   };
 
   // --- FOTOS: todas se guardan en el almacenamiento de Roomia (src/utils/images.ts) ---
@@ -563,7 +576,7 @@ export default function AdminView({
   };
 
   // Handle Room Save submit form
-  const handleRoomSubmit = (e: React.FormEvent) => {
+  const handleRoomSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingRoom) return;
 
@@ -583,7 +596,7 @@ export default function AdminView({
       onUpdateRoomStatus(roomToSave.id, roomToSave.estado, activeUser.nombre, activeUser.rol, roomStatusChangeReason);
     }
 
-    onSaveRoom(roomToSave);
+    onSaveRoom(await withStoredImages(roomToSave, imageFolder('rooms', roomToSave.id)));
     setShowRoomModal(false);
     setEditingRoom(null);
   };
@@ -654,7 +667,7 @@ export default function AdminView({
     setShowPropertyModal(true);
   };
 
-  const handlePropertySubmit = (e: React.FormEvent) => {
+  const handlePropertySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProperty) return;
 
@@ -696,7 +709,8 @@ export default function AdminView({
       }
     }
 
-    onSaveHotel(editingProperty);
+    const toSave = await withStoredImages(editingProperty, imageFolder('hotels', editingProperty.id));
+    onSaveHotel(toSave);
     setShowPropertyModal(false);
     setEditingProperty(null);
   };
@@ -2937,7 +2951,7 @@ export default function AdminView({
                                   <span className="text-[7px] uppercase font-bold tracking-tight text-white/80">Video {idx + 1}</span>
                                 </div>
                               ) : (
-                                <img src={imgUrl} alt={`Hotel Foto ${idx + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                <img src={imgUrl} alt={`Hotel Foto ${idx + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" onError={onImageError} />
                               )}
                               <div className="absolute top-1 left-1 bg-neutral-900/85 text-white font-mono text-[8px] px-1 rounded">
                                 {idx + 1}
@@ -3073,7 +3087,7 @@ export default function AdminView({
                                   }`}
                                   title="Establecer como Logo de Marca y Portada"
                                 >
-                                  <img src={img} alt={`Opción ${idx + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                  <img src={img} alt={`Opción ${idx + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" onError={onImageError} />
                                   {isLogo && (
                                     <div className="absolute inset-0 bg-teal-600/15 flex items-center justify-center">
                                       <span className="text-[8px] bg-teal-600 text-white font-bold p-0.5 px-1 rounded-md shadow-sm">LOGO</span>
@@ -4076,7 +4090,7 @@ export default function AdminView({
                                 <span className="text-[7px] uppercase font-bold tracking-tight text-white/80">Video {idx + 1}</span>
                               </div>
                             ) : (
-                              <img src={imgUrl} alt={`Inmueble Foto ${idx + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                              <img src={imgUrl} alt={`Inmueble Foto ${idx + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" onError={onImageError} />
                             )}
                             <div className="absolute top-1 left-1 bg-neutral-900/85 text-white font-mono text-[8px] px-1 rounded">
                               {idx + 1}
@@ -4950,7 +4964,7 @@ export default function AdminView({
                                   <span className="text-[7px] uppercase font-bold tracking-tight text-white/80">Video {idx + 1}</span>
                                 </div>
                               ) : (
-                                <img src={imgUrl} alt={`Foto ${idx + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                <img src={imgUrl} alt={`Foto ${idx + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" onError={onImageError} />
                               )}
                               <div className="absolute top-1 left-1 bg-neutral-900/85 text-white font-mono text-[8px] px-1 rounded">
                                 {idx + 1}

@@ -20,3 +20,8 @@ create table if not exists public.image_migration_backup (
   guardado_en timestamptz not null default now(), primary key (tabla, registro_id));
 alter table public.image_migration_backup enable row level security;
 revoke all on public.image_migration_backup from anon, authenticated;
+
+-- Para borrar o reemplazar archivos, Storage exige que el personal tambien pueda "verlos" por la API
+drop policy if exists establecimientos_lectura_personal on storage.objects;
+create policy establecimientos_lectura_personal on storage.objects for select to authenticated
+  using (bucket_id = 'establecimientos' and public.get_my_role() = any (array['super_admin'::text, 'hotel_admin'::text, 'recepcionista'::text]));

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { onImageError } from '../utils/images';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronLeft, ChevronRight, Maximize2, X } from 'lucide-react';
@@ -316,7 +317,7 @@ export function RoomImageGallery({ imagenes, roomNombre, className, disableLight
                           <span className="text-sm">🎥</span>
                         </div>
                       ) : (
-                        <img src={img} alt={`Thumb ${idx + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                        <img src={img} alt={`Thumb ${idx + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" onError={onImageError} />
                       )}
                     </button>
                   );

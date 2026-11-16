@@ -39,6 +39,7 @@ import {
 } from './supabase';
 
 import { getPublicOrigin, isNativeApp, PRODUCTION_ORIGIN } from './utils/platform';
+import { removeStoredImages, storedImagesOf, unusedImages } from './utils/images';
 
 // Safe standard local storage storage key constants
 const STORAGE_PREFIX = 'aura_hotel_pms_';
@@ -840,7 +841,22 @@ export function useHotelStore() {
   };
 
   // --- CRUD HOTELS ---
+  /**
+   * Borra del almacenamiento fotos que ya no usa el registro editado o borrado, siempre que
+   * ningún otro hotel, propiedad o habitación las siga usando.
+   */
+  const cleanupUnusedImages = (urls: string[], exceptId?: string) => {
+    if (urls.length === 0) return;
+    const inUse = new Set([
+      ...hotels.filter(h => h.id !== exceptId).flatMap(h => storedImagesOf(h)),
+      ...rooms.filter(r => r.id !== exceptId).flatMap(r => storedImagesOf(r))
+    ]);
+    const toRemove = urls.filter(u => !inUse.has(u));
+    if (toRemove.length) removeStoredImages(toRemove);
+  };
+
   const saveHotel = async (hotel: Hotel) => {
+    const previousHotel = hotels.find(h => h.id === hotel.id);
     // En el catálogo solo queda lo público del propietario; correo y cédula, en hotelOwners
     const publicHotel: Hotel = { ...hotel, propietario: publicOwner(hotel.propietario) };
     setHotels(prev => {
@@ -883,6 +899,8 @@ export function useHotelStore() {
           }));
         }
       } else {
+        // Fotos que la versión anterior usaba y esta ya no: se borran del almacenamiento
+        cleanupUnusedImages(unusedImages(previousHotel, hotel), hotel.id);
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('aura-toast', {
             detail: { message: `✅ "${hotel.nombre}" guardado y registrado en la base de datos Supabase.` }
@@ -920,7 +938,11 @@ export function useHotelStore() {
 
     // Supabase delete hotel
     try {
-      await deleteRowFromSupabase('hotels', hotelId);
+      const del = await deleteRowFromSupabase('hotels', hotelId);
+      // Fotos del hotel y de sus habitaciones (se borran con él en la base de datos)
+      if (del.success) {
+        cleanupUnusedImages([...storedImagesOf(targetHotel), ...roomsToDelete.flatMap(r => storedImagesOf(r))], hotelId);
+      }
     } catch (err) {
       console.warn("Supabase deleteHotel error:", err);
     }
@@ -954,6 +976,7 @@ export function useHotelStore() {
 
   // --- CRUD ROOMS ---
   const saveRoom = async (room: Room) => {
+    const previousRoom = rooms.find(r => r.id === room.id);
     let validatedRoom = { ...room };
     if (!validatedRoom.hotelId && hotels.length > 0) {
       validatedRoom.hotelId = hotels[0].id;
@@ -979,6 +1002,7 @@ export function useHotelStore() {
         }
       } else {
         console.log("✅ Habitación guardada exitosamente en Supabase:", validatedRoom.id);
+        cleanupUnusedImages(unusedImages(previousRoom, validatedRoom), validatedRoom.id);
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('aura-toast', {
             detail: { message: `✅ Habitación N° ${validatedRoom.numero} (${validatedRoom.nombre}) guardada y sincronizada correctamente.` }
@@ -1008,7 +1032,8 @@ export function useHotelStore() {
     setRooms(prev => prev.filter(r => r.id !== roomId));
 
     try {
-      await deleteRowFromSupabase('rooms', roomId);
+      const del = await deleteRowFromSupabase('rooms', roomId);
+      if (del.success) cleanupUnusedImages(storedImagesOf(targetRoom), roomId);
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('aura-toast', {
           detail: { message: `🗑️ Habitación N° ${targetRoom?.numero || roomId} eliminada correctamente.` }

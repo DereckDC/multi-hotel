@@ -84,6 +84,78 @@ export async function importImageFromUrl(url: string, folder: string): Promise<s
   throw new Error(message || 'No se pudo copiar la imagen de ese sitio. Descárgala y súbela desde tu dispositivo.');
 }
 
+/** ¿La dirección ya es del almacenamiento de Roomia? */
+export function isStoredInRoomia(url: string): boolean {
+  const prefix = supabase.storage.from(BUCKET).getPublicUrl('').data.publicUrl.replace(/\/?$/, '/');
+  return typeof url === 'string' && url.startsWith(prefix);
+}
+
+/**
+ * Deja una dirección guardada en Roomia: copia los enlaces externos y sube las imágenes en base64.
+ * Los videos y las que ya son de Roomia se devuelven tal cual.
+ */
+export async function ensureStoredImage(url: string, folder: string): Promise<string> {
+  if (!url || typeof url !== 'string' || isStoredInRoomia(url) || isVideoLink(url)) return url;
+  if (url.startsWith('data:image')) {
+    const blob = await (await fetch(url)).blob();
+    return uploadImageFile(new File([blob], 'foto', { type: blob.type || 'image/jpeg' }), folder);
+  }
+  if (/^https?:\/\//i.test(url)) return importImageFromUrl(url.replace(/^http:\/\//i, 'https://'), folder);
+  return url;
+}
+
+/**
+ * Antes de guardar un hotel, propiedad o habitación: pasa a Roomia todas sus fotos (imagenes, portada
+ * y logo) que todavía sean enlaces externos o base64, como las que traen los formularios por defecto.
+ * Si alguna no se puede copiar, se deja la original y se cuenta en `failed`.
+ */
+export async function storeImagesOf<T extends { imagenes?: string[]; logo?: string; portada?: string }>(
+  item: T,
+  folder: string
+): Promise<{ item: T; failed: number }> {
+  const cache = new Map<string, Promise<string>>();
+  let failed = 0;
+  const store = (url?: string): Promise<string | undefined> => {
+    if (!url) return Promise.resolve(url);
+    if (!cache.has(url)) {
+      cache.set(url, ensureStoredImage(url, folder).catch(() => { failed++; return url; }));
+    }
+    return cache.get(url)!;
+  };
+  const imagenes = item.imagenes ? (await Promise.all(item.imagenes.map(store))) as string[] : item.imagenes;
+  const [logo, portada] = await Promise.all([store(item.logo), store(item.portada)]);
+  return {
+    item: {
+      ...item,
+      ...(item.imagenes ? { imagenes } : {}),
+      ...('logo' in item ? { logo } : {}),
+      ...('portada' in item ? { portada } : {})
+    },
+    failed
+  };
+}
+
+type WithImages = { imagenes?: string[]; logo?: string; portada?: string } | null | undefined;
+
+/** Fotos de un hotel, propiedad o habitación que están en el almacenamiento de Roomia */
+export const storedImagesOf = (item: WithImages): string[] =>
+  item ? [...new Set([...(item.imagenes || []), item.logo, item.portada].filter((u): u is string => !!u && isStoredInRoomia(u)))] : [];
+
+/** Fotos de Roomia que tenía la versión anterior y la nueva ya no usa */
+export const unusedImages = (before: WithImages, after: WithImages): string[] => {
+  const keep = new Set(storedImagesOf(after));
+  return storedImagesOf(before).filter(u => !keep.has(u));
+};
+
+/** Borra del almacenamiento de Roomia las fotos que ya no usa nadie (un fallo solo se registra) */
+export async function removeStoredImages(urls: string[]): Promise<void> {
+  const prefix = supabase.storage.from(BUCKET).getPublicUrl('').data.publicUrl.replace(/\/?$/, '/');
+  const paths = [...new Set(urls.filter(isStoredInRoomia).map(u => decodeURIComponent(u.slice(prefix.length).split('?')[0])))];
+  if (paths.length === 0) return;
+  const { error } = await supabase.storage.from(BUCKET).remove(paths);
+  if (error) console.warn('No se pudieron borrar fotos sin usar:', error.message);
+}
+
 /** Recuadro neutro para cuando una foto no carga */
 export const IMAGE_PLACEHOLDER =
   "data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 160 120'%3E%3Crect width='160' height='120' fill='%23f1f5f9'/%3E%3Cpath d='M58 78l14-16 10 11 8-9 14 14z' fill='%23cbd5e1'/%3E%3Ccircle cx='66' cy='50' r='7' fill='%23cbd5e1'/%3E%3C/svg%3E";
