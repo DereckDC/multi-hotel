@@ -13,6 +13,7 @@ import {
 import {
   PLANS, TRIAL_DAYS, SETUP_FEE, ANNUAL_FREE_MONTHS, annualPrice, annualPerMonth, annualSavings, usd, usd2, type Plan
 } from '../utils/plans';
+import { LANDING_FAQ } from '../content/landingFaq';
 import { BrandLogo } from './BrandLogo';
 import { InteractiveContainer } from './InteractiveContainer';
 import { GlobalTrailCursor } from './GlobalTrailCursor';
@@ -33,18 +34,10 @@ const NAV = [
   { id: 'preguntas', label: 'Preguntas' }
 ];
 
-const FAQ = [
-  { q: '¿Cómo se conecta con Airbnb y Booking?', a: 'Pegas el enlace de calendario (iCal) que te da cada plataforma, por cada propiedad. Roomia lo lee de forma periódica y bloquea esas fechas en tu calendario y en tu página de reservas directas. No necesitas dar tu contraseña de Airbnb ni de Booking.' },
-  { q: '¿Se pueden dar dobles reservas?', a: 'Roomia bloquea las fechas ocupadas en otras plataformas y avisa si detecta un cruce. Como iCal se actualiza cada cierto tiempo y no es instantáneo, recomendamos mantener también tus calendarios de Airbnb/Booking importando el de Roomia.' },
-  { q: '¿Qué es una "propiedad" y qué es una "unidad"?', a: 'Una propiedad es un establecimiento: un hotel, una casa o un edificio de departamentos. Una unidad es cada habitación o departamento que alquilas dentro de ella; una casa completa cuenta como 1 unidad. Cada plan incluye un número de propiedades y de unidades.' },
-  { q: '¿Cómo cobro las reservas directas?', a: 'Puedes registrar pagos en efectivo o transferencia desde el panel, y cobrar con tarjeta en línea. Roomia no cobra comisión por tus reservas: pagas solo la suscripción, que es fija. Si usas una pasarela de pago con tarjeta, esa pasarela puede aplicar su propia tarifa.' },
-  { q: '¿Necesito instalar algo o capacitar a mi equipo?', a: 'No. Funciona desde el navegador, en computadora o celular. Tu personal de recepción tiene su propia vista, simple, para check-in y registro de huéspedes.' },
-  { q: '¿Cómo funciona la prueba gratis de 15 días?', a: `Usas Roomia con todas sus funciones durante ${TRIAL_DAYS} días, antes de pagar tu primera suscripción. Para empezar, la puesta en marcha tiene un pago único de ${usd(SETUP_FEE)}: cargamos la información de tus unidades en la plataforma y capacitamos a tu personal.` },
-  { q: '¿Qué pasa si tengo más unidades de las que incluye mi plan?', a: `Cada unidad adicional se cobra aparte, por mes: ${usd2(PLANS[0].extraUnit)} en ${PLANS[0].name}, ${usd2(PLANS[1].extraUnit)} en ${PLANS[1].name} y ${usd2(PLANS[2].extraUnit)} en ${PLANS[2].name}. Cuantas más unidades tienes, más conviene pasar al plan siguiente.` },
-  { q: '¿Puedo cancelar cuando quiera?', a: `Sí. El plan mensual no tiene contrato de permanencia y el precio fundador se mantiene mientras tu suscripción siga activa. El plan anual se paga por adelantado y te ahorra ${ANNUAL_FREE_MONTHS} meses.` },
-  { q: '¿Emiten facturas electrónicas del SRI?', a: 'Todavía no. Hoy Roomia genera una pre-factura informativa en PDF y en ticket para impresora. La emisión de facturas electrónicas del SRI será un complemento opcional que estamos preparando; escríbenos y te avisamos cuando esté lista.' },
-  { q: '¿Cómo funciona el programa de referidos?', a: 'Recomiendas Roomia a otro anfitrión. Cuando se suscribe y menciona tu nombre, tú ganas 1 mes gratis de tu plan y él no paga los $30 de puesta en marcha.' }
-];
+const FAQ = LANDING_FAQ;
+
+const DEMO_MESSAGE = 'Hola, quiero solicitar una demo por WhatsApp de Roomia PMS.';
+const waHref = (message: string) => `https://wa.me/${WHATSAPP}?text=${encodeURIComponent(message)}`;
 
 // Calendario de ejemplo del hero (días 1..30)
 const DAY_STATE: Record<number, 'airbnb' | 'booking' | 'direct'> = {};
@@ -173,20 +166,25 @@ export default function LandingPageView({ onClose, onOpenLegal }: Props) {
               Evita las dobles reservas, recibe huéspedes directamente sin pagar comisión por cada uno y mira cuánto gana realmente tu alojamiento, todo desde un panel hecho para anfitriones.
             </p>
             <div className="flex flex-wrap gap-3 pt-2">
-              <button
-                onClick={() => openWhatsApp('Hola, quiero solicitar una demo por WhatsApp de Roomia PMS.')}
+              {/* Enlaces reales (href) para que los buscadores puedan seguirlos */}
+              <a
+                href={waHref(DEMO_MESSAGE)}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => { e.preventDefault(); openWhatsApp(DEMO_MESSAGE); }}
                 className="px-6 py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs md:text-sm rounded-xl shadow-xl shadow-emerald-500/20 hover:shadow-emerald-500/30 transition-all hover:scale-[1.03] active:scale-95 cursor-pointer flex items-center gap-2.5"
               >
                 <MessageCircle className="w-4 h-4 fill-slate-950" />
                 <span>Solicitar demo por WhatsApp</span>
-              </button>
-              <button
-                onClick={() => goTo('precios')}
+              </a>
+              <a
+                href="#precios"
+                onClick={(e) => { e.preventDefault(); goTo('precios'); }}
                 className="px-5 py-3.5 bg-[#0E2A47] hover:bg-[#133A62] text-white font-bold text-xs md:text-sm rounded-xl border border-brand-cyan/20 transition-all active:scale-95 cursor-pointer flex items-center gap-2"
               >
                 <span>Ver planes y precios</span>
                 <ArrowRight className="w-4 h-4 text-brand-cyan" />
-              </button>
+              </a>
             </div>
             <ul className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-slate-400">
               {['Demo de 15 minutos', 'Sin tarjeta ni contrato', 'Configuración con ayuda en español'].map(t => (
@@ -397,13 +395,16 @@ export default function LandingPageView({ onClose, onOpenLegal }: Props) {
                 En una demo de 15 minutos conectamos tu calendario de Airbnb o Booking y te mostramos el panel con tus habitaciones y tarifas reales. Sin tarjeta y sin compromiso.
               </p>
             </div>
-            <button
-              onClick={() => openWhatsApp('Hola, quiero solicitar una demo por WhatsApp de Roomia PMS.')}
+            <a
+              href={waHref(DEMO_MESSAGE)}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => { e.preventDefault(); openWhatsApp(DEMO_MESSAGE); }}
               className="w-full py-3.5 px-6 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs md:text-sm rounded-xl shadow-xl shadow-emerald-500/20 hover:shadow-emerald-500/30 transition-all hover:scale-[1.02] active:scale-95 cursor-pointer flex items-center justify-center gap-2.5"
             >
               <MessageCircle className="w-5 h-5 fill-slate-950" />
               <span>Solicitar demo por WhatsApp</span>
-            </button>
+            </a>
           </div>
         </div>
       </InteractiveContainer>

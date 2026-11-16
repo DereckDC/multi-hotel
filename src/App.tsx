@@ -11,6 +11,8 @@ import LoginView from './components/LoginView';
 import LandingPageView from './components/LandingPageView';
 import { StepPanel, StepIndicator, StepActions, useFormStepper } from './components/FormStepper';
 import type { LegalDocType } from './components/LegalPageView';
+import { PAGES, hotelMeta } from '../api/seo';
+import { setPageMeta } from './utils/pageMeta';
 
 const ReceptionView = lazy(() => import('./components/ReceptionView'));
 const SupportChatDrawer = lazy(() => import('./components/SupportChatDrawer'));
@@ -304,6 +306,27 @@ export default function App() {
       }
     }
   }, [showLandingPage]);
+
+  // Título, descripción y URL canónica según la página (Google ejecuta JavaScript al indexar)
+  useEffect(() => {
+    if (activeLegalDoc) {
+      setPageMeta(PAGES[activeLegalDoc]);
+      return;
+    }
+    if (showLandingPage) {
+      setPageMeta(PAGES.landing);
+      return;
+    }
+    const hotel = openHotelId ? hotels.find(h => h.id === openHotelId) : undefined;
+    if (hotel) {
+      setPageMeta(hotelMeta(
+        { ...hotel, tipo: hotel.tipoEstablecimiento, finalidad: hotel.finalidad, precio: hotel.detallesInmueble?.precio },
+        rooms.filter(r => r.hotelId === hotel.id)
+      ));
+      return;
+    }
+    setPageMeta(PAGES.home);
+  }, [activeLegalDoc, showLandingPage, openHotelId, hotels, rooms]);
 
   // Handle page load and popstate routing for legal documents, landing page, and hotels
   useEffect(() => {

@@ -986,9 +986,12 @@ export default function ClientView({
           <div className="absolute bottom-0 left-0 w-36 h-36 bg-teal-500/10 rounded-full blur-2xl transform -translate-x-12 translate-y-12" />
           
           <div className="relative">
-            <h2 className="text-2xl md:text-3xl font-display font-semibold tracking-tight leading-tight">
-              Descubre estadías extraordinarias
-            </h2>
+            {/* Título principal del catálogo; en la ficha de un hotel el h1 es el nombre del hotel */}
+            {React.createElement(
+              activeHotel ? 'p' : 'h1',
+              { className: 'text-2xl md:text-3xl font-display font-semibold tracking-tight leading-tight' },
+              'Descubre estadías extraordinarias'
+            )}
             <p className="text-teal-100/90 text-xs md:text-sm mt-1.5 leading-relaxed max-w-2xl">
               Disfrute de una suite de lujo seleccionada a mano, gestione sus reservas vigentes y obtenga sus pre-facturas electrónicas al instante.
             </p>
@@ -2034,7 +2037,8 @@ export default function ClientView({
                   <HotelImageGallery 
                     imagenes={activeHotel?.imagenes || []} 
                     portada={activeHotel?.portada || ''} 
-                    hotelNombre={activeHotel?.nombre || ''} 
+                    hotelNombre={activeHotel?.nombre || ''}
+                    isPageTitle
                   />
 
                   {/* Aesthetic location and map badge */}
@@ -2330,7 +2334,7 @@ export default function ClientView({
                             {activeHotel.tipoEstablecimiento === 'casa' ? '🏡 Casa Completa' : '🏢 Departamento'}
                           </span>
                         </div>
-                        <h5 className="font-bold text-neutral-800 text-lg leading-tight">{activeHotel.nombre}</h5>
+                        <h2 className="font-bold text-neutral-800 text-lg leading-tight">{activeHotel.nombre}</h2>
                         <p className="text-xs text-neutral-500 leading-relaxed max-w-xl">{activeHotel.descripcion}</p>
                       </div>
 

@@ -3,7 +3,32 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import fs from 'fs';
 import https from 'https';
-import {defineConfig} from 'vite';
+import {defineConfig, type Plugin} from 'vite';
+import { renderStaticPages } from './src/seo/landingStatic.ts';
+import { PAGES, HOME_JSON_LD, buildHead, injectPage } from './api/seo.ts';
+
+/**
+ * SEO: al terminar el build escribe el HTML estático de la landing y de las páginas legales
+ * (dist/landingpage.html, …) y deja en dist/index.html las etiquetas de la portada.
+ * Ver api/seo.ts y src/seo/landingStatic.ts.
+ */
+function seoPrerender(): Plugin {
+  return {
+    name: 'roomia-seo-prerender',
+    apply: 'build',
+    closeBundle() {
+      const dist = path.resolve(__dirname, 'dist');
+      const indexPath = path.join(dist, 'index.html');
+      if (!fs.existsSync(indexPath)) return;
+      const indexHtml = fs.readFileSync(indexPath, 'utf8');
+      const home = injectPage(indexHtml, { head: buildHead({ ...PAGES.home, jsonLd: HOME_JSON_LD }) });
+      fs.writeFileSync(indexPath, home);
+      for (const page of renderStaticPages(home)) {
+        fs.writeFileSync(path.join(dist, page.file), page.html);
+      }
+    }
+  };
+}
 
 // Automatically download official brand logo on startup to avoid expired Instagram URLs
 try {
@@ -40,7 +65,7 @@ try {
 
 export default defineConfig(() => {
   return {
-    plugins: [react(), tailwindcss()],
+    plugins: [react(), tailwindcss(), seoPrerender()],
     define: {
       'process.env.GOOGLE_MAPS_PLATFORM_KEY': JSON.stringify(process.env.GOOGLE_MAPS_PLATFORM_KEY || ''),
       'process.env.VITE_SUPABASE_URL': JSON.stringify(process.env.VITE_SUPABASE_URL || ''),

@@ -9,9 +9,12 @@ interface HotelImageGalleryProps {
   portada: string;
   hotelNombre: string;
   badgeTitle?: string;
+  /** Si es el título principal de la página (ficha del hotel), se usa <h1> para los buscadores */
+  isPageTitle?: boolean;
 }
 
-export function HotelImageGallery({ imagenes, portada, hotelNombre, badgeTitle }: HotelImageGalleryProps) {
+export function HotelImageGallery({ imagenes, portada, hotelNombre, badgeTitle, isPageTitle = false }: HotelImageGalleryProps) {
+  const TitleTag = isPageTitle ? 'h1' : 'h3';
   const [activeIndex, setActiveIndex] = useState(0);
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const [direction, setDirection] = useState(0); // -1 for left, 1 for right
@@ -108,9 +111,9 @@ export function HotelImageGallery({ imagenes, portada, hotelNombre, badgeTitle }
               <ImageIcon className="w-3 h-3" />
               <span>{badgeTitle || 'Galería Roomia'}</span>
             </div>
-            <h3 className="text-xl md:text-3xl font-display font-semibold tracking-tight leading-tight text-white drop-shadow-sm">
+            <TitleTag className="text-xl md:text-3xl font-display font-semibold tracking-tight leading-tight text-white drop-shadow-sm">
               {hotelNombre}
-            </h3>
+            </TitleTag>
             <p className="text-xs text-neutral-350 font-medium drop-shadow-sm">
               Visualizando perspectiva {activeIndex + 1} de {allImages.length}
             </p>

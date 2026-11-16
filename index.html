@@ -3,23 +3,26 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Roomia PMS – Plataforma de Gestión Hotelera & Reservas</title>
-    <meta name="description" content="Roomia PMS es la plataforma integral de gestión hotelera y reservas para hoteles boutique y propiedades exclusivas. Gestione check-ins con QR, reservas y catálogos en tiempo real." />
     <meta name="theme-color" content="#071726" />
 
-    <!-- OpenGraph / Social Metadata -->
+    <!-- Etiquetas SEO de la página. El build (vite.config.ts) y api/seo.ts reemplazan todo lo que
+         hay entre estos marcadores según la ruta; los textos salen de PAGES en api/seo.ts. -->
+    <!--seo:start-->
+    <title>Roomia PMS – Hoteles, casas y departamentos con reserva directa</title>
+    <meta name="description" content="Reserva directo con hoteles, casas y departamentos en Ecuador, sin comisiones de intermediarios. Roomia PMS es la plataforma de gestión y reservas para anfitriones." />
+    <link rel="canonical" href="https://www.roomiapms.site/" />
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="Roomia PMS – Plataforma de Gestión Hotelera & Reservas" />
-    <meta property="og:description" content="Roomia PMS es la plataforma integral de gestión hotelera y reservas para hoteles boutique y propiedades exclusivas. Gestione check-ins con QR, reservas y catálogos en tiempo real." />
-    <meta property="og:image" content="https://www.roomiapms.site/RoomiaPMSLogoSinFondo.png" />
-    <meta property="og:url" content="https://www.roomiapms.site/" />
     <meta property="og:site_name" content="Roomia PMS" />
-
-    <!-- Twitter Cards -->
+    <meta property="og:locale" content="es_EC" />
+    <meta property="og:url" content="https://www.roomiapms.site/" />
+    <meta property="og:title" content="Roomia PMS – Hoteles, casas y departamentos con reserva directa" />
+    <meta property="og:description" content="Reserva directo con hoteles, casas y departamentos en Ecuador, sin comisiones de intermediarios. Roomia PMS es la plataforma de gestión y reservas para anfitriones." />
+    <meta property="og:image" content="https://www.roomiapms.site/og-roomia.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Roomia PMS – Plataforma de Gestión Hotelera & Reservas" />
-    <meta name="twitter:description" content="Roomia PMS es la plataforma integral de gestión hotelera y reservas para hoteles boutique y propiedades exclusivas." />
-    <meta name="twitter:image" content="https://www.roomiapms.site/RoomiaPMSLogoSinFondo.png" />
+    <meta name="twitter:image" content="https://www.roomiapms.site/og-roomia.png" />
+    <!--seo:end-->
 
     <!-- High Performance Favicon & Icons -->
     <link rel="icon" type="image/webp" href="/favicon-32x32.webp" />
@@ -61,23 +64,6 @@
     <!-- Deferred dynamic environment configuration to eliminate render blocking (saves ~680ms) -->
     <script src="/supabase-env.js" defer></script>
 
-    <!-- Schema.org Structured Data (JSON-LD) for Lodging & Web Application -->
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "WebApplication",
-      "name": "Roomia PMS",
-      "url": "https://www.roomiapms.site",
-      "applicationCategory": "BusinessApplication",
-      "operatingSystem": "All",
-      "description": "Sistema de gestión de propiedades y motor de reservas para hoteles boutique y propiedades exclusivas.",
-      "offers": {
-        "@type": "Offer",
-        "price": "0",
-        "priceCurrency": "USD"
-      }
-    }
-    </script>
   </head>
   <body>
     <div id="root"></div>
