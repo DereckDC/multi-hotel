@@ -1,6 +1,7 @@
 import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
+import PaymentPage from './components/PaymentPage';
 import './index.css';
 import { initDeepLinks } from './utils/deepLinks';
 
@@ -60,9 +61,12 @@ if (typeof window !== 'undefined') {
   }, true);
 }
 
+// /pago/... es una página aparte (Cajita de Payphone): no carga la app completa ni pide sesión
+const isPaymentRoute = typeof window !== 'undefined' && /^\/pago\/[^/]+\/?$/.test(window.location.pathname);
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    {isPaymentRoute ? <PaymentPage /> : <App />}
   </StrictMode>,
 );
 

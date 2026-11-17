@@ -71,19 +71,21 @@ async function startServer() {
     }
 
     // Content-Security-Policy (CSP) in enforcing mode
+    // Cajita de Pagos de Payphone (página /pago/...): script, estilos, imágenes y marcos de sus dominios
+    const payphone = "https://*.payphonetodoesposible.com https://*.payphone.app";
     const cspDirectives = [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com https://cdn.jsdelivr.net",
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-      "img-src 'self' data: blob: https://*.supabase.co https://images.unsplash.com https://maps.googleapis.com https://maps.gstatic.com https://lh3.googleusercontent.com https://www.roomiapms.site",
-      "font-src 'self' https://fonts.gstatic.com data:",
+      `script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com https://cdn.jsdelivr.net ${payphone}`,
+      `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com ${payphone}`,
+      `img-src 'self' data: blob: https://*.supabase.co https://images.unsplash.com https://maps.googleapis.com https://maps.gstatic.com https://lh3.googleusercontent.com https://www.roomiapms.site ${payphone}`,
+      `font-src 'self' https://fonts.gstatic.com data: ${payphone}`,
       "connect-src 'self' https: wss: ws: http:",
-      "frame-src 'self' https://maps.google.com https://www.google.com https://*.google.com https://ppls.me https://*.payphone.app",
+      `frame-src 'self' https://maps.google.com https://www.google.com https://*.google.com https://ppls.me ${payphone}`,
       "child-src 'self' https://maps.google.com https://www.google.com",
       "media-src 'self' data: blob: https:",
       "object-src 'none'",
       "base-uri 'self'",
-      "form-action 'self'",
+      `form-action 'self' ${payphone}`,
       `frame-ancestors ${frameAncestors}`,
       isCustomProdDomain ? "require-trusted-types-for 'script'" : "",
       isCustomProdDomain ? "trusted-types default dompurify 'allow-duplicates'" : ""

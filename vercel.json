@@ -1,4 +1,7 @@
 {
+  "headers": [
+    { "source": "/pago/(.*)", "headers": [{ "key": "Referrer-Policy", "value": "origin-when-cross-origin" }] }
+  ],
   "rewrites": [
     { "source": "/landingpage", "destination": "/landingpage.html" },
     { "source": "/terminos-y-condiciones", "destination": "/terminos-y-condiciones.html" },

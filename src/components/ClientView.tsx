@@ -18,6 +18,41 @@ import { CompactBookingCalendar } from './CompactBookingCalendar';
 import { Pager, totalPagesOf } from './Pager';
 import { onImageError } from '../utils/images';
 import { addMonths, formatRentalMonths, getRentalMinMonths, rentalDurationOptions } from '../utils/rental';
+import { supabase } from '../supabase';
+import { isNativeApp } from '../utils/platform';
+
+type OnlinePaymentKind = 'reserva_abono' | 'reserva_total' | 'reserva_saldo';
+
+/** Reserva en curso de un invitado, guardada mientras inicia sesión */
+const BOOKING_DRAFT_KEY = 'roomia_reserva_en_curso';
+const BOOKING_DRAFT_MAX_AGE_MS = 30 * 60 * 1000;
+type BookingDraft = {
+  roomId: string;
+  checkIn: string;
+  checkOut: string;
+  rentalMonths?: number;
+  services?: string[];
+  counts?: Record<string, number>;
+  note?: string;
+  savedAt: number;
+};
+
+/** Cobros en línea que admite la reserva (la función `payphone` vuelve a comprobarlo en el servidor) */
+const onlinePaymentOptions = (res: Reservation): { kind: OnlinePaymentKind; label: string; amount: number }[] => {
+  const pagado = res.montoPagado ?? 0;
+  if (res.total <= 0) return [];
+  if (res.estado === 'pendiente' && pagado <= 0) {
+    return [
+      { kind: 'reserva_abono', label: 'Pagar abono 20%', amount: Math.round(res.total * 20) / 100 },
+      { kind: 'reserva_total', label: 'Pagar total', amount: res.total }
+    ];
+  }
+  const saldo = res.montoPendiente ?? Math.max(0, res.total - pagado);
+  if (['pendiente', 'confirmada', 'ocupada'].includes(res.estado) && pagado > 0 && saldo > 0) {
+    return [{ kind: 'reserva_saldo', label: 'Pagar saldo', amount: saldo }];
+  }
+  return [];
+};
 
 export function getMapEmbedUrl(ubicacion: string, googleMapsUrl?: string): string {
   const cleanUrl = googleMapsUrl ? googleMapsUrl.trim() : '';
@@ -194,14 +229,6 @@ export default function ClientView({
   // Payment states
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedResForPayment, setSelectedResForPayment] = useState<Reservation | null>(null);
-  const [paymentLoading, setPaymentLoading] = useState(false);
-  const [paymentSuccess, setPaymentSuccess] = useState(false);
-  const [paymentError, setPaymentError] = useState<string | null>(null);
-  const [paymentCardName, setPaymentCardName] = useState('');
-  const [paymentCardNo, setPaymentCardNo] = useState('');
-  const [paymentCardExpiry, setPaymentCardExpiry] = useState('');
-  const [paymentCardCVV, setPaymentCardCVV] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<'card' | 'pse' | 'bank_transfer'>('card');
 
   // Selected Hotel details
   const [selectedHotelId, setSelectedHotelId] = useState<string | null>(null);
@@ -275,33 +302,66 @@ export default function ClientView({
     return addMonths(baseDateStr, monthsCount);
   };
 
-  const openPayphoneWindow = (e: React.MouseEvent<HTMLAnchorElement | HTMLButtonElement>) => {
-    e.preventDefault();
-    const payphoneUrl = "https://ppls.me/xfktaGibroQRpCxF1DeqCg";
-    const width = 480;
-    const height = 680;
-    
-    // Si la pantalla es móvil o pequeña (<768px), abre en nueva pestaña normal
-    if (window.innerWidth < 768) {
-      window.open(payphoneUrl, '_blank');
-      return;
-    }
+  // Pago en línea con la Cajita de Payphone: el servidor calcula el monto y crea el pago,
+  // y se abre la página /pago/<id>. En el APK se abre en el navegador del teléfono (la Cajita
+  // no funciona dentro de la app); se usa el dominio sin www para que Android no la devuelva a la app.
+  const [onlinePayBusy, setOnlinePayBusy] = useState<string | null>(null);
+  const [onlinePayError, setOnlinePayError] = useState<{ resId: string; message: string } | null>(null);
 
-    // En navegador de ordenador / PC, calcula posición centrada y abre una ventana emergente (popup) compacta
-    const left = Math.max(0, Math.round((window.screen.width - width) / 2));
-    const top = Math.max(0, Math.round((window.screen.height - height) / 2));
-    
-    const popup = window.open(
-      payphoneUrl,
-      'PayPhoneCheckout',
-      `width=${width},height=${height},top=${top},left=${left},resizable=yes,scrollbars=yes,status=no,toolbar=no,menubar=no`
+  const startOnlinePayment = async (res: Reservation, kind: OnlinePaymentKind) => {
+    if (onlinePayBusy) return;
+    setOnlinePayBusy(`${res.id}:${kind}`);
+    setOnlinePayError(null);
+    try {
+      const { data, error } = await supabase.functions.invoke('payphone', {
+        body: { action: 'prepare', reservationId: res.id, kind }
+      });
+      let paymentId: string | undefined = data?.paymentId;
+      let message: string | undefined = data?.error;
+      if (!paymentId && error && 'context' in error) {
+        try { message = (await (error as any).context.json())?.error; } catch { /* sin cuerpo */ }
+      }
+      if (!paymentId) throw new Error(message || 'No se pudo iniciar el pago. Inténtalo de nuevo.');
+      const path = `/pago/${paymentId}`;
+      if (isNativeApp()) {
+        window.open(`https://roomiapms.site${path}`, '_blank');
+      } else {
+        window.location.assign(path);
+      }
+    } catch (err: any) {
+      setOnlinePayError({ resId: res.id, message: err?.message || 'No se pudo iniciar el pago.' });
+    } finally {
+      setOnlinePayBusy(null);
+    }
+  };
+
+  const renderOnlinePayButtons = (res: Reservation, size: 'sm' | 'lg') => {
+    const options = onlinePaymentOptions(res);
+    if (options.length === 0) return null;
+    return (
+      <div className={size === 'lg' ? 'space-y-2' : 'flex flex-wrap gap-2'}>
+        {options.map(opt => {
+          const busy = onlinePayBusy === `${res.id}:${opt.kind}`;
+          return (
+            <button
+              key={opt.kind}
+              type="button"
+              disabled={!!onlinePayBusy}
+              onClick={() => startOnlinePayment(res, opt.kind)}
+              className={size === 'lg'
+                ? 'inline-flex items-center justify-center gap-2 w-full py-2.5 px-4 bg-orange-600 hover:bg-orange-700 disabled:opacity-60 text-white font-bold rounded-xl text-xs transition-colors shadow cursor-pointer'
+                : 'flex items-center gap-1.5 px-3 py-1.5 bg-orange-600 hover:bg-orange-700 disabled:opacity-60 text-white rounded-lg cursor-pointer transition-colors font-bold text-[11px] shadow'}
+            >
+              {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CreditCard className="w-3.5 h-3.5" />}
+              <span>{opt.label} (${opt.amount.toFixed(2)})</span>
+            </button>
+          );
+        })}
+        {onlinePayError?.resId === res.id && (
+          <p className="w-full text-[11px] text-red-600 font-medium">{onlinePayError.message}</p>
+        )}
+      </div>
     );
-
-    if (popup) {
-      popup.focus();
-    } else {
-      window.open(payphoneUrl, '_blank');
-    }
   };
 
   const getMonthsCount = (d1: string, d2: string) => {
@@ -390,6 +450,51 @@ export default function ClientView({
     }
     setBookingError(null);
   }, [bookingRoom, selectedHotelId]);
+
+  // Retomar la reserva que un invitado dejó a medias para iniciar sesión (la página se recarga).
+  // Va en etapas porque al cambiar de hotel y de habitación los efectos de arriba limpian el formulario.
+  const bookingDraftRef = React.useRef<BookingDraft & { hotelId: string; stage: 'hotel' | 'room' } | null>(null);
+
+  React.useEffect(() => {
+    if (activeUser.id === 'guest') return;
+    if (!bookingDraftRef.current) {
+      let draft: BookingDraft | null = null;
+      try { draft = JSON.parse(sessionStorage.getItem(BOOKING_DRAFT_KEY) || 'null'); } catch { draft = null; }
+      if (!draft) return;
+      if (!draft.roomId || Date.now() - Number(draft.savedAt || 0) > BOOKING_DRAFT_MAX_AGE_MS) {
+        try { sessionStorage.removeItem(BOOKING_DRAFT_KEY); } catch { /* nada */ }
+        return;
+      }
+      const room = rooms.find(r => r.id === draft!.roomId);
+      if (!room) return; // las habitaciones aún se están cargando: se reintenta cuando lleguen
+      try { sessionStorage.removeItem(BOOKING_DRAFT_KEY); } catch { /* nada */ }
+      bookingDraftRef.current = { ...draft, hotelId: room.hotelId, stage: 'hotel' };
+    }
+    const d = bookingDraftRef.current;
+    if (d.stage !== 'hotel') return;
+    if (selectedHotelId !== d.hotelId) {
+      setSelectedHotelId(d.hotelId);
+      return;
+    }
+    const room = rooms.find(r => r.id === d.roomId);
+    if (!room) { bookingDraftRef.current = null; return; }
+    d.stage = 'room';
+    setActiveTab('explore');
+    setBookingRoom(room);
+  }, [activeUser.id, rooms, selectedHotelId]);
+
+  React.useEffect(() => {
+    const d = bookingDraftRef.current;
+    if (!d || d.stage !== 'room' || bookingRoom?.id !== d.roomId) return;
+    bookingDraftRef.current = null;
+    if (d.rentalMonths) setRentalMonths(d.rentalMonths);
+    setCheckInDate(d.checkIn || '');
+    setCheckOutDate(d.checkOut || '');
+    setSelectedServices(d.services || []);
+    setServicePeopleCount(d.counts || {});
+    setBookingNote(d.note || '');
+    setBookingStep(d.checkIn && d.checkOut ? 3 : 1);
+  }, [bookingRoom]);
 
   // Sincronizar automáticamente fechaSalida cuando cambien fechaEntrada o rentalMonths
   React.useEffect(() => {
@@ -787,6 +892,19 @@ export default function ClientView({
 
     // Direct guest intercept: prompt login/registration first before creating reservation
     if (activeUser.id === 'guest') {
+      // Al iniciar sesión la página se recarga: se guarda la reserva en curso para retomarla
+      try {
+        sessionStorage.setItem(BOOKING_DRAFT_KEY, JSON.stringify({
+          roomId: bookingRoom.id,
+          checkIn: checkInDate,
+          checkOut: checkOutDate,
+          rentalMonths,
+          services: selectedServices,
+          counts: servicePeopleCount,
+          note: bookingNote,
+          savedAt: Date.now()
+        }));
+      } catch { /* sin almacenamiento: se reserva de nuevo */ }
       if (onTriggerBookingAuth) {
         onTriggerBookingAuth();
       } else if (onTriggerLogin) {
@@ -907,74 +1025,6 @@ export default function ClientView({
     setServicePeopleCount({});
     setBookingNote('');
     setBookingError(null);
-  };
-
-  const handleProcessPayment = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedResForPayment) return;
-
-    if (paymentMethod === 'card') {
-      if (!paymentCardName.trim()) {
-        setPaymentError("Por favor ingrese el nombre del titular de la tarjeta.");
-        return;
-      }
-      const cleanNo = paymentCardNo.replace(/\s+/g, '');
-      if (cleanNo.length < 13 || cleanNo.length > 16) {
-        setPaymentError("El número de tarjeta ingresado no es válido. Debe tener entre 13 y 16 dígitos.");
-        return;
-      }
-      if (!paymentCardExpiry.includes('/')) {
-        setPaymentError("Por favor especifique la fecha de expiración en formato MM/YY.");
-        return;
-      }
-      if (paymentCardCVV.length < 3) {
-        setPaymentError("El código CVV debe tener 3 o 4 dígitos de seguridad.");
-        return;
-      }
-    }
-
-    setPaymentError(null);
-    setPaymentLoading(true);
-
-    setTimeout(() => {
-      try {
-        const refId = `ADY-REF-${Math.floor(100000 + Math.random() * 899999)}`;
-        const txObj = {
-          id: `TX-${Math.floor(10000 + Math.random() * 90000)}`,
-          reservationId: selectedResForPayment.id,
-          amount: selectedResForPayment.total,
-          currency: 'USD',
-          paymentMethod: paymentMethod === 'card' ? 'Visa/Mastercard' : paymentMethod === 'pse' ? 'PSE Pagos' : 'Transferencia Bancaria',
-          status: 'completado' as const,
-          reference: refId,
-          fecha: new Date().toISOString()
-        };
-
-        // Update reservation to confirmed on payment success
-        const confirmedRes: Reservation = {
-          ...selectedResForPayment,
-          estado: 'confirmada'
-        };
-
-        onCreateReservation(confirmedRes);
-
-        if (onAddPaymentTransaction) {
-          onAddPaymentTransaction(txObj);
-        }
-
-        setPaymentLoading(false);
-        setPaymentSuccess(true);
-        
-        // Reset card details
-        setPaymentCardName('');
-        setPaymentCardNo('');
-        setPaymentCardExpiry('');
-        setPaymentCardCVV('');
-      } catch (err: any) {
-        setPaymentLoading(false);
-        setPaymentError(err.message || "El procesamiento del pago reportó un error o rechazo de validación.");
-      }
-    }, 2500);
   };
 
   return (
@@ -2833,15 +2883,7 @@ export default function ClientView({
 
                         {(res.estado === 'pendiente' || (res.estado === 'confirmada' && res.montoPendiente !== undefined && res.montoPendiente > 0)) && (
                           <>
-                            <a
-                              href="https://ppls.me/xfktaGibroQRpCxF1DeqCg"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={openPayphoneWindow}
-                              className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white rounded-lg cursor-pointer transition-colors font-bold text-[11px] shadow"
-                            >
-                              <span>💳 Pagar con Payphone</span>
-                            </a>
+                            {renderOnlinePayButtons(res, 'sm')}
                             <button
                               onClick={() => {
                                 setSelectedResForPayment(res);
@@ -3030,35 +3072,19 @@ export default function ClientView({
                   </div>
 
                   <p className="text-[11px] text-slate-600 leading-relaxed">
-                    Puedes pagar inmediatamente con tarjeta de crédito/débito desde tu app o web mediante Payphone:
+                    Paga con tarjeta de crédito o débito, o con tu cuenta Payphone. Tu reserva se confirma
+                    al instante y recibes el comprobante por correo.
                   </p>
 
-                  <div className="bg-white/90 p-3 rounded-xl border border-orange-100 space-y-1.5 text-[11px] text-slate-700">
-                    <p className="font-semibold text-slate-900 flex items-center gap-1.5">
-                      <span>1. Abre nuestro link oficial de Payphone:</span>
-                    </p>
-                    <a
-                      href="https://ppls.me/xfktaGibroQRpCxF1DeqCg"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={openPayphoneWindow}
-                      className="inline-flex items-center justify-center gap-2 w-full py-2.5 px-4 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-xl text-xs transition-colors shadow cursor-pointer my-1"
-                    >
-                      {selectedResForPayment.estado === 'confirmada' && selectedResForPayment.montoPendiente !== undefined && selectedResForPayment.montoPendiente > 0 ? (
-                        <span>💳 Abrir Payphone para Liquidar Saldo (${selectedResForPayment.montoPendiente.toFixed(2)} USD)</span>
-                      ) : (
-                        <span>💳 Abrir Payphone para Pagar (${(selectedResForPayment.total * 0.20).toFixed(2)} o ${selectedResForPayment.total.toFixed(2)} USD)</span>
-                      )}
-                    </a>
-                    <div className="space-y-1 text-[10.5px] text-slate-600 leading-normal pt-1">
-                      {selectedResForPayment.estado === 'confirmada' && selectedResForPayment.montoPendiente !== undefined && selectedResForPayment.montoPendiente > 0 ? (
-                        <p><strong>2. Ingresa el monto:</strong> Paga tu saldo pendiente de <strong>${selectedResForPayment.montoPendiente.toFixed(2)} USD</strong>.</p>
-                      ) : (
-                        <p><strong>2. Ingresa el monto:</strong> Paga el <strong>20% de garantía (${(selectedResForPayment.total * 0.20).toFixed(2)} USD)</strong> o el total <strong>(${selectedResForPayment.total.toFixed(2)} USD)</strong>.</p>
-                      )}
-                      <p><strong>3. Escribe la nota:</strong> Coloca tu Código de Reserva <strong className="font-mono bg-orange-100/80 px-1 rounded">{selectedResForPayment.id}</strong> en la descripción.</p>
-                      <p><strong>4. Notifica el pago:</strong> Haz clic en "Contactar Administrador" o adjunta tu comprobante por el chat para actualizar tu comprobante de pago.</p>
-                    </div>
+                  <div className="bg-white/90 p-3 rounded-xl border border-orange-100 space-y-2 text-[11px] text-slate-700">
+                    {renderOnlinePayButtons(selectedResForPayment, 'lg') ?? (
+                      <p className="text-slate-600">Esta reserva no tiene pagos en línea pendientes.</p>
+                    )}
+                    {isNativeApp() && (
+                      <p className="text-[10.5px] text-slate-500 leading-normal">
+                        El pago se abre en el navegador de tu teléfono. Al terminar, toca "Ver mis reservas" para volver a Roomia.
+                      </p>
+                    )}
                   </div>
                 </div>
 

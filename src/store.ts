@@ -38,8 +38,19 @@ import {
   fetchExternalBlocks
 } from './supabase';
 
-import { getPublicOrigin, isNativeApp, PRODUCTION_ORIGIN } from './utils/platform';
+// Los enlaces de los correos van siempre al sitio real (PRODUCTION_ORIGIN), aunque el correo
+// salga de una prueba en localhost o del APK: quien lo abre está fuera de esa sesión.
+import { isNativeApp, PRODUCTION_ORIGIN } from './utils/platform';
 import { removeStoredImages, storedImagesOf, unusedImages } from './utils/images';
+import { renderBrandEmail, renderBrandText, type BrandEmail } from '../supabase/functions/_shared/brandEmail.ts';
+
+const money = (n: number | undefined) => `$${Number(n || 0).toFixed(2)} USD`;
+
+/** Contacto del establecimiento para el pie de los correos (solo lo que exista) */
+const hotelContactLine = (hotel?: Hotel) => {
+  const parts = [hotel?.contacto?.telefono, hotel?.contacto?.email].filter(Boolean);
+  return parts.length ? `${hotel?.nombre || 'El establecimiento'}: ${parts.join(' · ')}` : undefined;
+};
 
 // Safe standard local storage storage key constants
 const STORAGE_PREFIX = 'aura_hotel_pms_';
@@ -1181,63 +1192,33 @@ export function useHotelStore() {
 
     // Dispatch beautiful welcome email using real SMTP API endpoint
     const emailSubject = user.debeCambiarPassword 
-      ? '¡Bienvenido/a a Roomia PMS! Detalles de tu cuenta y clave temporal 🏨🔑'
-      : '¡Bienvenido/a a Roomia PMS Hospitality SaaS! 🏨✨';
+      ? 'Bienvenido/a a Roomia PMS · Tu cuenta y el cambio de contraseña'
+      : 'Bienvenido/a a Roomia PMS · Tu cuenta está lista';
 
-    const emailBody = `Estimado/a ${user.nombre} ${user.apellido},
-
-¡Le damos una cálida bienvenida a Roomia PMS! Su expediente de huésped ha sido creado exitosamente en nuestra plataforma de administración de estadías.
-
-${user.debeCambiarPassword ? `⚠️ ACCIÓN REQUERIDA - CAMBIO DE CONTRASEÑA OBLIGATORIO:
-Su cuenta fue creada por nuestro personal de recepción. Al ingresar por primera vez, el sistema le solicitará cambiar su contraseña para garantizar la seguridad de su cuenta.\n` : ''}
-A partir de este momento, podrá gestionar sus reservaciones, realizar Check-In express con QR, solicitar servicios adicionales y visualizar sus facturas fiscales al instante.
-
-Detalles del Perfil:
-• Cliente: ${user.nombre} ${user.apellido}
-• Correo de Acceso: ${user.email}
-• Teléfono: ${user.telefono || 'No especificado'}
-• Documento de Identidad: ${user.documento || 'No especificado'}
-• Fecha de Registro: ${user.fechaRegistro}
-• Estado: Activo
-
-Agradecemos su confianza y le aseguramos que cada una de sus estadías será memorable.
-
-Atentamente,
-El Equipo de Hospitalidad de Roomia PMS.`;
-
-    const emailHtml = `
-      <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; color: #1e293b;">
-        <div style="text-align: center; padding-bottom: 20px; border-bottom: 2px solid #0f172a;">
-          <h1 style="color: #0f172a; margin: 0; font-size: 24px; font-weight: 800;">Roomia PMS</h1>
-          <p style="color: #0d9488; margin: 4px 0 0 0; font-size: 13px; font-weight: 600;">Sistema de Gestión Hotelera & Experiencias</p>
-        </div>
-        
-        <div style="padding: 24px 0; line-height: 1.6;">
-          <h2 style="color: #0f172a; font-size: 18px; margin-top: 0;">¡Hola, ${user.nombre} ${user.apellido}!</h2>
-          <p>Le damos una cálida bienvenida a <strong>Roomia PMS</strong>. Su cuenta ha sido creada exitosamente en nuestra plataforma.</p>
-
-          <div style="background-color: #f8fafc; border-radius: 8px; padding: 16px; margin: 20px 0;">
-            <h3 style="margin-top: 0; font-size: 14px; color: #334155; text-transform: uppercase; letter-spacing: 0.5px;">Detalles de la Cuenta</h3>
-            <table style="width: 100%; font-size: 13px; color: #475569; border-collapse: collapse;">
-              <tr><td style="padding: 4px 0; font-weight: 600; width: 40%;">Nombre completo:</td><td style="padding: 4px 0;">${user.nombre} ${user.apellido}</td></tr>
-              <tr><td style="padding: 4px 0; font-weight: 600;">Correo electrónico:</td><td style="padding: 4px 0;">${user.email}</td></tr>
-              <tr><td style="padding: 4px 0; font-weight: 600;">Teléfono:</td><td style="padding: 4px 0;">${user.telefono || 'No especificado'}</td></tr>
-              <tr><td style="padding: 4px 0; font-weight: 600;">Documento ID:</td><td style="padding: 4px 0;">${user.documento || 'No especificado'}</td></tr>
-            </table>
-          </div>
-
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${getPublicOrigin()}" style="background-color: #0f172a; color: #2dd4bf; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-weight: bold; font-size: 14px; display: inline-block;">
-              Ingresar a Roomia PMS
-            </a>
-          </div>
-        </div>
-
-        <div style="border-top: 1px solid #e2e8f0; padding-top: 16px; text-align: center; font-size: 11px; color: #94a3b8;">
-          <p style="margin: 0;">Roomia PMS Hospitality Engine • Correo automático generado por el sistema.</p>
-        </div>
-      </div>
-    `;
+    const welcome: BrandEmail = {
+      preheader: 'Tu cuenta de Roomia PMS está lista.',
+      eyebrow: 'Bienvenida',
+      title: '¡Tu cuenta está lista!',
+      greeting: `Hola, ${user.nombre} ${user.apellido}`,
+      paragraphs: [
+        'Te damos la bienvenida a **Roomia PMS**. Desde tu cuenta puedes reservar, pagar en línea, ver tus reservas y descargar tus comprobantes.'
+      ],
+      sections: [{
+        title: 'Datos de tu cuenta',
+        rows: [
+          ['Nombre', `${user.nombre} ${user.apellido}`],
+          ['Correo de acceso', user.email],
+          ['Teléfono', user.telefono],
+          ['Fecha de registro', user.fechaRegistro]
+        ]
+      }],
+      note: user.debeCambiarPassword
+        ? { text: '**Cambio de contraseña obligatorio:** tu cuenta la creó el personal del establecimiento. La primera vez que ingreses te pediremos crear una contraseña nueva.', tone: 'warning' }
+        : undefined,
+      cta: { label: 'Ingresar a Roomia PMS', url: PRODUCTION_ORIGIN }
+    };
+    const emailBody = renderBrandText(welcome);
+    const emailHtml = renderBrandEmail(welcome);
 
     try {
       const emailResponse = await fetch(`${getApiBaseUrl()}/api/send-email`, {
@@ -1284,105 +1265,57 @@ El Equipo de Hospitalidad de Roomia PMS.`;
     const recipientName = guestObj ? `${guestObj.nombre} ${guestObj.apellido}` : 'Huésped de Honor';
     const isConfirmed = resObj.estado === 'confirmada' || resObj.estado === 'ocupada' || resObj.estado === 'finalizada';
 
-    const subject = isConfirmed 
-      ? `🏨 ¡Reserva Confirmada! - ${hotelObj?.nombre || 'Roomia PMS'}` 
-      : `⏳ Reserva Registrada (Pago Pendiente) - ${hotelObj?.nombre || 'Roomia PMS'}`;
+    const subject = isConfirmed
+      ? `Reserva confirmada · ${resObj.id} · ${hotelObj?.nombre || 'Roomia PMS'}`
+      : `Reserva registrada, pendiente de pago · ${resObj.id} · ${hotelObj?.nombre || 'Roomia PMS'}`;
 
-    // Build details
-    let servicesHtml = '';
-    if (resObj.serviciosAdicionales && resObj.serviciosAdicionales.length > 0) {
-      servicesHtml = `
-        <div style="margin-top: 15px; padding: 12px; background-color: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
-          <h4 style="margin: 0 0 8px 0; color: #334155; font-size: 13px;">Servicios Adicionales Seleccionados:</h4>
-          <ul style="margin: 0; padding-left: 20px; color: #475569; font-size: 12px; line-height: 1.6;">
-            ${resObj.serviciosAdicionales.map(srvId => {
-              const labelMap: Record<string, string> = {
-                'breakfast': 'Desayuno Premium Orgánico ($15 USD)',
-                'spa': 'Pase de Acceso Completo al Spa ($25 USD)',
-                'airport': 'Traslado Terrestre Aeropuerto ($30 USD)',
-                'wifi': 'Pase de Oficina WiFi 6E Ultrawide ($10 USD)'
-              };
-              return `<li>${labelMap[srvId] || srvId}</li>`;
-            }).join('')}
-          </ul>
-        </div>
-      `;
-    }
-
-    const htmlBody = `
-      <div style="font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.05); color: #1e293b;">
-        <div style="background-color: #00112c; padding: 30px; text-align: center; color: #ffffff;">
-          <span style="font-size: 10px; font-weight: bold; letter-spacing: 2px; color: #2dd4bf; text-transform: uppercase;">ROOMIA PREMIUM HOTELS</span>
-          <h1 style="margin: 10px 0 0 0; font-size: 22px; font-weight: 300; letter-spacing: -0.5px;">Confirmación de Reserva</h1>
-        </div>
-        
-        <div style="padding: 24px; line-height: 1.6;">
-          <p style="margin-top: 0; font-size: 14px;">Hola <strong>${recipientName}</strong>,</p>
-          
-          <p style="font-size: 14px; color: #475569;">
-            ${isConfirmed 
-              ? `Tu pago ha sido aprobado por administración. Nos complace confirmarte que tu estancia en <strong>${hotelObj?.nombre || ' nuestro hotel'}</strong> está correctamente programada.` 
-              : `Hemos registrado tu solicitud de reserva en <strong>${hotelObj?.nombre || ' nuestro hotel'}</strong>. Actualmente se encuentra en estado <strong>Pendiente de Pago</strong>. Por favor completa tu transacción de pago o abono del 20% con la administración o recepción del hotel para confirmarla.`
-            }
-          </p>
-
-          <div style="margin: 20px 0; padding: 15px; background-color: ${isConfirmed ? '#f0fdf4' : '#fffbeb'}; border-radius: 12px; border: 1px solid ${isConfirmed ? '#bbf7d0' : '#fef3c7'}; text-align: center;">
-            <span style="font-size: 10px; text-transform: uppercase; font-weight: bold; letter-spacing: 1px; color: ${isConfirmed ? '#166534' : '#92400e'};">Estado actual:</span>
-            <div style="font-size: 16px; font-weight: bold; color: ${isConfirmed ? '#15803d' : '#b45309'}; margin-top: 4px;">
-              ${isConfirmed ? '✓ CONFIRMADA Y PAGADA' : '⏳ PENDIENTE DE PAGO'}
-            </div>
-            <div style="font-size: 10px; color: #64748b; margin-top: 2px; font-family: monospace;">Ref: ${resObj.id}</div>
-          </div>
-
-          <h3 style="color: #00112c; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; font-size: 14px; margin-top: 24px;">Detalles de la Estadía:</h3>
-          <table style="width: 100%; font-size: 13px; color: #475569; border-collapse: collapse; margin-top: 8px;">
-            <tr>
-              <td style="padding: 5px 0; font-weight: 600; width: 130px; color: #0f172a;">Hotel:</td>
-              <td style="padding: 5px 0;">${hotelObj?.nombre || 'Roomia Hotel'}</td>
-            </tr>
-            <tr>
-              <td style="padding: 5px 0; font-weight: 600; color: #0f172a;">Dirección:</td>
-              <td style="padding: 5px 0;">${hotelObj?.ubicacion || 'Ubicación Premium'}</td>
-            </tr>
-            <tr>
-              <td style="padding: 5px 0; font-weight: 600; color: #0f172a;">Habitación:</td>
-              <td style="padding: 5px 0;">Habitación ${roomObj?.numero || 'N/A'} - ${roomObj?.nombre || 'Suite'} (${roomObj?.tipo || 'Suite'})</td>
-            </tr>
-            <tr>
-              <td style="padding: 5px 0; font-weight: 600; color: #0f172a;">Entrada (Check-In):</td>
-              <td style="padding: 5px 0; font-weight: 600; color: #00112c;">${resObj.fechaEntrada} (Llegada desde las ${hotelObj?.horarios?.checkIn || '15:00'})</td>
-            </tr>
-            <tr>
-              <td style="padding: 5px 0; font-weight: 600; color: #0f172a;">Salida (Check-Out):</td>
-              <td style="padding: 5px 0; font-weight: 600; color: #00112c;">${resObj.fechaSalida} (Salida hasta las ${hotelObj?.horarios?.checkOut || '11:00'})</td>
-            </tr>
-          </table>
-
-          ${servicesHtml}
-
-          <h3 style="color: #00112c; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; font-size: 14px; margin-top: 24px;">Resumen de Cuenta:</h3>
-          <table style="width: 100%; font-size: 13px; color: #475569; border-collapse: collapse; margin-top: 8px;">
-            <tr>
-              <td style="padding: 4px 0;">Subtotal de Habitación:</td>
-              <td style="padding: 4px 0; text-align: right; font-family: monospace;">$${resObj.subtotal.toFixed(2)} USD</td>
-            </tr>
-            <tr>
-              <td style="padding: 4px 0;">Impuestos (16%):</td>
-              <td style="padding: 4px 0; text-align: right; font-family: monospace;">$${resObj.impuestos.toFixed(2)} USD</td>
-            </tr>
-            <tr style="border-top: 1px solid #e2e8f0;">
-              <td style="padding: 8px 0 0 0; font-size: 14px; font-weight: bold; color: #00112c;">Total Liquidado:</td>
-              <td style="padding: 8px 0 0 0; text-align: right; font-size: 14px; font-weight: bold; color: #00112c; font-family: monospace;">$${resObj.total.toFixed(2)} USD</td>
-            </tr>
-          </table>
-        </div>
-
-        <div style="background-color: #f8fafc; padding: 15px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 10px; color: #64748b; line-height: 1.4;">
-          <p style="margin: 0 0 6px 0;">Para soporte inmediato, contáctanos al <strong>${hotelObj?.contacto?.telefono || '+1-300-ROOMIA'}</strong> o escribe a <strong>${hotelObj?.contacto?.email || 'soporte@roomia.com'}</strong>.</p>
-          <p style="margin: 0; font-size: 9px; color: #94a3b8;">Mensaje automático enviado con tecnología de Roomia Secure Engine.</p>
-        </div>
-      </div>
-    `;
+    const pagado = resObj.montoPagado ?? 0;
+    const pendiente = resObj.montoPendiente ?? Math.max(0, resObj.total - pagado);
+    const reservationEmail: BrandEmail = {
+      preheader: isConfirmed
+        ? `Tu reserva ${resObj.id} en ${hotelObj?.nombre || 'Roomia'} está confirmada.`
+        : `Tu reserva ${resObj.id} está registrada y pendiente de pago.`,
+      eyebrow: isConfirmed ? 'Reserva confirmada' : 'Reserva registrada',
+      title: hotelObj?.nombre || 'Tu reserva en Roomia',
+      greeting: `Hola, ${recipientName}`,
+      paragraphs: [
+        isConfirmed
+          ? `Tu estadía en **${hotelObj?.nombre || 'el establecimiento'}** está confirmada. Te esperamos en las fechas indicadas.`
+          : `Registramos tu reserva en **${hotelObj?.nombre || 'el establecimiento'}**. Para confirmarla, paga al menos el **20%** en las próximas **24 horas** desde "Mis reservas" (con tarjeta o tu cuenta Payphone) o directamente con el establecimiento.`
+      ],
+      status: {
+        label: 'Estado de la reserva',
+        value: isConfirmed ? (pendiente > 0 ? 'Confirmada · saldo pendiente' : 'Confirmada y pagada') : 'Pendiente de pago',
+        tone: isConfirmed ? 'success' : 'warning',
+        reference: `Código ${resObj.id}`
+      },
+      sections: [
+        {
+          title: 'Detalles de la estadía',
+          rows: [
+            ['Establecimiento', hotelObj?.nombre],
+            ['Dirección', hotelObj?.ubicacion],
+            ['Habitación', roomObj ? `${roomObj.numero ? `${roomObj.numero} · ` : ''}${roomObj.nombre}` : undefined],
+            ['Entrada', `${resObj.fechaEntrada}${hotelObj?.horarios?.checkIn ? ` desde las ${hotelObj.horarios.checkIn}` : ''}`],
+            ['Salida', `${resObj.fechaSalida}${hotelObj?.horarios?.checkOut ? ` hasta las ${hotelObj.horarios.checkOut}` : ''}`],
+            ['Servicios adicionales', resObj.serviciosAdicionales?.length ? resObj.serviciosAdicionales.join(', ') : undefined]
+          ]
+        }
+      ],
+      amounts: {
+        title: 'Resumen de pago',
+        rows: [
+          ['Subtotal', money(resObj.subtotal)],
+          ['Impuestos (IVA)', money(resObj.impuestos)],
+          ...(pagado > 0 ? [['Pagado', money(pagado)] as [string, string]] : [])
+        ],
+        total: pagado > 0 ? ['Saldo pendiente', money(pendiente)] : ['Total', money(resObj.total)]
+      },
+      cta: { label: isConfirmed ? 'Ver mi reserva' : 'Pagar mi reserva', url: `${PRODUCTION_ORIGIN}/?seccion=mis-reservas` },
+      contact: hotelContactLine(hotelObj)
+    };
+    const htmlBody = renderBrandEmail(reservationEmail);
+    const textBody = renderBrandText(reservationEmail);
 
     try {
       const apiEndpoint = `${getApiBaseUrl()}/api/send-email`;
@@ -1394,7 +1327,7 @@ El Equipo de Hospitalidad de Roomia PMS.`;
           to: recipientEmail,
           subject,
           html: htmlBody,
-          text: `Roomia Premium Hotels: Reserva ${resObj.id}. Hotel: ${hotelObj?.nombre}. Total: $${resObj.total} USD. Estado: ${resObj.estado}.`
+          text: textBody
         })
       });
       const cType = r.headers.get("content-type");
@@ -1442,88 +1375,53 @@ El Equipo de Hospitalidad de Roomia PMS.`;
       recipientEmails.push('soporte@roomia.com');
     }
 
-    const guestName = guestObj ? `${guestObj.nombre} ${guestObj.apellido}` : 'Nuevo Cliente';
-    
-    const subject = `⏳ Acción Requerida: Nueva Reserva Pendiente - ${hotelObj?.nombre || 'Roomia PMS'}`;
+    const guestName = guestObj ? `${guestObj.nombre} ${guestObj.apellido}`.trim() : 'Nuevo cliente';
 
-    const htmlBody = `
-      <div style="font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.05); color: #1e293b;">
-        <div style="background-color: #0f172a; padding: 30px; text-align: center; color: #ffffff;">
-          <span style="font-size: 10px; font-weight: bold; letter-spacing: 2px; color: #f59e0b; text-transform: uppercase;">NOTIFICACIÓN ADMINISTRATIVA</span>
-          <h1 style="margin: 10px 0 0 0; font-size: 22px; font-weight: 300; letter-spacing: -0.5px;">Reserva Pendiente de Gestión</h1>
-        </div>
-        
-        <div style="padding: 24px; line-height: 1.6;">
-          <p style="margin-top: 0; font-size: 14px;">Estimado Administrador,</p>
-          
-          <p style="font-size: 14px; color: #475569;">
-            Se ha registrado una nueva solicitud de reserva en <strong>${hotelObj?.nombre || 'tu propiedad'}</strong>. La reserva se encuentra actualmente en estado <strong>Pendiente de Pago</strong> esperando su revisión y validación en la plataforma.
-          </p>
+    const subject = `Nueva reserva pendiente de pago · ${resObj.id} · ${hotelObj?.nombre || 'Roomia PMS'}`;
 
-          <div style="margin: 20px 0; padding: 15px; background-color: #fffbeb; border-radius: 12px; border: 1px solid #fef3c7; text-align: center;">
-            <span style="font-size: 10px; text-transform: uppercase; font-weight: bold; letter-spacing: 1px; color: #92400e;">Estado de la reserva:</span>
-            <div style="font-size: 16px; font-weight: bold; color: #b45309; margin-top: 4px;">
-              ⏳ PENDIENTE DE REVISIÓN
-            </div>
-            <div style="font-size: 10px; color: #64748b; margin-top: 2px; font-family: monospace;">Ref: ${resObj.id}</div>
-          </div>
-
-          <h3 style="color: #0f172a; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; font-size: 14px; margin-top: 24px;">Detalles del Huésped:</h3>
-          <table style="width: 100%; font-size: 13px; color: #475569; border-collapse: collapse; margin-top: 8px;">
-            <tr>
-              <td style="padding: 5px 0; font-weight: 600; width: 130px; color: #0f172a;">Nombre:</td>
-              <td style="padding: 5px 0;">${guestName}</td>
-            </tr>
-            <tr>
-              <td style="padding: 5px 0; font-weight: 600; color: #0f172a;">Correo:</td>
-              <td style="padding: 5px 0;">${guestObj?.email || 'N/A'}</td>
-            </tr>
-            <tr>
-              <td style="padding: 5px 0; font-weight: 600; color: #0f172a;">Teléfono:</td>
-              <td style="padding: 5px 0;">${guestObj?.telefono || 'N/A'}</td>
-            </tr>
-          </table>
-
-          <h3 style="color: #0f172a; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; font-size: 14px; margin-top: 24px;">Detalles del Alojamiento:</h3>
-          <table style="width: 100%; font-size: 13px; color: #475569; border-collapse: collapse; margin-top: 8px;">
-            <tr>
-              <td style="padding: 5px 0; font-weight: 600; width: 130px; color: #0f172a;">Habitación:</td>
-              <td style="padding: 5px 0;">Habitación ${roomObj?.numero || 'N/A'} - ${roomObj?.nombre || 'Suite'} (${roomObj?.tipo || 'Suite'})</td>
-            </tr>
-            <tr>
-              <td style="padding: 5px 0; font-weight: 600; color: #0f172a;">Check-In:</td>
-              <td style="padding: 5px 0;">${resObj.fechaEntrada}</td>
-            </tr>
-            <tr>
-              <td style="padding: 5px 0; font-weight: 600; color: #0f172a;">Check-Out:</td>
-              <td style="padding: 5px 0;">${resObj.fechaSalida}</td>
-            </tr>
-            <tr>
-              <td style="padding: 5px 0; font-weight: 600; color: #0f172a;">Monto Total:</td>
-              <td style="padding: 5px 0; font-weight: bold; color: #0f172a;">$${resObj.total.toFixed(2)} USD</td>
-            </tr>
-            ${resObj.notas ? `
-            <tr>
-              <td style="padding: 5px 0; font-weight: 600; color: #0f172a;">Notas:</td>
-              <td style="padding: 5px 0; font-style: italic;">"${resObj.notas}"</td>
-            </tr>
-            ` : ''}
-          </table>
-
-          <div style="margin-top: 30px; text-align: center;">
-            <a href="https://ais-pre-x2bbmoykvbb2j2cvvu5ybf-300435593784.us-east5.run.app" style="display: inline-block; padding: 12px 24px; background-color: #2dd4bf; color: #0f172a; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 14px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-              Acceder al Panel de Gestión
-            </a>
-          </div>
-        </div>
-
-        <div style="background-color: #f8fafc; padding: 15px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 10px; color: #64748b;">
-          <p style="margin: 0;">Esta es una notificación automática enviada por el motor de reservas de Roomia PMS.</p>
-        </div>
-      </div>
-    `;
-
-    const textBody = `Roomia PMS Notificación Administrativa: Nueva reserva pendiente ${resObj.id} para ${hotelObj?.nombre || 'tu propiedad'} por parte del cliente ${guestName} ($${resObj.total.toFixed(2)} USD).`;
+    const adminEmail: BrandEmail = {
+      preheader: `${guestName} reservó del ${resObj.fechaEntrada} al ${resObj.fechaSalida} (${money(resObj.total)}).`,
+      eyebrow: 'Nueva reserva',
+      title: 'Reserva pendiente de pago',
+      greeting: 'Hola, equipo de ' + (hotelObj?.nombre || 'tu establecimiento'),
+      paragraphs: [
+        `**${guestName}** hizo una reserva en **${hotelObj?.nombre || 'tu establecimiento'}**. Está pendiente de pago: el huésped puede pagar en línea desde Roomia o pagarte directamente.`,
+        'Si no se registra al menos el 20% en 24 horas, la reserva se cancela automáticamente y las fechas vuelven a quedar libres.'
+      ],
+      status: { label: 'Estado', value: 'Pendiente de pago', tone: 'warning', reference: `Código ${resObj.id}` },
+      sections: [
+        {
+          title: 'Huésped',
+          rows: [
+            ['Nombre', guestName],
+            ['Correo', guestObj?.email],
+            ['Teléfono', guestObj?.telefono]
+          ]
+        },
+        {
+          title: 'Estadía',
+          rows: [
+            ['Habitación', roomObj ? `${roomObj.numero ? `${roomObj.numero} · ` : ''}${roomObj.nombre}` : undefined],
+            ['Entrada', resObj.fechaEntrada],
+            ['Salida', resObj.fechaSalida],
+            ['Servicios adicionales', resObj.serviciosAdicionales?.length ? resObj.serviciosAdicionales.join(', ') : undefined],
+            ['Notas del huésped', resObj.notas]
+          ]
+        }
+      ],
+      amounts: {
+        title: 'Monto de la reserva',
+        rows: [
+          ['Subtotal', money(resObj.subtotal)],
+          ['Impuestos (IVA)', money(resObj.impuestos)],
+          ['Abono mínimo (20%)', money(Math.round(resObj.total * 20) / 100)]
+        ],
+        total: ['Total', money(resObj.total)]
+      },
+      cta: { label: 'Abrir el panel de reservas', url: PRODUCTION_ORIGIN }
+    };
+    const htmlBody = renderBrandEmail(adminEmail);
+    const textBody = renderBrandText(adminEmail);
 
     // 1. El servidor envía el aviso (admins, correo del establecimiento y propietario)
     try {
@@ -1819,19 +1717,21 @@ El Equipo de Hospitalidad de Roomia PMS.`;
     );
 
     // Send real email notification about password change
-    const emailSubject = 'Actualización de Seguridad: Cambio de Contraseña - Roomia PMS 🔐';
-    const emailBody = `Estimado/a ${targetUser.nombre} ${targetUser.apellido},
-
-Le informamos que su contraseña de acceso para Roomia PMS ha sido actualizada exitosamente.
-
-${changedByAdmin 
-  ? `Su contraseña ha sido restablecida por el personal de administración. Por motivos de ciberseguridad no enviamos contraseñas en texto plano.` 
-  : `La modificación se realizó de forma conforme desde su propio perfil de usuario.`}
-
-Si usted no solicitó ni realizó este cambio, por favor comuníquese de inmediato con recepción o soporte para proteger su cuenta.
-
-Atentamente,
-El Equipo de Hospitalidad de Roomia PMS.`;
+    const emailSubject = 'Tu contraseña de Roomia PMS fue cambiada';
+    const passwordEmail: BrandEmail = {
+      preheader: 'Aviso de seguridad de tu cuenta.',
+      eyebrow: 'Seguridad de la cuenta',
+      title: 'Contraseña actualizada',
+      greeting: `Hola, ${targetUser.nombre} ${targetUser.apellido}`,
+      paragraphs: [
+        changedByAdmin
+          ? 'El personal de administración restableció la contraseña de tu cuenta. Por seguridad, nunca enviamos contraseñas por correo.'
+          : 'La contraseña de tu cuenta se cambió desde tu perfil.'
+      ],
+      status: { label: 'Cambio realizado', value: new Date().toLocaleString('es-EC'), tone: 'info' },
+      note: { text: '**¿No fuiste tú?** Comunícate de inmediato con el establecimiento o con soporte para proteger tu cuenta.', tone: 'danger' },
+      cta: { label: 'Ingresar a Roomia PMS', url: PRODUCTION_ORIGIN }
+    };
 
     try {
       await fetch(`${getApiBaseUrl()}/api/send-email`, {
@@ -1842,7 +1742,8 @@ El Equipo de Hospitalidad de Roomia PMS.`;
         body: JSON.stringify({
           to: targetUser.email,
           subject: emailSubject,
-          text: emailBody
+          text: renderBrandText(passwordEmail),
+          html: renderBrandEmail(passwordEmail)
         })
       });
     } catch (mailErr) {

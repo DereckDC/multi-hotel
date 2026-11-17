@@ -227,6 +227,14 @@ export default function App() {
   const [clientTab, setClientTab] = useState<'explore' | 'properties' | 'reservations'>(() => {
     if (typeof window === 'undefined') return 'explore';
     const path = window.location.pathname;
+    // Vuelta desde la página de pago (/pago/respuesta): abrir directamente "Mis reservas"
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('seccion') === 'mis-reservas') {
+      params.delete('seccion');
+      const rest = params.toString();
+      window.history.replaceState(null, '', `${path}${rest ? `?${rest}` : ''}${window.location.hash}`);
+      return 'reservations';
+    }
     if (path === '/' || !path || path === '' || path === '/landingpage' || path === '/terminos-y-condiciones' || path === '/politica-de-privacidad' || path === '/politica-de-cancelaciones-y-reembolsos') {
       return 'explore';
     }
