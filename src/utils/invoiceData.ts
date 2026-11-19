@@ -165,7 +165,7 @@ export function buildInvoiceData(
     estado: (reservation.estado || '').toUpperCase(),
     isAlquiler,
     emisor: {
-      nombre: hotel?.nombre || 'Roomia',
+      nombre: hotel?.nombre || 'Roomia PMS',
       direccion: hotel?.ubicacion || '',
       telefono: hotel?.contacto?.telefono || '',
       email: hotel?.contacto?.email || ''

@@ -1,0 +1,3 @@
+Fuentes para los documentos PDF (jsPDF solo acepta archivos TTF).
+Montserrat, de The Montserrat Project Authors. Licencia SIL Open Font License 1.1: https://openfontlicense.org
+Se cargan solo al generar un PDF (src/utils/pdfFonts.ts).

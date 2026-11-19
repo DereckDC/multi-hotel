@@ -4,6 +4,7 @@ import App from './App.tsx';
 import PaymentPage from './components/PaymentPage';
 import './index.css';
 import { initDeepLinks } from './utils/deepLinks';
+import { notify } from './utils/notify';
 
 // En la app Android: abrir dentro de la app los enlaces de roomiapms.site (correos, recuperar contraseña)
 initDeepLinks();
@@ -12,9 +13,7 @@ initDeepLinks();
 if (typeof window !== 'undefined') {
   // Override window.alert to completely prevent browser-blocking dialogs in iframe sandbox environments
   window.alert = (message: string) => {
-    const event = new CustomEvent('aura-toast', { detail: { message } });
-    window.dispatchEvent(event);
-    console.log("Captured blocking alert and converted to custom safe event:", message);
+    notify.auto(String(message ?? ''));
   };
 
   const isIgnoredError = (msg: string, stack: string) => {

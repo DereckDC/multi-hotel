@@ -90,12 +90,12 @@ const backHref = () => {
 
 function Shell({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col items-center px-4 py-8">
+    <div className="min-h-screen bg-neutral-50 flex flex-col items-center px-4 py-8">
       <a href={backHref()} className="mb-6 flex items-center gap-2 text-brand-navy1 font-bold text-lg">
         <img src="/RoomiaPMSLogoSinFondo.png" alt="Roomia PMS" className="h-10 w-auto" />
       </a>
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-slate-200 p-5 sm:p-6">{children}</div>
-      <p className="mt-6 text-xs text-slate-500 text-center max-w-md">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-neutral-200 p-5 sm:p-6">{children}</div>
+      <p className="mt-6 text-xs text-neutral-500 text-center max-w-md">
         El pago lo procesa Payphone. Roomia no ve ni guarda los datos de tu tarjeta.
       </p>
     </div>
@@ -104,13 +104,13 @@ function Shell({ children }: { children: ReactNode }) {
 
 function SummaryCard({ s }: { s: Summary }) {
   return (
-    <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 text-sm space-y-1.5">
-      <div className="flex justify-between gap-3"><span className="text-slate-500">Concepto</span><span className="font-semibold text-right">{s.kindLabel}</span></div>
-      {s.reservationId && <div className="flex justify-between gap-3"><span className="text-slate-500">Reserva</span><span className="font-mono font-semibold">{s.reservationId}</span></div>}
-      {s.hotel && <div className="flex justify-between gap-3"><span className="text-slate-500">Establecimiento</span><span className="font-semibold text-right">{s.hotel}</span></div>}
-      {s.room && <div className="flex justify-between gap-3"><span className="text-slate-500">Alojamiento</span><span className="text-right">{s.room}</span></div>}
-      {s.fechaEntrada && <div className="flex justify-between gap-3"><span className="text-slate-500">Fechas</span><span>{s.fechaEntrada} → {s.fechaSalida}</span></div>}
-      <div className="flex justify-between gap-3 pt-2 mt-2 border-t border-slate-200">
+    <div className="rounded-xl bg-neutral-50 border border-neutral-200 p-4 text-sm space-y-1.5">
+      <div className="flex justify-between gap-3"><span className="text-neutral-500">Concepto</span><span className="font-semibold text-right">{s.kindLabel}</span></div>
+      {s.reservationId && <div className="flex justify-between gap-3"><span className="text-neutral-500">Reserva</span><span className="font-mono font-semibold">{s.reservationId}</span></div>}
+      {s.hotel && <div className="flex justify-between gap-3"><span className="text-neutral-500">Establecimiento</span><span className="font-semibold text-right">{s.hotel}</span></div>}
+      {s.room && <div className="flex justify-between gap-3"><span className="text-neutral-500">Alojamiento</span><span className="text-right">{s.room}</span></div>}
+      {s.fechaEntrada && <div className="flex justify-between gap-3"><span className="text-neutral-500">Fechas</span><span>{s.fechaEntrada} → {s.fechaSalida}</span></div>}
+      <div className="flex justify-between gap-3 pt-2 mt-2 border-t border-neutral-200">
         <span className="font-semibold">Total a pagar</span>
         <span className="text-xl font-extrabold text-brand-navy1">{usd(s.amount)}</span>
       </div>
@@ -169,12 +169,12 @@ function PayView({ paymentId }: { paymentId: string }) {
     <Shell>
       <h1 className="text-xl font-extrabold text-brand-navy1 mb-4">Pagar reserva</h1>
       {summary && <SummaryCard s={summary} />}
-      {state === 'cargando' && <p className="mt-5 text-sm text-slate-500 text-center">Cargando el formulario de pago…</p>}
-      {state === 'error' && (<><p className="mt-5 text-sm text-red-600">{message}</p><BackButton /></>)}
-      {state === 'fin' && (<><p className="mt-5 text-sm text-slate-700">{finText[status] ?? 'Este pago ya no está disponible.'}</p><BackButton /></>)}
+      {state === 'cargando' && <p className="mt-5 text-sm text-neutral-500 text-center">Cargando el formulario de pago…</p>}
+      {state === 'error' && (<><p className="mt-5 text-sm text-danger-600">{message}</p><BackButton /></>)}
+      {state === 'fin' && (<><p className="mt-5 text-sm text-neutral-700">{finText[status] ?? 'Este pago ya no está disponible.'}</p><BackButton /></>)}
       <div id="pp-button" className={state === 'listo' ? 'mt-5' : 'hidden'} />
       {state === 'listo' && (
-        <p className="mt-3 text-[11px] text-slate-500 text-center">
+        <p className="mt-3 text-micro text-neutral-500 text-center">
           Tienes 10 minutos para completar el pago. Puedes pagar con tarjeta o con tu cuenta Payphone.
         </p>
       )}
@@ -216,21 +216,21 @@ function ResponseView() {
     <Shell>
       {state === 'confirmando' && (
         <div className="text-center py-6">
-          <div className="mx-auto w-10 h-10 rounded-full border-4 border-slate-200 border-t-brand-cyan animate-spin" />
+          <div className="mx-auto w-10 h-10 rounded-full border-4 border-neutral-200 border-t-brand-cyan animate-spin" />
           <p className="mt-4 font-semibold text-brand-navy1">Confirmando tu pago…</p>
-          <p className="text-xs text-slate-500 mt-1">No cierres esta página.</p>
+          <p className="text-xs text-neutral-500 mt-1">No cierres esta página.</p>
         </div>
       )}
       {state === 'aprobado' && (
         <div className="text-center">
-          <div className="mx-auto w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-3xl">✓</div>
+          <div className="mx-auto w-14 h-14 rounded-full bg-success-100 text-success-600 flex items-center justify-center text-3xl">✓</div>
           <h1 className="mt-3 text-xl font-extrabold text-brand-navy1">Pago aprobado</h1>
-          <p className="mt-1 text-sm text-slate-600">Tu reserva quedó confirmada. Te enviamos el comprobante por correo.</p>
-          <div className="mt-4 rounded-xl bg-slate-50 border border-slate-200 p-4 text-sm text-left space-y-1.5">
-            {data?.reservationId && <div className="flex justify-between"><span className="text-slate-500">Reserva</span><span className="font-mono font-semibold">{data.reservationId}</span></div>}
-            {typeof data?.amount === 'number' && <div className="flex justify-between"><span className="text-slate-500">Pagado ahora</span><span className="font-semibold">{usd(data.amount)}</span></div>}
+          <p className="mt-1 text-sm text-neutral-600">Tu reserva quedó confirmada. Te enviamos el comprobante por correo.</p>
+          <div className="mt-4 rounded-xl bg-neutral-50 border border-neutral-200 p-4 text-sm text-left space-y-1.5">
+            {data?.reservationId && <div className="flex justify-between"><span className="text-neutral-500">Reserva</span><span className="font-mono font-semibold">{data.reservationId}</span></div>}
+            {typeof data?.amount === 'number' && <div className="flex justify-between"><span className="text-neutral-500">Pagado ahora</span><span className="font-semibold">{usd(data.amount)}</span></div>}
             {typeof data?.montoPendiente === 'number' && data.montoPendiente > 0 && (
-              <div className="flex justify-between"><span className="text-slate-500">Saldo pendiente</span><span className="font-semibold">${Number(data.montoPendiente).toFixed(2)}</span></div>
+              <div className="flex justify-between"><span className="text-neutral-500">Saldo pendiente</span><span className="font-semibold">${Number(data.montoPendiente).toFixed(2)}</span></div>
             )}
           </div>
           <BackButton label="Ver mis reservas" />
@@ -238,17 +238,17 @@ function ResponseView() {
       )}
       {state === 'cancelado' && (
         <div className="text-center">
-          <div className="mx-auto w-14 h-14 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center text-3xl">!</div>
+          <div className="mx-auto w-14 h-14 rounded-full bg-warning-100 text-warning-600 flex items-center justify-center text-3xl">!</div>
           <h1 className="mt-3 text-xl font-extrabold text-brand-navy1">Pago no completado</h1>
-          <p className="mt-1 text-sm text-slate-600">{data?.detail || 'No se realizó ningún cobro. Puedes intentarlo de nuevo desde tu reserva.'}</p>
+          <p className="mt-1 text-sm text-neutral-600">{data?.detail || 'No se realizó ningún cobro. Puedes intentarlo de nuevo desde tu reserva.'}</p>
           <BackButton label="Volver e intentar de nuevo" />
         </div>
       )}
       {state === 'error' && (
         <div className="text-center">
           <h1 className="text-xl font-extrabold text-brand-navy1">No pudimos confirmar el pago</h1>
-          <p className="mt-2 text-sm text-slate-600">{data?.detail || data?.error || 'Inténtalo de nuevo en unos segundos.'}</p>
-          <button type="button" onClick={() => window.location.reload()} className="mt-5 w-full rounded-xl border border-slate-300 py-3 font-semibold text-slate-700">
+          <p className="mt-2 text-sm text-neutral-600">{data?.detail || data?.error || 'Inténtalo de nuevo en unos segundos.'}</p>
+          <button type="button" onClick={() => window.location.reload()} className="mt-5 w-full rounded-xl border border-neutral-300 py-3 font-semibold text-neutral-700">
             Reintentar
           </button>
           <BackButton />

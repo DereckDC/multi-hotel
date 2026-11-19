@@ -13,6 +13,8 @@ import { addMonths, formatRentalMonths, getRentalMinMonths, isRentalProperty, re
 import ReceptionCheckInModule from './ReceptionCheckInModule';
 import ReceptionRegistroModule from './ReceptionRegistroModule';
 import ReceptionIncidenciasModule from './ReceptionIncidenciasModule';
+import { notify } from '../utils/notify';
+import { Button, Modal, SelectPicker, Badge } from './ui';
 
 interface ReceptionViewProps {
   hotels: Hotel[];
@@ -413,32 +415,32 @@ export default function ReceptionView({
     setResSuccessMsg('');
 
     if (!bookRoomId) {
-      alert('Por favor selecciona una habitación.');
+      notify.warning('Selecciona una habitación.');
       return;
     }
 
     if (!receptionistHotel) {
-      alert('Error: Debe estar enlazado a un hotel válido.');
+      notify.error('Tu usuario no está vinculado a un establecimiento válido.');
       return;
     }
 
     if (isRental) {
       if (!bookCheckIn) {
-        alert('Por favor selecciona la fecha de inicio del alquiler.');
+        notify.warning('Selecciona la fecha de inicio del alquiler.');
         return;
       }
       if (rentalMonths < rentalMinMonths) {
-        alert(`El plazo mínimo de alquiler de esta propiedad es de ${formatRentalMonths(rentalMinMonths)}.`);
+        notify.warning(`El plazo mínimo de alquiler de esta propiedad es de ${formatRentalMonths(rentalMinMonths)}.`);
         return;
       }
       if (!selectedRoom || !selectedRoom.precio) {
-        alert('Esta propiedad no tiene un precio mensual definido. Edítala y agrega el precio antes de alquilarla.');
+        notify.warning('Esta propiedad no tiene un precio mensual definido. Edítala y agrega el precio antes de alquilarla.');
         return;
       }
     }
 
     if (!bookCheckIn || !bookCheckOut) {
-      alert('Por favor selecciona las fechas de check-in y check-out.');
+      notify.warning('Selecciona las fechas de check-in y check-out.');
       return;
     }
 
@@ -449,12 +451,12 @@ export default function ReceptionView({
     const localTodayStr = `${year}-${month}-${day}`;
 
     if (bookCheckIn < localTodayStr) {
-      alert('La fecha de entrada no puede ser del pasado. Debe ser hoy o una fecha posterior.');
+      notify.warning('La fecha de entrada no puede ser del pasado. Elige hoy o una fecha posterior.');
       return;
     }
 
     if (bookCheckOut <= bookCheckIn) {
-      alert('La fecha de salida debe ser estrictamente posterior a la de entrada (mínimo 1 noche).');
+      notify.warning('La fecha de salida debe ser posterior a la de entrada (mínimo 1 noche).');
       return;
     }
 
@@ -469,9 +471,9 @@ export default function ReceptionView({
     );
 
     if (hasOverlap) {
-      alert(isRental
-        ? '❌ Error: La propiedad ya está alquilada o reservada dentro de ese período. Elige otra fecha de inicio o un plazo distinto.'
-        : '❌ Error: La habitación ya está reservada u ocupada en las fechas seleccionadas.');
+      notify.error(isRental
+        ? 'La propiedad ya está alquilada o reservada dentro de ese período. Elige otra fecha de inicio o un plazo distinto.'
+        : 'La habitación ya está reservada u ocupada en las fechas seleccionadas.');
       return;
     }
 
@@ -479,7 +481,7 @@ export default function ReceptionView({
     const externalBlock = externalBlocks.find(b => b.roomId === bookRoomId && bookCheckIn < b.fechaFin && bookCheckOut > b.fechaInicio);
     if (externalBlock) {
       const platformName = externalBlock.platform === 'airbnb' ? 'Airbnb' : externalBlock.platform === 'booking' ? 'Booking.com' : 'otro calendario externo';
-      alert(`❌ Error: esas fechas están bloqueadas por ${platformName} (${externalBlock.fechaInicio} a ${externalBlock.fechaFin}).`);
+      notify.error(`Esas fechas están bloqueadas por ${platformName} (${externalBlock.fechaInicio} a ${externalBlock.fechaFin}).`);
       return;
     }
 
@@ -487,7 +489,7 @@ export default function ReceptionView({
 
     if (resType === 'new') {
       if (!walkInNombre || !walkInApellido || !walkInEmail || !walkInTelefono || !walkInDocumento) {
-        alert('Por favor completa todos los campos del huésped nuevo.');
+        notify.warning('Completa todos los datos del huésped nuevo.');
         return;
       }
 
@@ -518,7 +520,7 @@ export default function ReceptionView({
       }
     } else {
       if (!selectedGuestId) {
-        alert('Por favor selecciona un huésped existente de la lista.');
+        notify.warning('Selecciona un huésped de la lista.');
         return;
       }
       targetGuestId = selectedGuestId;
@@ -562,7 +564,7 @@ export default function ReceptionView({
     if (onCreateReservation) {
       const created = await onCreateReservation(newRes);
       if (created === false) {
-        alert('❌ Error: La habitación ya no está disponible en las fechas seleccionadas. Elige otro rango de fechas.');
+        notify.error('La habitación ya no está disponible en las fechas seleccionadas. Elige otro rango de fechas.');
         return;
       }
 
@@ -592,7 +594,7 @@ export default function ReceptionView({
       setWalkInSelectedServices([]);
       setWalkInServicePeopleCount({});
     } else {
-      alert('Error en la integración de la base de datos al guardar la reserva.');
+      notify.error('No pudimos guardar la reserva. Revisa tu conexión e inténtalo de nuevo.');
     }
   };
 
@@ -638,9 +640,9 @@ export default function ReceptionView({
     if (res.success) {
       setScannedResult(null);
       setScannedResId(null);
-      alert('¡Check-In Procesado con éxito! La habitación ahora cuenta con estado OCUPADO.');
+      notify.success('Check-in registrado. La habitación ahora está ocupada.');
     } else {
-      alert(res.msg);
+      notify.warning(res.msg);
     }
   };
 
@@ -650,9 +652,9 @@ export default function ReceptionView({
     if (res.success) {
       setScannedResult(null);
       setScannedResId(null);
-      alert('¡Check-Out completado! La habitación pasó a estado MANTENIMIENTO.');
+      notify.success('Check-out completado. La habitación pasó a mantenimiento.');
     } else {
-      alert(res.msg);
+      notify.warning(res.msg);
     }
   };
 
@@ -704,36 +706,27 @@ export default function ReceptionView({
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 space-y-8" id="reception-view-layout">
       
-      {/* RECEPTION BANNER */}
-      <div className="bg-white rounded-3xl p-6 border border-neutral-200 shadow-sm flex flex-col md:flex-row items-center gap-6 justify-between">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 bg-teal-50 text-teal-600 flex items-center justify-center rounded-2xl border border-teal-100 shrink-0">
-            <Coffee className="w-6 h-6" />
+      {/* Encabezado de recepción: mismo formato que el panel de administración */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0 space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-2xl font-bold text-brand-navy1">{getTabLabel()}</h3>
+            <Badge tone="success">Recepción</Badge>
           </div>
-          <div>
-            <span className="text-[10px] uppercase font-bold text-teal-600 tracking-wider">MÓDULO DE RECEPCIÓN</span>
-            <div className="flex flex-col sm:flex-row sm:items-center gap-1.5">
-              <h3 className="text-xl font-bold text-neutral-800">Mostrador - {getTabLabel()}</h3>
-              {activeUser.rol === 'super_admin' && (
-                <select
-                  value={selectedHotelFilter}
-                  onChange={(e) => setSelectedHotelFilter(e.target.value)}
-                  className="sm:ml-2 border border-neutral-250 text-[11px] font-bold py-1 px-2 rounded-lg focus:outline-none bg-neutral-50 shadow-sm cursor-pointer text-teal-700 hover:border-teal-500 transition-colors"
-                >
-                  {hotels.map(h => (
-                    <option key={h.id} value={h.id}>
-                      {h.nombre} ({h.tipoEstablecimiento === 'casa' || h.tipoEstablecimiento === 'departamento' ? 'Propiedad' : 'Hotel'})
-                    </option>
-                  ))}
-                </select>
-              )}
-            </div>
-            <p className="text-xs text-neutral-400">Atendido por {activeUser.nombre} {activeUser.apellido} en {receptionistHotel?.nombre}</p>
-          </div>
+          <p className="text-sm text-neutral-500">Atiende {activeUser.nombre} {activeUser.apellido} en {receptionistHotel?.nombre}</p>
         </div>
-        <div className="text-right">
-          <span className="px-2.5 py-0.5 rounded bg-emerald-50 text-emerald-800 text-[10px] font-bold border border-emerald-100 uppercase">Operativo</span>
-        </div>
+        {activeUser.rol === 'super_admin' && (
+          <SelectPicker label="Establecimiento" showLabel className="w-full sm:w-72"
+            value={selectedHotelFilter}
+            onChange={(e) => setSelectedHotelFilter(e.target.value)}
+          >
+            {hotels.map(h => (
+              <option key={h.id} value={h.id}>
+                {h.nombre} ({h.tipoEstablecimiento === 'casa' || h.tipoEstablecimiento === 'departamento' ? 'Propiedad' : 'Hotel'})
+              </option>
+            ))}
+          </SelectPicker>
+        )}
       </div>
 
       {/* RENDER ACTIVE MODULES CONDITIONALLY */}
@@ -840,41 +833,34 @@ export default function ReceptionView({
 
       {/* CHECK-OUT MANDATORY WARNING MODAL */}
       {checkoutWarningRoom && (
-        <div className="fixed inset-0 bg-neutral-950/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full border border-neutral-100 p-6 space-y-4">
-            <div className="flex items-center gap-3 text-amber-600">
-              <div className="p-2.5 bg-amber-50 rounded-full">
-                <AlertTriangle className="w-6 h-6 text-amber-600 animate-pulse" />
+        <Modal
+          open
+          onClose={() => setCheckoutWarningRoom(null)}
+          size="md"
+          title="Check-out pendiente"
+          subtitle="Antes de cambiar el estado de la habitación"
+          footer={
+            <Button type="button" onClick={() => setCheckoutWarningRoom(null)} variant="primary" size="md" className="w-full">
+              Entendido
+            </Button>
+          }
+        >
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="rounded-full bg-warning-50 p-2.5">
+                <AlertTriangle className="h-6 w-6 text-warning-600" />
               </div>
-              <div>
-                <h4 className="font-bold text-neutral-900 text-sm">Operación Restringida: Check-Out</h4>
-                <p className="text-[10px] text-neutral-400 font-medium">Procedimiento de Auditoría Requerido</p>
-              </div>
+              <p className="text-sm font-semibold text-neutral-900">Esta habitación está ocupada</p>
             </div>
-
-            <p className="text-xs text-neutral-600 leading-relaxed font-sans">
-              La habitación <strong className="text-neutral-800">N° {checkoutWarningRoom.numero}</strong> correspondiente a <strong className="text-neutral-800">"{checkoutWarningRoom.nombre}"</strong> actualmente se encuentra registrada bajo el estado <strong className="text-[10px] bg-amber-50 text-amber-850 px-1.5 py-0.5 rounded font-bold uppercase border border-amber-200">Ocupado</strong>.
+            <p className="text-sm leading-relaxed text-neutral-600">
+              La habitación <strong className="text-neutral-900">N° {checkoutWarningRoom.numero}</strong> ({checkoutWarningRoom.nombre}) está registrada como <strong className="text-neutral-900">ocupada</strong>.
+              Para cambiar su estado primero debes procesar el <strong className="text-neutral-900">check-out</strong> del huésped desde recepción: así se liquidan los saldos pendientes y se emite la factura.
             </p>
-            
-            <p className="text-xs text-neutral-600 leading-relaxed font-sans">
-              Para cambiar el estado de este aposento, las normas hoteleras requieren obligatoriamente que se procese su <strong className="text-neutral-800">Check-Out</strong> formal desde la taquilla de recepción para liquidar saldos pendientes, timbrar facturación y transicionar higiénicamente a mantenimiento.
-            </p>
-
-            <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-3 text-[10px] text-zinc-650 leading-normal font-mono">
-              💡 Por favor, diríjase a la sección de Check-In para buscar al huésped y procesar la facturación de Check-Out.
-            </div>
-
-            <div className="pt-2">
-              <button
-                type="button"
-                onClick={() => setCheckoutWarningRoom(null)}
-                className="w-full px-4 py-2 bg-neutral-900 hover:bg-neutral-850 text-white font-bold rounded-xl text-xs cursor-pointer shadow-sm text-center transition-colors"
-              >
-                Entendido, regresar
-              </button>
+            <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-3 text-xs leading-normal text-neutral-600">
+              Ve a la sección de Check-In, busca al huésped y procesa su check-out.
             </div>
           </div>
-        </div>
+        </Modal>
       )}
 
     </div>

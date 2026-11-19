@@ -1,5 +1,6 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { Check, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Button } from './ui';
 
 /**
  * Divide un formulario largo en pasos sin desmontar los campos:
@@ -121,13 +122,13 @@ export function StepIndicator({
                 className="w-full flex items-center gap-2 cursor-pointer group text-left"
               >
                 <span
-                  className={`w-6 h-6 shrink-0 rounded-full text-[11px] font-bold flex items-center justify-center transition-colors ${
+                  className={`w-6 h-6 shrink-0 rounded-full text-micro font-bold flex items-center justify-center transition-colors ${
                     active ? 'bg-teal-600 text-white shadow-sm' : done ? 'bg-teal-100 text-teal-700' : 'bg-neutral-100 text-neutral-400 group-hover:bg-neutral-200'
                   }`}
                 >
                   {done ? <Check className="w-3.5 h-3.5" /> : n}
                 </span>
-                <span className={`text-[11px] font-semibold truncate ${active ? 'text-neutral-900' : 'text-neutral-400'}`}>{s.label}</span>
+                <span className={`text-micro font-semibold truncate ${active ? 'text-neutral-900' : 'text-neutral-400'}`}>{s.label}</span>
               </button>
               <div className={`h-0.5 mt-2 rounded-full ${active ? 'bg-teal-600' : done ? 'bg-teal-200' : 'bg-neutral-100'}`} />
             </li>
@@ -157,24 +158,24 @@ export function StepActions({
   return (
     <div className="pt-2 flex gap-3 sticky bottom-0 bg-white pb-1">
       {step === 1 ? (
-        <button type="button" onClick={onCancel} className="w-1/2 px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-semibold rounded-xl text-xs cursor-pointer">
+        <Button type="button" onClick={onCancel} variant="secondary" size="md" className="w-1/2">
           Cancelar
-        </button>
+        </Button>
       ) : (
-        <button type="button" onClick={onBack} className="w-1/2 px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-semibold rounded-xl text-xs cursor-pointer flex items-center justify-center gap-1">
+        <Button type="button" onClick={onBack} variant="secondary" size="md" className="w-1/2">
           <ChevronLeft className="w-4 h-4" /> Atrás
-        </button>
+        </Button>
       )}
       {last ? (
         // Claves distintas: si React reutiliza el mismo <button> y le cambia el tipo a "submit"
         // dentro del clic de "Siguiente", el navegador envía el formulario en ese mismo clic.
-        <button key="step-submit" type="submit" className="w-1/2 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl text-xs cursor-pointer shadow-md">
+        <Button key="step-submit" type="submit" variant="primary" size="md" className="w-1/2">
           {submitLabel}
-        </button>
+        </Button>
       ) : (
-        <button key="step-next" type="button" onClick={onNext} className="w-1/2 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl text-xs cursor-pointer shadow-md flex items-center justify-center gap-1">
+        <Button key="step-next" type="button" onClick={onNext} variant="primary" size="md" className="w-1/2">
           Siguiente <ChevronRight className="w-4 h-4" />
-        </button>
+        </Button>
       )}
     </div>
   );

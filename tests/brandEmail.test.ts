@@ -38,3 +38,18 @@ test('renderBrandText genera la versión de texto', () => {
   assert.ok(text.includes('Saldo: $9.28 USD'));
   assert.ok(!text.includes('Notas'));
 });
+
+test('emailSubject une las partes con un solo formato y cierra con la marca', async () => {
+  const { emailSubject } = await import('../supabase/functions/_shared/brandEmail.ts');
+  assert.equal(emailSubject('Comprobante de pago', 'RES-1', 'Hotel Sol'), 'Comprobante de pago · RES-1 · Hotel Sol');
+  assert.equal(emailSubject('Reserva confirmada', 'RES-1', undefined), 'Reserva confirmada · RES-1');
+  assert.equal(emailSubject('Contraseña cambiada'), 'Contraseña cambiada · Roomia PMS');
+  assert.equal(emailSubject('Asunto\ncon salto', ' ', null, 'Hotel'), 'Asunto con salto · Hotel');
+});
+
+test('renderBrandEmail acepta las variables de las plantillas de acceso como enlace', () => {
+  const html = renderBrandEmail({ eyebrow: 'x', title: 'y', cta: { label: 'Ir', url: '{{ .ConfirmationURL }}' } });
+  assert.ok(html.includes('href="{{ .ConfirmationURL }}"'));
+  const malicious = renderBrandEmail({ eyebrow: 'x', title: 'y', cta: { label: 'Ir', url: '{{ .Evil }}<script>' } });
+  assert.ok(!malicious.includes('<script>'));
+});

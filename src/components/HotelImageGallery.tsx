@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { ChevronLeft, ChevronRight, Maximize2, X, Image as ImageIcon } from 'lucide-react';
 import { isVideoUrl, getMediaEmbed } from './RoomImageGallery';
 import { onImageError } from '../utils/images';
+import { useSwipe } from '../utils/useSwipe';
 
 interface HotelImageGalleryProps {
   imagenes: string[];
@@ -72,6 +73,11 @@ export function HotelImageGallery({ imagenes, portada, hotelNombre, badgeTitle, 
     setActiveIndex(prev => (prev === allImages.length - 1 ? 0 : prev + 1));
   };
 
+  const goNext = () => { setDirection(1); setActiveIndex(prev => (prev === allImages.length - 1 ? 0 : prev + 1)); };
+  const goPrev = () => { setDirection(-1); setActiveIndex(prev => (prev === 0 ? allImages.length - 1 : prev - 1)); };
+  const swipe = useSwipe(goNext, goPrev);
+  const lightboxSwipe = useSwipe(goNext, goPrev);
+
   const selectIndex = (idx: number, e: React.MouseEvent) => {
     e.stopPropagation();
     setDirection(idx > activeIndex ? 1 : -1);
@@ -79,11 +85,12 @@ export function HotelImageGallery({ imagenes, portada, hotelNombre, badgeTitle, 
   };
 
   return (
-    <div className="space-y-4">
-      {/* Dynamic Immersive Main Slide */}
+    <div>
+      {/* Foto principal: se toca para verla en grande y se desliza para cambiarla */}
       <div 
-        className="relative rounded-2xl overflow-hidden h-80 md:h-96 bg-neutral-900 shadow-lg border border-neutral-200 group cursor-pointer"
-        onClick={() => setIsLightboxOpen(true)}
+        className="relative rounded-2xl overflow-hidden h-72 sm:h-80 md:h-96 bg-neutral-900 shadow-xl border border-neutral-200 group cursor-pointer touch-pan-y"
+        {...swipe.handlers}
+        onClick={() => { if (swipe.consumeSwipe()) return; setIsLightboxOpen(true); }}
       >
         {/* Animated image container */}
         <div className="absolute inset-0 w-full h-full overflow-hidden">
@@ -108,20 +115,17 @@ export function HotelImageGallery({ imagenes, portada, hotelNombre, badgeTitle, 
         {/* Info Text Overlay */}
         <div className="absolute inset-x-0 bottom-0 p-5 md:p-7 flex justify-between items-end pointer-events-none">
           <div className="space-y-1 text-white">
-            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-teal-500/90 text-[9px] font-bold uppercase tracking-wider border border-white/10 shadow-sm">
+            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-teal-500/90 text-micro font-bold uppercase tracking-wider border border-white/10 shadow-sm">
               <ImageIcon className="w-3 h-3" />
               <span>{badgeTitle || 'Galería Roomia'}</span>
             </div>
             <TitleTag className="text-xl md:text-3xl font-display font-semibold tracking-tight leading-tight text-white drop-shadow-sm">
               {hotelNombre}
             </TitleTag>
-            <p className="text-xs text-neutral-350 font-medium drop-shadow-sm">
-              Visualizando perspectiva {activeIndex + 1} de {allImages.length}
-            </p>
           </div>
 
           {/* Interactive Zoom pill */}
-          <div className="hidden sm:flex items-center gap-1.5 bg-white/95 backdrop-blur-md text-neutral-800 font-semibold text-xs py-2 px-3.5 rounded-xl border border-neutral-100 shadow-md group-hover:scale-105 duration-300 pointer-events-none">
+          <div className="hidden sm:flex items-center gap-1.5 bg-white/95 backdrop-blur-md text-neutral-800 font-semibold text-xs py-2 px-3.5 rounded-xl border border-neutral-100 shadow-sm group-hover:scale-105 duration-300 pointer-events-none">
             <Maximize2 className="w-3.5 h-3.5 text-teal-600" />
             <span>Expandir</span>
           </div>
@@ -149,41 +153,19 @@ export function HotelImageGallery({ imagenes, portada, hotelNombre, badgeTitle, 
           </div>
         )}
 
+        {/* Puntos: en qué foto vas (se ocultan si hay demasiadas) */}
+        {allImages.length > 1 && allImages.length <= 15 && (
+          <div className="absolute bottom-3 inset-x-0 z-10 flex justify-center gap-1.5 pointer-events-none">
+            {allImages.map((_, idx) => (
+              <span key={idx} className={`h-1.5 rounded-full transition-all duration-300 ${idx === activeIndex ? 'w-4 bg-brand-cyan' : 'w-1.5 bg-white/60'}`} />
+            ))}
+          </div>
+        )}
+
         {/* Mini progress tracker index */}
-        <div className="absolute top-4 right-4 bg-black/75 px-3 py-1 rounded-full text-[10px] font-mono text-white/90 font-bold border border-white/10 shadow-lg tracking-widest leading-none z-10">
+        <div className="absolute top-4 right-4 bg-black/75 px-3 py-1 rounded-full text-micro font-mono text-white/90 font-bold border border-white/10 shadow-xl tracking-widest leading-none z-10">
           {activeIndex + 1} / {allImages.length}
         </div>
-      </div>
-
-      {/* Styled Grid of Thumbnails with micro-interaction triggers */}
-      <div className="grid grid-cols-5 gap-2.5">
-        {allImages.map((img, idx) => {
-          const isItemVideo = isVideoUrl(img);
-          return (
-            <button
-              key={idx}
-              onClick={(e) => selectIndex(idx, e)}
-              type="button"
-              className={`relative rounded-xl overflow-hidden aspect-[4/3] w-full border-2 transition-all duration-300 group cursor-pointer ${
-                idx === activeIndex
-                  ? 'border-teal-500 scale-[1.03] shadow-md shadow-teal-500/10'
-                  : 'border-neutral-200/80 filter hover:brightness-105 hover:border-neutral-350 opacity-80 hover:opacity-100'
-              }`}
-            >
-              {isItemVideo ? (
-                <div className="w-full h-full bg-neutral-950 flex flex-col items-center justify-center text-white relative">
-                  <div className="absolute top-1 right-1 bg-red-650 rounded px-1.5 py-0.5 z-10 scale-75">
-                    <span className="text-[7px] uppercase font-bold tracking-wider text-white">Video</span>
-                  </div>
-                  <span className="text-sm">🎥</span>
-                </div>
-              ) : (
-                <img src={img} alt={`Perspectiva ${idx + 1}`} className="w-full h-full object-cover select-none" referrerPolicy="no-referrer" onError={onImageError} />
-              )}
-              <div className={`absolute inset-0 bg-teal-900/10 transition-opacity duration-3000 ${idx === activeIndex ? 'opacity-100' : 'opacity-0'}`} />
-            </button>
-          );
-        })}
       </div>
 
       {/* IMMERSIVE COMPREHENSIVE LIGHTBOX CAROUSEL MODAL */}
@@ -191,7 +173,7 @@ export function HotelImageGallery({ imagenes, portada, hotelNombre, badgeTitle, 
         <AnimatePresence>
           {isLightboxOpen && (
             <div 
-              className="fixed inset-0 bg-neutral-950/95 z-[9999] flex flex-col justify-between p-4 md:p-6 backdrop-blur-xl select-none"
+              className="fixed inset-0 bg-neutral-950/95 z-critical flex flex-col justify-between p-4 md:p-6 backdrop-blur-xl select-none"
               onClick={() => setIsLightboxOpen(false)}
             >
               {/* Top Bar controls */}
@@ -205,7 +187,7 @@ export function HotelImageGallery({ imagenes, portada, hotelNombre, badgeTitle, 
                 </div>
                 <button 
                   onClick={() => setIsLightboxOpen(false)}
-                  className="p-2.5 hover:bg-white/10 text-neutral-300 hover:text-white rounded-full transition-all cursor-pointer border border-white/5 bg-white/5 shadow-lg"
+                  className="p-2.5 hover:bg-white/10 text-neutral-300 hover:text-white rounded-full transition-all cursor-pointer border border-white/5 bg-white/5 shadow-xl"
                 >
                   <X className="w-6 h-6" />
                 </button>
@@ -213,13 +195,14 @@ export function HotelImageGallery({ imagenes, portada, hotelNombre, badgeTitle, 
 
               {/* Stage element */}
               <div 
-                className="relative flex-1 flex items-center justify-center max-h-[75vh] my-4 w-full"
+                className="relative flex-1 flex items-center justify-center max-h-[75vh] my-4 w-full touch-pan-y"
+                {...lightboxSwipe.handlers}
                 onClick={(e) => e.stopPropagation()}
               >
                 <AnimatePresence mode="wait">
                   <motion.div
                     key={activeIndex}
-                    className="max-w-full max-h-full aspect-video md:aspect-[16/9] w-full max-w-4xl flex items-center justify-center p-1 rounded-2xl overflow-hidden bg-black shadow-2xl border border-white/5"
+                    className="max-w-full max-h-full aspect-video md:aspect-[16/9] w-full max-w-4xl flex items-center justify-center p-1 rounded-2xl overflow-hidden bg-black shadow-xl border border-white/5"
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.95 }}
@@ -234,14 +217,14 @@ export function HotelImageGallery({ imagenes, portada, hotelNombre, badgeTitle, 
                   <>
                     <button
                       onClick={handlePrev}
-                      className="absolute left-2 md:left-6 w-12 h-12 bg-neutral-900/85 hover:bg-neutral-800 text-white rounded-full flex items-center justify-center shadow-2xl hover:scale-105 active:scale-95 transition-all cursor-pointer z-30 border border-white/10"
+                      className="absolute left-2 md:left-6 w-12 h-12 bg-neutral-900/85 hover:bg-neutral-800 text-white rounded-full flex items-center justify-center shadow-xl hover:scale-105 active:scale-95 transition-all cursor-pointer z-30 border border-white/10"
                       title="Anterior"
                     >
                       <ChevronLeft className="w-6 h-6" />
                     </button>
                     <button
                       onClick={handleNext}
-                      className="absolute right-2 md:right-6 w-12 h-12 bg-neutral-900/85 hover:bg-neutral-800 text-white rounded-full flex items-center justify-center shadow-2xl hover:scale-105 active:scale-95 transition-all cursor-pointer z-30 border border-white/10"
+                      className="absolute right-2 md:right-6 w-12 h-12 bg-neutral-900/85 hover:bg-neutral-800 text-white rounded-full flex items-center justify-center shadow-xl hover:scale-105 active:scale-95 transition-all cursor-pointer z-30 border border-white/10"
                       title="Siguiente"
                     >
                       <ChevronRight className="w-6 h-6" />
@@ -252,7 +235,7 @@ export function HotelImageGallery({ imagenes, portada, hotelNombre, badgeTitle, 
 
               {/* Immersive Thumbnails belt */}
               <div 
-                className="w-full max-w-2xl mx-auto flex items-center justify-center gap-2.5 bg-neutral-900/60 p-4 rounded-3xl border border-white/10 backdrop-blur-md"
+                className="hidden sm:flex w-full max-w-2xl mx-auto items-center gap-2.5 overflow-x-auto bg-neutral-900/60 p-4 rounded-2xl border border-white/10 backdrop-blur-md"
                 onClick={(e) => e.stopPropagation()}
               >
                 {allImages.map((img, idx) => {
@@ -261,16 +244,16 @@ export function HotelImageGallery({ imagenes, portada, hotelNombre, badgeTitle, 
                     <button
                       key={idx}
                       onClick={(e) => selectIndex(idx, e)}
-                      className={`relative w-16 md:w-20 h-11 md:h-14 rounded-xl overflow-hidden border transition-all duration-300 cursor-pointer ${
+                      className={`relative shrink-0 w-16 md:w-20 h-11 md:h-14 rounded-xl overflow-hidden border transition-all duration-300 cursor-pointer ${
                         activeIndex === idx 
-                          ? 'border-teal-500 scale-105 ring-4 ring-teal-500/20 shadow-lg' 
+                          ? 'border-teal-500 scale-105 ring-4 ring-teal-500/20 shadow-xl' 
                           : 'border-white/10 opacity-40 hover:opacity-100 hover:border-white/40'
                       }`}
                     >
                       {isItemVideo ? (
                         <div className="w-full h-full bg-neutral-950 flex flex-col items-center justify-center text-white relative">
-                          <div className="absolute top-0.5 right-0.5 bg-red-650 rounded px-1 py-0.2 scale-75 z-10">
-                            <span className="text-[6px] uppercase font-bold tracking-wider text-white">Video</span>
+                          <div className="absolute top-0.5 right-0.5 bg-danger-600 rounded-lg px-1 py-0.2 scale-75 z-10">
+                            <span className="text-micro uppercase font-bold tracking-wider text-white">Video</span>
                           </div>
                           <span className="text-sm">🎥</span>
                         </div>

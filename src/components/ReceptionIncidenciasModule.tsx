@@ -2,6 +2,7 @@ import React from 'react';
 import { Room } from '../types';
 import { ActivityLog } from '../store';
 import { Hammer, ShieldAlert, Home, MapPin } from 'lucide-react';
+import { Button, SelectPicker } from './ui';
 
 interface ReceptionIncidenciasModuleProps {
   rooms: Room[];
@@ -34,15 +35,15 @@ export default function ReceptionIncidenciasModule({
       
       {/* LEFT: Registrar Incidencia Form */}
       <div className="lg:col-span-1">
-        <div className="bg-white rounded-3xl p-6 border border-neutral-200 shadow-sm space-y-4">
+        <div className="bg-white rounded-2xl p-6 border border-neutral-200 shadow-sm space-y-4">
           <div className="border-b border-neutral-100 pb-3 flex items-center gap-2">
-            <Hammer className="w-5 h-5 text-red-600" />
-            <h4 className="font-semibold text-neutral-900 text-base">Registrar Incidencia</h4>
+            <Hammer className="w-5 h-5 text-danger-600" />
+            <h4 className="text-base font-bold text-brand-navy1">Registrar incidencia</h4>
           </div>
 
           <form onSubmit={handleReportIncident} className="space-y-4">
             {incidentSubmitted && (
-              <div className="bg-emerald-50 border border-emerald-300 text-emerald-800 p-3 rounded-xl text-xs font-medium">
+              <div className="bg-success-50 border border-success-300 text-success-800 p-3 rounded-xl text-xs font-medium">
                 {isProperty
                   ? 'Incidencia de la propiedad guardada con éxito.'
                   : 'Incidencia guardada con éxito. Habitación colocada en Mantenimiento.'}
@@ -53,28 +54,28 @@ export default function ReceptionIncidenciasModule({
               <div className="p-3 rounded-xl bg-neutral-50 border border-neutral-200 space-y-1.5">
                 <div className="flex items-center gap-2">
                   <Home className="w-4 h-4 text-teal-600 shrink-0" />
-                  <span className="text-xs font-bold text-neutral-850 truncate">{receptionistHotel?.nombre}</span>
-                  <span className="ml-auto text-[9px] font-bold uppercase px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 border border-teal-100">{propertyType}</span>
+                  <span className="text-xs font-bold text-neutral-800 truncate">{receptionistHotel?.nombre}</span>
+                  <span className="ml-auto text-micro font-bold uppercase px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 border border-teal-100">{propertyType}</span>
                 </div>
                 {receptionistHotel?.ubicacion && (
-                  <p className="text-[11px] text-neutral-500 flex items-start gap-1.5"><MapPin className="w-3.5 h-3.5 shrink-0 mt-0.5 text-neutral-400" />{receptionistHotel.ubicacion}</p>
+                  <p className="text-micro text-neutral-500 flex items-start gap-1.5"><MapPin className="w-3.5 h-3.5 shrink-0 mt-0.5 text-neutral-400" />{receptionistHotel.ubicacion}</p>
                 )}
-                <p className="text-[10px] text-neutral-400">La incidencia se registrará para toda la propiedad.</p>
+                <p className="text-micro text-neutral-400">La incidencia se registrará para toda la propiedad.</p>
               </div>
             ) : (
             <div>
               <label className="text-xs font-semibold text-neutral-500 block mb-1">Seleccionar Habitación:</label>
-              <select
+              <SelectPicker label="Seleccionar Habitación"
                 required
                 value={incidentRoomId}
                 onChange={(e) => setIncidentRoomId(e.target.value)}
-                className="w-full text-xs border border-neutral-250 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 focus:outline-none bg-white cursor-pointer text-neutral-800"
+                className="w-full text-xs border border-neutral-200 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 focus:outline-none bg-white cursor-pointer text-neutral-800"
               >
                 <option value="">Elegir número de cuarto...</option>
                 {rooms.filter(r => r.hotelId === receptionistHotel?.id).map(r => (
                   <option key={r.id} value={r.id}>Cuarto {r.numero} ({r.nombre})</option>
                 ))}
-              </select>
+              </SelectPicker>
             </div>
             )}
 
@@ -85,31 +86,31 @@ export default function ReceptionIncidenciasModule({
                 placeholder="Ej: Fuga de agua en el lavabo del baño, persiana principal atascada, etc."
                 value={incidentText}
                 onChange={(e) => setIncidentText(e.target.value)}
-                className="w-full text-xs border border-neutral-250 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 focus:outline-none h-20"
+                className="w-full text-xs border border-neutral-200 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 focus:outline-none h-20"
               />
             </div>
 
-            <button
+            <Button
               type="submit"
-              className="w-full bg-neutral-900 text-white font-bold py-2 rounded-xl text-xs hover:bg-neutral-800 transition-colors cursor-pointer"
+              variant="primary" size="md" className="w-full"
             >
               Reportar Incidencia
-            </button>
+            </Button>
           </form>
         </div>
       </div>
 
       {/* RIGHT: Bitácora Histórica de Incidencias */}
       <div className="lg:col-span-2 space-y-4">
-        <div className="bg-white rounded-3xl p-6 border border-neutral-200 shadow-sm space-y-4">
+        <div className="bg-white rounded-2xl p-6 border border-neutral-200 shadow-sm space-y-4">
           <div className="border-b border-neutral-100 pb-3 flex justify-between items-center">
             <div>
-              <h4 className="font-bold text-neutral-800 text-base">Bitácora Histórica de Incidencias</h4>
+              <h4 className="text-base font-bold text-brand-navy1">Historial de incidencias</h4>
               <p className="text-xs text-neutral-400 mt-0.5">
                 Historial consolidado de desperfectos, averías y reparaciones técnicas registradas en este establecimiento.
               </p>
             </div>
-            <span className="text-xs bg-red-50 text-red-600 border border-red-150 px-2.5 py-0.5 rounded-full font-bold font-mono">
+            <span className="text-xs bg-danger-50 text-danger-600 border border-danger-100 px-2.5 py-0.5 rounded-full font-bold font-mono">
               {hotelIncidents.length} reportadas
             </span>
           </div>
@@ -119,22 +120,22 @@ export default function ReceptionIncidenciasModule({
               <div className="text-center py-12 text-neutral-400">
                 <ShieldAlert className="w-12 h-12 text-neutral-200 mx-auto mb-3" />
                 <p className="font-semibold text-xs">Sin incidencias reportadas</p>
-                <p className="text-[10px] mt-1">El establecimiento se encuentra operando al 100% libre de desperfectos técnicos.</p>
+                <p className="text-micro mt-1">El establecimiento se encuentra operando al 100% libre de desperfectos técnicos.</p>
               </div>
             ) : (
               hotelIncidents.map((log) => (
-                <div key={log.id} className="p-3.5 bg-neutral-50 rounded-2xl border border-neutral-150/60 flex flex-col sm:flex-row justify-between sm:items-center gap-4 hover:bg-neutral-100/50 transition-colors">
+                <div key={log.id} className="p-3.5 bg-neutral-50 rounded-2xl border border-neutral-100/60 flex flex-col sm:flex-row justify-between sm:items-center gap-4 hover:bg-neutral-100/50 transition-colors">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <span className="px-1.5 py-0.5 bg-red-50 text-red-700 border border-red-100 rounded text-[9px] font-bold uppercase">Reporte</span>
-                      <span className="text-[10px] font-mono text-neutral-400 font-medium">{new Date(log.timestamp).toLocaleString()}</span>
+                      <span className="px-1.5 py-0.5 bg-danger-50 text-danger-700 border border-danger-100 rounded-lg text-micro font-bold uppercase">Reporte</span>
+                      <span className="text-micro font-mono text-neutral-400 font-medium">{new Date(log.timestamp).toLocaleString()}</span>
                     </div>
-                    <p className="text-xs font-semibold text-neutral-850 leading-normal">{log.detalles}</p>
-                    <p className="text-[10px] text-neutral-400">Registrado por: <strong className="text-neutral-600">{log.user}</strong> ({log.role})</p>
+                    <p className="text-xs font-semibold text-neutral-800 leading-normal">{log.detalles}</p>
+                    <p className="text-micro text-neutral-400">Registrado por: <strong className="text-neutral-600">{log.user}</strong> ({log.role})</p>
                   </div>
                   
                   <div className="shrink-0">
-                    <span className="px-2 py-1 bg-amber-50 text-amber-700 border border-amber-100 rounded-lg text-[9px] font-mono font-bold uppercase">
+                    <span className="px-2 py-1 bg-warning-50 text-warning-700 border border-warning-100 rounded-lg text-micro font-mono font-bold uppercase">
                       {isProperty ? 'Reporte de propiedad' : 'Mantenimiento Activo'}
                     </span>
                   </div>

@@ -3,6 +3,7 @@ import { onImageError } from '../utils/images';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronLeft, ChevronRight, Maximize2, X } from 'lucide-react';
+import { useSwipe } from '../utils/useSwipe';
 
 export function isVideoUrl(url: string | undefined): boolean {
   if (!url) return false;
@@ -135,12 +136,17 @@ export function RoomImageGallery({ imagenes, roomNombre, className, disableLight
     setActiveIndex(prev => (prev === displayImages.length - 1 ? 0 : prev + 1));
   };
 
+  const goNext = () => setActiveIndex(prev => (prev === displayImages.length - 1 ? 0 : prev + 1));
+  const goPrev = () => setActiveIndex(prev => (prev === 0 ? displayImages.length - 1 : prev - 1));
+  const swipe = useSwipe(goNext, goPrev);
+  const lightboxSwipe = useSwipe(goNext, goPrev);
+
   const selectIndex = (idx: number, e: React.MouseEvent) => {
     e.stopPropagation();
     setActiveIndex(idx);
   };
 
-  const wrapperClass = className || "relative w-full md:w-56 h-36 rounded-xl overflow-hidden bg-neutral-100 shrink-0 border border-neutral-150 shadow-sm group cursor-pointer";
+  const wrapperClass = className || "relative w-full md:w-56 h-36 rounded-xl overflow-hidden bg-neutral-100 shrink-0 border border-neutral-100 shadow-sm group cursor-pointer";
 
   return (
     <>
@@ -148,7 +154,9 @@ export function RoomImageGallery({ imagenes, roomNombre, className, disableLight
         className={wrapperClass}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
+        {...swipe.handlers}
         onClick={() => {
+          if (swipe.consumeSwipe()) return;
           if (!disableLightbox) {
             setIsLightboxOpen(true);
           }
@@ -182,7 +190,7 @@ export function RoomImageGallery({ imagenes, roomNombre, className, disableLight
             <button
               onClick={handlePrev}
               type="button"
-              className="w-7 h-7 bg-white/95 hover:bg-white text-neutral-800 rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-all cursor-pointer pointer-events-auto border border-neutral-200"
+              className="w-7 h-7 bg-white/95 hover:bg-white text-neutral-800 rounded-full flex items-center justify-center shadow-xl active:scale-90 transition-all cursor-pointer pointer-events-auto border border-neutral-200"
               title="Anterior"
             >
               <ChevronLeft className="w-4 h-4" />
@@ -190,7 +198,7 @@ export function RoomImageGallery({ imagenes, roomNombre, className, disableLight
             <button
               onClick={handleNext}
               type="button"
-              className="w-7 h-7 bg-white/95 hover:bg-white text-neutral-800 rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-all cursor-pointer pointer-events-auto border border-neutral-200"
+              className="w-7 h-7 bg-white/95 hover:bg-white text-neutral-800 rounded-full flex items-center justify-center shadow-xl active:scale-90 transition-all cursor-pointer pointer-events-auto border border-neutral-200"
               title="Siguiente"
             >
               <ChevronRight className="w-4 h-4" />
@@ -199,13 +207,13 @@ export function RoomImageGallery({ imagenes, roomNombre, className, disableLight
         )}
 
         {/* Small badge of active image count */}
-        <div className="absolute top-2 left-2 bg-neutral-900/75 text-white font-mono text-[9px] font-bold px-1.5 py-0.5 rounded-md tracking-wider border border-white/10">
+        <div className="absolute top-2 left-2 bg-neutral-900/75 text-white font-mono text-micro font-bold px-1.5 py-0.5 rounded-lg tracking-wider border border-white/10">
           {activeIndex + 1}/{displayImages.length}
         </div>
 
         {/* Hover Eye indicator to expand */}
         {!disableLightbox && (
-          <div className="absolute top-2 right-2 bg-neutral-900/75 text-white hover:bg-neutral-900 duration-200 p-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity border border-white/10 z-15">
+          <div className="absolute top-2 right-2 bg-neutral-900/75 text-white hover:bg-neutral-900 duration-200 p-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity border border-white/10 z-15">
             <Maximize2 className="w-3 h-3" />
           </div>
         )}
@@ -233,7 +241,7 @@ export function RoomImageGallery({ imagenes, roomNombre, className, disableLight
         <AnimatePresence>
           {isLightboxOpen && (
             <div 
-              className="fixed inset-0 bg-neutral-950/95 z-[9999] flex flex-col justify-between p-4 md:p-6 backdrop-blur-xl select-none"
+              className="fixed inset-0 bg-neutral-950/95 z-critical flex flex-col justify-between p-4 md:p-6 backdrop-blur-xl select-none"
               onClick={() => setIsLightboxOpen(false)}
             >
               {/* Top Bar of Lightbox */}
@@ -247,7 +255,7 @@ export function RoomImageGallery({ imagenes, roomNombre, className, disableLight
                 </div>
                 <button 
                   onClick={() => setIsLightboxOpen(false)}
-                  className="p-2.5 hover:bg-white/10 text-neutral-300 hover:text-white rounded-full transition-all cursor-pointer border border-white/5 bg-white/5 shadow-lg"
+                  className="p-2.5 hover:bg-white/10 text-neutral-300 hover:text-white rounded-full transition-all cursor-pointer border border-white/5 bg-white/5 shadow-xl"
                 >
                   <X className="w-6 h-6" />
                 </button>
@@ -255,13 +263,14 @@ export function RoomImageGallery({ imagenes, roomNombre, className, disableLight
 
               {/* Main Stage Image */}
               <div 
-                className="relative flex-1 flex items-center justify-center max-h-[85vh] my-2 w-full"
+                className="relative flex-1 flex items-center justify-center max-h-[85vh] my-2 w-full touch-pan-y"
+                {...lightboxSwipe.handlers}
                 onClick={(e) => e.stopPropagation()}
               >
                 <AnimatePresence mode="wait">
                   <motion.div
                     key={activeIndex}
-                    className="max-w-full max-h-full aspect-video md:aspect-[16/9] w-full max-w-6xl flex items-center justify-center p-1 rounded-2xl overflow-hidden bg-black shadow-2xl border border-white/10"
+                    className="max-w-full max-h-full aspect-video md:aspect-[16/9] w-full max-w-6xl flex items-center justify-center p-1 rounded-2xl overflow-hidden bg-black shadow-xl border border-white/10"
                     initial={{ opacity: 0, scale: 0.96 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.96 }}
@@ -276,14 +285,14 @@ export function RoomImageGallery({ imagenes, roomNombre, className, disableLight
                   <>
                     <button
                       onClick={handlePrev}
-                      className="absolute left-2 md:left-6 w-12 h-12 bg-neutral-900/85 hover:bg-neutral-800 text-white rounded-full flex items-center justify-center shadow-2xl hover:scale-105 active:scale-95 transition-all cursor-pointer z-30 border border-white/10"
+                      className="absolute left-2 md:left-6 w-12 h-12 bg-neutral-900/85 hover:bg-neutral-800 text-white rounded-full flex items-center justify-center shadow-xl hover:scale-105 active:scale-95 transition-all cursor-pointer z-30 border border-white/10"
                       title="Anterior"
                     >
                       <ChevronLeft className="w-6 h-6" />
                     </button>
                     <button
                       onClick={handleNext}
-                      className="absolute right-2 md:right-6 w-12 h-12 bg-neutral-900/85 hover:bg-neutral-800 text-white rounded-full flex items-center justify-center shadow-2xl hover:scale-105 active:scale-95 transition-all cursor-pointer z-30 border border-white/10"
+                      className="absolute right-2 md:right-6 w-12 h-12 bg-neutral-900/85 hover:bg-neutral-800 text-white rounded-full flex items-center justify-center shadow-xl hover:scale-105 active:scale-95 transition-all cursor-pointer z-30 border border-white/10"
                       title="Siguiente"
                     >
                       <ChevronRight className="w-6 h-6" />
@@ -294,7 +303,7 @@ export function RoomImageGallery({ imagenes, roomNombre, className, disableLight
 
               {/* Bottom thumbnail selector of Lightbox */}
               <div 
-                className="w-full max-w-2xl mx-auto flex items-center justify-center gap-2.5 bg-neutral-900/60 p-4 rounded-3xl border border-white/10 backdrop-blur-md"
+                className="hidden sm:flex w-full max-w-2xl mx-auto items-center gap-2.5 overflow-x-auto bg-neutral-900/60 p-4 rounded-2xl border border-white/10 backdrop-blur-md"
                 onClick={(e) => e.stopPropagation()}
               >
                 {displayImages.map((img, idx) => {
@@ -303,16 +312,16 @@ export function RoomImageGallery({ imagenes, roomNombre, className, disableLight
                     <button
                       key={idx}
                       onClick={(e) => selectIndex(idx, e)}
-                      className={`relative w-16 md:w-20 h-11 md:h-14 rounded-xl overflow-hidden border transition-all duration-300 cursor-pointer ${
+                      className={`relative shrink-0 w-16 md:w-20 h-11 md:h-14 rounded-xl overflow-hidden border transition-all duration-300 cursor-pointer ${
                         activeIndex === idx 
-                          ? 'border-teal-500 scale-105 ring-4 ring-teal-500/20 shadow-lg' 
+                          ? 'border-teal-500 scale-105 ring-4 ring-teal-500/20 shadow-xl' 
                           : 'border-white/10 opacity-40 hover:opacity-100 hover:border-white/40'
                       }`}
                     >
                       {isItemVideo ? (
                         <div className="w-full h-full bg-neutral-950 flex flex-col items-center justify-center text-white relative">
-                          <div className="absolute top-0.5 right-0.5 bg-red-650 rounded px-1 py-0.2 scale-75 z-10">
-                            <span className="text-[6px] uppercase font-bold tracking-wider text-white">Video</span>
+                          <div className="absolute top-0.5 right-0.5 bg-danger-600 rounded-lg px-1 py-0.2 scale-75 z-10">
+                            <span className="text-micro uppercase font-bold tracking-wider text-white">Video</span>
                           </div>
                           <span className="text-sm">🎥</span>
                         </div>

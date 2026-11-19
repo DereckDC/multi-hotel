@@ -51,6 +51,17 @@ export interface BrandEmail {
   contact?: string;
 }
 
+/**
+ * Asunto de todos los correos: `Qué pasó · Dato · Contexto`, por ejemplo
+ *   emailSubject('Comprobante de pago', 'RES-40446', 'Hotel Sol')
+ *   emailSubject('Contraseña cambiada')  ->  'Contraseña cambiada · Roomia PMS'
+ * Sin emojis. Si no hay contexto, cierra con el nombre de la marca.
+ */
+export const emailSubject = (...parts: Array<string | null | undefined>): string => {
+  const clean = parts.map((p) => String(p ?? "").replace(/[\r\n]+/g, " ").trim()).filter(Boolean);
+  return (clean.length > 1 ? clean : [...clean, "Roomia PMS"]).join(" · ");
+};
+
 export const escapeHtml = (value: unknown): string =>
   String(value ?? "").replace(/[&<>"']/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!)
@@ -64,7 +75,8 @@ const plain = (text: string): string => text.replace(/\*\*(.+?)\*\*/g, "$1");
 
 const hasValue = (v: unknown) => v !== null && v !== undefined && String(v).trim() !== "";
 
-const safeUrl = (url: string): string => (/^https?:\/\//i.test(url) ? url : BRAND.site);
+const safeUrl = (url: string): string =>
+  /^https?:\/\//i.test(url) || /^\{\{\s*\.[A-Za-z]+\s*\}\}$/.test(url) ? url : BRAND.site;
 
 export function renderBrandEmail(e: BrandEmail): string {
   const font = "'Segoe UI', Roboto, Helvetica, Arial, sans-serif";

@@ -5,6 +5,7 @@
 
 import React from 'react';
 import { BrandLogo } from './BrandLogo';
+import { Button, BackButton } from './ui';
 import { 
   Building2, 
   ArrowLeft, 
@@ -47,23 +48,16 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
   }, [documentType]);
 
   return (
-    <div className="min-h-screen bg-[#fafafa] text-neutral-800 flex flex-col font-sans animate-fade-in" id="legal-page-container">
+    <div className="min-h-screen bg-[#fafafa] text-neutral-800 flex flex-col animate-fade-in" id="legal-page-container">
       
       {/* Upper Navigation Header aligned with the branding */}
-      <nav className="bg-slate-950/95 border-b border-slate-900 sticky top-0 z-50 shadow-md" id="legal-navbar">
+      <nav className="bg-neutral-950/95 border-b border-neutral-900 sticky top-0 z-50 shadow-sm" id="legal-navbar">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <BrandLogo size="lg" showText={true} lightText={true} />
           </div>
 
-          <button
-            onClick={onClose}
-            className="px-4 py-2 bg-brand-navy1 hover:bg-[#133A62] border border-brand-cyan/30 text-white text-xs font-semibold rounded-xl transition-all shadow-md shadow-brand-cyan/5 flex items-center gap-2 cursor-pointer active:scale-95"
-            id="back-to-home-btn"
-          >
-            <ArrowLeft className="w-4 h-4 text-brand-cyan" />
-            <span>Volver</span>
-          </button>
+          <BackButton onClick={onClose} />
         </div>
       </nav>
 
@@ -72,7 +66,7 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
         
         {/* Left Column Sidebar selector */}
         <aside className="lg:col-span-4 space-y-6" id="legal-sidebar">
-          <div className="bg-white border border-neutral-200 rounded-3xl p-6 shadow-sm sticky top-24 space-y-5">
+          <div className="bg-white border border-neutral-200 rounded-2xl p-6 shadow-sm sticky top-24 space-y-5">
             <div>
               <h3 className="font-bold text-base text-neutral-800">Centro de Transparencia</h3>
             </div>
@@ -82,19 +76,19 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
                 onClick={() => onSelectDoc('terminos')}
                 className={`w-full text-left p-3.5 rounded-2xl border text-xs font-semibold flex items-center gap-3 transition-all cursor-pointer ${
                   documentType === 'terminos'
-                    ? 'bg-teal-50 border-teal-200 text-teal-850 shadow-sm font-bold'
-                    : 'bg-white border-neutral-150 hover:bg-neutral-50 text-neutral-600'
+                    ? 'bg-teal-50 border-teal-200 text-teal-800 shadow-sm font-bold'
+                    : 'bg-white border-neutral-100 hover:bg-neutral-50 text-neutral-600'
                 }`}
                 id="doc-selector-terminos"
               >
                 <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
-                  documentType === 'terminos' ? 'bg-teal-555 text-teal-850' : 'bg-neutral-100 text-neutral-500'
+                  documentType === 'terminos' ? 'bg-teal-500 text-teal-800' : 'bg-neutral-100 text-neutral-500'
                 }`}>
                   <Scale className="w-4 h-4" />
                 </div>
                 <div className="min-w-0">
                   <span className="block leading-tight">Términos y Condiciones</span>
-                  <span className="text-[10px] text-neutral-400 font-mono block mt-0.5">Actualizado: Ago 2026</span>
+                  <span className="text-micro text-neutral-400 font-mono block mt-0.5">Actualizado: Ago 2026</span>
                 </div>
               </button>
 
@@ -102,19 +96,19 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
                 onClick={() => onSelectDoc('privacidad')}
                 className={`w-full text-left p-3.5 rounded-2xl border text-xs font-semibold flex items-center gap-3 transition-all cursor-pointer ${
                   documentType === 'privacidad'
-                    ? 'bg-teal-50 border-teal-200 text-teal-850 shadow-sm font-bold'
-                    : 'bg-white border-neutral-150 hover:bg-neutral-50 text-neutral-600'
+                    ? 'bg-teal-50 border-teal-200 text-teal-800 shadow-sm font-bold'
+                    : 'bg-white border-neutral-100 hover:bg-neutral-50 text-neutral-600'
                 }`}
                 id="doc-selector-privacidad"
               >
                 <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
-                  documentType === 'privacidad' ? 'bg-teal-555 text-teal-850' : 'bg-neutral-100 text-neutral-500'
+                  documentType === 'privacidad' ? 'bg-teal-500 text-teal-800' : 'bg-neutral-100 text-neutral-500'
                 }`}>
                   <ShieldCheck className="w-4 h-4" />
                 </div>
                 <div className="min-w-0">
                   <span className="block leading-tight">Política de Privacidad</span>
-                  <span className="text-[10px] text-neutral-400 font-mono block mt-0.5">Actualizado: Ago 2026</span>
+                  <span className="text-micro text-neutral-400 font-mono block mt-0.5">Actualizado: Ago 2026</span>
                 </div>
               </button>
 
@@ -122,19 +116,19 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
                 onClick={() => onSelectDoc('cancelaciones')}
                 className={`w-full text-left p-3.5 rounded-2xl border text-xs font-semibold flex items-center gap-3 transition-all cursor-pointer ${
                   documentType === 'cancelaciones'
-                    ? 'bg-teal-50 border-teal-200 text-teal-850 shadow-sm font-bold'
-                    : 'bg-white border-neutral-150 hover:bg-neutral-50 text-neutral-600'
+                    ? 'bg-teal-50 border-teal-200 text-teal-800 shadow-sm font-bold'
+                    : 'bg-white border-neutral-100 hover:bg-neutral-50 text-neutral-600'
                 }`}
                 id="doc-selector-cancelaciones"
               >
                 <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
-                  documentType === 'cancelaciones' ? 'bg-teal-555 text-teal-850' : 'bg-neutral-100 text-neutral-500'
+                  documentType === 'cancelaciones' ? 'bg-teal-500 text-teal-800' : 'bg-neutral-100 text-neutral-500'
                 }`}>
                   <CalendarClock className="w-4 h-4" />
                 </div>
                 <div className="min-w-0">
                   <span className="block leading-tight">Cancelaciones y Reembolsos</span>
-                  <span className="text-[10px] text-neutral-400 font-mono block mt-0.5">Actualizado: Ago 2026</span>
+                  <span className="text-micro text-neutral-400 font-mono block mt-0.5">Actualizado: Ago 2026</span>
                 </div>
               </button>
             </div>
@@ -144,11 +138,11 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
         </aside>
 
         {/* Right Column Content Panel */}
-        <section className="lg:col-span-8 bg-white border border-neutral-200 rounded-3xl p-6 md:p-8 shadow-sm space-y-8" id="legal-content-panel">
+        <section className="lg:col-span-8 bg-white border border-neutral-200 rounded-2xl p-6 md:p-8 shadow-sm space-y-8" id="legal-content-panel">
           
           {/* HEADER SECTOR */}
-          <div className="border-b border-neutral-150 pb-6 space-y-3">
-            <span className="text-[10px] text-teal-700 bg-teal-50 border border-teal-200 px-2.5 py-1 rounded-full uppercase tracking-wider font-mono font-bold inline-block">
+          <div className="border-b border-neutral-100 pb-6 space-y-3">
+            <span className="text-micro text-teal-700 bg-teal-50 border border-teal-200 px-2.5 py-1 rounded-full uppercase tracking-wider font-mono font-bold inline-block">
               DOCUMENTO LEGAL OFICIAL
             </span>
             
@@ -158,9 +152,9 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
               {documentType === 'cancelaciones' && 'Política de Cancelaciones, Modificaciones y Reembolsos'}
             </h1>
 
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[11px] text-neutral-400">
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-micro text-neutral-400">
               <span className="flex items-center gap-1.5 font-mono">
-                <FileText className="w-3.5 h-3.5 text-neutral-450" />
+                <FileText className="w-3.5 h-3.5 text-neutral-400" />
                 Identificador: ROOMIA-{documentType === 'terminos' ? 'TC' : documentType === 'privacidad' ? 'PP' : 'CR'}-2026
               </span>
               <span className="flex items-center gap-1.5 font-mono font-bold text-teal-600">
@@ -171,14 +165,14 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
           </div>
 
           {/* DYNAMIC COMPLIANCE REDACTION FOR ROOMIA */}
-          <div className="prose prose-sm prose-teal max-w-none text-neutral-650 leading-relaxed space-y-6 text-xs md:text-sm">
+          <div className="prose prose-sm prose-teal max-w-none text-neutral-600 leading-relaxed space-y-6 text-xs md:text-sm">
             
             {/* TERMINOS Y CONDICIONES */}
             {documentType === 'terminos' && (
               <div className="space-y-6" id="legal-content-terminos">
                 
                 {/* Intro Section */}
-                <div className="p-4 bg-teal-50 rounded-2xl border border-teal-150 flex items-start gap-3 animate-fade-in">
+                <div className="p-4 bg-teal-50 rounded-2xl border border-teal-100 flex items-start gap-3 animate-fade-in">
                   <Scale className="w-5 h-5 text-teal-700 shrink-0 mt-0.5" />
                   <p className="text-xs text-teal-900 font-semibold leading-normal">
                     Al acceder o utilizar los servicios de Roomia, el usuario acepta los presentes Términos y Condiciones de Uso. Si no está de acuerdo con alguna de sus disposiciones, deberá abstenerse de utilizar la plataforma.
@@ -187,8 +181,8 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
 
                 {/* Sección 1: Sobre Roomia y Representación Legal */}
                 <div className="space-y-2 transition-all duration-300 hover:translate-x-1 p-1">
-                  <h4 className="font-bold text-neutral-850 text-sm md:text-base flex items-center gap-2">
-                    <span className="w-1.5 h-4 bg-teal-600 rounded-sm inline-block animate-pulse" />
+                  <h4 className="font-bold text-neutral-800 text-sm md:text-base flex items-center gap-2">
+                    <span className="w-1.5 h-4 bg-teal-600 rounded-lg inline-block animate-pulse" />
                     1. Sobre Roomia y Representación Legal
                   </h4>
                   <p>
@@ -201,8 +195,8 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
 
                 {/* Sección 2: Cómo funciona nuestro servicio */}
                 <div className="space-y-4 transition-all duration-300 hover:translate-x-1 p-1">
-                  <h4 className="font-bold text-neutral-850 text-sm md:text-base flex items-center gap-2">
-                    <span className="w-1.5 h-4 bg-teal-600 rounded-sm inline-block animate-pulse" />
+                  <h4 className="font-bold text-neutral-800 text-sm md:text-base flex items-center gap-2">
+                    <span className="w-1.5 h-4 bg-teal-600 rounded-lg inline-block animate-pulse" />
                     2. Cómo funciona nuestro servicio
                   </h4>
                   
@@ -253,8 +247,8 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
 
                 {/* Sección 3: Contratación del servicio */}
                 <div className="space-y-2 transition-all duration-300 hover:translate-x-1 p-1">
-                  <h4 className="font-bold text-neutral-850 text-sm md:text-base flex items-center gap-2">
-                    <span className="w-1.5 h-4 bg-teal-600 rounded-sm inline-block animate-pulse" />
+                  <h4 className="font-bold text-neutral-800 text-sm md:text-base flex items-center gap-2">
+                    <span className="w-1.5 h-4 bg-teal-600 rounded-lg inline-block animate-pulse" />
                     3. Contratación del servicio
                   </h4>
                   <p>
@@ -270,8 +264,8 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
 
                 {/* Sección 4: Responsabilidad de la información publicada */}
                 <div className="space-y-2 transition-all duration-300 hover:translate-x-1 p-1">
-                  <h4 className="font-bold text-neutral-850 text-sm md:text-base flex items-center gap-2">
-                    <span className="w-1.5 h-4 bg-teal-600 rounded-sm inline-block animate-pulse" />
+                  <h4 className="font-bold text-neutral-800 text-sm md:text-base flex items-center gap-2">
+                    <span className="w-1.5 h-4 bg-teal-600 rounded-lg inline-block animate-pulse" />
                     4. Responsabilidad de la información publicada
                   </h4>
                   <p>
@@ -293,8 +287,8 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
 
                 {/* Sección 5: Pagos */}
                 <div className="space-y-2 transition-all duration-300 hover:translate-x-1 p-1">
-                  <h4 className="font-bold text-neutral-850 text-sm md:text-base flex items-center gap-2">
-                    <span className="w-1.5 h-4 bg-teal-600 rounded-sm inline-block animate-pulse" />
+                  <h4 className="font-bold text-neutral-800 text-sm md:text-base flex items-center gap-2">
+                    <span className="w-1.5 h-4 bg-teal-600 rounded-lg inline-block animate-pulse" />
                     5. Pagos y Liquidaciones
                   </h4>
                   <p>
@@ -306,15 +300,15 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
                   <p>
                     Las condiciones específicas de procesamiento estarán sujetas también a los términos establecidos por cada proveedor de pasarela.
                   </p>
-                  <div className="bg-teal-50 p-4 rounded-xl border border-teal-150 text-xs text-teal-950 font-medium">
+                  <div className="bg-teal-50 p-4 rounded-xl border border-teal-100 text-xs text-teal-950 font-medium">
                     📌 <strong>Tarifa por Procesamiento y Gestión de Pagos (5%):</strong> Cuando los clientes o huéspedes realicen pagos con tarjeta a través de la pasarela integrada en la plataforma Roomia, se aplicará una tarifa del <strong>5% sobre el monto total pagado por el cliente por reserva</strong>. Esta tarifa será asumida por el administrador/propietario y cubre los trámites operativos de la pasarela de pago y la gestión del envío y acreditación del dinero de la reserva hacia la cuenta bancaria del propietario. Los pagos que el establecimiento reciba directamente en recepción (como efectivo o transferencias directas a su propia cuenta) están exentos de esta tarifa.
                   </div>
                 </div>
 
                 {/* Sección 6: Uso adecuado de la plataforma */}
                 <div className="space-y-2 transition-all duration-300 hover:translate-x-1 p-1">
-                  <h4 className="font-bold text-neutral-850 text-sm md:text-base flex items-center gap-2">
-                    <span className="w-1.5 h-4 bg-teal-600 rounded-sm inline-block animate-pulse" />
+                  <h4 className="font-bold text-neutral-800 text-sm md:text-base flex items-center gap-2">
+                    <span className="w-1.5 h-4 bg-teal-600 rounded-lg inline-block animate-pulse" />
                     6. Uso adecuado de la plataforma
                   </h4>
                   <p>
@@ -335,8 +329,8 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
 
                 {/* Sección 7: Suspensión de cuentas */}
                 <div className="space-y-2 transition-all duration-300 hover:translate-x-1 p-1">
-                  <h4 className="font-bold text-neutral-850 text-sm md:text-base flex items-center gap-2">
-                    <span className="w-1.5 h-4 bg-teal-600 rounded-sm inline-block animate-pulse" />
+                  <h4 className="font-bold text-neutral-800 text-sm md:text-base flex items-center gap-2">
+                    <span className="w-1.5 h-4 bg-teal-600 rounded-lg inline-block animate-pulse" />
                     7. Suspensión de cuentas
                   </h4>
                   <p>
@@ -355,8 +349,8 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
 
                 {/* Sección 8: Limitación de responsabilidad */}
                 <div className="space-y-2 transition-all duration-300 hover:translate-x-1 p-1">
-                  <h4 className="font-bold text-neutral-850 text-sm md:text-base flex items-center gap-2">
-                    <span className="w-1.5 h-4 bg-teal-600 rounded-sm inline-block" />
+                  <h4 className="font-bold text-neutral-800 text-sm md:text-base flex items-center gap-2">
+                    <span className="w-1.5 h-4 bg-teal-600 rounded-lg inline-block" />
                     8. Limitación de responsabilidad
                   </h4>
                   <p>
@@ -372,8 +366,8 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
 
                 {/* Sección 9: Modificaciones */}
                 <div className="space-y-2 transition-all duration-300 hover:translate-x-1 p-1">
-                  <h4 className="font-bold text-neutral-850 text-sm md:text-base flex items-center gap-2">
-                    <span className="w-1.5 h-4 bg-teal-600 rounded-sm inline-block animate-pulse" />
+                  <h4 className="font-bold text-neutral-800 text-sm md:text-base flex items-center gap-2">
+                    <span className="w-1.5 h-4 bg-teal-600 rounded-lg inline-block animate-pulse" />
                     9. Modificaciones
                   </h4>
                   <p>
@@ -386,16 +380,16 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
 
                 {/* Sección 10: Titularidad y Contacto */}
                 <div className="space-y-2 transition-all duration-300 hover:translate-x-1 p-1">
-                  <h4 className="font-bold text-neutral-850 text-sm md:text-base flex items-center gap-2">
-                    <span className="w-1.5 h-4 bg-teal-600 rounded-sm inline-block animate-pulse" />
+                  <h4 className="font-bold text-neutral-800 text-sm md:text-base flex items-center gap-2">
+                    <span className="w-1.5 h-4 bg-teal-600 rounded-lg inline-block animate-pulse" />
                     10. Titularidad y Canales de Contacto
                   </h4>
                   <p>
                     Para consultas relacionadas con estos Términos y Condiciones o temas legales de la plataforma, puede comunicarse con el equipo de administración mediante los canales oficiales de Roomia:
                   </p>
                   
-                  <div className="bg-neutral-50 p-4 rounded-2xl border border-neutral-150 space-y-3 mt-2">
-                    <span className="text-[10px] uppercase font-mono font-bold tracking-wider text-teal-700 block">Canales Oficiales de Contacto y Soporte Legal</span>
+                  <div className="bg-neutral-50 p-4 rounded-2xl border border-neutral-100 space-y-3 mt-2">
+                    <span className="text-micro uppercase font-mono font-bold tracking-wider text-teal-700 block">Canales Oficiales de Contacto y Soporte Legal</span>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-neutral-600">
                       <div className="flex items-center gap-2">
                         <Mail className="w-4 h-4 text-teal-600" />
@@ -416,8 +410,8 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
             {documentType === 'privacidad' && (
               <div className="space-y-6" id="legal-content-privacidad">
                 
-                <div className="p-4 bg-teal-50 rounded-2xl border border-teal-150 flex items-start gap-3">
-                  <ShieldCheck className="w-5 h-5 text-teal-750 shrink-0 mt-0.5" />
+                <div className="p-4 bg-teal-50 rounded-2xl border border-teal-100 flex items-start gap-3">
+                  <ShieldCheck className="w-5 h-5 text-teal-700 shrink-0 mt-0.5" />
                   <p className="text-xs text-teal-900 font-semibold leading-normal">
                     En <strong>Roomia</strong> nos comprometemos a proteger la privacidad y la información personal de nuestros usuarios. Esta Política de Privacidad explica qué información recopilamos, cómo la utilizamos, con quién puede compartirse, cómo la protegemos y cuáles son sus derechos al utilizar nuestros servicios.
                   </p>
@@ -429,8 +423,8 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
 
                 {/* 1. Información que recopilamos */}
                 <div className="space-y-4">
-                  <h4 className="font-bold text-neutral-850 text-sm md:text-base flex items-center gap-2">
-                    <span className="w-1.5 h-4 bg-teal-600 rounded-sm inline-block animate-pulse" />
+                  <h4 className="font-bold text-neutral-800 text-sm md:text-base flex items-center gap-2">
+                    <span className="w-1.5 h-4 bg-teal-600 rounded-lg inline-block animate-pulse" />
                     1. Información que recopilamos
                   </h4>
                   <p className="text-xs text-neutral-600">
@@ -439,7 +433,7 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
 
                   <div className="space-y-3 pl-4 border-l border-neutral-200">
                     <div>
-                      <h5 className="font-bold text-neutral-850 text-xs">Datos de identificación</h5>
+                      <h5 className="font-bold text-neutral-800 text-xs">Datos de identificación</h5>
                       <ul className="list-disc pl-5 text-xs text-neutral-600 space-y-1 mt-1">
                         <li>Nombre y apellidos.</li>
                         <li>Correo electrónico.</li>
@@ -449,14 +443,14 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
                     </div>
 
                     <div>
-                      <h5 className="font-bold text-neutral-855 text-xs">Datos de autenticación</h5>
+                      <h5 className="font-bold text-neutral-800 text-xs">Datos de autenticación</h5>
                       <p className="text-xs text-neutral-600 mt-1">
                         Para proteger las cuentas de nuestros usuarios recopilamos la información necesaria para verificar su identidad y mantener sesiones seguras, incluyendo registros relacionados con el acceso a la plataforma.
                       </p>
                     </div>
 
                     <div>
-                      <h5 className="font-bold text-neutral-855 text-xs">Información de reservas y hospedaje</h5>
+                      <h5 className="font-bold text-neutral-800 text-xs">Información de reservas y hospedaje</h5>
                       <p className="text-xs text-neutral-600 mt-1">
                         Podremos almacenar información relacionada con:
                       </p>
@@ -470,7 +464,7 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
                     </div>
 
                     <div>
-                      <h5 className="font-bold text-neutral-855 text-xs">Información de establecimientos</h5>
+                      <h5 className="font-bold text-neutral-800 text-xs">Información de establecimientos</h5>
                       <p className="text-xs text-neutral-600 mt-1">
                         Cuando un propietario o administrador registra un establecimiento, podremos recopilar información como:
                       </p>
@@ -486,7 +480,7 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
                     </div>
 
                     <div>
-                      <h5 className="font-bold text-neutral-855 text-xs">Información técnica</h5>
+                      <h5 className="font-bold text-neutral-800 text-xs">Información técnica</h5>
                       <p className="text-xs text-neutral-600 mt-1">
                         Con el objetivo de garantizar la seguridad y el correcto funcionamiento de la plataforma, podremos registrar información técnica como:
                       </p>
@@ -504,8 +498,8 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
 
                 {/* 2. Finalidad del tratamiento de los datos */}
                 <div className="space-y-2">
-                  <h4 className="font-bold text-neutral-850 text-sm md:text-base flex items-center gap-2">
-                    <span className="w-1.5 h-4 bg-teal-600 rounded-sm inline-block animate-pulse" />
+                  <h4 className="font-bold text-neutral-800 text-sm md:text-base flex items-center gap-2">
+                    <span className="w-1.5 h-4 bg-teal-600 rounded-lg inline-block animate-pulse" />
                     2. Finalidad del tratamiento de los datos
                   </h4>
                   <p className="text-xs text-neutral-600">
@@ -531,8 +525,8 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
 
                 {/* 3. Permisos y funcionalidades del dispositivo */}
                 <div className="space-y-3">
-                  <h4 className="font-bold text-neutral-850 text-sm md:text-base flex items-center gap-2">
-                    <span className="w-1.5 h-4 bg-teal-600 rounded-sm inline-block animate-pulse" />
+                  <h4 className="font-bold text-neutral-800 text-sm md:text-base flex items-center gap-2">
+                    <span className="w-1.5 h-4 bg-teal-600 rounded-lg inline-block animate-pulse" />
                     3. Permisos y funcionalidades del dispositivo
                   </h4>
                   <p className="text-xs text-neutral-600">
@@ -541,7 +535,7 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
                   
                   <div className="space-y-2 pl-4 border-l border-neutral-200">
                     <div>
-                      <h5 className="font-bold text-neutral-850 text-xs">Cámara</h5>
+                      <h5 className="font-bold text-neutral-800 text-xs">Cámara</h5>
                       <p className="text-xs text-neutral-600 mt-1">
                         Roomia podrá solicitar acceso a la cámara únicamente para la lectura de códigos QR utilizados dentro de los procesos operativos del establecimiento. Esta funcionalidad está disponible exclusivamente para usuarios con los roles de <strong>Administrador</strong> y <strong>Recepcionista</strong>.
                       </p>
@@ -551,7 +545,7 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
                     </div>
 
                     <div>
-                      <h5 className="font-bold text-neutral-850 text-xs mt-2">Almacenamiento local</h5>
+                      <h5 className="font-bold text-neutral-800 text-xs mt-2">Almacenamiento local</h5>
                       <p className="text-xs text-neutral-600 mt-1">
                         La plataforma utiliza cookies, almacenamiento local del navegador y tecnologías similares para mantener la sesión iniciada, recordar preferencias del usuario y garantizar el correcto funcionamiento del sistema.
                       </p>
@@ -561,8 +555,8 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
 
                 {/* 4. Comunicaciones electrónicas */}
                 <div className="space-y-2">
-                  <h4 className="font-bold text-neutral-850 text-sm md:text-base flex items-center gap-2">
-                    <span className="w-1.5 h-4 bg-teal-600 rounded-sm inline-block animate-pulse" />
+                  <h4 className="font-bold text-neutral-800 text-sm md:text-base flex items-center gap-2">
+                    <span className="w-1.5 h-4 bg-teal-600 rounded-lg inline-block animate-pulse" />
                     4. Comunicaciones electrónicas
                   </h4>
                   <p className="text-xs text-neutral-600">
@@ -583,8 +577,8 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
 
                 {/* 5. Compartición de información */}
                 <div className="space-y-2">
-                  <h4 className="font-bold text-neutral-850 text-sm md:text-base flex items-center gap-2">
-                    <span className="w-1.5 h-4 bg-teal-600 rounded-sm inline-block animate-pulse" />
+                  <h4 className="font-bold text-neutral-800 text-sm md:text-base flex items-center gap-2">
+                    <span className="w-1.5 h-4 bg-teal-600 rounded-lg inline-block animate-pulse" />
                     5. Compartición de información
                   </h4>
                   <p className="text-xs text-neutral-600">
@@ -608,8 +602,8 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
 
                 {/* 6. Protección de la información */}
                 <div className="space-y-2">
-                  <h4 className="font-bold text-neutral-850 text-sm md:text-base flex items-center gap-2">
-                    <span className="w-1.5 h-4 bg-teal-600 rounded-sm inline-block animate-pulse" />
+                  <h4 className="font-bold text-neutral-800 text-sm md:text-base flex items-center gap-2">
+                    <span className="w-1.5 h-4 bg-teal-600 rounded-lg inline-block animate-pulse" />
                     6. Protección de la información
                   </h4>
                   <p className="text-xs text-neutral-600">
@@ -622,8 +616,8 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
 
                 {/* 7. Conservación de los datos */}
                 <div className="space-y-2">
-                  <h4 className="font-bold text-neutral-850 text-sm md:text-base flex items-center gap-2">
-                    <span className="w-1.5 h-4 bg-teal-600 rounded-sm inline-block animate-pulse" />
+                  <h4 className="font-bold text-neutral-800 text-sm md:text-base flex items-center gap-2">
+                    <span className="w-1.5 h-4 bg-teal-600 rounded-lg inline-block animate-pulse" />
                     7. Conservación de los datos
                   </h4>
                   <p className="text-xs text-neutral-600">
@@ -636,8 +630,8 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
 
                 {/* 8. Derechos del usuario */}
                 <div className="space-y-2">
-                  <h4 className="font-bold text-neutral-850 text-sm md:text-base flex items-center gap-2">
-                    <span className="w-1.5 h-4 bg-teal-600 rounded-sm inline-block animate-pulse" />
+                  <h4 className="font-bold text-neutral-800 text-sm md:text-base flex items-center gap-2">
+                    <span className="w-1.5 h-4 bg-teal-600 rounded-lg inline-block animate-pulse" />
                     8. Derechos del usuario
                   </h4>
                   <p className="text-xs text-neutral-600">
@@ -657,8 +651,8 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
 
                 {/* 9. Cambios en esta Política de Privacidad */}
                 <div className="space-y-2">
-                  <h4 className="font-bold text-neutral-850 text-sm md:text-base flex items-center gap-2">
-                    <span className="w-1.5 h-4 bg-teal-600 rounded-sm inline-block animate-pulse" />
+                  <h4 className="font-bold text-neutral-800 text-sm md:text-base flex items-center gap-2">
+                    <span className="w-1.5 h-4 bg-teal-600 rounded-lg inline-block animate-pulse" />
                     9. Cambios en esta Política de Privacidad
                   </h4>
                   <p className="text-xs text-neutral-600">
@@ -671,16 +665,16 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
 
                 {/* 10. Contacto */}
                 <div className="space-y-2">
-                  <h4 className="font-bold text-neutral-850 text-sm md:text-base flex items-center gap-2">
-                    <span className="w-1.5 h-4 bg-teal-600 rounded-sm inline-block animate-pulse" />
+                  <h4 className="font-bold text-neutral-800 text-sm md:text-base flex items-center gap-2">
+                    <span className="w-1.5 h-4 bg-teal-600 rounded-lg inline-block animate-pulse" />
                     10. Contacto
                   </h4>
                   <p className="text-xs text-neutral-600">
                     Si tiene preguntas relacionadas con esta Política de Privacidad o desea ejercer cualquiera de sus derechos sobre sus datos personales, puede comunicarse con nosotros mediante los siguientes canales oficiales:
                   </p>
                   
-                  <div className="bg-neutral-50 p-4 rounded-2xl border border-neutral-150 space-y-2.5 mt-2">
-                    <span className="text-[10px] uppercase font-mono font-bold tracking-wider text-neutral-400 block">Oficina de Privacidad y Tratamiento de Datos</span>
+                  <div className="bg-neutral-50 p-4 rounded-2xl border border-neutral-100 space-y-2.5 mt-2">
+                    <span className="text-micro uppercase font-mono font-bold tracking-wider text-neutral-400 block">Oficina de Privacidad y Tratamiento de Datos</span>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-neutral-600">
                       <div className="flex items-center gap-2">
                         <Mail className="w-4 h-4 text-teal-600" />
@@ -701,8 +695,8 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
             {documentType === 'cancelaciones' && (
               <div className="space-y-6" id="legal-content-cancelaciones">
                 
-                <div className="p-4 bg-teal-50 rounded-2xl border border-teal-150 flex items-start gap-3 animate-fade-in">
-                  <HeartHandshake className="w-5 h-5 text-teal-750 shrink-0 mt-0.5" />
+                <div className="p-4 bg-teal-50 rounded-2xl border border-teal-100 flex items-start gap-3 animate-fade-in">
+                  <HeartHandshake className="w-5 h-5 text-teal-700 shrink-0 mt-0.5" />
                   <p className="text-xs text-teal-900 font-semibold leading-normal">
                     En Roomia buscamos ofrecer una experiencia transparente tanto para los establecimientos como para los huéspedes. Esta política explica cómo se gestionan las cancelaciones, modificaciones y solicitudes de reembolso realizadas a través de la plataforma.
                   </p>
@@ -710,8 +704,8 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
 
                 {/* Sección 1: Alcance de esta política */}
                 <div className="space-y-2 transition-all duration-300 hover:translate-x-1 p-1">
-                  <h4 className="font-bold text-neutral-850 text-sm md:text-base flex items-center gap-2">
-                    <span className="w-1.5 h-4 bg-teal-600 rounded-sm inline-block animate-pulse" />
+                  <h4 className="font-bold text-neutral-800 text-sm md:text-base flex items-center gap-2">
+                    <span className="w-1.5 h-4 bg-teal-600 rounded-lg inline-block animate-pulse" />
                     1. Alcance de esta política
                   </h4>
                   <p className="text-xs text-neutral-600">
@@ -724,8 +718,8 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
 
                 {/* Sección 2: Cancelación de reservas */}
                 <div className="space-y-2 transition-all duration-300 hover:translate-x-1 p-1">
-                  <h4 className="font-bold text-neutral-850 text-sm md:text-base flex items-center gap-2">
-                    <span className="w-1.5 h-4 bg-teal-600 rounded-sm inline-block animate-pulse" />
+                  <h4 className="font-bold text-neutral-800 text-sm md:text-base flex items-center gap-2">
+                    <span className="w-1.5 h-4 bg-teal-600 rounded-lg inline-block animate-pulse" />
                     2. Cancelación de reservas
                   </h4>
                   <p className="text-xs text-neutral-600">
@@ -738,8 +732,8 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
 
                 {/* Sección 3: Modificación de reservas */}
                 <div className="space-y-2 transition-all duration-300 hover:translate-x-1 p-1">
-                  <h4 className="font-bold text-neutral-850 text-sm md:text-base flex items-center gap-2">
-                    <span className="w-1.5 h-4 bg-teal-600 rounded-sm inline-block animate-pulse" />
+                  <h4 className="font-bold text-neutral-800 text-sm md:text-base flex items-center gap-2">
+                    <span className="w-1.5 h-4 bg-teal-600 rounded-lg inline-block animate-pulse" />
                     3. Modificación de reservas
                   </h4>
                   <p className="text-xs text-neutral-600">
@@ -757,8 +751,8 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
 
                 {/* Sección 4: Reembolsos */}
                 <div className="space-y-2 transition-all duration-300 hover:translate-x-1 p-1">
-                  <h4 className="font-bold text-neutral-850 text-sm md:text-base flex items-center gap-2">
-                    <span className="w-1.5 h-4 bg-teal-600 rounded-sm inline-block animate-pulse" />
+                  <h4 className="font-bold text-neutral-800 text-sm md:text-base flex items-center gap-2">
+                    <span className="w-1.5 h-4 bg-teal-600 rounded-lg inline-block animate-pulse" />
                     4. Reembolsos
                   </h4>
                   <p className="text-xs text-neutral-600">
@@ -779,8 +773,8 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
 
                 {/* Sección 5: Procesamiento de pagos */}
                 <div className="space-y-2 transition-all duration-300 hover:translate-x-1 p-1">
-                  <h4 className="font-bold text-neutral-850 text-sm md:text-base flex items-center gap-2">
-                    <span className="w-1.5 h-4 bg-teal-600 rounded-sm inline-block animate-pulse" />
+                  <h4 className="font-bold text-neutral-800 text-sm md:text-base flex items-center gap-2">
+                    <span className="w-1.5 h-4 bg-teal-600 rounded-lg inline-block animate-pulse" />
                     5. Procesamiento de pagos
                   </h4>
                   <p className="text-xs text-neutral-600">
@@ -793,8 +787,8 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
 
                 {/* Sección 6: Incidencias relacionadas con el alojamiento */}
                 <div className="space-y-2 transition-all duration-300 hover:translate-x-1 p-1">
-                  <h4 className="font-bold text-neutral-850 text-sm md:text-base flex items-center gap-2">
-                    <span className="w-1.5 h-4 bg-teal-600 rounded-sm inline-block animate-pulse" />
+                  <h4 className="font-bold text-neutral-800 text-sm md:text-base flex items-center gap-2">
+                    <span className="w-1.5 h-4 bg-teal-600 rounded-lg inline-block animate-pulse" />
                     6. Incidencias relacionadas con el alojamiento
                   </h4>
                   <p className="text-xs text-neutral-600">
@@ -816,8 +810,8 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
 
                 {/* Sección 7: Evidencias para reclamaciones */}
                 <div className="space-y-2 transition-all duration-300 hover:translate-x-1 p-1">
-                  <h4 className="font-bold text-neutral-850 text-sm md:text-base flex items-center gap-2">
-                    <span className="w-1.5 h-4 bg-teal-600 rounded-sm inline-block animate-pulse" />
+                  <h4 className="font-bold text-neutral-800 text-sm md:text-base flex items-center gap-2">
+                    <span className="w-1.5 h-4 bg-teal-600 rounded-lg inline-block animate-pulse" />
                     7. Evidencias para reclamaciones
                   </h4>
                   <p className="text-xs text-neutral-600">
@@ -830,8 +824,8 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
 
                 {/* Sección 8: Responsabilidad de los establecimientos */}
                 <div className="space-y-2 transition-all duration-300 hover:translate-x-1 p-1">
-                  <h4 className="font-bold text-neutral-850 text-sm md:text-base flex items-center gap-2">
-                    <span className="w-1.5 h-4 bg-teal-600 rounded-sm inline-block animate-pulse" />
+                  <h4 className="font-bold text-neutral-800 text-sm md:text-base flex items-center gap-2">
+                    <span className="w-1.5 h-4 bg-teal-600 rounded-lg inline-block animate-pulse" />
                     8. Responsabilidad de los establecimientos
                   </h4>
                   <p className="text-xs text-neutral-600">
@@ -844,8 +838,8 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
 
                 {/* Sección 9: Responsabilidad de Roomia */}
                 <div className="space-y-2 transition-all duration-300 hover:translate-x-1 p-1">
-                  <h4 className="font-bold text-neutral-850 text-sm md:text-base flex items-center gap-2">
-                    <span className="w-1.5 h-4 bg-teal-600 rounded-sm inline-block animate-pulse" />
+                  <h4 className="font-bold text-neutral-800 text-sm md:text-base flex items-center gap-2">
+                    <span className="w-1.5 h-4 bg-teal-600 rounded-lg inline-block animate-pulse" />
                     9. Responsabilidad de Roomia
                   </h4>
                   <p className="text-xs text-neutral-600">
@@ -861,8 +855,8 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
 
                 {/* Sección 10: Cambios a esta política */}
                 <div className="space-y-2 transition-all duration-300 hover:translate-x-1 p-1">
-                  <h4 className="font-bold text-neutral-850 text-sm md:text-base flex items-center gap-2">
-                    <span className="w-1.5 h-4 bg-teal-600 rounded-sm inline-block animate-pulse" />
+                  <h4 className="font-bold text-neutral-800 text-sm md:text-base flex items-center gap-2">
+                    <span className="w-1.5 h-4 bg-teal-600 rounded-lg inline-block animate-pulse" />
                     10. Cambios a esta política
                   </h4>
                   <p className="text-xs text-neutral-600">
@@ -875,16 +869,16 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
 
                 {/* Sección 11: Contacto */}
                 <div className="space-y-2 transition-all duration-300 hover:translate-x-1 p-1">
-                  <h4 className="font-bold text-neutral-850 text-sm md:text-base flex items-center gap-2">
-                    <span className="w-1.5 h-4 bg-teal-600 rounded-sm inline-block animate-pulse" />
+                  <h4 className="font-bold text-neutral-800 text-sm md:text-base flex items-center gap-2">
+                    <span className="w-1.5 h-4 bg-teal-600 rounded-lg inline-block animate-pulse" />
                     11. Contacto
                   </h4>
                   <p className="text-xs text-neutral-600">
                     Si tiene preguntas relacionadas con esta política o necesita asistencia respecto a una reserva realizada mediante Roomia, puede comunicarse con nosotros a través de nuestros canales oficiales:
                   </p>
                   
-                  <div className="bg-neutral-50 p-4 rounded-2xl border border-neutral-150 space-y-2.5 mt-2">
-                    <span className="text-[10px] uppercase font-mono font-bold tracking-wider text-neutral-400 block">Oficina de Soporte y Atención al Cliente</span>
+                  <div className="bg-neutral-50 p-4 rounded-2xl border border-neutral-100 space-y-2.5 mt-2">
+                    <span className="text-micro uppercase font-mono font-bold tracking-wider text-neutral-400 block">Oficina de Soporte y Atención al Cliente</span>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-neutral-600">
                       <div className="flex items-center gap-2">
                         <Mail className="w-4 h-4 text-teal-600" />
@@ -902,12 +896,12 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
             )}
 
             {/* SHARED COMPLIANCE SIGNATURE */}
-            <div className="mt-10 pt-6 border-t border-neutral-150 flex flex-col sm:flex-row items-center justify-between text-[11px] text-neutral-400 font-sans gap-4" id="legal-compliance-footer">
+            <div className="mt-10 pt-6 border-t border-neutral-100 flex flex-col sm:flex-row items-center justify-between text-micro text-neutral-400 gap-4" id="legal-compliance-footer">
               <div className="flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                <ShieldCheck className="w-4 h-4 text-success-600" />
                 <span>Garantía de Cumplimiento PMS Homologado</span>
               </div>
-              <span className="font-mono text-[10px]">Identificador Legal Único: R-PMS-EC-2026</span>
+              <span className="font-mono text-micro">Identificador Legal Único: R-PMS-EC-2026</span>
             </div>
 
           </div>
@@ -916,8 +910,8 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
       </div>
 
       {/* Tiny localized footer inside the legal templates */}
-      <footer className="py-6 border-t border-neutral-150 text-center text-[10px] text-neutral-400 font-mono bg-slate-900 mt-auto" id="legal-page-footer">
-        <p className="text-white/60">©2026 Maqyasoft - Santa Elena, Ecuador</p>
+      <footer className="py-6 border-t border-neutral-100 text-center text-micro text-neutral-400 font-mono bg-neutral-900 mt-auto" id="legal-page-footer">
+        <p className="text-white/60">© 2026 Roomia PMS · Maqyasoft · Santa Elena, Ecuador</p>
       </footer>
 
     </div>

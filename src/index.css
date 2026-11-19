@@ -1,16 +1,101 @@
 @import "tailwindcss";
 
+/* Fuentes de la marca alojadas en el proyecto: así se ven igual sin internet y en el APK */
+@import "@fontsource-variable/montserrat/wght.css";
+@import "@fontsource-variable/montserrat/wght-italic.css";
+@import "@fontsource-variable/playfair-display/wght.css";
+@import "@fontsource-variable/playfair-display/wght-italic.css";
+@import "@fontsource-variable/jetbrains-mono/wght.css";
+
 @theme {
-  --font-sans: "Montserrat", ui-sans-serif, system-ui, sans-serif;
-  --font-serif: "Playfair Display", Georgia, serif;
-  --font-display: "Playfair Display", Georgia, serif;
-  --font-mono: "JetBrains Mono", monospace;
+  --font-sans: "Montserrat Variable", "Montserrat", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Playfair Display Variable", "Playfair Display", Georgia, serif;
+  --font-display: "Playfair Display Variable", "Playfair Display", Georgia, serif;
+  --font-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
   
   --color-brand-cyan: #23B4E6;
   --color-brand-navy1: #0E2A47;
   --color-brand-navy2: #071726;
   --color-brand-grey: #64748B;
   --color-brand-white: #F8FAFB;
+  --color-brand-navy-hover: #133A62;
+
+  /* Los grises más oscuros llevan el azul marino de la marca (fondos oscuros y textos fuertes) */
+  /* Grises de texto secundario con contraste suficiente sobre blanco (WCAG AA ≥ 4.5:1) */
+  --color-neutral-400: #767676;
+  --color-neutral-500: #5E6670;
+  --color-neutral-800: #1A3550;
+  --color-neutral-900: #0E2A47;
+  /* Fondo oscuro de la marca (el mismo de la landing): encabezado, menú, pie y fondos oscuros */
+  --color-neutral-950: #020617;
+
+  /* Colores de estado (mismos tonos que la paleta estándar): éxito, aviso, peligro e información */
+  --color-success-50: #ECFDF5;
+  --color-success-100: #D1FAE5;
+  --color-success-200: #A7F3D0;
+  --color-success-300: #6EE7B7;
+  --color-success-400: #34D399;
+  --color-success-500: #10B981;
+  --color-success-600: #059669;
+  --color-success-700: #047857;
+  --color-success-800: #065F46;
+  --color-success-900: #064E3B;
+  --color-success-950: #022C22;
+  --color-warning-50: #FFFBEB;
+  --color-warning-100: #FEF3C7;
+  --color-warning-200: #FDE68A;
+  --color-warning-300: #FCD34D;
+  --color-warning-400: #FBBF24;
+  --color-warning-500: #F59E0B;
+  --color-warning-600: #D97706;
+  --color-warning-700: #B45309;
+  --color-warning-800: #92400E;
+  --color-warning-900: #78350F;
+  --color-warning-950: #451A03;
+  --color-danger-50: #FEF2F2;
+  --color-danger-100: #FEE2E2;
+  --color-danger-200: #FECACA;
+  --color-danger-300: #FCA5A5;
+  --color-danger-400: #F87171;
+  --color-danger-500: #EF4444;
+  --color-danger-600: #DC2626;
+  --color-danger-700: #B91C1C;
+  --color-danger-800: #991B1B;
+  --color-danger-900: #7F1D1D;
+  --color-danger-950: #450A0A;
+  --color-info-50: #EFF9FE;
+  --color-info-100: #E2F5FC;
+  --color-info-200: #BAE6FD;
+  --color-info-300: #7DD3FC;
+  --color-info-400: #23B4E6;
+  --color-info-500: #23B4E6;
+  --color-info-600: #0E7DA5;
+  --color-info-700: #0369A1;
+  --color-info-800: #075985;
+  --color-info-900: #0C4A6E;
+  --color-info-950: #082F49;
+  --color-brand-cyan-light: #3FC2F0;
+
+  /* Letra más pequeña permitida: 11px */
+  --text-micro: 0.6875rem;
+  --text-micro--line-height: 1rem;
+
+  /* Animaciones de entrada de ventanas y avisos */
+  --animate-fade-in: fade-in 0.25s ease-out both;
+  --animate-scale-up: scale-up 0.2s ease-out both;
+  --animate-sheet-up: sheet-up 0.25s ease-out both;
+  @keyframes sheet-up {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes scale-up {
+    from { opacity: 0; transform: scale(0.96); }
+    to { opacity: 1; transform: scale(1); }
+  }
 
   /* Total Brand Alignment with Accessible WCAG AA Color Contrast */
   --color-teal-50: #F8FAFB;
@@ -19,7 +104,7 @@
   --color-teal-300: #57c6ef;
   --color-teal-400: #23B4E6;
   --color-teal-500: #23B4E6;
-  --color-teal-600: #1ba0cf;
+  --color-teal-600: #0E7DA5;
   --color-teal-700: #0E2A47;
   --color-teal-800: #0E2A47;
   --color-teal-900: #071726;
@@ -44,10 +129,55 @@ body {
   background-color: #F8FAFB;
   color: #071726;
   overflow-x: hidden;
+  /* Teléfonos con muesca o barras del sistema sobre la pantalla (APK): el contenido no queda tapado.
+     En un navegador normal estos valores son 0 y no cambia nada. */
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+/* Textos justificados en toda la plataforma (párrafos, listas, términos y condiciones…).
+   Se define una sola vez en body y se hereda: así un contenedor con text-center (el pie de página,
+   avisos, tarjetas centradas) sigue centrando todo lo que tiene dentro. Una línea corta justificada
+   se ve igual que alineada a la izquierda. */
+@layer base {
+  body {
+    text-align: justify;
+  }
+  p, li, blockquote, dd {
+    hyphens: auto;
+    -webkit-hyphens: auto;
+  }
+  /* Los títulos no se justifican (en dos líneas dejarían huecos grandes entre palabras),
+     pero siguen centrados o a la derecha si su contenedor lo está */
+  /* Lo mismo con los rótulos de los formularios ("Tu nombre" quedaba separado en dos extremos) */
+  h1, h2, h3, h4, h5, h6, label {
+    text-align: start;
+  }
+  .text-center :is(h1, h2, h3, h4, h5, h6, label) {
+    text-align: center;
+  }
+  .text-right :is(h1, h2, h3, h4, h5, h6, label) {
+    text-align: right;
+  }
+}
+
+#root {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 h1, h2, h3, h4, .font-display {
   font-family: var(--font-display);
+}
+
+/* Escala única de capas: ventana 50, ventana crítica 60, avisos 70 (un aviso siempre queda encima) */
+@utility z-modal { z-index: 50; }
+@utility z-toast { z-index: 70; }
+@utility z-critical { z-index: 60; }
+
+/* Anillo de foco único para campos y botones */
+@utility focus-brand {
+  &:focus { outline: none; box-shadow: 0 0 0 2px #F8FAFB, 0 0 0 4px #23B4E6; }
 }
 
 /* Custom gorgeous thin scrollbar to boost premium feel */

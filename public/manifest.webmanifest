@@ -1,0 +1,14 @@
+{
+  "name": "Roomia PMS",
+  "short_name": "Roomia",
+  "description": "Gestión hotelera y reservas directas para hoteles, casas y departamentos.",
+  "lang": "es",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#071726",
+  "theme_color": "#0E2A47",
+  "icons": [
+    { "src": "/RoomiaPMSLogoSinFondo.png", "sizes": "144x144", "type": "image/png", "purpose": "any" }
+  ]
+}

@@ -350,7 +350,7 @@ async function handleSyncOne(req: Request, feedId: string): Promise<Response> {
 // -----------------------------------------------------------------------------
 Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
-  if (!SUPABASE_URL || !SERVICE_KEY) return json(500, { error: "Servicio mal configurado" });
+  if (!SUPABASE_URL || !SERVICE_KEY) return json(500, { error: "El servicio no está disponible por ahora. Inténtalo más tarde." });
 
   try {
     const url = new URL(req.url);

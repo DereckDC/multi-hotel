@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { Hotel, Room, Reservation, User as StoreUser, RoomStatus, RoomPriceVariation, ExternalBlock } from '../types';
 import { occupiedNights, isRangeFree } from '../utils/availability';
+import { SelectPicker } from './ui';
 
 const PLATFORM_NAMES: Record<string, string> = { airbnb: 'Airbnb', booking: 'Booking.com', otro: 'Otro calendario' };
 
@@ -273,33 +274,33 @@ export function RoomReservationCalendar({
   const isRoomBusyThatNight = nightsFor(selectedDateStr).stays.length > 0 || dayBlocks.length > 0;
 
   return (
-    <div className="w-full flex flex-col lg:flex-row gap-4 items-start font-sans">
+    <div className="w-full flex flex-col lg:flex-row gap-4 items-start ">
       {/* ===================== CALENDARIO ===================== */}
       <div className="w-full lg:w-[390px] shrink-0 bg-white rounded-2xl border border-neutral-200/90 shadow-xs overflow-hidden">
         {/* Filtros compactos */}
         {!(forceHotelId || forceRoomId) && (
           <div className="grid grid-cols-2 gap-2 px-3 py-2.5 bg-neutral-50/80 border-b border-neutral-200">
             <label className="space-y-0.5 min-w-0">
-              <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-wider">Establecimiento</span>
-              <select
+              <span className="text-micro font-bold text-neutral-400 uppercase tracking-wider">Establecimiento</span>
+              <SelectPicker label="Establecimiento"
                 disabled={!!activeUser.hotelId}
                 value={selectedHotelId}
                 onChange={(e) => setSelectedHotelId(e.target.value)}
-                className="w-full text-[11px] bg-white border border-neutral-200 text-neutral-800 px-2 py-1.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-500 cursor-pointer font-medium text-ellipsis disabled:opacity-80"
+                className="w-full text-micro bg-white border border-neutral-200 text-neutral-800 px-2 py-1.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-500 cursor-pointer font-medium text-ellipsis disabled:opacity-80"
               >
                 {hotels.map(h => <option key={h.id} value={h.id}>{h.nombre}</option>)}
-              </select>
+              </SelectPicker>
             </label>
             <label className="space-y-0.5 min-w-0">
-              <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-wider">Habitación</span>
-              <select
+              <span className="text-micro font-bold text-neutral-400 uppercase tracking-wider">Habitación</span>
+              <SelectPicker label="Habitación"
                 value={selectedRoomId}
                 onChange={(e) => setSelectedRoomId(e.target.value)}
-                className="w-full text-[11px] bg-white border border-neutral-200 text-neutral-800 px-2 py-1.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-500 cursor-pointer font-medium text-ellipsis"
+                className="w-full text-micro bg-white border border-neutral-200 text-neutral-800 px-2 py-1.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-500 cursor-pointer font-medium text-ellipsis"
               >
                 <option value="all">Todas juntas</option>
                 {hotelRooms.map(r => <option key={r.id} value={r.id}>N° {r.numero} · {r.nombre}</option>)}
-              </select>
+              </SelectPicker>
             </label>
           </div>
         )}
@@ -316,7 +317,7 @@ export function RoomReservationCalendar({
             <button
               type="button"
               onClick={goToToday}
-              className="px-2 py-1 mr-1 rounded-lg text-[10px] font-bold text-teal-700 hover:bg-teal-50 cursor-pointer"
+              className="px-2 py-1 mr-1 rounded-lg text-micro font-bold text-teal-700 hover:bg-teal-50 cursor-pointer"
             >
               Hoy
             </button>
@@ -348,7 +349,7 @@ export function RoomReservationCalendar({
         {/* Días de la semana */}
         <div className="grid grid-cols-7 text-center border-b border-neutral-100 bg-neutral-50/40 py-1.5">
           {DAYS_SHORT.map((d, idx) => (
-            <span key={d} className={`text-[11px] font-bold font-mono ${idx === 0 || idx === 6 ? 'text-amber-700' : 'text-neutral-500'}`}>
+            <span key={d} className={`text-micro font-bold font-mono ${idx === 0 || idx === 6 ? 'text-warning-700' : 'text-neutral-500'}`}>
               {d}
             </span>
           ))}
@@ -380,13 +381,13 @@ export function RoomReservationCalendar({
             if (!cell.isCurrentMonth) {
               style = 'bg-neutral-50/60 text-neutral-400 border-transparent opacity-60';
             } else if (conflict) {
-              style = 'bg-red-50 text-red-800 border-red-300 hover:bg-red-100/70 font-semibold';
+              style = 'bg-danger-50 text-danger-800 border-danger-300 hover:bg-danger-100/70 font-semibold';
             } else if (inHouse) {
-              style = 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100/70 font-semibold';
+              style = 'bg-danger-50 text-danger-700 border-danger-200 hover:bg-danger-100/70 font-semibold';
             } else if (reserved) {
-              style = 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100/70 font-semibold';
+              style = 'bg-warning-50 text-warning-800 border-warning-200 hover:bg-warning-100/70 font-semibold';
             } else if (blocked) {
-              style = 'bg-violet-50 text-violet-800 border-violet-200 hover:bg-violet-100/70 font-semibold';
+              style = 'bg-info-50 text-info-800 border-info-200 hover:bg-info-100/70 font-semibold';
             }
             if (isPast) {
               style = 'bg-neutral-100/60 text-neutral-400 border-transparent cursor-not-allowed opacity-40';
@@ -419,22 +420,22 @@ export function RoomReservationCalendar({
                 <span className={`text-xs font-semibold leading-none ${isCheckIn || isCheckOut ? 'text-white' : ''}`}>{cell.day}</span>
 
                 {price && (
-                  <span className={`text-[9px] font-mono leading-tight mt-0.5 ${price.variable ? 'text-teal-700 font-bold' : 'text-neutral-400'}`}>
+                  <span className={`text-micro font-mono leading-tight mt-0.5 ${price.variable ? 'text-teal-700 font-bold' : 'text-neutral-400'}`}>
                     ${price.precio}
                   </span>
                 )}
                 {!price && selectedRoomId === 'all' && stays.length > 1 && !isPast && (
-                  <span className="text-[9px] font-mono font-bold leading-tight mt-0.5 text-amber-700">×{stays.length}</span>
+                  <span className="text-micro font-mono font-bold leading-tight mt-0.5 text-warning-700">×{stays.length}</span>
                 )}
 
                 {/* Llegadas, salidas y bloqueos externos (solo personal) */}
                 {isStaff && !isPast && (arrivals.length > 0 || departures.length > 0 || blocked) && (
                   <span className="absolute bottom-0.5 flex gap-0.5">
-                    {arrivals.length > 0 && <i className="w-1.5 h-1.5 rounded-full bg-emerald-500" title={`${arrivals.length} llegada(s)`} />}
-                    {departures.length > 0 && <i className="w-1.5 h-1.5 rounded-full bg-red-400" title={`${departures.length} salida(s)`} />}
+                    {arrivals.length > 0 && <i className="w-1.5 h-1.5 rounded-full bg-success-500" title={`${arrivals.length} llegada(s)`} />}
+                    {departures.length > 0 && <i className="w-1.5 h-1.5 rounded-full bg-danger-400" title={`${departures.length} salida(s)`} />}
                     {blocked && (
                       <i
-                        className={`w-1.5 h-1.5 rounded-full ${conflict ? 'bg-red-600' : 'bg-violet-500'}`}
+                        className={`w-1.5 h-1.5 rounded-full ${conflict ? 'bg-danger-600' : 'bg-info-500'}`}
                         title={`Bloqueado por ${[...new Set(blocks.map(b => PLATFORM_NAMES[b.platform] || b.platform))].join(', ')}${conflict ? ' (conflicto con una reserva de Roomia)' : ''}`}
                       />
                     )}
@@ -446,12 +447,12 @@ export function RoomReservationCalendar({
         </div>
 
         {/* Leyenda */}
-        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-3 py-2 bg-neutral-50 border-t border-neutral-100 text-[10px] text-neutral-600 font-medium">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-3 py-2 bg-neutral-50 border-t border-neutral-100 text-micro text-neutral-600 font-medium">
           <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-white border border-neutral-300" /><span>Disponible</span></div>
-          <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-amber-300" /><span>Reservada</span></div>
-          <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-rose-400" /><span>Ocupada</span></div>
+          <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-warning-300" /><span>Reservada</span></div>
+          <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-danger-400" /><span>Ocupada</span></div>
           {externalBlocks.length > 0 && (
-            <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-violet-400" /><span>Airbnb / Booking</span></div>
+            <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-info-400" /><span>Airbnb / Booking</span></div>
           )}
           {setCheckInDate && (
             <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-teal-700" /><span>Seleccionado</span></div>
@@ -461,8 +462,8 @@ export function RoomReservationCalendar({
           )}
           {isStaff && (
             <div className="flex items-center gap-2">
-              <span className="flex items-center gap-1"><i className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />Llegada</span>
-              <span className="flex items-center gap-1"><i className="w-1.5 h-1.5 rounded-full bg-red-400 inline-block" />Salida</span>
+              <span className="flex items-center gap-1"><i className="w-1.5 h-1.5 rounded-full bg-success-500 inline-block" />Llegada</span>
+              <span className="flex items-center gap-1"><i className="w-1.5 h-1.5 rounded-full bg-danger-400 inline-block" />Salida</span>
             </div>
           )}
         </div>
@@ -471,14 +472,14 @@ export function RoomReservationCalendar({
           <div className="px-3 py-2.5 border-t border-neutral-100 bg-white flex items-center gap-3">
             <TrendingUp className="w-4 h-4 text-teal-600 shrink-0" />
             <div className="flex-1 min-w-0">
-              <div className="flex justify-between text-[10.5px] font-semibold text-neutral-600">
+              <div className="flex justify-between text-micro font-semibold text-neutral-600">
                 <span>Ocupación del mes ({MONTH_NAMES[currentMonth]})</span>
                 <span className="font-mono text-teal-700">{monthStats.pct}%</span>
               </div>
               <div className="w-full bg-neutral-100 h-1 rounded-full overflow-hidden mt-1">
                 <div className="bg-teal-600 h-full rounded-full" style={{ width: `${monthStats.pct}%` }} />
               </div>
-              <span className="text-[9.5px] text-neutral-400">{monthStats.busy} días con ocupación · {monthStats.free} libres</span>
+              <span className="text-micro text-neutral-400">{monthStats.busy} días con ocupación · {monthStats.free} libres</span>
             </div>
           </div>
         )}
@@ -492,7 +493,7 @@ export function RoomReservationCalendar({
               <CalendarIcon className="w-4 h-4 text-teal-600" />
               <span className="text-xs font-bold text-neutral-800 uppercase tracking-wide">Bitácora: {selectedDateStr}</span>
             </div>
-            <span className="text-[10px] text-neutral-400 font-mono font-bold bg-neutral-100 px-2 py-0.5 rounded">
+            <span className="text-micro text-neutral-400 font-mono font-bold bg-neutral-100 px-2 py-0.5 rounded-lg">
               {selectedDateStr === todayStr ? 'Hoy' : `Día ${selectedDateStr.split('-')[2]}`}
             </span>
           </div>
@@ -502,10 +503,10 @@ export function RoomReservationCalendar({
               <div className="p-1.5 bg-white rounded-lg shrink-0 border border-neutral-100"><BedDouble className="w-4 h-4 text-neutral-600" /></div>
               <div className="min-w-0 flex-1">
                 <h4 className="text-xs font-bold text-neutral-800 truncate">N° {selectedRoomObj.numero} · {selectedRoomObj.nombre}</h4>
-                <p className="text-[10px] text-neutral-400 font-semibold truncate">{selectedRoomObj.tipo} · {selectedRoomObj.capacidad} huéspedes</p>
+                <p className="text-micro text-neutral-400 font-semibold truncate">{selectedRoomObj.tipo} · {selectedRoomObj.capacidad} huéspedes</p>
               </div>
-              <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase ${
-                isRoomBusyThatNight ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+              <span className={`text-micro font-bold px-2 py-0.5 rounded-full uppercase ${
+                isRoomBusyThatNight ? 'bg-warning-100 text-warning-800 border border-warning-200' : 'bg-success-100 text-success-800 border border-success-200'
               }`}>
                 {isRoomBusyThatNight ? 'Ocupada' : 'Disponible'}
               </span>
@@ -516,22 +517,22 @@ export function RoomReservationCalendar({
           {isStaff && dayBlocks.map(b => {
             const blockRoom = rooms.find(r => r.id === b.roomId);
             return (
-              <div key={b.id} className={`p-3 rounded-xl border text-xs space-y-1.5 ${b.conflict ? 'bg-red-50 border-red-200' : 'bg-violet-50/70 border-violet-200'}`}>
+              <div key={b.id} className={`p-3 rounded-xl border text-xs space-y-1.5 ${b.conflict ? 'bg-danger-50 border-danger-200' : 'bg-info-50/70 border-info-200'}`}>
                 <div className="flex justify-between items-center gap-2">
-                  <span className="text-[9px] font-bold uppercase px-2 py-0.5 rounded-full bg-violet-600 text-white">{PLATFORM_NAMES[b.platform] || b.platform}</span>
-                  {b.conflict && <span className="text-[9px] font-bold uppercase text-red-700">⚠ Conflicto con una reserva de Roomia</span>}
+                  <span className="text-micro font-bold uppercase px-2 py-0.5 rounded-full bg-info-600 text-white">{PLATFORM_NAMES[b.platform] || b.platform}</span>
+                  {b.conflict && <span className="text-micro font-bold uppercase text-danger-700">⚠ Conflicto con una reserva de Roomia</span>}
                 </div>
                 {blockRoom && selectedRoomId === 'all' && (
-                  <p className="text-[11px] font-bold text-neutral-700">Habitación {blockRoom.numero} · {blockRoom.nombre}</p>
+                  <p className="text-micro font-bold text-neutral-700">Habitación {blockRoom.numero} · {blockRoom.nombre}</p>
                 )}
-                <p className="font-mono text-[11px] text-neutral-600">
-                  {b.fechaInicio} → {b.fechaFin} <span className="text-neutral-400 font-sans">(calendario externo)</span>
+                <p className="font-mono text-micro text-neutral-600">
+                  {b.fechaInicio} → {b.fechaFin} <span className="text-neutral-400 ">(calendario externo)</span>
                 </p>
               </div>
             );
           })}
 
-          <h5 className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest pl-0.5">
+          <h5 className="text-micro font-bold text-neutral-400 uppercase tracking-widest pl-0.5">
             {dayTouching.length === 0
               ? 'Sin reservaciones para este día'
               : !isStaff
@@ -540,18 +541,18 @@ export function RoomReservationCalendar({
           </h5>
 
           {dayTouching.length === 0 && dayBlocks.length === 0 ? (
-            <div className="p-4 bg-emerald-50/50 border border-emerald-100 rounded-xl text-center space-y-1">
-              <CheckCircle2 className="w-7 h-7 text-emerald-600 mx-auto" />
-              <p className="text-xs font-bold text-emerald-900">Día 100% libre</p>
-              <p className="text-[10px] text-emerald-700 max-w-xs mx-auto leading-normal">
+            <div className="p-4 bg-success-50/50 border border-success-100 rounded-xl text-center space-y-1">
+              <CheckCircle2 className="w-7 h-7 text-success-600 mx-auto" />
+              <p className="text-xs font-bold text-success-900">Día 100% libre</p>
+              <p className="text-micro text-success-700 max-w-xs mx-auto leading-normal">
                 {isStaff ? 'No hay huéspedes registrados para este día con los filtros activos.' : 'Esta fecha está totalmente disponible para tu hospedaje.'}
               </p>
             </div>
           ) : !isStaff && visibleReservations.length === 0 && dayTouching.length > 0 ? (
-            <div className="p-4 bg-amber-50/50 border border-amber-100 rounded-xl text-center space-y-1">
-              <AlertCircle className="w-7 h-7 text-amber-600 mx-auto" />
-              <p className="text-xs font-bold text-amber-950">Fecha reservada u ocupada</p>
-              <p className="text-[10px] text-amber-700 max-w-xs mx-auto leading-normal">
+            <div className="p-4 bg-warning-50/50 border border-warning-100 rounded-xl text-center space-y-1">
+              <AlertCircle className="w-7 h-7 text-warning-600 mx-auto" />
+              <p className="text-xs font-bold text-warning-950">Fecha reservada u ocupada</p>
+              <p className="text-micro text-warning-700 max-w-xs mx-auto leading-normal">
                 Por privacidad, los detalles del hospedaje de terceros están protegidos.
               </p>
             </div>
@@ -564,19 +565,19 @@ export function RoomReservationCalendar({
                 return (
                   <div key={res.id} className="p-3 bg-white rounded-xl border border-neutral-200 shadow-xs space-y-2.5">
                     <div className="flex justify-between items-start gap-2">
-                      <span className="text-[9px] font-mono font-bold bg-neutral-900 text-white px-2 py-0.5 rounded uppercase">Código: {res.id.slice(0, 8)}</span>
-                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase border ${
-                        res.estado === 'confirmada' ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                        : res.estado === 'ocupada' ? 'bg-blue-50 text-blue-800 border-blue-200'
-                        : res.estado === 'pendiente' ? 'bg-amber-50 text-amber-800 border-amber-200'
+                      <span className="text-micro font-mono font-bold bg-neutral-900 text-white px-2 py-0.5 rounded-lg uppercase">Código: {res.id.slice(0, 8)}</span>
+                      <span className={`text-micro font-bold px-2 py-0.5 rounded-full uppercase border ${
+                        res.estado === 'confirmada' ? 'bg-success-50 text-success-800 border-success-200'
+                        : res.estado === 'ocupada' ? 'bg-info-50 text-info-800 border-info-200'
+                        : res.estado === 'pendiente' ? 'bg-warning-50 text-warning-800 border-warning-200'
                         : 'bg-neutral-50 text-neutral-600 border-neutral-200'
                       }`}>{res.estado}</span>
                     </div>
 
                     {selectedRoomId === 'all' && roomInfo && (
-                      <div className="text-[11px] font-bold text-neutral-700 bg-neutral-50 px-2 py-1 rounded border border-neutral-200 flex items-center justify-between gap-2">
+                      <div className="text-micro font-bold text-neutral-700 bg-neutral-50 px-2 py-1 rounded-lg border border-neutral-200 flex items-center justify-between gap-2">
                         <span className="truncate">Habitación {roomInfo.numero} · {roomInfo.nombre}</span>
-                        <span className="text-[10px] text-teal-600 font-medium shrink-0">{roomInfo.tipo}</span>
+                        <span className="text-micro text-teal-600 font-medium shrink-0">{roomInfo.tipo}</span>
                       </div>
                     )}
 
@@ -585,39 +586,39 @@ export function RoomReservationCalendar({
                         <User className="w-3.5 h-3.5 text-neutral-500" />
                         <span className="truncate">{client ? `${client.nombre} ${client.apellido}` : 'Huésped'}</span>
                       </div>
-                      <div className="flex items-center gap-1.5 text-[11px] text-neutral-500 font-mono">
+                      <div className="flex items-center gap-1.5 text-micro text-neutral-500 font-mono">
                         <Clock className="w-3.5 h-3.5 text-neutral-400" />
                         <span>Estadía de {nights} {nights === 1 ? 'noche' : 'noches'}</span>
                       </div>
-                      <div className="grid grid-cols-2 gap-2 text-[10px] font-semibold bg-neutral-50 p-2 rounded-lg border border-neutral-100">
+                      <div className="grid grid-cols-2 gap-2 text-micro font-semibold bg-neutral-50 p-2 rounded-lg border border-neutral-100">
                         <div>
-                          <span className="text-neutral-400 block text-[8px] uppercase tracking-wider font-bold">Llegada</span>
-                          <span className="text-emerald-700 font-mono">{res.fechaEntrada}</span>
+                          <span className="text-neutral-400 block text-micro uppercase tracking-wider font-bold">Llegada</span>
+                          <span className="text-success-700 font-mono">{res.fechaEntrada}</span>
                         </div>
                         <div>
-                          <span className="text-neutral-400 block text-[8px] uppercase tracking-wider font-bold">Salida</span>
-                          <span className="text-red-600 font-mono">{res.fechaSalida}</span>
+                          <span className="text-neutral-400 block text-micro uppercase tracking-wider font-bold">Salida</span>
+                          <span className="text-danger-600 font-mono">{res.fechaSalida}</span>
                         </div>
                       </div>
                     </div>
 
                     {isStaff && (
                       <div className="pt-2 border-t border-neutral-100 space-y-2">
-                        <div className="flex flex-wrap gap-1.5 text-[10px] text-neutral-500">
+                        <div className="flex flex-wrap gap-1.5 text-micro text-neutral-500">
                           {client?.telefono && (
-                            <a href={`tel:${client.telefono}`} className="flex items-center gap-1 hover:text-teal-600 bg-neutral-100 hover:bg-teal-50 px-2 py-1 rounded transition-colors">
+                            <a href={`tel:${client.telefono}`} className="flex items-center gap-1 hover:text-teal-600 bg-neutral-100 hover:bg-teal-50 px-2 py-1 rounded-lg transition-colors">
                               <Phone className="w-3 h-3 text-neutral-400" /><span>{client.telefono}</span>
                             </a>
                           )}
                           {client?.email && (
-                            <a href={`mailto:${client.email}`} className="flex items-center gap-1 hover:text-teal-600 bg-neutral-100 hover:bg-teal-50 px-2 py-1 rounded transition-colors overflow-hidden max-w-full">
+                            <a href={`mailto:${client.email}`} className="flex items-center gap-1 hover:text-teal-600 bg-neutral-100 hover:bg-teal-50 px-2 py-1 rounded-lg transition-colors overflow-hidden max-w-full">
                               <Mail className="w-3 h-3 text-neutral-400 shrink-0" /><span className="truncate">{client.email}</span>
                             </a>
                           )}
                         </div>
                         {res.notas && (
-                          <div className="bg-amber-50/60 p-2 rounded border border-amber-100 text-[10px] text-amber-900 leading-normal italic flex gap-1 items-start">
-                            <FileText className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                          <div className="bg-warning-50/60 p-2 rounded-lg border border-warning-100 text-micro text-warning-900 leading-normal italic flex gap-1 items-start">
+                            <FileText className="w-3.5 h-3.5 text-warning-600 shrink-0 mt-0.5" />
                             <span>"{res.notas}"</span>
                           </div>
                         )}
@@ -625,7 +626,7 @@ export function RoomReservationCalendar({
                     )}
 
                     {!isStaff && (
-                      <div className="pt-1.5 border-t border-neutral-100 text-[10px] text-teal-700 font-semibold flex items-center gap-1">
+                      <div className="pt-1.5 border-t border-neutral-100 text-micro text-teal-700 font-semibold flex items-center gap-1">
                         <Sparkle className="w-3 h-3 text-teal-500 shrink-0" />
                         <span>Código seguro · Tu habitación te espera con amenidades de cortesía.</span>
                       </div>
@@ -642,9 +643,9 @@ export function RoomReservationCalendar({
           const { arrivals, departures } = arrivalsAndDepartures(todayStr);
           if (arrivals.length === 0 && departures.length === 0) return null;
           return (
-            <div className="bg-amber-50 border border-amber-200 p-3 rounded-xl space-y-1 text-[11px] text-amber-900 leading-normal">
+            <div className="bg-warning-50 border border-warning-200 p-3 rounded-xl space-y-1 text-micro text-warning-900 leading-normal">
               <div className="flex items-center gap-1.5 font-bold">
-                <AlertCircle className="w-4 h-4 text-amber-600" />
+                <AlertCircle className="w-4 h-4 text-warning-600" />
                 <span>Operaciones de hoy</span>
               </div>
               <p>

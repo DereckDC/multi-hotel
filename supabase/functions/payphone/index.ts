@@ -22,7 +22,7 @@ import {
   sumsUp,
   toCents,
 } from "./paymentRules.ts";
-import { BRAND, type BrandEmail, renderBrandEmail, renderBrandText } from "../_shared/brandEmail.ts";
+import { BRAND, type BrandEmail, emailSubject, renderBrandEmail, renderBrandText } from "../_shared/brandEmail.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -289,13 +289,13 @@ async function sendPaymentEmails(paymentId: string) {
 
     const jobs: Promise<unknown>[] = [];
     if (guest?.email && EMAIL_RE.test(guest.email)) {
-      jobs.push(send(guest.email, `Comprobante de pago · Reserva ${r.id} · ${hotel?.nombre ?? "Roomia"}`, base(true)));
+      jobs.push(send(guest.email, emailSubject("Comprobante de pago", r.id, hotel?.nombre), base(true)));
     }
     const staff = [...(admins ?? []).map((a: { email: string | null }) => a.email), contacto.email]
       .filter((e): e is string => typeof e === "string" && EMAIL_RE.test(e.trim()))
       .map((e) => e.trim().toLowerCase());
     for (const to of new Set(staff)) {
-      jobs.push(send(to, `Pago en línea recibido · Reserva ${r.id} · ${usd(p.amount_cents)}`, base(false)));
+      jobs.push(send(to, emailSubject("Pago en línea recibido", r.id, hotel?.nombre), base(false)));
     }
     await Promise.allSettled(jobs);
   } catch (e) {

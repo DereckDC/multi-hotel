@@ -42,7 +42,9 @@ import {
 // salga de una prueba en localhost o del APK: quien lo abre está fuera de esa sesión.
 import { isNativeApp, PRODUCTION_ORIGIN } from './utils/platform';
 import { removeStoredImages, storedImagesOf, unusedImages } from './utils/images';
-import { renderBrandEmail, renderBrandText, type BrandEmail } from '../supabase/functions/_shared/brandEmail.ts';
+import { notify } from './utils/notify';
+import { friendlyError } from './utils/errors';
+import { emailSubject, renderBrandEmail, renderBrandText, type BrandEmail } from '../supabase/functions/_shared/brandEmail.ts';
 
 const money = (n: number | undefined) => `$${Number(n || 0).toFixed(2)} USD`;
 
@@ -378,7 +380,7 @@ export function useHotelStore() {
               estado: 'cancelada',
               mensajeCambio: 'Reservación cancelada de forma automática por el sistema al expirar el límite de 24 horas para reportar el pago.',
               fechaCambio: new Date().toISOString(),
-              modificadoPor: 'Watchdog de Pago Temp (Roomia Automated Watchdog)'
+              modificadoPor: 'Roomia PMS'
             };
 
             try {
@@ -904,27 +906,15 @@ export function useHotelStore() {
 
       if (!syncRes.success) {
         console.error("❌ Supabase syncHotel error detail:", syncRes.error);
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('aura-toast', {
-            detail: { message: `⚠️ Guardado en memoria. Supabase: ${syncRes.error}` }
-          }));
-        }
+        notify.warning('Guardamos los cambios en este dispositivo, pero aún no se sincronizaron. Revisa tu conexión e inténtalo de nuevo.');
       } else {
         // Fotos que la versión anterior usaba y esta ya no: se borran del almacenamiento
         cleanupUnusedImages(unusedImages(previousHotel, hotel), hotel.id);
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('aura-toast', {
-            detail: { message: `✅ "${hotel.nombre}" guardado y registrado en la base de datos Supabase.` }
-          }));
-        }
+        notify.success(`"${hotel.nombre}" se guardó correctamente.`);
       }
     } catch (err: any) {
       console.warn("Supabase saveHotel sync error:", err);
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('aura-toast', {
-          detail: { message: `⚠️ Guardado localmente. Excepción: ${err.message || String(err)}` }
-        }));
-      }
+      notify.warning('Guardamos los cambios en este dispositivo, pero aún no se sincronizaron. Revisa tu conexión e inténtalo de nuevo.');
     }
 
     addLog(
@@ -1006,27 +996,15 @@ export function useHotelStore() {
       const result = await syncRoomToSupabase(validatedRoom);
       if (!result.success) {
         console.error("❌ Error al guardar habitación en Supabase:", result.error);
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('aura-toast', {
-            detail: { message: `⚠️ Habitación N° ${validatedRoom.numero} guardada localmente.` }
-          }));
-        }
+        notify.warning(`La habitación N° ${validatedRoom.numero} se guardó en este dispositivo, pero aún no se sincronizó. Revisa tu conexión.`);
       } else {
         console.log("✅ Habitación guardada exitosamente en Supabase:", validatedRoom.id);
         cleanupUnusedImages(unusedImages(previousRoom, validatedRoom), validatedRoom.id);
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('aura-toast', {
-            detail: { message: `✅ Habitación N° ${validatedRoom.numero} (${validatedRoom.nombre}) guardada y sincronizada correctamente.` }
-          }));
-        }
+        notify.success(`Habitación N° ${validatedRoom.numero} (${validatedRoom.nombre}) guardada correctamente.`);
       }
     } catch (err) {
       console.warn("Supabase saveRoom sync error:", err);
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('aura-toast', {
-          detail: { message: `✅ Habitación N° ${validatedRoom.numero} guardada en memoria.` }
-        }));
-      }
+      notify.warning(`La habitación N° ${validatedRoom.numero} se guardó en este dispositivo, pero aún no se sincronizó. Revisa tu conexión.`);
     }
 
     const parentHotel = hotels.find(h => h.id === validatedRoom.hotelId);
@@ -1045,11 +1023,7 @@ export function useHotelStore() {
     try {
       const del = await deleteRowFromSupabase('rooms', roomId);
       if (del.success) cleanupUnusedImages(storedImagesOf(targetRoom), roomId);
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('aura-toast', {
-          detail: { message: `🗑️ Habitación N° ${targetRoom?.numero || roomId} eliminada correctamente.` }
-        }));
-      }
+      notify.success(`Habitación N° ${targetRoom?.numero || roomId} eliminada.`);
     } catch (err) {
       console.warn("Supabase deleteRoom error:", err);
     }
@@ -1177,7 +1151,7 @@ export function useHotelStore() {
     const result = await syncUserToSupabase(user);
     if (!result.success) {
       console.error("Supabase manual user registration sync failed:", result.error);
-      throw new Error(`Error de registro en la Base de Datos: ${result.error || 'No se pudo sincronizar la cuenta con Supabase'}`);
+      throw new Error(friendlyError(result.error, 'registro'));
     }
     
     console.log("Successfully synced registered user to Supabase:", user.email);
@@ -1191,9 +1165,9 @@ export function useHotelStore() {
     });
 
     // Dispatch beautiful welcome email using real SMTP API endpoint
-    const emailSubject = user.debeCambiarPassword 
-      ? 'Bienvenido/a a Roomia PMS · Tu cuenta y el cambio de contraseña'
-      : 'Bienvenido/a a Roomia PMS · Tu cuenta está lista';
+    const welcomeSubject = user.debeCambiarPassword
+      ? emailSubject('Bienvenido/a a Roomia PMS', 'Cambia tu contraseña')
+      : emailSubject('Bienvenido/a a Roomia PMS', 'Tu cuenta está lista');
 
     const welcome: BrandEmail = {
       preheader: 'Tu cuenta de Roomia PMS está lista.',
@@ -1228,7 +1202,7 @@ export function useHotelStore() {
         },
         body: JSON.stringify({
           to: user.email,
-          subject: emailSubject,
+          subject: welcomeSubject,
           text: emailBody,
           html: emailHtml
         })
@@ -1265,9 +1239,7 @@ export function useHotelStore() {
     const recipientName = guestObj ? `${guestObj.nombre} ${guestObj.apellido}` : 'Huésped de Honor';
     const isConfirmed = resObj.estado === 'confirmada' || resObj.estado === 'ocupada' || resObj.estado === 'finalizada';
 
-    const subject = isConfirmed
-      ? `Reserva confirmada · ${resObj.id} · ${hotelObj?.nombre || 'Roomia PMS'}`
-      : `Reserva registrada, pendiente de pago · ${resObj.id} · ${hotelObj?.nombre || 'Roomia PMS'}`;
+    const subject = emailSubject(isConfirmed ? 'Reserva confirmada' : 'Reserva pendiente de pago', resObj.id, hotelObj?.nombre);
 
     const pagado = resObj.montoPagado ?? 0;
     const pendiente = resObj.montoPendiente ?? Math.max(0, resObj.total - pagado);
@@ -1377,7 +1349,7 @@ export function useHotelStore() {
 
     const guestName = guestObj ? `${guestObj.nombre} ${guestObj.apellido}`.trim() : 'Nuevo cliente';
 
-    const subject = `Nueva reserva pendiente de pago · ${resObj.id} · ${hotelObj?.nombre || 'Roomia PMS'}`;
+    const subject = emailSubject('Nueva reserva pendiente de pago', resObj.id, hotelObj?.nombre);
 
     const adminEmail: BrandEmail = {
       preheader: `${guestName} reservó del ${resObj.fechaEntrada} al ${resObj.fechaSalida} (${money(resObj.total)}).`,
@@ -1490,13 +1462,9 @@ export function useHotelStore() {
           setRooms(prev => prev.map(r => r.id === resToSave.roomId ? { ...r, estado: previousRoomStatus } : r));
         }
         if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('aura-toast', {
-            detail: {
-              message: syncResult.overlap
-                ? '❌ La habitación ya no está disponible en esas fechas. Elige un rango diferente.'
-                : '❌ No se pudo guardar la reserva. Revisa tu conexión e inténtalo de nuevo.'
-            }
-          }));
+          notify.error(syncResult.overlap
+            ? 'La habitación ya no está disponible en esas fechas. Elige un rango diferente.'
+            : 'No pudimos guardar la reserva. Revisa tu conexión e inténtalo de nuevo.');
           window.dispatchEvent(new Event('roomia-refresh-busy'));
         }
         return false;
@@ -1609,11 +1577,6 @@ export function useHotelStore() {
     // Antes solo se cambiaba en la tabla, y la persona ya no podía entrar con el correo
     // nuevo. Ahora el cambio se pide a Supabase Auth y la tabla solo se actualiza cuando
     // Auth lo ha aceptado.
-    const notify = (message: string) => {
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('aura-toast', { detail: { message } }));
-      }
-    };
     const requestedEmail = typeof incomingData.email === 'string' ? incomingData.email.trim().toLowerCase() : '';
     const currentEmail = (targetUser?.email || '').trim().toLowerCase();
 
@@ -1621,7 +1584,7 @@ export function useHotelStore() {
       if (userId !== currentUserId) {
         // El correo de acceso de otra persona no se puede cambiar desde el navegador
         updatedData.email = targetUser.email;
-        notify('⚠️ El correo de acceso solo puede cambiarlo el propio usuario desde su perfil.');
+        notify.warning('El correo de acceso solo puede cambiarlo cada persona desde su perfil.');
       } else {
         let hasAuthSession = false;
         try {
@@ -1637,21 +1600,21 @@ export function useHotelStore() {
             if (error) {
               updatedData.email = targetUser.email;
               const alreadyUsed = /already|registered|exists/i.test(error.message || '');
-              notify(alreadyUsed
-                ? '❌ Ese correo ya pertenece a otra cuenta. Tu correo no se ha cambiado.'
-                : `❌ No se pudo cambiar el correo: ${error.message}`);
+              notify.error(alreadyUsed
+                ? 'Ese correo ya pertenece a otra cuenta. Tu correo no se cambió.'
+                : friendlyError(error, 'correo'));
             } else if ((data?.user?.email || '').toLowerCase() === requestedEmail) {
               // Cambio inmediato (el proyecto no exige confirmar el correo)
               updatedData.email = requestedEmail;
-              notify('✅ Correo actualizado. Usa el nuevo correo para iniciar sesión.');
+              notify.success('Correo actualizado. Usa el nuevo correo para iniciar sesión.');
             } else {
               // Supabase envió un enlace de confirmación: hasta confirmarlo sigue valiendo el anterior
               updatedData.email = targetUser.email;
-              notify(`📧 Te enviamos un enlace de confirmación a ${requestedEmail}. Hasta que lo confirmes, sigue entrando con ${targetUser.email}.`);
+              notify.info(`Te enviamos un enlace de confirmación a ${requestedEmail}. Hasta que lo confirmes, sigue entrando con ${targetUser.email}.`);
             }
           } catch (emailErr: any) {
             updatedData.email = targetUser.email;
-            notify(`❌ No se pudo cambiar el correo: ${emailErr?.message || 'error de conexión'}`);
+            notify.error(friendlyError(emailErr, 'correo'));
           }
         } else {
           updatedData.email = requestedEmail;
@@ -1698,7 +1661,7 @@ export function useHotelStore() {
         const { error: authError } = await supabase.auth.updateUser({ password: newPass });
         if (authError) {
           console.error("Error updating password in Supabase Auth:", authError);
-          return { success: false, error: `Error en la autenticación de Supabase: ${authError.message}` };
+          return { success: false, error: friendlyError(authError, 'contrasena') };
         }
       }
       
@@ -1717,7 +1680,7 @@ export function useHotelStore() {
     );
 
     // Send real email notification about password change
-    const emailSubject = 'Tu contraseña de Roomia PMS fue cambiada';
+    const passwordSubject = emailSubject('Contraseña cambiada');
     const passwordEmail: BrandEmail = {
       preheader: 'Aviso de seguridad de tu cuenta.',
       eyebrow: 'Seguridad de la cuenta',
@@ -1741,7 +1704,7 @@ export function useHotelStore() {
         },
         body: JSON.stringify({
           to: targetUser.email,
-          subject: emailSubject,
+          subject: passwordSubject,
           text: renderBrandText(passwordEmail),
           html: renderBrandEmail(passwordEmail)
         })

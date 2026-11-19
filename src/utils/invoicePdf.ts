@@ -7,6 +7,8 @@ import { jsPDF } from 'jspdf';
 import QRCode from 'qrcode';
 import RoomiaLogo from '../RoomiaPMSLogoSinFondo.png';
 import { InvoiceData, money } from './invoiceData';
+import { PDF_BRAND_NAME, PDF_BRAND_TAGLINE, PDF_COLORS } from './brandTheme';
+import { useBrandFont } from './pdfFonts';
 
 export type TicketWidth = 80 | 58;
 
@@ -34,17 +36,13 @@ function fit(doc: jsPDF, text: string, maxW: number): string {
 // ---------------------------------------------------------------------------
 export async function buildInvoiceA4(data: InvoiceData): Promise<jsPDF> {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
-  // Fuentes integradas del PDF: no dependen de internet (las de Google que se cargaban antes ya no existen)
-  const SANS = 'helvetica';
-  const SERIF = 'times';
+  // Montserrat, como la app y los correos (si no se puede cargar, usa helvetica y el PDF sale igual)
+  const SANS = await useBrandFont(doc);
 
   const L = 15;
   const R = 195;
   const W = R - L;
-  const NAVY: [number, number, number] = [7, 23, 38];
-  const INK: [number, number, number] = [26, 28, 30];
-  const GRAY: [number, number, number] = [100, 116, 139];
-  const TEAL: [number, number, number] = [13, 148, 136];
+  const { navy: NAVY, ink: INK, muted: GRAY, cyan: CYAN, success: GREEN, warning: AMBER, danger: RED } = PDF_COLORS;
 
   // Cabecera
   doc.setFillColor(...NAVY);
@@ -52,17 +50,16 @@ export async function buildInvoiceA4(data: InvoiceData): Promise<jsPDF> {
   try {
     doc.addImage(await loadImage(RoomiaLogo), 'PNG', L, 8, 13, 13);
   } catch {
-    doc.setFillColor(35, 180, 230);
+    doc.setFillColor(...CYAN);
     doc.circle(L + 6.5, 14.5, 6, 'F');
   }
   doc.setTextColor(255, 255, 255);
-  doc.setFont(SERIF, 'bold');
-  doc.setFontSize(19);
-  doc.text('ROOMIA', L + 17, 15.5);
   doc.setFont(SANS, 'bold');
-  doc.setFontSize(7);
-  doc.setTextColor(35, 180, 230);
-  doc.text('PROPERTY MANAGEMENT SYSTEM', L + 17, 20.5);
+  doc.setFontSize(15);
+  doc.text(PDF_BRAND_NAME, L + 17, 15.5, { charSpace: 0.8 });
+  doc.setFontSize(6.5);
+  doc.setTextColor(...CYAN);
+  doc.text(PDF_BRAND_TAGLINE.toUpperCase(), L + 17, 20.5, { charSpace: 0.3 });
 
   doc.setTextColor(255, 255, 255);
   doc.setFont(SANS, 'bold');
@@ -72,7 +69,7 @@ export async function buildInvoiceA4(data: InvoiceData): Promise<jsPDF> {
   doc.text(`N° ${data.id}`, R, 18, { align: 'right' });
   doc.setFont(SANS, 'normal');
   doc.setFontSize(7.5);
-  doc.setTextColor(190, 200, 210);
+  doc.setTextColor(...PDF_COLORS.onNavy);
   doc.text(`Emisión: ${data.fechaEmision}   ·   Estado: ${data.estado}`, R, 23, { align: 'right' });
 
   // Emisor y cliente
@@ -113,8 +110,8 @@ export async function buildInvoiceA4(data: InvoiceData): Promise<jsPDF> {
 
   // Estadía
   let y = Math.max(yA, yB) + 3;
-  doc.setFillColor(248, 250, 252);
-  doc.setDrawColor(226, 232, 240);
+  doc.setFillColor(...PDF_COLORS.soft);
+  doc.setDrawColor(...PDF_COLORS.border);
   doc.setLineWidth(0.2);
   doc.roundedRect(L, y, W, 14, 1.5, 1.5, 'FD');
   const cells: [string, string, number][] = [
@@ -147,7 +144,7 @@ export async function buildInvoiceA4(data: InvoiceData): Promise<jsPDF> {
   doc.text('P. UNITARIO', C_UNIT, y, { align: 'right' });
   doc.text('IMPORTE', R, y, { align: 'right' });
   y += 2.5;
-  doc.setDrawColor(203, 213, 225);
+  doc.setDrawColor(...PDF_COLORS.borderStrong);
   doc.setLineWidth(0.3);
   doc.line(L, y, R, y);
 
@@ -157,7 +154,7 @@ export async function buildInvoiceA4(data: InvoiceData): Promise<jsPDF> {
   const rowH = Math.max(4.6, Math.min(9.5, (tableBottom - y) / Math.max(1, n)));
   const withDetail = rowH >= 7.5;
   doc.setLineWidth(0.15);
-  doc.setDrawColor(226, 232, 240);
+  doc.setDrawColor(...PDF_COLORS.border);
   data.lineas.forEach(line => {
     if (y + rowH > 282) {
       doc.addPage();
@@ -212,15 +209,15 @@ export async function buildInvoiceA4(data: InvoiceData): Promise<jsPDF> {
   };
   totalRow('Subtotal', `${money(data.subtotal)} USD`);
   totalRow(data.ivaLabel, `${money(data.impuestos)} USD`);
-  doc.setDrawColor(203, 213, 225);
+  doc.setDrawColor(...PDF_COLORS.borderStrong);
   doc.line(TX, ty - 2.6, R, ty - 2.6);
   ty += 2.2;
-  totalRow('TOTAL', `${money(data.total)} USD`, { bold: true, color: TEAL, size: 12 });
-  if (data.abonado !== null) totalRow('Abonado', `-${money(data.abonado)} USD`, { color: [5, 150, 105] });
-  if (data.pendiente !== null) totalRow('Saldo pendiente', `${money(data.pendiente)} USD`, { bold: true, color: [220, 38, 38] });
+  totalRow('TOTAL', `${money(data.total)} USD`, { bold: true, color: NAVY, size: 12 });
+  if (data.abonado !== null) totalRow('Abonado', `-${money(data.abonado)} USD`, { color: GREEN });
+  if (data.pendiente !== null) totalRow('Saldo pendiente', `${money(data.pendiente)} USD`, { bold: true, color: RED });
 
   // Estado de pago
-  const tone: Record<string, [number, number, number]> = { ok: [5, 150, 105], warn: [180, 83, 9], bad: [220, 38, 38] };
+  const tone: Record<string, [number, number, number]> = { ok: GREEN, warn: AMBER, bad: RED };
   const py = Math.max(ty + 1, y + 31);
   doc.setDrawColor(...tone[data.pago.tono]);
   doc.setLineWidth(0.3);
@@ -235,7 +232,7 @@ export async function buildInvoiceA4(data: InvoiceData): Promise<jsPDF> {
 
   // Políticas y pie, anclados al final de la hoja
   let fy = 297 - 30;
-  doc.setDrawColor(226, 232, 240);
+  doc.setDrawColor(...PDF_COLORS.border);
   doc.setLineWidth(0.2);
   doc.line(L, fy, R, fy);
   fy += 4.5;
@@ -250,7 +247,7 @@ export async function buildInvoiceA4(data: InvoiceData): Promise<jsPDF> {
     doc.text(fit(doc, `·  ${p}`, W), L, fy);
   });
   doc.setFontSize(6.5);
-  doc.setTextColor(150, 150, 150);
+  doc.setTextColor(...GRAY);
   doc.text('Pre-factura informativa de la reserva generada por Roomia PMS. No es un comprobante tributario autorizado por el SRI.', L, 297 - 9);
 
   return doc;

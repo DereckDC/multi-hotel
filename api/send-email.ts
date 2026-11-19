@@ -132,8 +132,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({
         success: true,
         simulated: true,
-        message: 'Servidor Vercel recibió la solicitud, pero no se configuraron credenciales SMTP (SMTP_USER/SMTP_PASS) en las Variables de Entorno de Vercel.',
-        details: 'Agrega SMTP_USER, SMTP_PASS, SMTP_HOST, SMTP_PORT en Vercel -> Settings -> Environment Variables y vuelve a desplegar (Redeploy).'
+        message: 'El correo no se envió: el envío de correos no está disponible por ahora.'
       });
     }
 
@@ -178,8 +177,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.error('[SMTP VERCEL ERROR]', error);
     return res.status(500).json({
       success: false,
-      error: 'Error al comunicarse con el servidor SMTP para enviar el correo.',
-      details: error?.message || String(error)
+      error: 'No pudimos enviar el correo. Inténtalo de nuevo más tarde.'
     });
   }
 }

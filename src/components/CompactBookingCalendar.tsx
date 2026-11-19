@@ -257,8 +257,8 @@ export function CompactBookingCalendar({
         {DAYS_SHORT.map((d, idx) => (
           <span
             key={d}
-            className={`text-[11px] font-bold font-mono ${
-              idx === 0 || idx === 6 ? 'text-amber-700' : 'text-neutral-500'
+            className={`text-micro font-bold font-mono ${
+              idx === 0 || idx === 6 ? 'text-warning-700' : 'text-neutral-500'
             }`}
           >
             {d}
@@ -296,9 +296,9 @@ export function CompactBookingCalendar({
           }
 
           if (cell.isOccupied && !selectableCheckout) {
-            cellStyle = 'bg-rose-50 text-rose-700 border-rose-200 opacity-80 cursor-not-allowed line-through';
+            cellStyle = 'bg-danger-50 text-danger-700 border-danger-200 opacity-80 cursor-not-allowed line-through';
           } else if (cell.isPast) {
-            cellStyle = 'bg-neutral-100/60 text-neutral-350 border-transparent cursor-not-allowed opacity-40';
+            cellStyle = 'bg-neutral-100/60 text-neutral-300 border-transparent cursor-not-allowed opacity-40';
           } else if (isCheckIn || isCheckOut) {
             cellStyle = 'bg-teal-700 text-white font-bold border-teal-700 shadow-sm scale-[1.02] z-10';
           } else if (isSelectedRange || isHoverRange) {
@@ -327,7 +327,7 @@ export function CompactBookingCalendar({
               {/* Price badge or indicator */}
               {!cell.isPast && !cell.isOccupied && cell.isCurrentMonth && (
                 <span
-                  className={`text-[9px] font-mono leading-tight mt-0.5 ${
+                  className={`text-micro font-mono leading-tight mt-0.5 ${
                     isCheckIn || isCheckOut
                       ? 'text-teal-100'
                       : dayPrice !== room.precio
@@ -341,7 +341,7 @@ export function CompactBookingCalendar({
 
               {/* Occupied badge */}
               {cell.isOccupied && cell.isCurrentMonth && !cell.isPast && (
-                <span className="text-[8px] font-bold text-rose-600 leading-none scale-90">
+                <span className="text-micro font-bold text-danger-600 leading-none scale-90">
                   Ocupado
                 </span>
               )}
@@ -351,7 +351,7 @@ export function CompactBookingCalendar({
       </div>
 
       {/* Calendar Legend Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 bg-neutral-50 border-t border-neutral-100 text-[10px] text-neutral-600 font-medium">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 bg-neutral-50 border-t border-neutral-100 text-micro text-neutral-600 font-medium">
         <div className="flex items-center gap-1.5">
           <span className="w-2.5 h-2.5 rounded-full bg-white border border-neutral-300" />
           <span>Disponible</span>
@@ -361,7 +361,7 @@ export function CompactBookingCalendar({
           <span>Seleccionado</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-rose-400" />
+          <span className="w-2.5 h-2.5 rounded-full bg-danger-400" />
           <span>Ocupado</span>
         </div>
         <div className="flex items-center gap-1 text-teal-700 font-bold">

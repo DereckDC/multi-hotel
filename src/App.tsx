@@ -13,6 +13,8 @@ import { StepPanel, StepIndicator, StepActions, useFormStepper } from './compone
 import type { LegalDocType } from './components/LegalPageView';
 import { PAGES, hotelMeta } from '../api/seo';
 import { setPageMeta } from './utils/pageMeta';
+import { notify } from './utils/notify';
+import { BackButton, Button, HEADER_ACTIONS_ID, MenuItem, MenuToggle, Modal, ToastHost } from './components/ui';
 
 const ReceptionView = lazy(() => import('./components/ReceptionView'));
 const SupportChatDrawer = lazy(() => import('./components/SupportChatDrawer'));
@@ -21,7 +23,7 @@ const LegalPageView = lazy(() => import('./components/LegalPageView'));
 import { InteractiveContainer } from './components/InteractiveContainer';
 import { BrandLogo } from './components/BrandLogo';
 import { LoadingSkeletonView } from './components/LoadingSkeletonView';
-import { LayoutDashboard, Users, User as UserIcon, CalendarDays, KeyRound, Star, Sparkles, Building2, ShieldAlert, LogOut, Edit3, Camera, Check, X, Shield, AlertCircle, Eye, EyeOff, Briefcase, LogIn, Key, Menu, Home, Compass, DollarSign, ClipboardList, QrCode, Calendar, ArrowLeft, Loader2 } from 'lucide-react';
+import { LayoutDashboard, Users, User as UserIcon, CalendarDays, KeyRound, Star, Building2, ShieldAlert, LogOut, Edit3, Camera, Check, X, Shield, AlertCircle, Eye, EyeOff, Briefcase, LogIn, Key, Menu, Home, Compass, DollarSign, ClipboardList, QrCode, Calendar, ArrowLeft, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 // Slugify helper to convert hotel/property names to clean URL paths
@@ -130,11 +132,11 @@ export default function App() {
   useEffect(() => {
     const handleOnline = () => {
       setIsOffline(false);
-      window.dispatchEvent(new CustomEvent('aura-toast', { detail: { message: '✅ Conexión restablecida de forma automática' } }));
+      notify.success('Conexión restablecida.');
     };
     const handleOffline = () => {
       setIsOffline(true);
-      window.dispatchEvent(new CustomEvent('aura-toast', { detail: { message: '⚠️ Se ha perdido la conexión a internet' } }));
+      notify.warning('Perdiste la conexión a internet.');
     };
 
     window.addEventListener('online', handleOnline);
@@ -174,9 +176,7 @@ export default function App() {
       localStorage.removeItem('aura_hotel_pms_current_user_id');
       switchSessionUserRef.current('');
       setIsLoggedOut(true);
-      window.dispatchEvent(new CustomEvent('aura-toast', {
-        detail: { message: '🔒 Tu sesión expiró. Inicia sesión nuevamente para continuar.' }
-      }));
+      notify.warning('Tu sesión expiró. Inicia sesión nuevamente para continuar.');
     };
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -490,36 +490,6 @@ export default function App() {
     };
   }, [isLoggedOut, activeUser]);
 
-  // Custom non-blocking safe toasts/alerts state
-  const [toasts, setToasts] = useState<{ id: string; message: string; type?: 'info' | 'success' | 'warning' }[]>([]);
-
-  useEffect(() => {
-    const handleAlertEvent = (e: Event) => {
-      const customEvent = e as CustomEvent<{ message: string }>;
-      const message = customEvent.detail?.message || '';
-      if (!message) return;
-
-      const id = Math.random().toString(36).substring(2, 9);
-      // Try to determine toast type based on text content
-      let type: 'info' | 'success' | 'warning' = 'info';
-      if (message.includes('✅') || message.toLowerCase().includes('éxito') || message.toLowerCase().includes('exitosamente')) {
-        type = 'success';
-      } else if (message.includes('⚠️') || message.includes('❌') || message.toLowerCase().includes('error') || message.toLowerCase().includes('alerta')) {
-        type = 'warning';
-      }
-
-      setToasts(prev => [...prev, { id, message, type }]);
-
-      // Auto-remove toast after 4.5 seconds
-      setTimeout(() => {
-        setToasts(prev => prev.filter(t => t.id !== id));
-      }, 4500);
-    };
-
-    window.addEventListener('aura-toast', handleAlertEvent);
-    return () => window.removeEventListener('aura-toast', handleAlertEvent);
-  }, []);
-
   // Profile Edit Modal States
   const [showProfileModal, setShowProfileModal] = useState(false);
   const profileStepper = useFormStepper(3);
@@ -631,34 +601,27 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F8FAFB] flex flex-col font-sans selection:bg-brand-cyan selection:text-[#071726]">
+    <div className="min-h-screen bg-[#F8FAFB] flex flex-col selection:bg-brand-cyan selection:text-brand-navy2">
       
       {/* 2. Global application Header */}
       {!showLandingPage && (
-        <header className="bg-slate-950 border-b border-slate-900 shadow-md print:hidden w-full sticky top-0 z-40">
-          <div className={`w-full px-6 h-20 flex items-center justify-between transition-all duration-300 ${
+        <header className="bg-neutral-950 print:hidden w-full sticky top-0 z-40">
+          <div className={`w-full px-4 sm:px-6 h-20 flex items-center justify-between transition-all duration-300 ${
             isSidebarActive 
               ? (sidebarOpen || sidebarHovered ? 'md:pl-[17rem]' : 'md:pl-[5rem]') 
               : ''
           }`}>
             
-            <div className="flex items-center gap-2 navbar-logo-container">
+            <div className="flex items-center gap-1 navbar-logo-container">
               {!showFullLoginScreen && (
-                <button
-                  type="button"
-                  onClick={() => setSidebarOpen(prev => !prev)}
-                  className="p-2 text-[#23B4E6] hover:text-white bg-[#071726]/40 hover:bg-[#071726]/80 rounded-xl transition-all cursor-pointer active:scale-95 flex items-center justify-center mr-1 shadow border border-brand-cyan/20 md:hidden"
-                  title="Menú de Navegación"
-                >
-                  <Menu className="w-5 h-5" />
-                </button>
+                <MenuToggle open={sidebarOpen} onClick={() => setSidebarOpen(prev => !prev)} className="-ml-2 md:hidden" />
               )}
               <BrandLogo size="lg" showText={true} lightText={true} />
             </div>
 
             <div className="flex items-center gap-3">
               {isInitialSyncing && (
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-[#23B4E6]/10 border border-[#23B4E6]/30 text-[#23B4E6] rounded-full text-xs font-semibold shadow-sm animate-pulse">
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-brand-cyan/10 border border-brand-cyan/30 text-brand-cyan rounded-full text-xs font-semibold shadow-sm animate-pulse">
                   <Loader2 className="w-3.5 h-3.5 animate-spin text-brand-cyan" />
                   <span className="hidden sm:inline">Actualizando catálogo...</span>
                   <span className="sm:hidden">Actualizando...</span>
@@ -666,19 +629,16 @@ export default function App() {
               )}
 
               {showFullLoginScreen && (
-                <button
-                  type="button"
+                <BackButton
                   onClick={() => {
                     setShowFullLoginScreen(false);
                     setClientTab('explore');
                     setOpenHotelId(null);
                   }}
-                  className="px-4 py-2 bg-[#0E2A47] hover:bg-[#133A62] border border-brand-cyan/30 text-white text-xs font-semibold rounded-xl transition-all shadow-md shadow-brand-cyan/5 flex items-center gap-2 cursor-pointer active:scale-95"
-                >
-                  <ArrowLeft className="w-4 h-4 text-brand-cyan" />
-                  <span>Volver</span>
-                </button>
+                />
               )}
+              {/* Aquí se coloca el botón Volver de la pantalla abierta (ficha de hotel, habitación…) */}
+              <div id={HEADER_ACTIONS_ID} className="flex items-center" />
             </div>
 
             {/* Current Persona signature badge removed as requested since they are in the menu */}
@@ -788,7 +748,7 @@ export default function App() {
                   label: "Cerrar Sesión",
                   active: false,
                   onClick: () => { handleLogout(); setSidebarOpen(false); },
-                  colorClass: "text-red-400 hover:text-red-350 hover:bg-red-950/20"
+                  colorClass: "text-danger-400 hover:text-danger-300 hover:bg-danger-950/20"
                 }
               );
             } else {
@@ -814,7 +774,7 @@ export default function App() {
                 label: "Ir a Módulo Admin",
                 active: false,
                 onClick: () => { setViewOverride('admin'); setSidebarOpen(false); },
-                colorClass: "text-amber-400 hover:text-amber-300 hover:bg-amber-950/20"
+                colorClass: "text-warning-400 hover:text-warning-300 hover:bg-warning-950/20"
               });
             }
 
@@ -848,7 +808,7 @@ export default function App() {
                 label: "Cerrar Sesión",
                 active: false,
                 onClick: () => { handleLogout(); setSidebarOpen(false); },
-                colorClass: "text-red-400 hover:text-red-300 hover:bg-red-950/20"
+                colorClass: "text-danger-400 hover:text-danger-300 hover:bg-danger-950/20"
               }
             );
           } else {
@@ -927,50 +887,24 @@ export default function App() {
                 label: "Cerrar Sesión",
                 active: false,
                 onClick: () => { handleLogout(); setSidebarOpen(false); },
-                colorClass: "text-red-400 hover:text-red-300 hover:bg-red-950/20"
+                colorClass: "text-danger-400 hover:text-danger-300 hover:bg-danger-950/20"
               }
             );
           }
 
           const renderMenuItems = (isExpanded: boolean) => {
-            return menuItems.map((item, index) => {
-              const IconComp = item.icon;
-              return (
-                <button
-                  key={index}
-                  type="button"
-                  onClick={item.onClick}
-                  className={`w-full h-11 flex items-center px-3 rounded-xl transition-all cursor-pointer text-xs font-semibold select-none group relative active:scale-95 ${
-                    item.active
-                      ? 'bg-[#23B4E6] text-[#071726] shadow-md shadow-brand-cyan/15'
-                      : item.colorClass || 'text-slate-300 hover:text-white hover:bg-[#071726]/50'
-                  }`}
-                  title={!isExpanded ? item.label : undefined}
-                  id={`sidebar-item-${index}`}
-                >
-                  <div className="flex items-center justify-center shrink-0 w-5 h-5">
-                    <IconComp className="w-5 h-5" />
-                  </div>
-                  
-                  <span
-                    className={`whitespace-nowrap transition-all duration-300 font-sans ${
-                      isExpanded 
-                        ? 'opacity-100 ml-3 block' 
-                        : 'opacity-0 hidden'
-                    }`}
-                  >
-                    {item.label}
-                  </span>
-
-                  {/* Compact Tooltip when collapsed */}
-                  {!isExpanded && (
-                    <div className="absolute left-16 bg-[#071726] text-white text-[10px] font-bold px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-200 whitespace-nowrap shadow-md border border-brand-cyan/10 z-50">
-                      {item.label}
-                    </div>
-                  )}
-                </button>
-              );
-            });
+            return menuItems.map((item, index) => (
+              <MenuItem
+                key={index}
+                id={`sidebar-item-${index}`}
+                icon={item.icon}
+                label={item.label}
+                active={item.active}
+                colorClass={item.colorClass}
+                expanded={isExpanded}
+                onClick={item.onClick}
+              />
+            ));
           };
 
           return (
@@ -992,25 +926,27 @@ export default function App() {
                     animate={{ height: 'auto', opacity: 1 }}
                     exit={{ height: 0, opacity: 0 }}
                     transition={{ duration: 0.3, ease: 'easeInOut' }}
-                    className="fixed md:hidden top-20 left-0 right-0 w-full bg-slate-950 border-b border-slate-900 z-40 shadow-2xl overflow-hidden flex flex-col"
+                    className="fixed md:hidden top-20 left-0 right-0 w-full bg-neutral-950 z-40 shadow-xl overflow-hidden flex flex-col"
                     id="mobile-dropdown-menu"
                   >
-                    <div className="py-4 px-4 space-y-1.5 max-h-[70vh] overflow-y-auto">
+                    <div className="py-4 px-4 space-y-1.5 max-h-[70vh] overflow-y-auto overflow-x-hidden">
                       {renderMenuItems(true)}
                     </div>
                     {/* Mobile User Profile indicator at the bottom of dropdown */}
-                    <div className="p-4 border-t border-brand-cyan/10 bg-[#071726]/30">
+                    <div className="p-4 bg-white/5">
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-[#23B4E6]/10 flex items-center justify-center text-brand-cyan shrink-0">
-                          <span className="text-base">🛎️</span>
+                        <div className="w-9 h-9 rounded-full bg-brand-cyan/10 flex items-center justify-center text-brand-cyan shrink-0">
+                          <UserIcon className="w-4 h-4" />
                         </div>
                         <div className="min-w-0">
                           <p className="text-xs font-bold text-white truncate">
                             {isLoggedOut || !activeUser ? 'Invitado' : `${activeUser.nombre}`}
                           </p>
-                          <p className="text-[10px] text-brand-cyan truncate font-mono mt-0.5 uppercase tracking-wider">
-                            {isLoggedOut || !activeUser ? 'cliente' : activeUser.rol}
-                          </p>
+                          {!(isLoggedOut || !activeUser) && (
+                            <p className="text-micro text-brand-cyan truncate mt-0.5 uppercase tracking-wider">
+                              {activeUser.rol.replace('_', ' ')}
+                            </p>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1024,59 +960,42 @@ export default function App() {
               <aside
                 onMouseEnter={() => setSidebarHovered(true)}
                 onMouseLeave={() => setSidebarHovered(false)}
-                className={`bg-slate-950 border-r border-slate-900 flex flex-col justify-between transition-all duration-300 shrink-0 z-50 h-screen ${
-                  sidebarOpen || sidebarHovered 
-                    ? 'w-64' 
+                className={`bg-neutral-950 flex flex-col justify-between transition-all duration-300 shrink-0 z-50 h-screen ${
+                  sidebarOpen || sidebarHovered
+                    ? 'w-64'
                     : 'w-16'
                 } fixed top-0 bottom-0 left-0 overflow-hidden print:hidden hidden md:flex`}
                 id="sidebar-navigation-desktop"
               >
-                {/* Spacer to align beautifully with Header & house the Menu button */}
-                <div className={`h-20 flex items-center border-b border-slate-900 shrink-0 transition-all duration-300 ${
-                  sidebarOpen || sidebarHovered ? 'px-4' : 'justify-center px-1'
+                {/* Botón de menú, a la altura del encabezado */}
+                <div className={`h-20 flex items-center shrink-0 transition-all duration-300 ${
+                  sidebarOpen || sidebarHovered ? 'px-3' : 'justify-center'
                 }`}>
-                  {(sidebarOpen || sidebarHovered) ? (
-                    <div className="flex items-center gap-3 w-full">
-                      <button
-                        type="button"
-                        onClick={() => setSidebarOpen(prev => !prev)}
-                        className="p-1.5 text-brand-cyan hover:text-white bg-[#071726]/40 hover:bg-[#071726]/80 rounded-lg transition-all cursor-pointer active:scale-95 flex items-center justify-center shadow border border-brand-cyan/20 shrink-0"
-                        title="Contraer Menú"
-                      >
-                        <Menu className="w-4 h-4" />
-                      </button>
-                      <span className="text-brand-cyan text-xs font-black tracking-widest font-mono animate-fade-in select-none">
-                        MENÚ
-                      </span>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setSidebarOpen(prev => !prev)}
-                      className="p-2 text-[#23B4E6] hover:text-white bg-[#071726]/40 hover:bg-[#071726]/80 rounded-xl transition-all cursor-pointer active:scale-95 flex items-center justify-center shadow border border-brand-cyan/20"
-                      title="Expandir Menú"
-                    >
-                      <Menu className="w-5 h-5" />
-                    </button>
-                  )}
+                  <MenuToggle
+                    open={sidebarOpen}
+                    onClick={() => setSidebarOpen(prev => !prev)}
+                    showLabel={sidebarOpen || sidebarHovered}
+                  />
                 </div>
 
-                <div className="flex-1 overflow-y-auto py-4 px-2 space-y-1">
+                <div className="flex-1 overflow-y-auto overflow-x-hidden py-4 px-2 space-y-1">
                   {renderMenuItems(sidebarOpen || sidebarHovered)}
                 </div>
-                <div className="p-4 border-t border-brand-cyan/10 bg-[#071726]/30">
+                <div className="p-4 bg-white/5">
                   <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-full bg-[#23B4E6]/10 flex items-center justify-center text-brand-cyan shrink-0">
-                      <span className="text-sm">🛎️</span>
+                    <div className="w-8 h-8 rounded-full bg-brand-cyan/10 flex items-center justify-center text-brand-cyan shrink-0">
+                      <UserIcon className="w-4 h-4" />
                     </div>
                     {(sidebarOpen || sidebarHovered) && (
                       <div className="min-w-0 transition-opacity duration-300">
-                        <p className="text-[10px] font-bold text-[#FFFFFF] truncate leading-none">
+                        <p className="text-xs font-bold text-white truncate leading-tight">
                           {isLoggedOut || !activeUser ? 'Invitado' : `${activeUser.nombre}`}
                         </p>
-                        <p className="text-[8px] text-brand-cyan truncate font-mono mt-0.5 uppercase tracking-wider">
-                          {isLoggedOut || !activeUser ? 'cliente' : activeUser.rol}
-                        </p>
+                        {!(isLoggedOut || !activeUser) && (
+                          <p className="text-micro text-brand-cyan truncate mt-0.5 uppercase tracking-wider">
+                            {activeUser.rol.replace('_', ' ')}
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>
@@ -1219,84 +1138,74 @@ export default function App() {
 
       {/* AUTHENTICATION OVERLAY MODAL FOR GUEST CHECKOUT/BOOKINGS */}
       {showAuthModal && (
-        <div className="fixed inset-0 bg-neutral-950/70 z-50 flex items-center justify-center p-4 overflow-y-auto backdrop-blur-sm animate-fade-in print:hidden">
-          <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-neutral-100 overflow-hidden animate-scale-up">
-            <button
-              type="button"
-              onClick={() => setShowAuthModal(false)}
-              className="absolute top-4 right-4 text-neutral-400 hover:text-neutral-700 p-2 rounded-full hover:bg-neutral-100 transition-colors z-50 cursor-pointer"
-              title="Cerrar"
-            >
-              <X className="w-5 h-5" />
-            </button>
-            <div className="max-h-[85vh] overflow-y-auto p-4 md:p-6">
-              <div className="text-center mb-4 mt-2">
-                <p className="text-xs text-teal-600 font-bold uppercase tracking-widest bg-teal-50 px-3 py-1 rounded-full inline-block">Paso Requerido 🔒</p>
-                <h3 className="text-lg font-bold text-neutral-800 mt-1">Identificación del Huésped</h3>
-                <p className="text-[11px] text-neutral-400 max-w-xs mx-auto mt-0.5">Inicie sesión o regístrese para continuar con su reserva y emitir su comprobante.</p>
-              </div>
-              <LoginView
-                users={users}
-                onlyForm={true}
-                onLoginSuccess={(uid, fetchedUser) => {
-                  switchSessionUser(uid, fetchedUser);
-                  setIsLoggedOut(false);
-                  setShowAuthModal(false);
-                  // Save user ID to localStorage immediately and reload the page to ensure complete sync with Supabase
-                  localStorage.setItem('aura_hotel_pms_current_user_id', uid);
-                  window.location.reload();
-                }}
-                onRegisterUser={registerUser}
-                onShowLanding={() => {
-                  setShowAuthModal(false);
-                  setShowLandingPage(true);
-                }}
-              />
-            </div>
-          </div>
-        </div>
+        <Modal
+          open
+          onClose={() => setShowAuthModal(false)}
+          size="lg"
+          title="Identifícate para continuar"
+          subtitle="Inicia sesión o regístrate para continuar con tu reserva y recibir tu comprobante."
+          bodyClassName="p-4 md:p-6"
+        >
+          <LoginView
+            users={users}
+            onlyForm={true}
+            onLoginSuccess={(uid, fetchedUser) => {
+              switchSessionUser(uid, fetchedUser);
+              setIsLoggedOut(false);
+              setShowAuthModal(false);
+              // Save user ID to localStorage immediately and reload the page to ensure complete sync with Supabase
+              localStorage.setItem('aura_hotel_pms_current_user_id', uid);
+              window.location.reload();
+            }}
+            onRegisterUser={registerUser}
+            onShowLanding={() => {
+              setShowAuthModal(false);
+              setShowLandingPage(true);
+            }}
+          />
+        </Modal>
       )}
 
       {/* 4. Tiny visual footer */}
-      <footer className={`py-12 border-t border-slate-900 text-center text-[11px] font-mono print:hidden space-y-4 bg-slate-950 text-[#A8B2BD] transition-all duration-300 ${
+      <footer className={`py-12 text-center text-micro font-mono print:hidden space-y-4 bg-neutral-950 text-[#A8B2BD] transition-all duration-300 ${
         isSidebarActive 
           ? (sidebarOpen || sidebarHovered ? 'md:pl-64' : 'md:pl-16') 
           : ''
       }`}>
-        <p className="text-white/80 font-semibold select-none">©2026 Roomia PMS — Maqyasoft</p>
-        <p className="text-white/40 text-[10px]">Hora Ecuador (GMT-5): {ecuadorTime || 'Cargando...'}</p>
-        <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs font-sans font-medium pt-2">
+        <p className="text-white/80 font-semibold select-none">© 2026 Roomia PMS · Maqyasoft</p>
+        <p className="text-white/40 text-micro">Hora Ecuador (GMT-5): {ecuadorTime || 'Cargando...'}</p>
+        <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs font-medium pt-2">
           <button
             type="button"
             onClick={() => {
               window.history.pushState(null, '', '/terminos-y-condiciones');
               setActiveLegalDoc('terminos');
             }}
-            className="hover:text-[#23B4E6] transition-colors cursor-pointer text-slate-300"
+            className="hover:text-brand-cyan transition-colors cursor-pointer text-neutral-300"
             id="footer-link-terminos"
           >
             Términos y Condiciones
           </button>
-          <span className="text-slate-700 font-sans select-none">•</span>
+          <span className="text-neutral-700 select-none">•</span>
           <button
             type="button"
             onClick={() => {
               window.history.pushState(null, '', '/politica-de-privacidad');
               setActiveLegalDoc('privacidad');
             }}
-            className="hover:text-[#23B4E6] transition-colors cursor-pointer text-slate-300"
+            className="hover:text-brand-cyan transition-colors cursor-pointer text-neutral-300"
             id="footer-link-privacidad"
           >
             Política de Privacidad
           </button>
-          <span className="text-slate-700 font-sans select-none">•</span>
+          <span className="text-neutral-700 select-none">•</span>
           <button
             type="button"
             onClick={() => {
               window.history.pushState(null, '', '/politica-de-cancelaciones-y-reembolsos');
               setActiveLegalDoc('cancelaciones');
             }}
-            className="hover:text-[#23B4E6] transition-colors cursor-pointer text-slate-300"
+            className="hover:text-brand-cyan transition-colors cursor-pointer text-neutral-300"
             id="footer-link-cancelaciones"
           >
             Política de Cancelación y Reembolsos
@@ -1306,229 +1215,215 @@ export default function App() {
 
       {/* Global Edit Profile Modal */}
       {showProfileModal && (
-        <div className="fixed inset-0 bg-neutral-950/60 flex items-center justify-center p-4 z-[9999] backdrop-blur-sm animate-fade-in font-sans">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto border border-neutral-105 flex flex-col scale-100 transition-all duration-200">
+        <Modal
+          open
+          onClose={() => setShowProfileModal(false)}
+          layer="critical"
+          size="lg"
+          title="Actualizar datos de perfil"
+          subtitle={`Rol actual: ${activeUser?.rol ? activeUser.rol.replace('_', ' ') : 'Cliente'}`}
+          bodyClassName="p-0"
+        >
+        <StepIndicator steps={STEPS_PROFILE} current={profileStepper.step} onGo={profileStepper.goTo} />
+        <form ref={profileStepper.formRef} onSubmit={profileStepper.wrapSubmit(handleProfileSubmit)} className="p-6 space-y-5">
+          
+          <StepPanel step={1} current={profileStepper.step}>
+          {/* Presets Avatars Picker */}
+          <div className="space-y-2.5">
+            <label className="text-micro font-bold text-neutral-400 uppercase tracking-wide block">Foto / Avatar de Perfil:</label>
             
-            {/* Header */}
-            <div className="px-6 py-4.5 border-b border-neutral-100 flex justify-between items-center bg-neutral-50 rounded-t-3xl">
-              <div>
-                <h4 className="font-bold text-neutral-850 text-base flex items-center gap-2">
-                  <UserIcon className="w-5 h-5 text-teal-600" />
-                  Actualizar Datos de Perfil
-                </h4>
-                <p className="text-[10px] text-neutral-400 mt-0.5 uppercase tracking-wide font-mono">Rol actual: {activeUser?.rol ? activeUser.rol.replace('_', ' ') : 'Cliente'}</p>
+            <div className="flex items-center gap-4 bg-neutral-50 p-3 rounded-2xl border border-neutral-200">
+              <img 
+                src={profileAvatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'} 
+                alt="Currently selected avatar" 
+                className="w-16 h-16 rounded-full object-cover border-2 border-teal-500 shadow-sm shrink-0" 
+              />
+              <div className="flex-1">
+                <span className="text-micro text-neutral-400 font-medium block">¿Quieres usar una imagen predeterminada? Elige una:</span>
+                <div className="grid grid-cols-4 gap-2 mt-2">
+                  {PRESET_AVATARS.map((av, index) => {
+                    const isSelected = profileAvatar === av.url;
+                    return (
+                      <button
+                        key={index}
+                        type="button"
+                        onClick={() => setProfileAvatar(av.url)}
+                        className={`w-9 h-9 rounded-full relative overflow-hidden border-2 cursor-pointer transition-all hover:scale-105 hover:shadow-sm ${
+                          isSelected ? 'border-teal-500 ring-2 ring-teal-200 scale-105' : 'border-neutral-200 opacity-80 hover:opacity-100'
+                        }`}
+                        title={av.label}
+                      >
+                        <img src={av.url} alt="Profile photo preset" className="w-full h-full object-cover" />
+                        {isSelected && (
+                          <div className="absolute inset-0 bg-teal-600/30 flex items-center justify-center">
+                            <Check className="w-4 h-4 text-white drop-shadow-md stroke-[3]" />
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-              <button 
-                onClick={() => setShowProfileModal(false)} 
-                className="p-1.5 hover:bg-neutral-200 rounded-full cursor-pointer text-neutral-400 hover:text-neutral-600 transition-colors"
-                title="Cerrar modal"
-              >
-                <X className="w-5 h-5" />
-              </button>
             </div>
 
-            {/* Form */}
-            <StepIndicator steps={STEPS_PROFILE} current={profileStepper.step} onGo={profileStepper.goTo} />
-            <form ref={profileStepper.formRef} onSubmit={profileStepper.wrapSubmit(handleProfileSubmit)} className="p-6 space-y-5">
-              
-              <StepPanel step={1} current={profileStepper.step}>
-              {/* Presets Avatars Picker */}
-              <div className="space-y-2.5">
-                <label className="text-[11px] font-bold text-neutral-400 uppercase tracking-wide font-sans block">Foto / Avatar de Perfil:</label>
-                
-                <div className="flex items-center gap-4 bg-neutral-50 p-3 rounded-2xl border border-neutral-200">
-                  <img 
-                    src={profileAvatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'} 
-                    alt="Currently selected avatar" 
-                    className="w-16 h-16 rounded-full object-cover border-2 border-teal-500 shadow shrink-0" 
-                  />
-                  <div className="flex-1">
-                    <span className="text-[10px] text-neutral-400 font-medium block">¿Desea usar una imagen preestablecida? Haga clic abajo:</span>
-                    <div className="grid grid-cols-4 gap-2 mt-2">
-                      {PRESET_AVATARS.map((av, index) => {
-                        const isSelected = profileAvatar === av.url;
-                        return (
-                          <button
-                            key={index}
-                            type="button"
-                            onClick={() => setProfileAvatar(av.url)}
-                            className={`w-9 h-9 rounded-full relative overflow-hidden border-2 cursor-pointer transition-all hover:scale-105 hover:shadow-sm ${
-                              isSelected ? 'border-teal-500 ring-2 ring-teal-200 scale-105' : 'border-neutral-200 opacity-80 hover:opacity-100'
-                            }`}
-                            title={av.label}
-                          >
-                            <img src={av.url} alt="Profile photo preset" className="w-full h-full object-cover" />
-                            {isSelected && (
-                              <div className="absolute inset-0 bg-teal-650/30 flex items-center justify-center">
-                                <Check className="w-4 h-4 text-white drop-shadow-md stroke-[3]" />
-                              </div>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-2.5 space-y-2">
-                  <span className="text-[10px] text-neutral-400 font-medium block mb-1">O suba una imagen de su dispositivo:</span>
-                  <div className="flex gap-2">
-                    <label className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-neutral-50 hover:bg-neutral-100 border border-neutral-200 hover:border-neutral-300 rounded-xl cursor-pointer text-xs text-neutral-700 font-semibold transition-all">
-                      <Camera className="w-4 h-4 text-teal-600 animate-pulse" />
-                      <span>Seleccionar imagen</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            if (file.size > 15 * 1024 * 1024) {
-                              alert("La imagen es demasiado grande. Intente con una imagen más liviana.");
-                              return;
-                            }
-                            const reader = new FileReader();
-                            reader.onload = async (event) => {
-                              if (event.target?.result) {
-                                const compressed = await compressImage(event.target.result as string, 500, 500, 0.7);
-                                setProfileAvatar(compressed);
-                              }
-                            };
-                            reader.readAsDataURL(file);
+            <div className="mt-2.5 space-y-2">
+              <span className="text-micro text-neutral-400 font-medium block mb-1">O suba una imagen de su dispositivo:</span>
+              <div className="flex gap-2">
+                <label className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-neutral-50 hover:bg-neutral-100 border border-neutral-200 hover:border-neutral-300 rounded-xl cursor-pointer text-xs text-neutral-700 font-semibold transition-all">
+                  <Camera className="w-4 h-4 text-teal-600 animate-pulse" />
+                  <span>Seleccionar imagen</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        if (file.size > 15 * 1024 * 1024) {
+                          notify.warning('La imagen es demasiado grande. Prueba con una más liviana.');
+                          return;
+                        }
+                        const reader = new FileReader();
+                        reader.onload = async (event) => {
+                          if (event.target?.result) {
+                            const compressed = await compressImage(event.target.result as string, 500, 500, 0.7);
+                            setProfileAvatar(compressed);
                           }
-                        }}
-                      />
-                    </label>
-                  </div>
-                  <div className="mt-1">
-                    <span className="text-[10px] text-neutral-400 font-medium block mb-1">O ingrese una URL de imagen personalizada:</span>
-                    <input
-                      type="url"
-                      value={profileAvatar}
-                      onChange={(e) => setProfileAvatar(e.target.value)}
-                      placeholder="https://ejemplo.com/mi-foto.jpg"
-                      className="w-full text-xs font-mono border border-neutral-250 p-2.5 rounded-xl bg-white focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-200 shadow-sm"
-                    />
-                  </div>
-                </div>
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                  />
+                </label>
               </div>
-              </StepPanel>
-
-              {/* Text Fields Grid */}
-              <div className="grid grid-cols-2 gap-4">
-                <StepPanel step={2} current={profileStepper.step}>
-                <div>
-                  <label className="text-[11px] font-bold text-neutral-400 uppercase tracking-wide block mb-1">Nombre / Primer Nombre:</label>
-                  <input
-                    type="text" required
-                    value={profileNombre}
-                    onChange={(e) => setProfileNombre(e.target.value)}
-                    placeholder="Ej: Sofía"
-                    className="w-full text-xs border border-neutral-250 p-2.5 rounded-xl focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-200"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-[11px] font-bold text-neutral-400 uppercase tracking-wide block mb-1">Apellido / Surname:</label>
-                  <input
-                    type="text" required
-                    value={profileApellido}
-                    onChange={(e) => setProfileApellido(e.target.value)}
-                    placeholder="Ej: Rodríguez"
-                    className="w-full text-xs border border-neutral-250 p-2.5 rounded-xl focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-200"
-                  />
-                </div>
-
-                <div className="col-span-2">
-                  <label className="text-[11px] font-bold text-neutral-400 uppercase tracking-wide block mb-1">Correo Electrónico:</label>
-                  <input
-                    type="email" required
-                    value={profileEmail}
-                    onChange={(e) => setProfileEmail(e.target.value)}
-                    placeholder="contacto@roomiasaas.com"
-                    className="w-full text-xs border border-neutral-250 p-2.5 rounded-xl focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-200 font-mono"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-[11px] font-bold text-neutral-400 uppercase tracking-wide block mb-1">Teléfono Móvil / Fijo:</label>
-                  <input
-                    type="tel" required
-                    value={profileTelefono}
-                    onChange={(e) => setProfileTelefono(e.target.value)}
-                    placeholder="+34 612 345 678"
-                    className="w-full text-xs border border-neutral-250 p-2.5 rounded-xl focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-200"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-[11px] font-bold text-neutral-400 uppercase tracking-wide block mb-1">Documento (DNI/NIE/Pasaporte):</label>
-                  <input
-                    type="text" required
-                    value={profileDocumento}
-                    onChange={(e) => setProfileDocumento(e.target.value)}
-                    placeholder="Ej: 12345678A"
-                    className="w-full text-xs border border-neutral-250 p-2.5 rounded-xl focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-200 font-mono"
-                  />
-                </div>
-                </StepPanel>
-
-                <StepPanel step={3} current={profileStepper.step}>
-                <div className="col-span-2 border-t border-neutral-100 pt-3 mt-1">
-                  <label className="text-[11px] font-bold text-amber-750 uppercase tracking-wide block mb-1">🔐 Cambiar Clave de Acceso:</label>
-                  <div className="relative">
-                    <input
-                      type={showProfilePass ? "text" : "password"}
-                      value={profilePassword}
-                      onChange={(e) => setProfilePassword(e.target.value)}
-                      placeholder="Deje en blanco para conservar su clave de acceso habitual"
-                      className="w-full text-xs border border-neutral-250 p-2.5 pr-10 rounded-xl focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-200 font-sans bg-amber-50/10 placeholder-neutral-400 font-semibold"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowProfilePass(!showProfilePass)}
-                      className="absolute right-3 top-3 p-0.5 text-neutral-400 hover:text-neutral-600 cursor-pointer"
-                    >
-                      {showProfilePass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                  <p className="text-[10px] text-neutral-400 mt-1">Al ingresar una nueva clave, se modificará su acceso y recibirá una notificación de seguridad por correo.</p>
-                </div>
-                </StepPanel>
+              <div className="mt-1">
+                <span className="text-micro text-neutral-400 font-medium block mb-1">O pega el enlace de una imagen:</span>
+                <input
+                  type="url"
+                  value={profileAvatar}
+                  onChange={(e) => setProfileAvatar(e.target.value)}
+                  placeholder="https://ejemplo.com/mi-foto.jpg"
+                  className="w-full text-xs font-mono border border-neutral-200 p-2.5 rounded-xl bg-white focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-200 shadow-sm"
+                />
               </div>
-
-              {/* Action Buttons */}
-              <StepActions step={profileStepper.step} total={3} onCancel={() => setShowProfileModal(false)} onBack={profileStepper.back} onNext={profileStepper.next} submitLabel="Guardar Cambios" />
-
-            </form>
+            </div>
           </div>
-        </div>
+          </StepPanel>
+
+          {/* Text Fields Grid */}
+          <div className="grid grid-cols-2 gap-4">
+            <StepPanel step={2} current={profileStepper.step}>
+            <div>
+              <label className="text-micro font-bold text-neutral-400 uppercase tracking-wide block mb-1">Nombre / Primer Nombre:</label>
+              <input
+                type="text" required
+                value={profileNombre}
+                onChange={(e) => setProfileNombre(e.target.value)}
+                placeholder="Ej: Sofía"
+                className="w-full text-xs border border-neutral-200 p-2.5 rounded-xl focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-200"
+              />
+            </div>
+
+            <div>
+              <label className="text-micro font-bold text-neutral-400 uppercase tracking-wide block mb-1">Apellido / Surname:</label>
+              <input
+                type="text" required
+                value={profileApellido}
+                onChange={(e) => setProfileApellido(e.target.value)}
+                placeholder="Ej: Rodríguez"
+                className="w-full text-xs border border-neutral-200 p-2.5 rounded-xl focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-200"
+              />
+            </div>
+
+            <div className="col-span-2">
+              <label className="text-micro font-bold text-neutral-400 uppercase tracking-wide block mb-1">Correo Electrónico:</label>
+              <input
+                type="email" required
+                value={profileEmail}
+                onChange={(e) => setProfileEmail(e.target.value)}
+                placeholder="contacto@roomiasaas.com"
+                className="w-full text-xs border border-neutral-200 p-2.5 rounded-xl focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-200 font-mono"
+              />
+            </div>
+
+            <div>
+              <label className="text-micro font-bold text-neutral-400 uppercase tracking-wide block mb-1">Teléfono Móvil / Fijo:</label>
+              <input
+                type="tel" required
+                value={profileTelefono}
+                onChange={(e) => setProfileTelefono(e.target.value)}
+                placeholder="+34 612 345 678"
+                className="w-full text-xs border border-neutral-200 p-2.5 rounded-xl focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-200"
+              />
+            </div>
+
+            <div>
+              <label className="text-micro font-bold text-neutral-400 uppercase tracking-wide block mb-1">Documento (DNI/NIE/Pasaporte):</label>
+              <input
+                type="text" required
+                value={profileDocumento}
+                onChange={(e) => setProfileDocumento(e.target.value)}
+                placeholder="Ej: 12345678A"
+                className="w-full text-xs border border-neutral-200 p-2.5 rounded-xl focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-200 font-mono"
+              />
+            </div>
+            </StepPanel>
+
+            <StepPanel step={3} current={profileStepper.step}>
+            <div className="col-span-2 border-t border-neutral-100 pt-3 mt-1">
+              <label className="text-micro font-bold text-warning-700 uppercase tracking-wide block mb-1">Cambiar contraseña:</label>
+              <div className="relative">
+                <input
+                  type={showProfilePass ? "text" : "password"}
+                  value={profilePassword}
+                  onChange={(e) => setProfilePassword(e.target.value)}
+                  placeholder="Deje en blanco para conservar su clave de acceso habitual"
+                  className="w-full text-xs border border-neutral-200 p-2.5 pr-10 rounded-xl focus:outline-none focus:border-warning-500 focus:ring-1 focus:ring-warning-200 bg-warning-50/10 placeholder-neutral-400 font-semibold"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowProfilePass(!showProfilePass)}
+                  className="absolute right-3 top-3 p-0.5 text-neutral-400 hover:text-neutral-600 cursor-pointer"
+                >
+                  {showProfilePass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              <p className="text-micro text-neutral-400 mt-1">Al ingresar una nueva clave, se modificará su acceso y recibirá una notificación de seguridad por correo.</p>
+            </div>
+            </StepPanel>
+          </div>
+
+          {/* Action Buttons */}
+          <StepActions step={profileStepper.step} total={3} onCancel={() => setShowProfileModal(false)} onBack={profileStepper.back} onNext={profileStepper.next} submitLabel="Guardar Cambios" />
+
+        </form>
+        </Modal>
       )}
 
       {/* FORCED PASSWORD CHANGE SCREEN (ONLY FOR FIRST LOGIN OR RESET BY ADMIN) */}
       {activeUser && activeUser.debeCambiarPassword && !isLoggedOut && (
-        <div className="fixed inset-0 bg-[#0f172a]/95 flex items-center justify-center p-4 z-[99999] backdrop-blur-md animate-fade-in font-sans">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full border border-neutral-100 flex flex-col p-6 space-y-4">
+        <div className="fixed inset-0 bg-brand-navy2/95 flex items-center justify-center p-4 z-critical backdrop-blur-md animate-fade-in ">
+          <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full border border-neutral-100 flex flex-col p-6 space-y-4">
             <div className="text-center space-y-2">
-              <div className="w-12 h-12 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto border border-amber-200 shadow-sm">
-                <Shield className="w-6 h-6 text-amber-600 animate-bounce" />
+              <div className="w-12 h-12 bg-warning-50 rounded-2xl flex items-center justify-center mx-auto border border-warning-200 shadow-sm">
+                <Shield className="w-6 h-6 text-warning-600 animate-bounce" />
               </div>
-              <h3 className="text-base font-bold text-neutral-850">Cambio de Contraseña Obligatorio</h3>
-              <p className="text-[11px] text-neutral-500 leading-relaxed">
+              <h3 className="text-base font-bold text-neutral-800">Cambio de Contraseña Obligatorio</h3>
+              <p className="text-micro text-neutral-500 leading-relaxed">
                 Por seguridad y resguardo, es obligatorio actualizar la clave temporal ingresando una nueva clave personalizada antes de usar Roomia PMS.
               </p>
             </div>
 
             {forcedPassSuccess && (
-              <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-3 rounded-xl text-xs flex items-center gap-2 animate-fade-in">
-                <Check className="w-4.5 h-4.5 text-emerald-600 shrink-0" />
+              <div className="bg-success-50 border border-success-200 text-success-800 p-3 rounded-xl text-xs flex items-center gap-2 animate-fade-in">
+                <Check className="w-4.5 h-4.5 text-success-600 shrink-0" />
                 <span>{forcedPassSuccess}</span>
               </div>
             )}
 
             {forcedPassError && (
-              <div className="bg-red-50 border border-red-200 text-red-850 p-3 rounded-xl text-xs flex items-center gap-2 animate-fade-in">
-                <AlertCircle className="w-4.5 h-4.5 text-red-600 shrink-0" />
+              <div className="bg-danger-50 border border-danger-200 text-danger-800 p-3 rounded-xl text-xs flex items-center gap-2 animate-fade-in">
+                <AlertCircle className="w-4.5 h-4.5 text-danger-600 shrink-0" />
                 <span>{forcedPassError}</span>
               </div>
             )}
@@ -1563,15 +1458,15 @@ export default function App() {
               }
             }} className="space-y-4">
               <div className="space-y-1">
-                <label className="text-[11px] font-bold text-neutral-400 uppercase tracking-wide block">Nueva Contraseña de Acceso:</label>
+                <label className="text-micro font-bold text-neutral-400 uppercase tracking-wide block">Nueva Contraseña de Acceso:</label>
                 <div className="relative">
                   <input
                     type={showForcedPass ? "text" : "password"}
                     required
                     value={forcedPassInput}
                     onChange={(e) => setForcedPassInput(e.target.value)}
-                    placeholder="Por favor, ingrese su nueva contraseña"
-                    className="w-full text-xs border border-neutral-250 p-2.5 pr-10 rounded-xl focus:outline-none focus:border-teal-500 font-mono text-center tracking-widest bg-slate-50 font-bold"
+                    placeholder="Escribe tu nueva contraseña"
+                    className="w-full text-xs border border-neutral-200 p-2.5 pr-10 rounded-xl focus:outline-none focus:border-teal-500 font-mono text-center tracking-widest bg-neutral-50 font-bold"
                   />
                   <button
                     type="button"
@@ -1584,15 +1479,15 @@ export default function App() {
               </div>
 
               <div className="space-y-1">
-                <label className="text-[11px] font-bold text-neutral-400 uppercase tracking-wide block">Confirmar Contraseña:</label>
+                <label className="text-micro font-bold text-neutral-400 uppercase tracking-wide block">Confirmar Contraseña:</label>
                 <div className="relative">
                   <input
                     type={showForcedConfirmPass ? "text" : "password"}
                     required
                     value={forcedConfirmPassInput}
                     onChange={(e) => setForcedConfirmPassInput(e.target.value)}
-                    placeholder="Re-escriba su contraseña"
-                    className="w-full text-xs border border-neutral-250 p-2.5 pr-10 rounded-xl focus:outline-none focus:border-teal-500 font-mono text-center tracking-widest bg-slate-50 font-bold"
+                    placeholder="Repite tu contraseña"
+                    className="w-full text-xs border border-neutral-200 p-2.5 pr-10 rounded-xl focus:outline-none focus:border-teal-500 font-mono text-center tracking-widest bg-neutral-50 font-bold"
                   />
                   <button
                     type="button"
@@ -1604,10 +1499,10 @@ export default function App() {
                 </div>
               </div>
 
-              <button
+              <Button
                 type="submit"
                 disabled={forcedPassLoading || !forcedPassInput.trim() || forcedPassInput !== forcedConfirmPassInput}
-                className="w-full py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl transition-all shadow-md cursor-pointer flex items-center justify-center gap-1.5 active:scale-95 disabled:bg-neutral-200 disabled:text-neutral-405 disabled:cursor-not-allowed"
+                variant="primary" size="md" className="w-full"
               >
                 {forcedPassLoading ? (
                   <span>Guardando...</span>
@@ -1617,10 +1512,10 @@ export default function App() {
                     <span>Establecer Nueva Contraseña</span>
                   </>
                 )}
-              </button>
+              </Button>
               
               {forcedPassInput && forcedConfirmPassInput && forcedPassInput !== forcedConfirmPassInput && (
-                <p className="text-[10px] text-red-500 text-center font-semibold">Las contraseñas no coinciden.</p>
+                <p className="text-micro text-danger-500 text-center font-semibold">Las contraseñas no coinciden.</p>
               )}
             </form>
           </div>
@@ -1642,37 +1537,7 @@ export default function App() {
         </Suspense>
       )}
 
-      {/* Modern Safe Toast Notifications Overlay */}
-      <div className="fixed bottom-4 sm:bottom-6 right-3 left-3 sm:left-auto sm:right-6 z-[9999] flex flex-col gap-2.5 max-w-md sm:max-w-sm w-auto sm:w-full pointer-events-none print:hidden">
-        <AnimatePresence>
-          {toasts.map((toast) => (
-            <motion.div
-              key={toast.id}
-              initial={{ opacity: 0, y: 20, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -10, scale: 0.95 }}
-              transition={{ duration: 0.25, ease: 'easeOut' }}
-              className={`p-4 rounded-2xl shadow-xl border text-xs font-semibold backdrop-blur-md pointer-events-auto flex items-start gap-3 justify-between ${
-                toast.type === 'success'
-                  ? 'bg-teal-600/95 border-teal-500 text-white'
-                  : toast.type === 'warning'
-                  ? 'bg-amber-600/95 border-amber-500 text-white'
-                  : 'bg-neutral-900/95 border-neutral-800 text-white'
-              }`}
-            >
-              <div className="flex-1 leading-relaxed">
-                {toast.message}
-              </div>
-              <button
-                onClick={() => setToasts(prev => prev.filter(t => t.id !== toast.id))}
-                className="text-white/60 hover:text-white transition-colors cursor-pointer p-0.5 shrink-0"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </motion.div>
-          ))}
-        </AnimatePresence>
-      </div>
+      <ToastHost />
 
       {/* 🔴 OFFLINE UI WARNING SYSTEM */}
       <AnimatePresence>
@@ -1685,21 +1550,21 @@ export default function App() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -50 }}
                 transition={{ duration: 0.3 }}
-                className="fixed top-4 left-1/2 -translate-x-1/2 z-[1000] w-[90%] max-w-xl bg-amber-950/95 border-2 border-amber-600/80 backdrop-blur-md text-amber-100 p-4 rounded-2xl shadow-2xl flex items-center gap-3 justify-between font-sans shadow-amber-950/50"
+                className="fixed top-4 left-1/2 -translate-x-1/2 z-[1000] w-[90%] max-w-xl bg-warning-950/95 border-2 border-warning-600/80 backdrop-blur-md text-warning-100 p-4 rounded-2xl shadow-xl flex items-center gap-3 justify-between shadow-warning-950/50"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 animate-pulse">
+                  <div className="w-8 h-8 rounded-xl bg-warning-500/20 text-warning-400 flex items-center justify-center shrink-0 animate-pulse">
                     <AlertCircle className="w-5 h-5" />
                   </div>
                   <div>
                     <h5 className="font-extrabold text-xs text-white">Modo sin conexión activo</h5>
-                    <p className="text-[10px] text-amber-300 leading-tight">La app funciona con datos locales. Los registros y reservas se completarán cuando vuelva el internet.</p>
+                    <p className="text-micro text-warning-300 leading-tight">La app funciona con datos locales. Los registros y reservas se completarán cuando vuelva el internet.</p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setIsOffline(!navigator.onLine)}
-                  className="px-3 py-1 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 text-[10px] font-black rounded-lg transition-all cursor-pointer shrink-0"
+                  className="px-3 py-1 bg-warning-500 hover:bg-warning-400 active:scale-95 text-neutral-950 text-micro font-black rounded-lg transition-all cursor-pointer shrink-0"
                 >
                   Verificar
                 </button>
@@ -1710,58 +1575,58 @@ export default function App() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-[9999] flex items-center justify-center p-4 font-sans"
+                className="fixed inset-0 bg-neutral-950/85 backdrop-blur-md z-critical flex items-center justify-center p-4 "
               >
                 <motion.div
                   initial={{ scale: 0.95, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   exit={{ scale: 0.95, opacity: 0 }}
-                  className="bg-slate-900 border border-slate-800 p-8 rounded-3xl max-w-md w-full shadow-2xl space-y-6 text-center"
+                  className="bg-neutral-900 border border-neutral-800 p-8 rounded-2xl max-w-md w-full shadow-xl space-y-6 text-center"
                 >
-                  <div className="mx-auto w-16 h-16 bg-rose-500/10 border border-rose-500/20 rounded-2xl flex items-center justify-center text-rose-500 animate-pulse">
+                  <div className="mx-auto w-16 h-16 bg-danger-500/10 border border-danger-500/20 rounded-2xl flex items-center justify-center text-danger-500 animate-pulse">
                     <ShieldAlert className="w-8 h-8" />
                   </div>
                   
                   <div className="space-y-2">
                     <h3 className="text-xl font-black text-white">Sin Conexión a Internet</h3>
-                    <p className="text-xs text-slate-400 leading-relaxed">
-                      Para proteger la base de datos de Roomia y evitar duplicidad o conflictos de reservas en recepción, la interfaz administrativa ha sido suspendida temporalmente.
+                    <p className="text-xs text-neutral-400 leading-relaxed">
+                      Para evitar reservas duplicadas o conflictos en recepción, el panel se pausó hasta que vuelva la conexión.
                     </p>
                   </div>
 
-                  <div className="bg-slate-950 border border-slate-850 p-4 rounded-xl text-left space-y-2">
-                    <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Sugerencias operativas:</h4>
-                    <ul className="text-[10px] text-slate-400 space-y-1.5 font-semibold">
+                  <div className="bg-neutral-950 border border-neutral-800 p-4 rounded-xl text-left space-y-2">
+                    <h4 className="text-micro font-black text-neutral-500 uppercase tracking-widest">Sugerencias operativas:</h4>
+                    <ul className="text-micro text-neutral-400 space-y-1.5 font-semibold">
                       <li className="flex items-center gap-2">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#23B4E6]" />
-                        <span>Verifique que el Wi-Fi o datos móviles estén encendidos</span>
+                        <span className="w-1.5 h-1.5 rounded-full bg-brand-cyan" />
+                        <span>Revisa que el Wi-Fi o los datos móviles estén encendidos</span>
                       </li>
                       <li className="flex items-center gap-2">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#23B4E6]" />
-                        <span>Desactive y reactive el modo avión de su celular o tablet</span>
+                        <span className="w-1.5 h-1.5 rounded-full bg-brand-cyan" />
+                        <span>Desactiva y vuelve a activar el modo avión de tu celular o tablet</span>
                       </li>
                       <li className="flex items-center gap-2">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#23B4E6]" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-brand-cyan" />
                         <span>La plataforma se restablecerá sola en cuanto detecte señal</span>
                       </li>
                     </ul>
                   </div>
 
-                  <button
+                  <Button
                     type="button"
                     onClick={() => {
                       const online = navigator.onLine;
                       setIsOffline(!online);
                       if (online) {
-                        window.dispatchEvent(new CustomEvent('aura-toast', { detail: { message: '✅ Conexión restablecida con éxito' } }));
+                        notify.success('Conexión restablecida.');
                       } else {
-                        window.dispatchEvent(new CustomEvent('aura-toast', { detail: { message: '⚠️ Aún sin internet. Intente nuevamente.' } }));
+                        notify.warning('Todavía no hay internet. Inténtalo de nuevo.');
                       }
                     }}
-                    className="w-full bg-[#23B4E6] hover:bg-[#3fc2f0] active:scale-[0.98] text-slate-950 font-extrabold py-3 rounded-xl text-xs transition-all shadow-lg shadow-brand-cyan/20 cursor-pointer"
+                    variant="accent" size="md" className="w-full"
                   >
-                    Reintentar Conexión 🔄
-                  </button>
+                    Reintentar conexión
+                  </Button>
                 </motion.div>
               </motion.div>
             )}
@@ -1772,25 +1637,25 @@ export default function App() {
       {/* 🚫 INVALID HOTEL/PROPERTY SLUG MODAL OVERLAY */}
       <AnimatePresence>
         {invalidUrlError && (
-          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[10000] flex items-center justify-center p-4 font-sans">
+          <div className="fixed inset-0 bg-neutral-950/80 backdrop-blur-md z-critical flex items-center justify-center p-4 ">
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-[#0E2A47] border-2 border-[#23B4E6]/20 p-8 rounded-3xl max-w-md w-full shadow-2xl text-center space-y-6"
+              className="bg-brand-navy1 border-2 border-brand-cyan/20 p-8 rounded-2xl max-w-md w-full shadow-xl text-center space-y-6"
             >
-              <div className="mx-auto w-16 h-16 bg-rose-500/10 border border-rose-500/20 rounded-2xl flex items-center justify-center text-rose-500">
-                <ShieldAlert className="w-8 h-8 text-[#23B4E6]" />
+              <div className="mx-auto w-16 h-16 bg-danger-500/10 border border-danger-500/20 rounded-2xl flex items-center justify-center text-danger-500">
+                <ShieldAlert className="w-8 h-8 text-brand-cyan" />
               </div>
 
               <div className="space-y-2">
                 <h3 className="text-xl font-extrabold text-white">Establecimiento No Encontrado</h3>
-                <p className="text-xs text-slate-300 leading-relaxed">
+                <p className="text-xs text-neutral-300 leading-relaxed">
                   El hotel o propiedad que estás intentando buscar no existe en nuestro sistema de reservas de Roomia PMS.
                 </p>
               </div>
 
-              <button
+              <Button
                 type="button"
                 onClick={() => {
                   setInvalidUrlError(false);
@@ -1799,10 +1664,10 @@ export default function App() {
                   setClientTab('explore');
                   window.history.pushState(null, '', '/');
                 }}
-                className="w-full bg-[#23B4E6] hover:bg-[#3fc2f0] active:scale-[0.98] text-slate-950 font-extrabold py-3 rounded-xl text-xs transition-all shadow-lg shadow-brand-cyan/20 cursor-pointer"
+                variant="accent" size="md" className="w-full"
               >
                 Aceptar
-              </button>
+              </Button>
             </motion.div>
           </div>
         )}

@@ -232,7 +232,7 @@ async function startServer() {
         return res.json({
           success: true,
           simulated: true,
-          message: "El servidor recibió la solicitud, pero no hay credenciales SMTP de producción (usuario/contraseña) configuradas en variables de entorno. Puedes agregar estas variables para enviar el correo real."
+          message: "El correo no se envió: el envío de correos no está disponible por ahora."
         });
       }
 
@@ -270,8 +270,7 @@ async function startServer() {
       return res.json({
         success: true,
         simulated: true,
-        warning: "No se pudo autenticar con el servidor SMTP. Se procesó la solicitud en modo de simulación.",
-        details: error?.message || String(error)
+        warning: "El correo no se envió: el envío de correos no está disponible por ahora."
       });
     }
   });

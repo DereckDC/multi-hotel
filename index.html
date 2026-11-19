@@ -2,8 +2,9 @@
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#071726" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#0E2A47" />
+    <link rel="manifest" href="/manifest.webmanifest" />
 
     <!-- Etiquetas SEO de la página. El build (vite.config.ts) y api/seo.ts reemplazan todo lo que
          hay entre estos marcadores según la ruta; los textos salen de PAGES en api/seo.ts. -->
@@ -29,13 +30,7 @@
     <link rel="alternate icon" type="image/png" href="/RoomiaPMSLogoSinFondo.png" />
     <link rel="apple-touch-icon" href="/RoomiaPMSLogoSinFondo.png" />
 
-    <!-- Non-blocking preconnect for fonts and critical assets -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=JetBrains+Mono:wght@400;500&display=swap" media="print" onload="this.media='all'" />
-    <noscript>
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=JetBrains+Mono:wght@400;500&display=swap" />
-    </noscript>
+    <!-- Las fuentes (Montserrat, Playfair Display y JetBrains Mono) se cargan desde el propio proyecto (src/index.css) -->
 
     <!-- Trusted Types DOM Policy for CSP compliance without blocking script execution -->
     <script>

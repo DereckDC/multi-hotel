@@ -5,12 +5,14 @@
 
 import React, { useState } from 'react';
 import { User } from '../types';
-import { Mail, Sparkles, Check, Chrome, ShieldAlert, KeyRound, Loader2, ArrowRight, Inbox, RefreshCw, LogOut, Eye, EyeOff } from 'lucide-react';
+import { Mail, Check, Chrome, ShieldAlert, KeyRound, Loader2, ArrowRight, Inbox, RefreshCw, LogOut, Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase, syncUserToSupabase, mapUserFromDb, isEmailRegistered } from '../supabase';
 import { getApiBaseUrl } from '../store';
 import { getPublicOrigin } from '../utils/platform';
+import { friendlyError } from '../utils/errors';
 import { BrandLogo } from './BrandLogo';
+import { Button, BackButton } from './ui';
 
 interface LoginViewProps {
   users: User[];
@@ -62,13 +64,13 @@ export default function LoginView({
 
     const trimmedEmail = recoveryEmail.trim();
     if (!trimmedEmail) {
-      setErrorMsg('Por favor introduce tu correo electrónico.');
+      setErrorMsg('Escribe tu correo electrónico.');
       return;
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(trimmedEmail)) {
-      setErrorMsg('Por favor introduce una dirección de correo electrónico válida (ejemplo: nombre@dominio.com).');
+      setErrorMsg('Escribe un correo electrónico válido (ejemplo: nombre@dominio.com).');
       return;
     }
 
@@ -81,14 +83,14 @@ export default function LoginView({
       });
 
       if (error) {
-        throw new Error(error.message || 'No se pudo enviar el enlace de restablecimiento de contraseña.');
+        throw error;
       }
 
       setRecoveredPassword('');
       setRecoverySuccess(true);
       setErrorMsg('');
     } catch (error: any) {
-      setErrorMsg(error.message || 'Error al enviar la solicitud de restablecimiento de contraseña.');
+      setErrorMsg(friendlyError(error, 'recuperar'));
     } finally {
       setLoadingType(null);
     }
@@ -100,18 +102,18 @@ export default function LoginView({
     
     const trimmedEmail = emailInput.trim();
     if (!trimmedEmail) {
-      setErrorMsg('Por favor introduce tu correo electrónico.');
+      setErrorMsg('Escribe tu correo electrónico.');
       return;
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(trimmedEmail)) {
-      setErrorMsg('Por favor introduce una dirección de correo de formato válido (ejemplo: nombre@dominio.com).');
+      setErrorMsg('Escribe un correo electrónico válido (ejemplo: nombre@dominio.com).');
       return;
     }
 
     if (!passwordInput.trim()) {
-      setErrorMsg('Por favor introduce tu contraseña.');
+      setErrorMsg('Escribe tu contraseña.');
       return;
     }
 
@@ -208,7 +210,7 @@ export default function LoginView({
 
       if (matchedUser) {
         if (matchedUser.estado === 'inactivo') {
-          setErrorMsg('Este usuario se encuentra inactivo. Contacte al administrador principal.');
+          setErrorMsg('Esta cuenta está inactiva. Comunícate con el administrador.');
           setLoadingType(null);
           return;
         }
@@ -217,7 +219,7 @@ export default function LoginView({
         throw new Error('Correo electrónico o contraseña incorrectos.');
       }
     } catch (error: any) {
-      setErrorMsg(error.message || 'Error de autenticación: Credenciales no válidas.');
+      setErrorMsg(friendlyError(error, 'login'));
     } finally {
       setLoadingType(null);
     }
@@ -229,13 +231,13 @@ export default function LoginView({
 
     const trimmedEmail = emailInput.trim();
     if (!trimmedEmail) {
-      setErrorMsg('Por favor defina una dirección de correo válida.');
+      setErrorMsg('Escribe una dirección de correo válida.');
       return;
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(trimmedEmail)) {
-      setErrorMsg('Por favor introduce un correo electrónico de formato real válido (ejemplo: nombre@dominio.com).');
+      setErrorMsg('Escribe un correo electrónico válido (ejemplo: nombre@dominio.com).');
       return;
     }
 
@@ -247,27 +249,27 @@ export default function LoginView({
       emailExists = (await isEmailRegistered(emailLower)) === true;
     }
     if (emailExists) {
-      setErrorMsg('Este correo electrónico ya está registrado en nuestro portal. Por favor, inicia sesión o recupera tu contraseña.');
+      setErrorMsg('Este correo ya tiene una cuenta. Inicia sesión o recupera tu contraseña.');
       return;
     }
 
     if (!newName.trim() || !newLastName.trim()) {
-      setErrorMsg('Nombre y Apellido son obligatorios para el expediente del huésped.');
+      setErrorMsg('Escribe tu nombre y apellido.');
       return;
     }
 
     if (!newPhone.trim()) {
-      setErrorMsg('El número de teléfono es obligatorio para completar el expediente.');
+      setErrorMsg('Escribe tu número de teléfono.');
       return;
     }
 
     if (!newDoc.trim()) {
-      setErrorMsg('El documento de identidad es obligatorio para completar el expediente.');
+      setErrorMsg('Escribe tu documento de identidad.');
       return;
     }
 
     if (newPassword.length < 6) {
-      setErrorMsg('La contraseña de acceso debe tener por lo menos 6 caracteres.');
+      setErrorMsg('La contraseña debe tener al menos 6 caracteres.');
       return;
     }
 
@@ -321,14 +323,14 @@ export default function LoginView({
       if (!isConfirmedSession) {
         setPendingDraftUser(newUser);
         setVerificationPending(true);
-        setSuccessMsg('Para completar el registro, se ha despachado un enlace oficial para confirmar el correo. Revise su bandeja.');
+        setSuccessMsg('Para completar tu registro, te enviamos un enlace de confirmación. Revisa tu bandeja de entrada.');
         return;
       }
 
       onLoginSuccess(newUser.id, newUser);
       setErrorMsg('');
     } catch (error: any) {
-      setErrorMsg(error.message || 'Error de registro.');
+      setErrorMsg(friendlyError(error, 'registro'));
     } finally {
       setLoadingType(null);
     }
@@ -343,7 +345,7 @@ export default function LoginView({
       const passwordToCheck = pendingDraftUser?.password || newPassword;
 
       if (!emailToCheck) {
-        throw new Error('No se encontró un registro temporal de correo de comprobación.');
+        throw new Error('No encontramos tu registro temporal. Vuelve a registrarte.');
       }
 
       // Try actual sign-in now that they claim to have verified, which fetches the session directly inside the WebView
@@ -354,7 +356,7 @@ export default function LoginView({
 
       if (error) {
         if (error.message.toLowerCase().includes('confirm') || error.message.toLowerCase().includes('verified')) {
-          throw new Error('Su correo electrónico de confirmación real aún no ha sido verificado. Revise su bandeja de entrada e inténtelo nuevamente.');
+          throw new Error('Aún no confirmas tu correo. Abre el enlace que te enviamos y vuelve a intentarlo.');
         }
         throw error;
       }
@@ -366,12 +368,12 @@ export default function LoginView({
         }
         onLoginSuccess(data.user.id);
         setErrorMsg('');
-        setSuccessMsg('¡Se confirmó y verificó con éxito su inicio de sesión!');
+        setSuccessMsg('¡Listo! Confirmamos tu correo y ya puedes ingresar.');
       } else {
-        throw new Error('No se pudo establecer la sesión de usuario de manera segura despues de verificar.');
+        throw new Error('No pudimos iniciar tu sesión después de verificar. Inténtalo de nuevo.');
       }
     } catch (err: any) {
-      setErrorMsg(err.message || 'Error al comprobar verificación. Por favor verifique el correo y vuelva a intentarlo.');
+      setErrorMsg(friendlyError(err, 'verificacion'));
     } finally {
       setLoadingType(null);
     }
@@ -386,31 +388,31 @@ export default function LoginView({
         email: emailInput.trim()
       });
       if (error) throw error;
-      setSuccessMsg('¡Se despachó con éxito un nuevo correo de verificación oficial a su bandeja real!');
+      setSuccessMsg('Te enviamos un nuevo correo de verificación. Revisa tu bandeja de entrada.');
     } catch (err: any) {
-      setErrorMsg(err.message || 'Error al reenviar verificación.');
+      setErrorMsg(friendlyError(err, 'verificacion'));
     }
   };
 
   return (
     <div className={onlyForm ? "w-full" : "min-h-[85vh] flex items-center justify-center p-4 md:p-8 transition-all duration-150 bg-[#F8FAFB]"}>
       <div className={onlyForm 
-        ? "bg-white rounded-3xl overflow-hidden transition-all duration-500 w-full"
-        : "bg-white rounded-3xl overflow-hidden shadow-2xl border transition-all duration-500 max-w-4xl w-full grid grid-cols-1 md:grid-cols-2 border-[#0E2A47]/20"
+        ? "bg-white rounded-2xl overflow-hidden transition-all duration-500 w-full"
+        : "bg-white rounded-2xl overflow-hidden shadow-xl border transition-all duration-500 max-w-4xl w-full grid grid-cols-1 md:grid-cols-2 border-brand-navy1/20"
       }>
         
         {/* Visual Brand Panel Left */}
         {!onlyForm && (
-          <div className="transition-all duration-500 p-8 md:p-12 text-white flex flex-col justify-between relative overflow-hidden bg-gradient-to-b from-[#071726] to-[#0E2A47]">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-[#23B4E6]/10 rounded-full blur-2xl transform translate-x-16 -translate-y-16" />
-            <div className="absolute bottom-0 left-0 w-48 h-48 bg-[#23B4E6]/5 rounded-full blur-2xl transform -translate-x-12 translate-y-12" />
+          <div className="transition-all duration-500 p-8 md:p-12 text-white flex flex-col justify-between relative overflow-hidden bg-gradient-to-b from-brand-navy2 to-brand-navy1">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-brand-cyan/10 rounded-full blur-2xl transform translate-x-16 -translate-y-16" />
+            <div className="absolute bottom-0 left-0 w-48 h-48 bg-brand-cyan/5 rounded-full blur-2xl transform -translate-x-12 translate-y-12" />
             
             <div className="relative z-10 flex flex-col h-full justify-between gap-12">
               <div className="space-y-4 my-auto">
-                <h1 className="text-2xl md:text-3xl font-serif font-black tracking-tight leading-tight text-white">
-                  Encuentra el Hospedaje Perfecto para ti 🏨✨
+                <h1 className="text-2xl md:text-3xl font-display font-black tracking-tight leading-tight text-white">
+                  Encuentra el hospedaje perfecto para ti
                 </h1>
-                <p className="text-[#A8B2BD] text-xs md:text-sm leading-relaxed font-sans font-medium">
+                <p className="text-[#A8B2BD] text-xs md:text-sm leading-relaxed font-medium">
                   Reserva con total confianza, disfruta de confirmación al instante, accede a los mejores hoteles del país y vive una experiencia de hospedaje premium con Roomia PMS.
                 </p>
               </div>
@@ -421,7 +423,7 @@ export default function LoginView({
         {/* Interactable Login Panel Right */}
         <div className={onlyForm 
           ? "p-4 flex flex-col justify-center bg-white relative"
-          : "p-8 md:p-12 flex flex-col justify-center bg-[#F8FAFB] relative border-l border-[#0E2A47]/10"
+          : "p-8 md:p-12 flex flex-col justify-center bg-[#F8FAFB] relative border-l border-brand-navy1/10"
         }>
           
           <AnimatePresence mode="wait">
@@ -435,54 +437,64 @@ export default function LoginView({
                 className="space-y-6"
               >
                 <div>
-                  <h3 className="text-2xl font-bold tracking-tight text-neutral-800">
-                    Recuperar Contraseña
-                  </h3>
+                  <div className="flex items-start justify-between gap-3">
+                    <h3 className="text-2xl font-bold tracking-tight text-neutral-800">
+                      Recuperar contraseña
+                    </h3>
+                    <BackButton
+                      tone="light"
+                      onClick={() => {
+                        setErrorMsg('');
+                        setRecoveryMode(false);
+                        setRecoverySuccess(false);
+                      }}
+                    />
+                  </div>
                   <p className="text-xs text-neutral-400 mt-1">
                     Ingresa tu correo electrónico para enviarte un enlace de acceso seguro. ¡Estaremos encantados de ayudarte!
                   </p>
                 </div>
 
                 {errorMsg && (
-                  <div className="bg-red-50 border border-red-250 text-red-700 px-3.5 py-2.5 rounded-xl text-xs flex items-center gap-2 select-none">
-                    <ShieldAlert className="w-4.5 h-4.5 text-red-650 shrink-0" />
+                  <div className="bg-danger-50 border border-danger-200 text-danger-700 px-3.5 py-2.5 rounded-xl text-xs flex items-center gap-2 select-none">
+                    <ShieldAlert className="w-4.5 h-4.5 text-danger-600 shrink-0" />
                     <span>{errorMsg}</span>
                   </div>
                 )}
 
                 {/* Simulated Loading Overlay */}
                 {loadingType === 'email' && (
-                  <div className="p-6 bg-[#F8FAFB] border border-[#0E2A47]/15 rounded-2xl flex flex-col items-center justify-center text-center space-y-3 animate-pulse">
+                  <div className="p-6 bg-[#F8FAFB] border border-brand-navy1/15 rounded-2xl flex flex-col items-center justify-center text-center space-y-3 animate-pulse">
                     <Loader2 className="w-8 h-8 text-brand-cyan animate-spin" />
                     <div>
                       <p className="font-semibold text-xs text-neutral-800">
-                        Buscando credenciales en la base de datos...
+                        Enviando el correo de recuperación…
                       </p>
-                      <p className="text-[10px] text-neutral-400 mt-0.5 font-mono">ENVIANDO TOKEN DE AUTENTICACIÓN DIGITAL DE RECOVERY</p>
+                      <p className="text-micro text-neutral-500 mt-0.5">Esto toma unos segundos.</p>
                     </div>
                   </div>
                 )}
 
                 {recoverySuccess && (
-                  <div className="bg-emerald-50 border border-emerald-300 text-emerald-850 p-5 rounded-2xl space-y-3 animate-fade-in duration-350">
+                  <div className="bg-success-50 border border-success-300 text-success-800 p-5 rounded-2xl space-y-3 animate-fade-in duration-350">
                     <div className="flex items-center gap-2.5">
-                      <Check className="w-5 h-5 text-emerald-600 shrink-0" />
+                      <Check className="w-5 h-5 text-success-600 shrink-0" />
                       <h5 className="font-semibold text-sm">¡Correo enviado con éxito!</h5>
                     </div>
-                    <p className="text-xs text-neutral-600 leading-relaxed font-sans">
+                    <p className="text-xs text-neutral-600 leading-relaxed ">
                       Hemos enviado las instrucciones de recuperación a <span className="font-semibold">{recoveryEmail.trim()}</span> con tu nueva clave de acceso de uso exclusivo.
                     </p>
-                    <div className="bg-white p-4 rounded-xl border border-emerald-200/80 space-y-2.5 font-sans shadow-sm">
-                      <p className="text-[10px] uppercase tracking-wider font-bold text-[#0E2A47]">🔐 Acceso Seguro Garantizado</p>
-                      <p className="text-neutral-600 text-[11px] leading-relaxed">
+                    <div className="bg-white p-4 rounded-xl border border-success-200/80 space-y-2.5 shadow-sm">
+                      <p className="text-micro uppercase tracking-wider font-bold text-brand-navy1">Acceso seguro</p>
+                      <p className="text-neutral-600 text-micro leading-relaxed">
                         Por motivos de privacidad, tu contraseña no se muestra directamente en la pantalla.
                       </p>
-                      <p className="text-neutral-600 text-[11px] leading-relaxed">
+                      <p className="text-neutral-600 text-micro leading-relaxed">
                         Te la enviamos de forma automática por correo. Por favor, <strong>revisa tu bandeja de entrada principal, carpeta de promociones o correo no deseado (Spam)</strong>.
                       </p>
                     </div>
                     
-                    <button
+                    <Button
                       type="button"
                       onClick={() => {
                         setErrorMsg('');
@@ -491,10 +503,10 @@ export default function LoginView({
                         setRecoveryEmail('');
                         setRecoveredPassword('');
                       }}
-                      className="w-full mt-2 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl border border-slate-700 transition-all cursor-pointer text-center active:scale-95"
+                      variant="primary" size="md" className="w-full mt-2"
                     >
-                      Volver al Inicio de Sesión
-                    </button>
+                      Iniciar sesión
+                    </Button>
                   </div>
                 )}
 
@@ -511,30 +523,19 @@ export default function LoginView({
                           placeholder="ejemplo@correo.com"
                           value={recoveryEmail}
                           onChange={(e) => setRecoveryEmail(e.target.value)}
-                          className="w-full text-xs font-medium border border-neutral-200 rounded-xl py-3 pl-10 pr-4 focus:ring-1 focus:ring-[#23B4E6] focus:outline-none transition-all"
+                          className="w-full text-xs font-medium border border-neutral-200 rounded-xl py-3 pl-10 pr-4 focus:ring-1 focus:ring-brand-cyan focus:outline-none transition-all"
                         />
                         <Mail className="absolute left-3.5 top-3.5 w-4.5 h-4.5 text-neutral-400" />
                       </div>
                     </div>
 
                     <div className="flex gap-2 pt-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setErrorMsg('');
-                          setRecoveryMode(false);
-                          setRecoverySuccess(false);
-                        }}
-                        className="w-1/3 py-3 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 text-xs font-semibold rounded-xl transition-all cursor-pointer text-center"
-                      >
-                        Volver
-                      </button>
-                      <button
+                      <Button
                         type="submit"
-                        className="w-2/3 py-3 bg-brand-cyan hover:bg-[#3fc2f0] text-[#071726] text-xs font-bold rounded-xl transition-all shadow-md hover:shadow-lg text-center cursor-pointer active:scale-95"
+                        variant="accent" size="md" className="w-full"
                       >
-                        Enviar Correo de Recuperación
-                      </button>
+                        Enviar correo de recuperación
+                      </Button>
                     </div>
                   </form>
                 )}
@@ -552,7 +553,7 @@ export default function LoginView({
                   <div className="flex justify-between items-start gap-3">
                     <div>
                       <h2 className="text-2xl font-bold tracking-tight text-neutral-800">
-                        ¡Bienvenido a tu Experiencia Elite! 👋
+                        ¡Bienvenido a Roomia PMS!
                       </h2>
                       <p className="text-xs text-neutral-400 mt-1.5 leading-relaxed">
                         Inicia sesión para gestionar tus reservas vigentes, ser anfitrión o explorar increíbles suites boutique disponibles para ti.
@@ -563,8 +564,8 @@ export default function LoginView({
                 </div>
 
                 {errorMsg && (
-                  <div className="bg-red-50 border border-red-250 text-red-700 px-3.5 py-2.5 rounded-xl text-xs flex items-center gap-2 select-none">
-                    <ShieldAlert className="w-4.5 h-4.5 text-red-650 shrink-0" />
+                  <div className="bg-danger-50 border border-danger-200 text-danger-700 px-3.5 py-2.5 rounded-xl text-xs flex items-center gap-2 select-none">
+                    <ShieldAlert className="w-4.5 h-4.5 text-danger-600 shrink-0" />
                     <span>{errorMsg}</span>
                   </div>
                 )}
@@ -577,9 +578,9 @@ export default function LoginView({
                       <p className="font-semibold text-xs text-neutral-800">
                         {loadingType === 'google' 
                           ? 'Conectando con Google Accounts...' 
-                          : 'Validando credenciales en base de datos...'}
+                          : 'Verificando tus datos…'}
                       </p>
-                      <p className="text-[10px] text-neutral-400 mt-0.5">Por favor espere un instante.</p>
+                      <p className="text-micro text-neutral-400 mt-0.5">Espera un instante.</p>
                     </div>
                   </div>
                 )}
@@ -588,7 +589,7 @@ export default function LoginView({
                   <>
                     <form onSubmit={handleEmailSubmit} className="space-y-4">
                       <div>
-                        <label className="text-xs font-semibold text-neutral-500 block mb-1.5 font-sans">
+                        <label className="text-xs font-semibold text-neutral-500 block mb-1.5 ">
                           Correo Electrónico / Gmail
                         </label>
                         <div className="relative">
@@ -598,14 +599,14 @@ export default function LoginView({
                             placeholder="ejemplo@correo.com"
                             value={emailInput}
                             onChange={(e) => setEmailInput(e.target.value)}
-                            className="w-full text-xs font-medium border border-[#0E2A47]/20 rounded-xl py-3 pl-10 pr-4 bg-white focus:ring-1 focus:ring-[#23B4E6] focus:border-[#23B4E6] focus:outline-none transition-all text-[#071726]"
+                            className="w-full text-xs font-medium border border-brand-navy1/20 rounded-xl py-3 pl-10 pr-4 bg-white focus:ring-1 focus:ring-brand-cyan focus:border-brand-cyan focus:outline-none transition-all text-brand-navy2"
                           />
                           <Mail className="absolute left-3.5 top-3.5 w-4.5 h-4.5 text-[#A8B2BD]" />
                         </div>
                       </div>
 
                       <div>
-                        <label className="text-xs font-semibold text-neutral-500 block mb-1.5 font-sans">
+                        <label className="text-xs font-semibold text-neutral-500 block mb-1.5 ">
                           Contraseña
                         </label>
                         <div className="relative">
@@ -615,7 +616,7 @@ export default function LoginView({
                             placeholder="••••••••"
                             value={passwordInput}
                             onChange={(e) => setPasswordInput(e.target.value)}
-                            className="w-full text-xs font-medium border border-[#0E2A47]/20 rounded-xl py-3 pl-10 pr-12 bg-white focus:ring-1 focus:ring-[#23B4E6] focus:border-[#23B4E6] focus:outline-none transition-all text-[#071726]"
+                            className="w-full text-xs font-medium border border-brand-navy1/20 rounded-xl py-3 pl-10 pr-12 bg-white focus:ring-1 focus:ring-brand-cyan focus:border-brand-cyan focus:outline-none transition-all text-brand-navy2"
                           />
                           <KeyRound className="absolute left-3.5 top-3.5 w-4.5 h-4.5 text-[#A8B2BD]" />
                           <button
@@ -635,20 +636,20 @@ export default function LoginView({
                               setRecoveryEmail(emailInput);
                               setRecoverySuccess(false);
                             }}
-                            className="text-xs text-[#0E2A47] hover:text-[#23B4E6] hover:underline font-semibold cursor-pointer transition-colors"
+                            className="text-xs text-brand-navy1 hover:text-brand-cyan hover:underline font-semibold cursor-pointer transition-colors"
                           >
                             ¿Olvidaste tu contraseña?
                           </button>
                         </div>
                       </div>
 
-                      <button
+                      <Button
                         type="submit"
-                        className="w-full py-3 bg-[#0E2A47] hover:bg-[#133A62] text-white text-xs font-bold rounded-xl border border-brand-cyan/20 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 group cursor-pointer active:scale-95 text-center"
+                        variant="primary" size="md" className="w-full"
                       >
                         <span>Iniciar Sesión</span>
                         <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                      </button>
+                      </Button>
                     </form>
 
 
@@ -670,7 +671,7 @@ export default function LoginView({
                             setIsGoogleAuthMode(false);
                             setCustomRegisterMode(true);
                           }}
-                          className="font-bold text-[#0E2A47] hover:text-[#23B4E6] underline cursor-pointer transition-colors"
+                          className="font-bold text-brand-navy1 hover:text-brand-cyan underline cursor-pointer transition-colors"
                         >
                           Registrar nuevo usuario aquí
                         </button>
@@ -690,29 +691,40 @@ export default function LoginView({
               >
                 {verificationPending ? (
                   <div className="space-y-6">
+                    <div className="flex justify-end">
+                      <BackButton
+                        tone="light"
+                        onClick={() => {
+                          setVerificationPending(false);
+                          setPendingDraftUser(null);
+                          setErrorMsg('');
+                          setSuccessMsg('');
+                        }}
+                      />
+                    </div>
                     <div className="text-center space-y-2">
-                      <div className="w-12 h-12 bg-indigo-50/10 border border-brand-cyan/20 rounded-2xl flex items-center justify-center mx-auto text-brand-cyan shadow-sm">
+                      <div className="w-12 h-12 bg-info-50/10 border border-brand-cyan/20 rounded-2xl flex items-center justify-center mx-auto text-brand-cyan shadow-sm">
                         <Mail className="w-6 h-6 animate-bounce" />
                       </div>
                       <h3 className="text-xl font-bold text-neutral-800">Confirma tu Correo</h3>
-                      <p className="text-xs text-neutral-500 leading-relaxed font-sans">
-                        Hemos enviado un enlace de confirmación seguro a tu correo: <span className="font-semibold text-[#344D67] block font-mono mt-1 text-center bg-neutral-50 p-2 rounded-xl">{emailInput}</span>
+                      <p className="text-xs text-neutral-500 leading-relaxed ">
+                        Hemos enviado un enlace de confirmación seguro a tu correo: <span className="font-semibold text-neutral-700 block font-mono mt-1 text-center bg-neutral-50 p-2 rounded-xl">{emailInput}</span>
                       </p>
-                      <p className="text-[11px] text-neutral-450 mt-1 leading-relaxed">
+                      <p className="text-micro text-neutral-400 mt-1 leading-relaxed">
                         Por favor revisa tu buzón de correo electrónico, haz clic en el enlace de verificación y listo. ¡Te esperamos para tu próximo gran viaje!
                       </p>
                     </div>
 
                     {errorMsg && (
-                      <div className="bg-red-50 border border-red-200 text-red-700 px-3.5 py-2.5 rounded-xl text-xs flex items-center gap-1.5 font-sans justify-center select-none">
-                        <ShieldAlert className="w-4 h-4 shrink-0 text-red-650" />
+                      <div className="bg-danger-50 border border-danger-200 text-danger-700 px-3.5 py-2.5 rounded-xl text-xs flex items-center gap-1.5 justify-center select-none">
+                        <ShieldAlert className="w-4 h-4 shrink-0 text-danger-600" />
                         <span>{errorMsg}</span>
                       </div>
                     )}
 
                     {successMsg && (
-                      <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-3.5 py-2.5 rounded-xl text-xs flex items-center gap-1.5 font-sans justify-center select-none animate-pulse">
-                        <Check className="w-4 h-4 shrink-0 text-emerald-600" />
+                      <div className="bg-success-50 border border-success-200 text-success-800 px-3.5 py-2.5 rounded-xl text-xs flex items-center gap-1.5 justify-center select-none animate-pulse">
+                        <Check className="w-4 h-4 shrink-0 text-success-600" />
                         <span>{successMsg}</span>
                       </div>
                     )}
@@ -722,7 +734,7 @@ export default function LoginView({
                         type="button"
                         onClick={handleCheckEmailVerification}
                         disabled={loadingType === 'verification'}
-                        className="w-full py-3 bg-[#344D67] hover:bg-[#1E2E3E] text-[#6ECCAF] text-xs font-bold rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                        className="w-full py-3 bg-neutral-700 hover:bg-[#1E2E3E] text-[#6ECCAF] text-xs font-bold rounded-xl transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                       >
                         {loadingType === 'verification' ? (
                           <>
@@ -740,22 +752,8 @@ export default function LoginView({
                       <div className="flex gap-2">
                         <button
                           type="button"
-                          onClick={() => {
-                            setVerificationPending(false);
-                            setPendingDraftUser(null);
-                            setErrorMsg('');
-                            setSuccessMsg('');
-                          }}
-                          className="w-1/2 py-2.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 text-xs font-semibold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5"
-                        >
-                          <LogOut className="w-3.5 h-3.5" />
-                          <span>Volver al Login</span>
-                        </button>
-                        
-                        <button
-                          type="button"
                           onClick={handleResendEmailVerification}
-                          className="w-1/2 py-2.5 bg-brand-cyan/10 hover:bg-brand-cyan/20 text-[#23B4E6] text-xs font-semibold rounded-xl transition-all cursor-pointer border border-brand-cyan/15"
+                          className="w-full py-2.5 bg-brand-cyan/10 hover:bg-brand-cyan/20 text-brand-navy1 text-sm font-semibold rounded-xl transition-all cursor-pointer border border-brand-cyan/30"
                         >
                           Reenviar Correo
                         </button>
@@ -765,89 +763,89 @@ export default function LoginView({
                 ) : (
                   <>
                     <div>
-                      <h3 className="text-xl font-bold text-neutral-800">Regístrate y Viaja de Forma Única ✨</h3>
+                      <h3 className="text-xl font-bold text-neutral-800">Regístrate y reserva a tu manera</h3>
                       <p className="text-xs text-neutral-400 mt-1">
                         Crea tu cuenta en minutos para reservar al instante, acceder a mejores tarifas y gestionar tus próximas estancias con total facilidad desde un solo lugar.
                       </p>
                     </div>
 
                     {errorMsg && (
-                      <div className="bg-red-50 border border-red-200 text-red-700 px-3.5 py-2.5 rounded-xl text-xs flex items-center gap-1.5 font-sans justify-center select-none">
-                        <ShieldAlert className="w-4 h-4 shrink-0 text-red-650" />
+                      <div className="bg-danger-50 border border-danger-200 text-danger-700 px-3.5 py-2.5 rounded-xl text-xs flex items-center gap-1.5 justify-center select-none">
+                        <ShieldAlert className="w-4 h-4 shrink-0 text-danger-600" />
                         <span>{errorMsg}</span>
                       </div>
                     )}
 
                     {successMsg && (
-                      <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-3.5 py-2.5 rounded-xl text-xs flex items-center gap-1.5 font-sans justify-center select-none animate-pulse">
-                        <Check className="w-4 h-4 shrink-0 text-emerald-600" />
+                      <div className="bg-success-50 border border-success-200 text-success-800 px-3.5 py-2.5 rounded-xl text-xs flex items-center gap-1.5 justify-center select-none animate-pulse">
+                        <Check className="w-4 h-4 shrink-0 text-success-600" />
                         <span>{successMsg}</span>
                       </div>
                     )}
 
                     <form onSubmit={handleCustomRegister} className="space-y-3">
                       <div>
-                        <label className="text-[10px] uppercase font-bold text-neutral-400 block mb-1">Correo Electrónico (Email)</label>
+                        <label className="text-micro uppercase font-bold text-neutral-400 block mb-1">Correo Electrónico (Email)</label>
                         <input
                           type="email"
                           required
                           placeholder="ejemplo@correo.com"
                           value={emailInput}
                           onChange={(e) => setEmailInput(e.target.value)}
-                          className="w-full text-xs border border-neutral-200 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-[#344D67]"
+                          className="w-full text-xs border border-neutral-200 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-neutral-700"
                         />
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <label className="text-[10px] uppercase font-bold text-neutral-400 block mb-1">Nombre</label>
+                          <label className="text-micro uppercase font-bold text-neutral-400 block mb-1">Nombre</label>
                           <input
                             type="text"
                             required
                             placeholder="Pedro"
                             value={newName}
                             onChange={(e) => setNewName(e.target.value)}
-                            className="w-full text-xs border border-neutral-200 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-[#344D67]"
+                            className="w-full text-xs border border-neutral-200 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-neutral-700"
                           />
                         </div>
                         <div>
-                          <label className="text-[10px] uppercase font-bold text-neutral-400 block mb-1">Apellido</label>
+                          <label className="text-micro uppercase font-bold text-neutral-400 block mb-1">Apellido</label>
                           <input
                             type="text"
                             required
                             placeholder="Pérez"
                             value={newLastName}
                             onChange={(e) => setNewLastName(e.target.value)}
-                            className="w-full text-xs border border-neutral-200 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-[#344D67]"
+                            className="w-full text-xs border border-neutral-200 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-neutral-700"
                           />
                         </div>
                       </div>
 
                       <div>
-                        <label className="text-[10px] uppercase font-bold text-neutral-400 block mb-1">Teléfono</label>
+                        <label className="text-micro uppercase font-bold text-neutral-400 block mb-1">Teléfono</label>
                         <input
                           type="text"
                           required
                           placeholder="+52 55 1212 3434"
                           value={newPhone}
                           onChange={(e) => setNewPhone(e.target.value)}
-                          className="w-full text-xs border border-neutral-200 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-[#344D67]"
+                          className="w-full text-xs border border-neutral-200 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-neutral-700"
                         />
                       </div>
 
                       <div>
-                        <label className="text-[10px] uppercase font-bold text-neutral-405 block mb-1">Documento de Identidad (Cédula/Pasaporte)</label>
+                        <label className="text-micro uppercase font-bold text-neutral-400 block mb-1">Documento de Identidad (Cédula/Pasaporte)</label>
                         <input
                           type="text"
                           required
                           placeholder="PAS-102938"
                           value={newDoc}
                           onChange={(e) => setNewDoc(e.target.value)}
-                          className="w-full text-xs border border-neutral-200 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-[#344D67]"
+                          className="w-full text-xs border border-neutral-200 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-neutral-700"
                         />
                       </div>
 
                       <div>
-                        <label className="text-[10px] uppercase font-bold text-neutral-400 block mb-1">Define tu Contraseña</label>
+                        <label className="text-micro uppercase font-bold text-neutral-400 block mb-1">Define tu Contraseña</label>
                         <div className="relative">
                           <input
                             type={showRegisterPassword ? "text" : "password"}
@@ -855,34 +853,34 @@ export default function LoginView({
                             placeholder="••••••••"
                             value={newPassword}
                             onChange={(e) => setNewPassword(e.target.value)}
-                            className="w-full text-xs border border-neutral-200 rounded-lg p-2.5 pl-10 pr-10 focus:outline-none focus:ring-1 focus:ring-[#344D67]"
+                            className="w-full text-xs border border-neutral-200 rounded-lg p-2.5 pl-10 pr-10 focus:outline-none focus:ring-1 focus:ring-neutral-700"
                           />
                           <KeyRound className="absolute left-3 top-3 w-4 h-4 text-neutral-400" />
-                          <button
+                          <Button
                             type="button"
                             onClick={() => setShowRegisterPassword(!showRegisterPassword)}
-                            className="absolute right-3 top-2.5 p-1 hover:bg-neutral-100 rounded-full cursor-pointer text-neutral-400 hover:text-neutral-600 transition-colors"
+                            variant="icon" className="absolute right-3 top-2.5"
                           >
                             {showRegisterPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                          </button>
+                          </Button>
                         </div>
                       </div>
 
                       <div className="pt-2 flex gap-2">
-                        <button
+                        <Button
                           type="button"
                           onClick={() => {
                             setCustomRegisterMode(false);
                             setIsGoogleAuthMode(false);
                           }}
-                          className="w-1/3 py-2.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 text-xs font-semibold rounded-xl transition-all cursor-pointer text-center"
+                          variant="secondary" size="md" className="w-1/3"
                         >
                           Atrás
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                           type="submit"
                           disabled={loadingType === 'email'}
-                          className="w-2/3 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl border border-slate-700 transition-all shadow-md cursor-pointer text-center flex items-center justify-center gap-1.5 disabled:opacity-50 active:scale-95"
+                          variant="primary" size="md" className="w-2/3"
                         >
                           {loadingType === 'email' ? (
                             <>
@@ -892,7 +890,7 @@ export default function LoginView({
                           ) : (
                             <span>Completar Registro</span>
                           )}
-                        </button>
+                        </Button>
                       </div>
                     </form>
                   </>

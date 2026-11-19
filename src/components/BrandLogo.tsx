@@ -45,14 +45,14 @@ export function BrandLogo({ size = 'md', showText = false, lightText = false }: 
 
   if (size === 'sm') {
     iconSizeClass = "w-6 h-6 rounded-lg";
-    textSizeClass = "text-[9px] leading-none";
+    textSizeClass = "text-micro leading-none";
     letterSize = "w-6 h-6";
   } else if (size === 'lg') {
     iconSizeClass = "w-12 h-12 rounded-2xl";
     textSizeClass = "text-[18px] leading-[18px]";
     letterSize = "w-12 h-12";
   } else if (size === 'xl') {
-    iconSizeClass = "w-20 h-20 rounded-3xl";
+    iconSizeClass = "w-20 h-20 rounded-2xl";
     textSizeClass = "text-xl leading-none";
     letterSize = "w-20 h-20";
   }
@@ -103,7 +103,7 @@ export function BrandLogo({ size = 'md', showText = false, lightText = false }: 
 
       {showText && (
         <div className="flex flex-col text-left justify-center">
-          <span className={`font-serif font-extrabold tracking-wider uppercase ${textSizeClass} ${lightText ? 'text-white' : 'text-brand-navy2'}`}>
+          <span className={`font-display font-extrabold tracking-wider uppercase ${textSizeClass} ${lightText ? 'text-white' : 'text-brand-navy2'}`}>
             ROOMIA PMS
           </span>
         </div>

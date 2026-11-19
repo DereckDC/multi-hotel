@@ -45,11 +45,11 @@ export default function QRView({ value, size = 160 }: QRViewProps) {
         />
       ) : (
         <div className="animate-pulse bg-neutral-200 rounded-lg flex items-center justify-center" style={{ width: size, height: size }}>
-          <span className="text-[10px] text-neutral-400 font-mono">Generando...</span>
+          <span className="text-micro text-neutral-400 font-mono">Generando...</span>
         </div>
       )}
       <div className="mt-2 text-center select-all">
-        <span className="text-[10px] uppercase tracking-wider font-mono text-neutral-500 bg-neutral-100 px-1.5 py-0.5 rounded border border-neutral-200">
+        <span className="text-micro uppercase tracking-wider font-mono text-neutral-500 bg-neutral-100 px-1.5 py-0.5 rounded-lg border border-neutral-200">
           {value.split('-')[1] || value.slice(0, 10)}
         </span>
       </div>
