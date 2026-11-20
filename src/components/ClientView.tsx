@@ -23,6 +23,7 @@ import { isNativeApp } from '../utils/platform';
 import { notify } from '../utils/notify';
 import { formatYmd } from '../utils/invoiceData';
 import { Button, HeaderBackButton, Modal, OptionPicker } from './ui';
+import { fetchBlockedHotels } from '../utils/subscriptions';
 
 type OnlinePaymentKind = 'reserva_abono' | 'reserva_total' | 'reserva_saldo';
 
@@ -519,7 +520,16 @@ export default function ClientView({
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   // Helper getters
-  const activeHotel = hotels.find(h => h.id === selectedHotelId);
+    const activeHotel = hotels.find(h => h.id === selectedHotelId);
+
+  // Establecimientos cuyo anfitrión tiene el plan suspendido: se ven, pero no reciben reservas
+  const [blockedHotels, setBlockedHotels] = useState<string[]>([]);
+  React.useEffect(() => {
+    let alive = true;
+    fetchBlockedHotels().then(list => { if (alive) setBlockedHotels(list); });
+    return () => { alive = false; };
+  }, [hotels.length]);
+  const hotelBlocked = !!selectedHotelId && blockedHotels.includes(selectedHotelId);
 
   const getEstablishmentPrice = (h: Hotel) => {
     const isPropiedad = h.tipoEstablecimiento === 'casa' || h.tipoEstablecimiento === 'departamento';
@@ -2018,6 +2028,12 @@ export default function ClientView({
                 isPageTitle
               />
 
+                            {hotelBlocked && (
+                <div className="rounded-2xl border border-warning-200 bg-warning-50 p-4 text-sm text-warning-800">
+                  Este establecimiento no está recibiendo reservas en este momento. Puedes ver su información y escribirle directamente.
+                </div>
+              )}
+
               {/* Información de estadía y mapa, justo debajo de la galería */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="bg-white border border-neutral-200 rounded-2xl p-4 shadow-sm space-y-3">
@@ -2229,7 +2245,8 @@ export default function ClientView({
                             };
                             setBookingRoom(syntheticRoom);
                           }}
-                          variant="primary" size="md" className="shrink-0"
+                                                    variant="primary" size="md" className="shrink-0"
+                          disabled={hotelBlocked}
                         >
                           <span>Alquilar</span>
                           <ChevronRight className="w-3.5 h-3.5" />
@@ -2365,7 +2382,7 @@ export default function ClientView({
                       <>
                         {pagedRooms.map(room => {
                         const isAvailable = room.estado === 'disponible';
-                        const isBookable = room.estado !== 'mantenimiento';
+                        const isBookable = room.estado !== 'mantenimiento' && !hotelBlocked;
                         return (
                           <motion.div
                             key={room.id}

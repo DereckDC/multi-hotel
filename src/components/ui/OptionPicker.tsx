@@ -263,7 +263,7 @@ export function OptionPicker({
         }}
         className={cx(
           'flex h-full w-full cursor-pointer items-center rounded-xl border text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-cyan disabled:cursor-not-allowed disabled:opacity-60',
-          small ? 'gap-2 px-2.5 py-1.5' : 'gap-3 px-3.5 py-2.5 shadow-sm',
+          small ? 'gap-2 px-2.5 py-2' : hideLabel ? 'gap-3 px-3.5 py-2.5' : 'gap-3 px-3.5 py-2.5 shadow-sm',
           dark ? 'bg-neutral-950' : 'bg-white',
           open ? 'border-brand-cyan' : (dark ? 'border-white/15 hover:border-brand-cyan' : 'border-neutral-200 hover:border-brand-cyan')
         )}
@@ -275,7 +275,7 @@ export function OptionPicker({
           )}
           <span className={cx(
             'block font-semibold leading-snug',
-            small ? 'truncate text-xs' : 'line-clamp-2 text-sm',
+            small ? 'truncate text-xs' : hideLabel ? 'truncate text-sm' : 'line-clamp-2 text-sm',
             dark ? 'text-white' : 'text-brand-navy1'
           )}>{shown}</span>
         </span>

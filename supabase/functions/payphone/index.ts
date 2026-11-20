@@ -2,6 +2,9 @@
 //
 //   POST {action: "prepare", reservationId, kind}   Con sesión del huésped. Calcula el monto en el
 //        servidor a partir de la reserva guardada y crea el pago (status "creado"). Devuelve {paymentId}.
+//   POST {action: "prepare_plan", kind, planId, billing}  Con sesión del anfitrión (admin de hotel).
+//        Cobra su plan (kind "plan") o la puesta en marcha (kind "puesta_en_marcha"). El monto lo
+//        calcula el servidor con los precios de _shared/plans.ts y las unidades que tiene registradas.
 //   POST {action: "box", paymentId}                 Sin sesión (el APK abre la página de pago en el
 //        navegador del teléfono). Devuelve los datos para dibujar la Cajita. El id del pago es un
 //        UUID aleatorio; el token de la Cajita es público por diseño de Payphone (va en la página).
@@ -23,6 +26,7 @@ import {
   toCents,
 } from "./paymentRules.ts";
 import { BRAND, type BrandEmail, emailSubject, renderBrandEmail, renderBrandText } from "../_shared/brandEmail.ts";
+import { BILLINGS, type Billing, findPlan, planCharge } from "../_shared/plans.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -51,7 +55,19 @@ const KIND_LABEL: Record<string, string> = {
   reserva_abono: "Abono del 20% de la reserva",
   reserva_total: "Pago total de la reserva",
   reserva_saldo: "Saldo pendiente de la reserva",
+  plan: "Plan de Roomia PMS",
+  puesta_en_marcha: "Puesta en marcha (pago único)",
 };
+
+const PLAN_KINDS = ["plan", "puesta_en_marcha"];
+const isPlanKind = (kind: string) => PLAN_KINDS.includes(kind);
+
+/** "Plan Roomia 3 · mensual" a partir del detalle guardado en el pago */
+function planLabel(kind: string, details: Record<string, unknown> | null): string {
+  if (kind === "puesta_en_marcha") return KIND_LABEL.puesta_en_marcha;
+  const plan = findPlan(String(details?.planId ?? ""));
+  return plan ? `Plan ${plan.name} · ${details?.billing === "anual" ? "anual" : "mensual"}` : KIND_LABEL.plan;
+}
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const EMAIL_RE = /^[^\s@<>,;:"'()\[\]\\]+@[^\s@<>,;:"'()\[\]\\]+\.[^\s@<>,;:"'()\[\]\\]{2,}$/;
@@ -147,6 +163,61 @@ async function prepare(req: Request, body: Record<string, unknown>): Promise<Res
   return json(200, { paymentId: payment.id, amount: amounts.amount });
 }
 
+// ---------------------------------------------------------------- prepare_plan
+async function preparePlan(req: Request, body: Record<string, unknown>): Promise<Response> {
+  const token = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");
+  const { data: auth } = await admin.auth.getUser(token);
+  if (!auth?.user) return json(401, { error: "Inicia sesión para pagar tu plan." });
+
+  const kind = String(body.kind ?? "");
+  const plan = findPlan(String(body.planId ?? ""));
+  const billing = String(body.billing ?? "") as Billing;
+  if (!isPlanKind(kind) || !plan || !BILLINGS.includes(billing)) return json(400, { error: "Elige un plan y la forma de pago." });
+
+  const { data: user } = await admin.from("users").select("id, rol, hotelid").eq("id", auth.user.id).maybeSingle();
+  if (user?.rol !== "hotel_admin") return json(403, { error: "Solo los administradores de hotel pagan un plan." });
+
+  const { data: sub } = await admin.from("subscriptions").select("id, setup_paid, status").eq("owner_id", user.id).maybeSingle();
+  if (sub?.status === "cancelada") return json(409, { error: "Tu plan está cancelado. Escríbenos para reactivarlo." });
+  if (kind === "puesta_en_marcha" && sub?.setup_paid) return json(409, { error: "La puesta en marcha ya está pagada." });
+
+  // Unidades registradas: habitaciones del establecimiento (una casa o departamento completo cuenta como 1)
+  let units = 0;
+  if (user.hotelid) {
+    const [{ count }, { data: hotel }] = await Promise.all([
+      admin.from("rooms").select("id", { count: "exact", head: true }).eq("hotelid", user.hotelid),
+      admin.from("hotels").select("tipoestablecimiento").eq("id", user.hotelid).maybeSingle(),
+    ]);
+    units = ["casa", "departamento"].includes(String(hotel?.tipoestablecimiento ?? "")) ? 1 : (count ?? 0);
+  }
+
+  const amount = toCents(planCharge(kind as "plan" | "puesta_en_marcha", plan, units, billing));
+  if (amount <= 0) return json(500, { error: "No se pudo calcular el monto del plan." });
+
+  const clientTransactionId = makeClientTransactionId(kind === "plan" ? "PLAN" : "SETUP", crypto.randomUUID());
+  const { data: payment, error } = await admin
+    .from("payments")
+    .insert({
+      kind,
+      subscription_id: sub?.id ?? null,
+      hotel_id: user.hotelid ?? null,
+      payer_id: auth.user.id,
+      amount_cents: amount,
+      amount_with_tax: 0,
+      amount_without_tax: amount,
+      tax_cents: 0,
+      client_transaction_id: clientTransactionId,
+      details: { planId: plan.id, billing, units },
+    })
+    .select("id")
+    .single();
+  if (error || !payment) {
+    console.error("payphone prepare_plan:", error?.message);
+    return json(500, { error: "No se pudo iniciar el pago. Inténtalo de nuevo." });
+  }
+  return json(200, { paymentId: payment.id, amount });
+}
+
 // ---------------------------------------------------------------- box
 async function box(body: Record<string, unknown>): Promise<Response> {
   const paymentId = typeof body.paymentId === "string" ? body.paymentId.trim() : "";
@@ -154,7 +225,7 @@ async function box(body: Record<string, unknown>): Promise<Response> {
 
   const { data: p } = await admin
     .from("payments")
-    .select("id, kind, reservation_id, hotel_id, amount_cents, amount_with_tax, amount_without_tax, tax_cents, currency, client_transaction_id, status, created_at")
+    .select("id, kind, reservation_id, hotel_id, amount_cents, amount_with_tax, amount_without_tax, tax_cents, currency, client_transaction_id, status, created_at, details")
     .eq("id", paymentId)
     .maybeSingle();
   if (!p) return json(404, { error: "No encontramos este pago." });
@@ -164,12 +235,13 @@ async function box(body: Record<string, unknown>): Promise<Response> {
     p.reservation_id ? loadReservation(p.reservation_id) : Promise.resolve(null),
   ]);
   const { data: room } = r ? await admin.from("rooms").select("nombre").eq("id", r.roomid).maybeSingle() : { data: null };
+  const forPlan = isPlanKind(p.kind);
   const summary = {
     kind: p.kind,
-    kindLabel: KIND_LABEL[p.kind] ?? "Pago",
+    kindLabel: forPlan ? planLabel(p.kind, p.details) : (KIND_LABEL[p.kind] ?? "Pago"),
     amount: p.amount_cents,
     reservationId: p.reservation_id,
-    hotel: hotel?.nombre ?? "",
+    hotel: forPlan ? "Roomia PMS" : (hotel?.nombre ?? ""),
     room: room?.nombre ?? "",
     fechaEntrada: r?.fechaentrada ?? "",
     fechaSalida: r?.fechasalida ?? "",
@@ -197,7 +269,7 @@ async function box(body: Record<string, unknown>): Promise<Response> {
       service: 0,
       tip: 0,
       currency: p.currency,
-      reference: `Reserva ${p.reservation_id ?? ""} · ${hotel?.nombre ?? "Roomia"}`.slice(0, 100),
+      reference: (forPlan ? `${planLabel(p.kind, p.details)} · Roomia PMS` : `Reserva ${p.reservation_id ?? ""} · ${hotel?.nombre ?? "Roomia"}`).slice(0, 100),
     },
   });
 }
@@ -303,6 +375,62 @@ async function sendPaymentEmails(paymentId: string) {
   }
 }
 
+async function sendPlanEmail(paymentId: string) {
+  try {
+    const { data: p } = await admin
+      .from("payments")
+      .select("kind, amount_cents, payer_id, card_brand, last_digits, details, subscription_id")
+      .eq("id", paymentId)
+      .maybeSingle();
+    if (!p) return;
+    const [{ data: host }, { data: sub }] = await Promise.all([
+      admin.from("users").select("nombre, email").eq("id", p.payer_id).maybeSingle(),
+      admin.from("subscriptions").select("current_period_end").eq("owner_id", p.payer_id).maybeSingle(),
+    ]);
+    if (!host?.email || !EMAIL_RE.test(host.email)) return;
+    const card = [p.card_brand, p.last_digits ? `****${p.last_digits}` : ""].filter(Boolean).join(" ");
+    const until = sub?.current_period_end
+      ? new Date(sub.current_period_end).toLocaleDateString("es-EC", { timeZone: "America/Guayaquil", dateStyle: "long" })
+      : undefined;
+    const email: BrandEmail = {
+      preheader: `Recibimos tu pago de ${usd(p.amount_cents)} de Roomia PMS.`,
+      eyebrow: "Comprobante de pago",
+      title: "¡Recibimos tu pago!",
+      greeting: `Hola, ${host.nombre ?? ""}`.trim(),
+      paragraphs: [
+        p.kind === "plan"
+          ? `Tu plan quedó al día${until ? ` hasta el **${until}**` : ""}. Gracias por confiar en Roomia PMS.`
+          : "Recibimos el pago de la puesta en marcha. Nuestro equipo te contactará para cargar tus unidades y capacitar a tu personal.",
+      ],
+      status: { label: "Estado del plan", value: "Al día", tone: "success" },
+      sections: [
+        {
+          title: "Detalle del pago",
+          rows: [
+            ["Concepto", planLabel(p.kind, p.details)],
+            ["Medio de pago", card ? `Payphone · ${card}` : "Payphone"],
+            ["Fecha", new Date().toLocaleString("es-EC", { timeZone: "America/Guayaquil" })],
+          ],
+        },
+      ],
+      amounts: { title: "Resumen", rows: [], total: ["Pagado", `${usd(p.amount_cents)} USD`] },
+      cta: { label: "Ver mi plan", url: `${BRAND.site}/?seccion=mi-plan` },
+    };
+    await fetch(SEND_EMAIL_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        to: host.email,
+        subject: emailSubject("Comprobante de pago", undefined, "Roomia PMS"),
+        html: renderBrandEmail(email),
+        text: renderBrandText(email),
+      }),
+    }).catch(() => null);
+  } catch (e) {
+    console.error("payphone plan email:", (e as Error)?.message);
+  }
+}
+
 async function confirm(body: Record<string, unknown>): Promise<Response> {
   const payphoneId = String(body.id ?? "").trim();
   const clientTransactionId = typeof body.clientTransactionId === "string" ? body.clientTransactionId.trim() : "";
@@ -318,10 +446,12 @@ async function confirm(body: Record<string, unknown>): Promise<Response> {
   if (!p) return json(404, { error: "No encontramos este pago." });
 
   const result = (status: string, extra: Record<string, unknown> = {}) =>
-    json(200, { status, paymentId: p.id, reservationId: p.reservation_id, amount: p.amount_cents, ...extra });
+    json(200, { status, paymentId: p.id, reservationId: p.reservation_id, amount: p.amount_cents, kind: p.kind, ...extra });
 
+  const forPlan = isPlanKind(p.kind);
   if (p.status === "aprobado") {
     // Confirmación repetida (recargar la página): se devuelve el estado actual sin tocar nada
+    if (forPlan) return result("aprobado", { kind: p.kind });
     const r = p.reservation_id ? await loadReservation(p.reservation_id) : null;
     const info = readPaymentInfo(r?.notes);
     return result("aprobado", { montoPagado: info.montoPagado, montoPendiente: info.montoPendiente });
@@ -341,9 +471,12 @@ async function confirm(body: Record<string, unknown>): Promise<Response> {
     admin.from("payments").update({ status, status_detail: detail, payphone_transaction_id: payphoneId, ...extra }).eq("id", p.id);
 
   // Si la reserva ya no admite este cobro, no se confirma: Payphone lo revierte solo en 5 minutos
-  const r = p.reservation_id ? await loadReservation(p.reservation_id) : null;
-  const expected = r ? paymentAmounts(forPayment(r), p.kind as PaymentKind) : { error: "sin reserva" };
-  if (!r || "error" in expected || expected.amount !== p.amount_cents) {
+  // (los pagos de plan no dependen de una reserva: su monto se fijó en el servidor al prepararlos)
+  const r = !forPlan && p.reservation_id ? await loadReservation(p.reservation_id) : null;
+  const expected = forPlan
+    ? { amount: p.amount_cents }
+    : r ? paymentAmounts(forPayment(r), p.kind as PaymentKind) : { error: "sin reserva" };
+  if ((!forPlan && !r) || "error" in expected || expected.amount !== p.amount_cents) {
     const detail = "La reserva cambió o fue cancelada antes de confirmar el pago. Payphone revierte el cobro automáticamente.";
     await setStatus("cancelado", detail);
     return result("cancelado", { detail });
@@ -395,6 +528,23 @@ async function confirm(body: Record<string, unknown>): Promise<Response> {
     return result("error", { detail: "El pago no coincide con la reserva. El establecimiento lo revisará y te contactará." });
   }
 
+  if (forPlan) {
+    const { error: planError } = await admin.rpc("aplicar_pago_plan", {
+      p_payment_id: p.id,
+      p_payphone_id: String(pp.transactionId ?? payphoneId),
+      p_card_brand: String(pp.cardBrand ?? ""),
+      p_last_digits: String(pp.lastDigits ?? ""),
+      p_authorization_code: String(pp.authorizationCode ?? ""),
+    });
+    if (planError) {
+      console.error("aplicar_pago_plan:", planError.message);
+      await setStatus("error", `Cobro confirmado en Payphone pero no se pudo aplicar al plan: ${planError.message}`);
+      return result("error", { kind: p.kind, detail: "Recibimos tu pago, pero no pudimos actualizar tu plan. Lo revisaremos y te escribiremos." });
+    }
+    await sendPlanEmail(p.id);
+    return result("aprobado", { kind: p.kind });
+  }
+
   const { data: applied, error } = await admin.rpc("aplicar_pago_reserva", {
     p_payment_id: p.id,
     p_payphone_id: String(pp.transactionId ?? payphoneId),
@@ -426,6 +576,7 @@ Deno.serve(async (req) => {
 
   try {
     if (body.action === "prepare") return await prepare(req, body);
+    if (body.action === "prepare_plan") return await preparePlan(req, body);
     if (body.action === "box") return await box(body);
     if (body.action === "confirm") return await confirm(body);
     return json(400, { error: "Acción no válida" });

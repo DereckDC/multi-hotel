@@ -254,3 +254,6 @@ export interface ExternalBlock {
 
 
 
+
+/** Pestañas del panel de administración (Mi plan: admin de hotel · Suscripciones: superadmin) */
+export type AdminTab = 'dashboard' | 'hotels' | 'properties' | 'rooms' | 'users' | 'logs' | 'reservations' | 'refunds' | 'incidents' | 'plan' | 'subscriptions';

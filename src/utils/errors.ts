@@ -35,6 +35,7 @@ const TECHNICAL_TERMS =
 
 /** Traducciones de los errores más comunes (el orden importa: el primero que coincide gana) */
 const KNOWN: Array<[RegExp, string | ((context: ErrorContext) => string)]> = [
+  [/no está recibiendo reservas/i, 'Este establecimiento no está recibiendo reservas en este momento.'],
   [/invalid login credentials|invalid_credentials/i, 'El correo o la contraseña no son correctos. Revísalos e inténtalo de nuevo.'],
   [/email not confirmed|not confirmed/i, 'Aún no confirmas tu correo. Abre el enlace que te enviamos y vuelve a intentarlo.'],
   [/already registered|already been registered|already exists|duplicate key|unique constraint|23505/i,

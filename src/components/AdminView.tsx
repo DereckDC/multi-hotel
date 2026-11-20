@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { Hotel, Room, User, Reservation, RoomStatus, UserRole, Review, RoomPriceVariation, IcalFeed, ExternalBlock } from '../types';
+import { Hotel, Room, User, Reservation, RoomStatus, UserRole, Review, RoomPriceVariation, IcalFeed, ExternalBlock, AdminTab } from '../types';
 import { RoomReservationCalendar } from './RoomReservationCalendar';
 import IcalSyncModal from './IcalSyncModal';
 import { StepPanel, StepIndicator, StepActions, useFormStepper } from './FormStepper';
@@ -15,6 +15,10 @@ import { imageFolder, importImageFromUrl, isStoredInRoomia, isVideoLink, onImage
 import { notify } from '../utils/notify';
 import { friendlyError } from '../utils/errors';
 import InvoicePDF from './InvoicePDF';
+import PlanView from './PlanView';
+import SubscriptionsView from './SubscriptionsView';
+import { fetchMySubscription } from '../utils/subscriptions';
+import { canOperate, daysLeft, effectiveStatus, type EffectiveStatus } from '../utils/plans';
 import { buildTableReport } from '../utils/reportPdf';
 import { savePdfNative } from '../utils/nativeFiles';
 import { isNativeApp } from '../utils/platform';
@@ -100,8 +104,8 @@ interface AdminViewProps {
   roomPriceVariations?: RoomPriceVariation[];
   onSaveRoomPriceVariation?: (v: RoomPriceVariation) => void;
   onDeleteRoomPriceVariation?: (id: string) => void;
-  adminTab?: 'dashboard' | 'hotels' | 'properties' | 'rooms' | 'users' | 'logs' | 'reservations' | 'refunds' | 'incidents';
-  onAdminTabChange?: (tab: 'dashboard' | 'hotels' | 'properties' | 'rooms' | 'users' | 'logs' | 'reservations' | 'refunds' | 'incidents') => void;
+  adminTab?: AdminTab;
+  onAdminTabChange?: (tab: AdminTab) => void;
   icalFeeds?: IcalFeed[];
   externalBlocks?: ExternalBlock[];
   onRefreshIcal?: () => void | Promise<void>;
@@ -144,9 +148,9 @@ export default function AdminView({
   onAddLog
 }: AdminViewProps) {
   // Navigation tabs within Admin: 'dashboard' | 'hotels' | 'rooms' | 'users' | 'logs' | 'reservations' | 'refunds' | 'incidents'
-  const [localAdminTab, setLocalAdminTab] = useState<'dashboard' | 'hotels' | 'properties' | 'rooms' | 'users' | 'logs' | 'reservations' | 'refunds' | 'incidents'>('dashboard');
+  const [localAdminTab, setLocalAdminTab] = useState<AdminTab>('dashboard');
   const adminTab = propAdminTab !== undefined ? propAdminTab : localAdminTab;
-  const setAdminTab = (tab: 'dashboard' | 'hotels' | 'properties' | 'rooms' | 'users' | 'logs' | 'reservations' | 'refunds' | 'incidents') => {
+  const setAdminTab = (tab: AdminTab) => {
     if (onAdminTabChange) {
       onAdminTabChange(tab);
     } else {
@@ -759,6 +763,10 @@ export default function AdminView({
         return 'Reembolsos';
       case 'incidents':
         return 'Incidencias';
+      case 'plan':
+        return 'Mi plan';
+      case 'subscriptions':
+        return 'Suscripciones';
       default:
         return 'General';
     }
@@ -852,6 +860,20 @@ export default function AdminView({
 
   const [downloadingRefunds, setDownloadingRefunds] = useState(false);
 
+  // Plan del administrador de hotel: aviso de vencimiento y bloqueo de altas si está suspendido
+  const [planInfo, setPlanInfo] = useState<{ status: EffectiveStatus; left: number | null } | null>(null);
+  React.useEffect(() => {
+    if (activeUser.rol !== 'hotel_admin') { setPlanInfo(null); return; }
+    let alive = true;
+    fetchMySubscription(activeUser.id)
+      .then(sub => { if (alive) setPlanInfo({ status: effectiveStatus(sub), left: daysLeft(sub) }); })
+      .catch(() => { if (alive) setPlanInfo(null); });
+    return () => { alive = false; };
+  }, [activeUser.id, activeUser.rol, adminTab === 'plan']);
+  /** Sin plan todavía no se bloquea: solo suspendido o cancelado */
+  const planBlocked = !!planInfo && !canOperate(planInfo.status);
+  const planBlockedTitle = planBlocked ? 'Tu plan está suspendido. Págalo en "Mi plan" para volver a crear.' : undefined;
+
   /** Rol de quien usa el panel, junto al título de cada pestaña */
   const roleBadge = (
     <Badge tone={activeUser.rol === 'super_admin' ? 'brand' : 'info'}>
@@ -926,12 +948,39 @@ export default function AdminView({
     <div className="max-w-7xl mx-auto px-4 py-6">
 
       {/* ADMIN CONTROL PANEL HEADER */}
+      {planInfo && adminTab !== 'plan' && (planInfo.status === 'vencida' || planInfo.status === 'suspendida' || planInfo.status === 'cancelada' || (planInfo.left !== null && planInfo.left <= 5)) && (
+        <div className={`mb-6 flex flex-col gap-3 rounded-2xl border p-4 sm:flex-row sm:items-center sm:justify-between ${
+          planInfo.status === 'suspendida' || planInfo.status === 'cancelada' ? 'border-danger-200 bg-danger-50' : 'border-warning-200 bg-warning-50'
+        }`}>
+          <p className={`text-sm ${planInfo.status === 'suspendida' || planInfo.status === 'cancelada' ? 'text-danger-800' : 'text-warning-800'}`}>
+            {planInfo.status === 'suspendida'
+              ? 'Tu plan está suspendido: tu establecimiento no recibe reservas nuevas y no puedes crear habitaciones ni propiedades.'
+              : planInfo.status === 'cancelada'
+                ? 'Tu plan está cancelado. Escríbenos para reactivarlo.'
+                : planInfo.status === 'vencida'
+                  ? 'Tu plan venció. Págalo antes de que terminen los días de gracia para seguir recibiendo reservas.'
+                  : `Tu plan vence ${planInfo.left === 0 ? 'hoy' : `en ${planInfo.left} ${planInfo.left === 1 ? 'día' : 'días'}`}.`}
+          </p>
+          {planInfo.status !== 'cancelada' && (
+            <Button size="sm" onClick={() => setAdminTab('plan')} className="shrink-0">Ir a Mi plan</Button>
+          )}
+        </div>
+      )}
+
       {/* El Dashboard tiene su propio encabezado (con el período); el resto de pestañas, este */}
-      {adminTab !== 'dashboard' && (
+      {adminTab !== 'dashboard' && adminTab !== 'plan' && adminTab !== 'subscriptions' && (
         <div className="mb-6 flex flex-wrap items-center gap-2">
           <h3 className="text-2xl font-bold text-brand-navy1">{getTabLabel()}</h3>
           {roleBadge}
         </div>
+      )}
+
+      {adminTab === 'plan' && activeUser.rol === 'hotel_admin' && (
+        <PlanView activeUser={activeUser} hotels={hotels} rooms={rooms} />
+      )}
+
+      {adminTab === 'subscriptions' && isSuper && (
+        <SubscriptionsView users={users} hotels={hotels} rooms={rooms} />
       )}
 
       {/* MAIN ADMIN GRAPHICS DASHBOARD TAB */}
@@ -1352,6 +1401,8 @@ export default function AdminView({
                 <Button
                   type="button"
                   onClick={startCreateRoom}
+                  disabled={planBlocked}
+                  title={planBlockedTitle}
                   variant="primary" size="md"
                 >
                   <Plus className="w-4 h-4" />

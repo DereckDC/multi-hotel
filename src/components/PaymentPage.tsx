@@ -83,8 +83,8 @@ function setReferrerPolicy() {
 }
 
 /** Dirección para volver a Roomia: en el navegador del teléfono abre la app si está instalada */
-const backHref = () => {
-  const path = '/?seccion=mis-reservas';
+const backHref = (section: 'mis-reservas' | 'mi-plan' = 'mis-reservas') => {
+  const path = `/?seccion=${section}`;
   return isNativeApp() || window.location.hostname === 'localhost' ? path : `${PRODUCTION_ORIGIN}${path}`;
 };
 
@@ -118,8 +118,11 @@ function SummaryCard({ s }: { s: Summary }) {
   );
 }
 
-const BackButton = ({ label = 'Volver a Roomia' }: { label?: string }) => (
-  <a href={backHref()} className="mt-5 block w-full text-center rounded-xl bg-brand-navy1 hover:bg-brand-navy2 text-white font-bold py-3">
+/** Pagos del plan de un anfitrión (no de una reserva) */
+const isPlanKind = (kind: unknown) => kind === 'plan' || kind === 'puesta_en_marcha';
+
+const BackButton = ({ label = 'Volver a Roomia', section }: { label?: string; section?: 'mis-reservas' | 'mi-plan' }) => (
+  <a href={backHref(section)} className="mt-5 block w-full text-center rounded-xl bg-brand-navy1 hover:bg-brand-navy2 text-white font-bold py-3">
     {label}
   </a>
 );
@@ -225,7 +228,11 @@ function ResponseView() {
         <div className="text-center">
           <div className="mx-auto w-14 h-14 rounded-full bg-success-100 text-success-600 flex items-center justify-center text-3xl">✓</div>
           <h1 className="mt-3 text-xl font-extrabold text-brand-navy1">Pago aprobado</h1>
-          <p className="mt-1 text-sm text-neutral-600">Tu reserva quedó confirmada. Te enviamos el comprobante por correo.</p>
+          <p className="mt-1 text-sm text-neutral-600">
+            {isPlanKind(data?.kind)
+              ? 'Tu plan de Roomia PMS quedó al día. Te enviamos el comprobante por correo.'
+              : 'Tu reserva quedó confirmada. Te enviamos el comprobante por correo.'}
+          </p>
           <div className="mt-4 rounded-xl bg-neutral-50 border border-neutral-200 p-4 text-sm text-left space-y-1.5">
             {data?.reservationId && <div className="flex justify-between"><span className="text-neutral-500">Reserva</span><span className="font-mono font-semibold">{data.reservationId}</span></div>}
             {typeof data?.amount === 'number' && <div className="flex justify-between"><span className="text-neutral-500">Pagado ahora</span><span className="font-semibold">{usd(data.amount)}</span></div>}
@@ -233,15 +240,17 @@ function ResponseView() {
               <div className="flex justify-between"><span className="text-neutral-500">Saldo pendiente</span><span className="font-semibold">${Number(data.montoPendiente).toFixed(2)}</span></div>
             )}
           </div>
-          <BackButton label="Ver mis reservas" />
+          {isPlanKind(data?.kind)
+            ? <BackButton label="Ver mi plan" section="mi-plan" />
+            : <BackButton label="Ver mis reservas" />}
         </div>
       )}
       {state === 'cancelado' && (
         <div className="text-center">
           <div className="mx-auto w-14 h-14 rounded-full bg-warning-100 text-warning-600 flex items-center justify-center text-3xl">!</div>
           <h1 className="mt-3 text-xl font-extrabold text-brand-navy1">Pago no completado</h1>
-          <p className="mt-1 text-sm text-neutral-600">{data?.detail || 'No se realizó ningún cobro. Puedes intentarlo de nuevo desde tu reserva.'}</p>
-          <BackButton label="Volver e intentar de nuevo" />
+          <p className="mt-1 text-sm text-neutral-600">{data?.detail || (isPlanKind(data?.kind) ? 'No se realizó ningún cobro. Puedes intentarlo de nuevo desde Mi plan.' : 'No se realizó ningún cobro. Puedes intentarlo de nuevo desde tu reserva.')}</p>
+          <BackButton label="Volver e intentar de nuevo" section={isPlanKind(data?.kind) ? 'mi-plan' : undefined} />
         </div>
       )}
       {state === 'error' && (

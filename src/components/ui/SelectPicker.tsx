@@ -32,8 +32,9 @@ export interface SelectPickerProps {
 
 /** Del className del antiguo <select> solo se conservan ancho y posición: el aspecto lo pone el selector */
 const LAYOUT = /^(?:[a-z]{2}:)?(?:w-|min-w-|max-w-|flex-|shrink|grow|basis-|col-span|row-span|-?m[trblxy]?-|self-|order-|hidden$|block$|inline-block$)/;
-/** Clases de los selectores pequeños de tablas y barras */
-const SMALL = /(?:^|\s)(?:text-micro|py-0\.5|py-1(?!\.5|\d)|p-1(?!\.5|\d))(?:\s|$)/;
+/** Clases de los selectores pequeños de tablas, barras y formularios compactos (texto de 12px o menos):
+ *  así quedan del mismo alto y tamaño de letra que los campos de texto que tienen al lado */
+const SMALL = /(?:^|\s)(?:text-micro|text-xs|py-0\.5|py-1(?!\.5|\d)|p-1(?!\.5|\d))(?:\s|$)/;
 
 const textOf = (node: ReactNode): string => {
   if (node === null || node === undefined || typeof node === 'boolean') return '';

@@ -80,21 +80,23 @@
   --text-micro: 0.6875rem;
   --text-micro--line-height: 1rem;
 
-  /* Animaciones de entrada de ventanas y avisos */
-  --animate-fade-in: fade-in 0.25s ease-out both;
-  --animate-scale-up: scale-up 0.2s ease-out both;
-  --animate-sheet-up: sheet-up 0.25s ease-out both;
+  /* Animaciones de entrada de ventanas y avisos. Se aplican solo mientras corren (backwards): si la
+     animación de transform siguiera aplicada al terminar, las ventanas (position: fixed) que estén
+     dentro del bloque animado quedarían atrapadas en él en lugar de cubrir toda la pantalla */
+  --animate-fade-in: fade-in 0.25s ease-out backwards;
+  --animate-scale-up: scale-up 0.2s ease-out backwards;
+  --animate-sheet-up: sheet-up 0.25s ease-out backwards;
   @keyframes sheet-up {
     from { transform: translateY(100%); }
-    to { transform: translateY(0); }
+    to { transform: none; }
   }
   @keyframes fade-in {
     from { opacity: 0; transform: translateY(4px); }
-    to { opacity: 1; transform: translateY(0); }
+    to { opacity: 1; transform: none; }
   }
   @keyframes scale-up {
     from { opacity: 0; transform: scale(0.96); }
-    to { opacity: 1; transform: scale(1); }
+    to { opacity: 1; transform: none; }
   }
 
   /* Total Brand Alignment with Accessible WCAG AA Color Contrast */

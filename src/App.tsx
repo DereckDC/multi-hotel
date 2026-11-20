@@ -11,6 +11,7 @@ import LoginView from './components/LoginView';
 import LandingPageView from './components/LandingPageView';
 import { StepPanel, StepIndicator, StepActions, useFormStepper } from './components/FormStepper';
 import type { LegalDocType } from './components/LegalPageView';
+import type { AdminTab } from './types';
 import { PAGES, hotelMeta } from '../api/seo';
 import { setPageMeta } from './utils/pageMeta';
 import { notify } from './utils/notify';
@@ -23,7 +24,7 @@ const LegalPageView = lazy(() => import('./components/LegalPageView'));
 import { InteractiveContainer } from './components/InteractiveContainer';
 import { BrandLogo } from './components/BrandLogo';
 import { LoadingSkeletonView } from './components/LoadingSkeletonView';
-import { LayoutDashboard, Users, User as UserIcon, CalendarDays, KeyRound, Star, Building2, ShieldAlert, LogOut, Edit3, Camera, Check, X, Shield, AlertCircle, Eye, EyeOff, Briefcase, LogIn, Key, Menu, Home, Compass, DollarSign, ClipboardList, QrCode, Calendar, ArrowLeft, Loader2 } from 'lucide-react';
+import { LayoutDashboard, Users, User as UserIcon, CalendarDays, KeyRound, Star, Building2, ShieldAlert, LogOut, Edit3, Camera, Check, X, Shield, AlertCircle, Eye, EyeOff, Briefcase, LogIn, Key, Menu, Home, Compass, DollarSign, ClipboardList, QrCode, Calendar, ArrowLeft, Loader2, CreditCard, Wallet } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 // Slugify helper to convert hotel/property names to clean URL paths
@@ -245,7 +246,15 @@ export default function App() {
     }
     return 'explore';
   });
-  const [adminActiveTab, setAdminActiveTab] = useState<'dashboard' | 'hotels' | 'properties' | 'rooms' | 'users' | 'logs' | 'reservations' | 'refunds' | 'incidents'>('dashboard');
+  const [adminActiveTab, setAdminActiveTab] = useState<AdminTab>(() => {
+    if (typeof window === 'undefined') return 'dashboard';
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('seccion') !== 'mi-plan') return 'dashboard';
+    params.delete('seccion');
+    const rest = params.toString();
+    window.history.replaceState(null, '', `${window.location.pathname}${rest ? `?${rest}` : ''}${window.location.hash}`);
+    return 'plan';
+  });
   const [receptionActiveTab, setReceptionActiveTab] = useState<'checkin' | 'registro' | 'incidencias'>('checkin');
 
   const isSidebarActive = !showLandingPage && !showFullLoginScreen;
@@ -876,6 +885,19 @@ export default function App() {
                 active: adminActiveTab === 'logs',
                 onClick: () => { setAdminActiveTab('logs'); setSidebarOpen(false); }
               },
+              ...(activeUser?.rol === 'super_admin'
+                ? [{
+                    icon: Wallet,
+                    label: "Suscripciones",
+                    active: adminActiveTab === 'subscriptions',
+                    onClick: () => { setAdminActiveTab('subscriptions'); setSidebarOpen(false); }
+                  }]
+                : [{
+                    icon: CreditCard,
+                    label: "Mi plan",
+                    active: adminActiveTab === 'plan',
+                    onClick: () => { setAdminActiveTab('plan'); setSidebarOpen(false); }
+                  }]),
               {
                 icon: UserIcon,
                 label: "Mi Perfil",
