@@ -1,6 +1,7 @@
 import { useEffect, type ReactNode } from 'react';
 import { X } from 'lucide-react';
 import { cx } from '../../utils/cx';
+import { useBackHandler } from '../../utils/backButton';
 
 export type ModalSize = 'sm' | 'md' | 'lg' | 'xl';
 
@@ -39,6 +40,7 @@ export function Modal({
   open, onClose, title, subtitle, header, children, footer, size = 'md', layer = 'modal',
   closeOnOverlay = true, bodyClassName = 'p-5', className, id
 }: ModalProps) {
+  useBackHandler(open, onClose);
   useEffect(() => {
     if (!open) return;
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
@@ -60,7 +62,7 @@ export function Modal({
         'fixed inset-0 flex items-center justify-center bg-neutral-950/60 p-2 backdrop-blur-sm animate-fade-in sm:p-4 print:hidden',
         LAYER[layer]
       )}
-      style={{ paddingTop: 'max(0.5rem, env(safe-area-inset-top))', paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}
+      style={{ paddingTop: 'max(0.5rem, var(--safe-top))', paddingBottom: 'max(0.5rem, var(--safe-bottom))' }}
       onMouseDown={event => { if (closeOnOverlay && event.target === event.currentTarget) onClose(); }}
     >
       <div

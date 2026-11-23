@@ -3,7 +3,11 @@ import React, { useEffect, useRef } from 'react';
 export function GlobalTrailCursor() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
+    // En pantallas táctiles no hay cursor: el toque dejaba un punto brillante fijo
+  const touchOnly = typeof window !== 'undefined' && window.matchMedia('(hover: none)').matches;
+
   useEffect(() => {
+    if (touchOnly) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');

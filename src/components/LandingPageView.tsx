@@ -18,6 +18,7 @@ import { BrandLogo } from './BrandLogo';
 import { InteractiveContainer } from './InteractiveContainer';
 import { GlobalTrailCursor } from './GlobalTrailCursor';
 import { Button, BackButton, MenuItem, MenuToggle, OptionPicker } from './ui';
+import { useBackHandler } from '../utils/backButton';
 
 interface Props {
   onClose: () => void;
@@ -87,9 +88,20 @@ export default function LandingPageView({ onClose, onOpenLegal }: Props) {
     else window.open(url, '_blank', 'noopener,noreferrer');
   };
 
+    useBackHandler(menuOpen, () => setMenuOpen(false));
+
+  // Ir a una sección. Primero se cierra el menú y, ya cerrado, se desplaza la página descontando
+  // la barra fija de arriba. (En el WebView de Android, scrollIntoView en el mismo toque que
+  // cierra el menú no movía la página.)
   const goTo = (id: string) => {
     setMenuOpen(false);
-    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+    window.setTimeout(() => {
+      const target = document.getElementById(id);
+      if (!target) return;
+      const navHeight = document.querySelector('nav')?.getBoundingClientRect().height ?? 64;
+      const top = target.getBoundingClientRect().top + window.scrollY - navHeight - 8;
+      window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+    }, 80);
   };
 
   const submitDemo = (e: React.FormEvent) => {
@@ -121,7 +133,7 @@ export default function LandingPageView({ onClose, onOpenLegal }: Props) {
       <GlobalTrailCursor />
 
       {/* NAV */}
-      <nav className="sticky top-0 z-40 bg-slate-950/90 backdrop-blur-md border-b border-slate-900">
+      <nav className="sticky top-0 z-40 bg-slate-950/90 backdrop-blur-md border-b border-slate-900 pt-safe">
         <div className="max-w-7xl mx-auto px-4 md:px-6 h-16 flex items-center justify-between gap-4">
           <div className="flex items-center gap-1">
             <MenuToggle open={menuOpen} onClick={() => setMenuOpen(o => !o)} className="md:hidden -ml-2" />
@@ -146,17 +158,19 @@ export default function LandingPageView({ onClose, onOpenLegal }: Props) {
         </div>
       </nav>
 
-      {/* Menú del teléfono: el mismo diseño que el menú de la app con sesión iniciada */}
-      <AnimatePresence>
+      {/* Menú del teléfono: el mismo diseño que el menú de la app con sesión iniciada. Sin animación de
+          salida: con AnimatePresence el fondo oscuro quedaba tapando la página después de cerrar el menú */}
         {menuOpen && (
-          <>
-            <div className="fixed inset-0 top-16 z-30 bg-neutral-950/50 backdrop-blur-xs md:hidden" onClick={() => setMenuOpen(false)} />
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.3, ease: 'easeInOut' }}
-              className="fixed inset-x-0 top-16 z-40 flex flex-col overflow-hidden bg-neutral-950 shadow-xl md:hidden"
+          <div
+            className="fixed inset-x-0 bottom-0 z-30 bg-neutral-950/50 backdrop-blur-xs md:hidden animate-fade-in"
+            style={{ top: 'calc(4rem + 1px + var(--safe-top))' }}
+            onClick={() => setMenuOpen(false)}
+          />
+        )}
+        {menuOpen && (
+            <div
+              className="fixed inset-x-0 z-40 flex flex-col overflow-hidden bg-neutral-950 shadow-xl md:hidden animate-fade-in"
+              style={{ top: 'calc(4rem + 1px + var(--safe-top))' }}
               id="landing-mobile-menu"
             >
               <div className="max-h-[70vh] space-y-1.5 overflow-y-auto overflow-x-hidden px-4 py-4">
@@ -173,10 +187,8 @@ export default function LandingPageView({ onClose, onOpenLegal }: Props) {
                 />
                 <MenuItem icon={Home} label="Volver a Roomia" onClick={() => { setMenuOpen(false); onClose(); }} />
               </div>
-            </motion.div>
-          </>
+            </div>
         )}
-      </AnimatePresence>
 
       {/* HERO */}
       <InteractiveContainer as="header" className="border-b border-slate-900">

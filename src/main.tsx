@@ -4,10 +4,12 @@ import App from './App.tsx';
 import PaymentPage from './components/PaymentPage';
 import './index.css';
 import { initDeepLinks } from './utils/deepLinks';
+import { initBackButton } from './utils/backButton';
 import { notify } from './utils/notify';
 
 // En la app Android: abrir dentro de la app los enlaces de roomiapms.site (correos, recuperar contraseña)
 initDeepLinks();
+initBackButton();
 
 // Intercept and swallow injected web3 / metamask errors or random network 'Failed to fetch' errors gracefully
 if (typeof window !== 'undefined') {

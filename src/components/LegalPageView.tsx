@@ -51,7 +51,7 @@ export default function LegalPageView({ documentType, onClose, onSelectDoc }: Le
     <div className="min-h-screen bg-[#fafafa] text-neutral-800 flex flex-col animate-fade-in" id="legal-page-container">
       
       {/* Upper Navigation Header aligned with the branding */}
-      <nav className="bg-neutral-950/95 border-b border-neutral-900 sticky top-0 z-50 shadow-sm" id="legal-navbar">
+      <nav className="bg-neutral-950/95 border-b border-neutral-900 sticky top-0 z-50 shadow-sm pt-safe" id="legal-navbar">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <BrandLogo size="lg" showText={true} lightText={true} />

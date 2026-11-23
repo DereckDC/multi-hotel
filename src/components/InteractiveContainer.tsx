@@ -8,7 +8,8 @@ export interface InteractiveContainerProps {
 }
 
 // Global mouse position broadcaster to maintain 100% continuous cursor tracking
-if (typeof window !== 'undefined' && !(window as any).__roomiaGlobalMouseSetup) {
+// Solo con mouse: en pantallas táctiles el toque se convertía en un brillo fijo donde se tocaba
+if (typeof window !== 'undefined' && !(window as any).__roomiaGlobalMouseSetup && !window.matchMedia('(hover: none)').matches) {
   (window as any).__roomiaGlobalMouseSetup = true;
 
   const handleGlobalMouseMove = (e: MouseEvent) => {

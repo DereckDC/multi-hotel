@@ -242,6 +242,7 @@ export function RoomImageGallery({ imagenes, roomNombre, className, disableLight
           {isLightboxOpen && (
             <div 
               className="fixed inset-0 bg-neutral-950/95 z-critical flex flex-col justify-between p-4 md:p-6 backdrop-blur-xl select-none"
+              style={{ paddingTop: 'calc(1rem + var(--safe-top))', paddingBottom: 'calc(1rem + var(--safe-bottom))' }}
               onClick={() => setIsLightboxOpen(false)}
             >
               {/* Top Bar of Lightbox */}

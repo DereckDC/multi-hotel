@@ -90,7 +90,7 @@ const backHref = (section: 'mis-reservas' | 'mi-plan' = 'mis-reservas') => {
 
 function Shell({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-screen bg-neutral-50 flex flex-col items-center px-4 py-8">
+    <div className="min-h-screen bg-neutral-50 flex flex-col items-center px-4 py-8" style={{ paddingTop: 'calc(2rem + var(--safe-top))' }}>
       <a href={backHref()} className="mb-6 flex items-center gap-2 text-brand-navy1 font-bold text-lg">
         <img src="/RoomiaPMSLogoSinFondo.png" alt="Roomia PMS" className="h-10 w-auto" />
       </a>

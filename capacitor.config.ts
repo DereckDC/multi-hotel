@@ -14,6 +14,12 @@ const config: CapacitorConfig = {
   },
   android: {
     allowMixedContent: false
+  },
+  plugins: {
+    // Barras del sistema con íconos claros, sobre el azul oscuro de la marca (Android 15+)
+    SystemBars: {
+      style: 'DARK'
+    }
   }
 };
 

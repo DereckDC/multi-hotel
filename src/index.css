@@ -163,9 +163,22 @@ body {
   }
 }
 
+/* Área segura del teléfono (barra de estado arriba, barra de gestos abajo). Se toma el mayor entre el
+   valor del navegador y el que inyecta Capacitor en el APK. El hueco de arriba lo reservan los
+   encabezados (pintado del color oscuro): si lo reservara #root, quedaba una franja clara bajo la
+   barra de estado y, al desplazar la página, el encabezado se metía debajo de la hora y los íconos. */
+:root {
+  --safe-top: max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px));
+  --safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px));
+}
+
 #root {
-  padding-top: env(safe-area-inset-top);
-  padding-bottom: env(safe-area-inset-bottom);
+  padding-bottom: var(--safe-bottom);
+}
+
+/* Encabezados fijos: reservan la barra de estado con su mismo fondo oscuro */
+@utility pt-safe {
+  padding-top: var(--safe-top);
 }
 
 h1, h2, h3, h4, .font-display {

@@ -7,4 +7,6 @@
     <color name="brand_navy">#0E2A47</color>
     <color name="brand_navy_dark">#071726</color>
     <color name="brand_cyan">#23B4E6</color>
+    <!-- Fondo oscuro del encabezado y del menú (el mismo de la landing) -->
+    <color name="brand_ink">#020617</color>
 </resources>

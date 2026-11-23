@@ -2,6 +2,7 @@ import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type Keyb
 import { createPortal } from 'react-dom';
 import { Check, ChevronDown, Search, X } from 'lucide-react';
 import { cx } from '../../utils/cx';
+import { useBackHandler } from '../../utils/backButton';
 
 export interface PickerOption {
   value: string;
@@ -85,6 +86,8 @@ export function OptionPicker({
     setOpen(null);
     if (refocus) triggerRef.current?.focus();
   };
+
+    useBackHandler(open !== null, () => close());
 
   const choose = (next: string) => {
     onChange(next);
@@ -316,7 +319,7 @@ export function OptionPicker({
           <div className="absolute inset-0 bg-neutral-950/50 animate-fade-in" onClick={() => close()} />
           <div
             className={cx('relative flex max-h-[75vh] w-full flex-col rounded-t-3xl shadow-xl animate-sheet-up', dark ? 'border-t border-white/15 bg-neutral-950' : 'bg-white')}
-            style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+            style={{ paddingBottom: 'var(--safe-bottom)' }}
           >
             <div className={cx('mx-auto mt-2.5 h-1.5 w-10 rounded-full', dark ? 'bg-white/20' : 'bg-neutral-200')} aria-hidden="true" />
             <div className="flex items-center justify-between px-5 pb-2 pt-3">

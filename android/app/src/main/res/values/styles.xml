@@ -6,8 +6,8 @@
         <item name="colorPrimary">@color/colorPrimary</item>
         <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
         <item name="colorAccent">@color/colorAccent</item>
-        <item name="android:statusBarColor">@color/brand_navy_dark</item>
-        <item name="android:navigationBarColor">@color/brand_navy_dark</item>
+        <item name="android:statusBarColor">@color/brand_ink</item>
+        <item name="android:navigationBarColor">@color/brand_ink</item>
         <item name="android:windowLightStatusBar">false</item>
     </style>
 
@@ -15,11 +15,13 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
+        <!-- Fondo de la ventana: es lo que se ve detrás de la barra de estado y de navegación en Android 15+ -->
+        <item name="android:windowBackground">@color/brand_ink</item>
         <item name="colorPrimary">@color/colorPrimary</item>
         <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
         <item name="colorAccent">@color/colorAccent</item>
-        <item name="android:statusBarColor">@color/brand_navy_dark</item>
-        <item name="android:navigationBarColor">@color/brand_navy_dark</item>
+        <item name="android:statusBarColor">@color/brand_ink</item>
+        <item name="android:navigationBarColor">@color/brand_ink</item>
         <item name="android:windowLightStatusBar">false</item>
     </style>
 
@@ -28,7 +30,7 @@
         <item name="android:background">@drawable/splash</item>
         <item name="windowSplashScreenBackground">@color/brand_navy_dark</item>
         <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
-        <item name="android:statusBarColor">@color/brand_navy_dark</item>
-        <item name="android:navigationBarColor">@color/brand_navy_dark</item>
+        <item name="android:statusBarColor">@color/brand_ink</item>
+        <item name="android:navigationBarColor">@color/brand_ink</item>
     </style>
 </resources>

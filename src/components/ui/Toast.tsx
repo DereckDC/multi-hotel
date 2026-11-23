@@ -36,7 +36,7 @@ export function ToastHost() {
   return (
     <div
       className="pointer-events-none fixed bottom-4 left-3 right-3 z-toast flex flex-col gap-2.5 sm:bottom-6 sm:left-auto sm:right-6 sm:w-full sm:max-w-sm print:hidden"
-      style={{ marginBottom: 'env(safe-area-inset-bottom)' }}
+      style={{ marginBottom: 'var(--safe-bottom)' }}
     >
       <AnimatePresence>
         {notices.map(notice => {

@@ -12,6 +12,7 @@ import LandingPageView from './components/LandingPageView';
 import { StepPanel, StepIndicator, StepActions, useFormStepper } from './components/FormStepper';
 import type { LegalDocType } from './components/LegalPageView';
 import type { AdminTab } from './types';
+import { useBackHandler } from './utils/backButton';
 import { PAGES, hotelMeta } from '../api/seo';
 import { setPageMeta } from './utils/pageMeta';
 import { notify } from './utils/notify';
@@ -224,7 +225,9 @@ export default function App() {
 
   // Left Sidebar Menu navigation state variables
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarHovered, setSidebarHovered] = useState(false);
+    const [sidebarHovered, setSidebarHovered] = useState(false);
+  // "Atrás" de Android cierra el menú abierto
+  useBackHandler(sidebarOpen, () => setSidebarOpen(false));
   const [clientTab, setClientTab] = useState<'explore' | 'properties' | 'reservations'>(() => {
     if (typeof window === 'undefined') return 'explore';
     const path = window.location.pathname;
@@ -309,6 +312,11 @@ export default function App() {
     }
     prevOpenHotelIdRef.current = openHotelId;
   }, [openHotelId, hotels]);
+
+    // Al entrar o salir de la landing se empieza arriba (antes se abría a media página)
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [showLandingPage]);
 
   // Synchronize browser URL with showLandingPage
   useEffect(() => {
@@ -614,7 +622,7 @@ export default function App() {
       
       {/* 2. Global application Header */}
       {!showLandingPage && (
-        <header className="bg-neutral-950 print:hidden w-full sticky top-0 z-40">
+        <header className="bg-neutral-950 print:hidden w-full sticky top-0 z-40 pt-safe">
           <div className={`w-full px-4 sm:px-6 h-20 flex items-center justify-between transition-all duration-300 ${
             isSidebarActive 
               ? (sidebarOpen || sidebarHovered ? 'md:pl-[17rem]' : 'md:pl-[5rem]') 
@@ -940,15 +948,12 @@ export default function App() {
                 />
               )}
 
-              {/* Mobile Menu Dropdown (Open: Slides down from top) */}
-              <AnimatePresence>
+              {/* Menú del teléfono. Se monta y desmonta sin animación de salida: con AnimatePresence el panel
+                  quedaba montado (alto 0) después de cerrarse */}
                 {sidebarOpen && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.3, ease: 'easeInOut' }}
-                    className="fixed md:hidden top-20 left-0 right-0 w-full bg-neutral-950 z-40 shadow-xl overflow-hidden flex flex-col"
+                  <div
+                    className="fixed md:hidden left-0 right-0 w-full bg-neutral-950 z-40 shadow-xl overflow-hidden flex flex-col animate-fade-in"
+                    style={{ top: 'calc(5rem + var(--safe-top))' }}
                     id="mobile-dropdown-menu"
                   >
                     <div className="py-4 px-4 space-y-1.5 max-h-[70vh] overflow-y-auto overflow-x-hidden">
@@ -972,9 +977,8 @@ export default function App() {
                         </div>
                       </div>
                     </div>
-                  </motion.div>
+                  </div>
                 )}
-              </AnimatePresence>
 
 
 
@@ -986,7 +990,7 @@ export default function App() {
                   sidebarOpen || sidebarHovered
                     ? 'w-64'
                     : 'w-16'
-                } fixed top-0 bottom-0 left-0 overflow-hidden print:hidden hidden md:flex`}
+                } fixed top-0 bottom-0 left-0 overflow-hidden print:hidden hidden md:flex pt-safe`}
                 id="sidebar-navigation-desktop"
               >
                 {/* Botón de menú, a la altura del encabezado */}
