@@ -28,7 +28,7 @@ export interface Plan {
   old: number;
   /** Precio por mes de cada unidad que supere las incluidas. Baja al subir de plan */
   extraUnit: number;
-  /** Complemento de facturación electrónica del SRI (próximamente), por mes */
+  /** Módulo adicional de facturación electrónica del SRI, por mes (con Roomia 5 cuesta menos) */
   invoice: number;
   desc: string;
   soporte: string;
@@ -37,15 +37,15 @@ export interface Plan {
 
 export const PLANS: Plan[] = [
   {
-    id: 'roomia-1', name: 'Roomia 1', props: 1, units: 10, price: 29, old: 39, extraUnit: 2, invoice: 12,
+    id: 'roomia-1', name: 'Roomia 1', props: 1, units: 10, price: 29, old: 39, extraUnit: 2, invoice: 40,
     desc: 'Para una casa, departamento o hotel independiente.', soporte: 'Soporte en español', featured: false
   },
   {
-    id: 'roomia-3', name: 'Roomia 3', props: 3, units: 40, price: 69, old: 89, extraUnit: 1.75, invoice: 25,
+    id: 'roomia-3', name: 'Roomia 3', props: 3, units: 40, price: 69, old: 89, extraUnit: 1.75, invoice: 40,
     desc: 'Para anfitriones que ya manejan varias propiedades.', soporte: 'Soporte prioritario', featured: true
   },
   {
-    id: 'roomia-5', name: 'Roomia 5', props: 5, units: 100, price: 109, old: 139, extraUnit: 1.5, invoice: 35,
+    id: 'roomia-5', name: 'Roomia 5', props: 5, units: 100, price: 109, old: 139, extraUnit: 1.5, invoice: 30,
     desc: 'Para redes de departamentos o gestores turísticos.', soporte: 'Asesoría personalizada', featured: false
   }
 ];
@@ -135,12 +135,23 @@ export const STATUS_LABEL: Record<EffectiveStatus, string> = {
   sin_plan: 'Sin plan'
 };
 
-/** Monto de un cobro, en dólares. Plan: según unidades y forma de pago · puesta en marcha: pago único */
-export function planCharge(kind: 'plan' | 'puesta_en_marcha', plan: Plan, units: number, billing: Billing): number {
+/**
+ * Monto de un cobro, en dólares. Plan: según unidades y forma de pago, más el módulo de
+ * facturación electrónica del SRI, que se cobra por propiedad (hotel, casa o departamento)
+ * · puesta en marcha: pago único. sriProperties = 0 significa sin el módulo.
+ */
+export function planCharge(kind: 'plan' | 'puesta_en_marcha', plan: Plan, units: number, billing: Billing, sriProperties = 0): number {
   if (kind === 'puesta_en_marcha') return SETUP_FEE;
-  const monthly = monthlyCost(plan, Math.max(0, Math.floor(units)));
+  const sri = plan.invoice * Math.max(0, Math.floor(sriProperties));
+  const monthly = round2(monthlyCost(plan, Math.max(0, Math.floor(units))) + sri);
   return billing === 'anual' ? annualPrice(monthly) : monthly;
 }
+
+/** Precio del módulo SRI en el período elegido, por una propiedad o por varias */
+export const sriCharge = (plan: Plan, billing: Billing, properties = 1): number => {
+  const monthly = round2(plan.invoice * Math.max(0, Math.floor(properties)));
+  return billing === 'anual' ? annualPrice(monthly) : monthly;
+};
 
 /** Nueva fecha de vencimiento al pagar un período: se suma desde hoy o desde lo que ya estaba pagado */
 export function extendPeriod(currentEnd: string | null, billing: Billing, now: number = Date.now()): string {

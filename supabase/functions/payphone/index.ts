@@ -2,9 +2,10 @@
 //
 //   POST {action: "prepare", reservationId, kind}   Con sesión del huésped. Calcula el monto en el
 //        servidor a partir de la reserva guardada y crea el pago (status "creado"). Devuelve {paymentId}.
-//   POST {action: "prepare_plan", kind, planId, billing}  Con sesión del anfitrión (admin de hotel).
+//   POST {action: "prepare_plan", kind, planId, billing, sri?}  Con sesión del anfitrión (admin de hotel).
 //        Cobra su plan (kind "plan") o la puesta en marcha (kind "puesta_en_marcha"). El monto lo
-//        calcula el servidor con los precios de _shared/plans.ts y las unidades que tiene registradas.
+//        calcula el servidor con los precios de _shared/plans.ts y las unidades que tiene registradas;
+//        con sri: true suma el módulo de facturación electrónica del SRI por cada propiedad.
 //   POST {action: "box", paymentId}                 Sin sesión (el APK abre la página de pago en el
 //        navegador del teléfono). Devuelve los datos para dibujar la Cajita. El id del pago es un
 //        UUID aleatorio; el token de la Cajita es público por diseño de Payphone (va en la página).
@@ -66,7 +67,10 @@ const isPlanKind = (kind: string) => PLAN_KINDS.includes(kind);
 function planLabel(kind: string, details: Record<string, unknown> | null): string {
   if (kind === "puesta_en_marcha") return KIND_LABEL.puesta_en_marcha;
   const plan = findPlan(String(details?.planId ?? ""));
-  return plan ? `Plan ${plan.name} · ${details?.billing === "anual" ? "anual" : "mensual"}` : KIND_LABEL.plan;
+  if (!plan) return KIND_LABEL.plan;
+  const props = Number(details?.sriProps ?? 1);
+  const sri = details?.sri === true ? ` + facturación SRI${props > 1 ? ` (${props} propiedades)` : ""}` : "";
+  return `Plan ${plan.name} · ${details?.billing === "anual" ? "anual" : "mensual"}${sri}`;
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -172,6 +176,7 @@ async function preparePlan(req: Request, body: Record<string, unknown>): Promise
   const kind = String(body.kind ?? "");
   const plan = findPlan(String(body.planId ?? ""));
   const billing = String(body.billing ?? "") as Billing;
+  const sri = kind === "plan" && body.sri === true;
   if (!isPlanKind(kind) || !plan || !BILLINGS.includes(billing)) return json(400, { error: "Elige un plan y la forma de pago." });
 
   const { data: user } = await admin.from("users").select("id, rol, hotelid").eq("id", auth.user.id).maybeSingle();
@@ -191,7 +196,11 @@ async function preparePlan(req: Request, body: Record<string, unknown>): Promise
     units = ["casa", "departamento"].includes(String(hotel?.tipoestablecimiento ?? "")) ? 1 : (count ?? 0);
   }
 
-  const amount = toCents(planCharge(kind as "plan" | "puesta_en_marcha", plan, units, billing));
+  // El módulo SRI se cobra por propiedad (hotel, casa o departamento) del anfitrión. Hoy cada
+  // anfitrión tiene una sola propiedad (users.hotelid); si tiene varias, contarlas aquí.
+  const sriProps = sri && user.hotelid ? 1 : 0;
+  if (sri && !sriProps) return json(400, { error: "Registra tu propiedad antes de agregar la facturación electrónica." });
+  const amount = toCents(planCharge(kind as "plan" | "puesta_en_marcha", plan, units, billing, sriProps));
   if (amount <= 0) return json(500, { error: "No se pudo calcular el monto del plan." });
 
   const clientTransactionId = makeClientTransactionId(kind === "plan" ? "PLAN" : "SETUP", crypto.randomUUID());
@@ -207,7 +216,7 @@ async function preparePlan(req: Request, body: Record<string, unknown>): Promise
       amount_without_tax: amount,
       tax_cents: 0,
       client_transaction_id: clientTransactionId,
-      details: { planId: plan.id, billing, units },
+      details: { planId: plan.id, billing, units, sri, sriProps },
     })
     .select("id")
     .single();

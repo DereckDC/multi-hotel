@@ -120,7 +120,7 @@ export default function LandingPageView({ onClose, onOpenLegal }: Props) {
     openWhatsApp(
       `Hola, quiero empezar la prueba gratis de ${TRIAL_DAYS} días del plan ${selectedPlan.name} (${periodo}). ` +
       `Entiendo que incluye un pago único de ${usd(SETUP_FEE)} por la carga de mis unidades y la capacitación de mi personal.` +
-      `${wantsInvoice ? ' Quiero que me avisen cuando esté la facturación electrónica del SRI.' : ''}` +
+      `${wantsInvoice ? ` También quiero el módulo de facturación electrónica del SRI (${annual ? `${usd(annualPrice(selectedPlan.invoice))} al año` : `${usd(selectedPlan.invoice)} al mes`} por propiedad).` : ''}` +
       `${referido.trim() ? ` Me recomendó ${referido.trim()}.` : ''}`
     );
     setSelectedPlan(null);
@@ -538,7 +538,7 @@ export default function LandingPageView({ onClose, onOpenLegal }: Props) {
             ))}
           </div>
 
-          {/* Complemento: facturación electrónica (próximamente) */}
+          {/* Módulo adicional: facturación electrónica del SRI */}
           <div className="max-w-5xl mx-auto bg-slate-900/60 border border-info-400/30 rounded-2xl p-6 md:p-7 space-y-5">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="flex gap-4">
@@ -546,17 +546,17 @@ export default function LandingPageView({ onClose, onOpenLegal }: Props) {
                 <div className="space-y-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <h3 className="text-lg font-black text-white">Facturación electrónica del SRI</h3>
-                    <span className="px-2 py-0.5 rounded-lg bg-info-500/20 text-info-200 text-micro font-black uppercase tracking-wider">Próximamente</span>
+                    <span className="px-2 py-0.5 rounded-lg bg-info-500/20 text-info-200 text-micro font-black uppercase tracking-wider">Módulo adicional</span>
                   </div>
-                  <p className="text-sm text-slate-400 max-w-xl">Complemento opcional para emitir facturas electrónicas desde tus reservas, sin salir de Roomia. Hoy ya generas la pre-factura en PDF y en ticket para impresora.</p>
+                  <p className="text-sm text-slate-400 max-w-xl">Se cobra por propiedad (hotel, casa o departamento). Al hacer el check-out, Roomia emite la factura electrónica, la firma con tu certificado, la envía al SRI y le llega autorizada al huésped por correo con el PDF (RIDE) y el XML. Si el SRI no responde, la reintenta sola.</p>
                 </div>
               </div>
               <button
                 type="button"
-                onClick={() => openWhatsApp('Hola, quiero que me avisen cuando esté disponible la facturación electrónica del SRI en Roomia.')}
+                onClick={() => openWhatsApp('Hola, quiero activar el módulo de facturación electrónica del SRI en Roomia.')}
                 className="shrink-0 px-5 py-3 rounded-xl bg-info-500/20 hover:bg-info-500/30 border border-info-400/40 text-info-100 text-sm font-bold cursor-pointer active:scale-95 transition"
               >
-                Avísame cuando esté lista
+                Quiero activarlo
               </button>
             </div>
             <div className="grid grid-cols-3 gap-3">
@@ -564,6 +564,7 @@ export default function LandingPageView({ onClose, onOpenLegal }: Props) {
                 <div key={p.id} className="rounded-xl bg-slate-950/70 border border-slate-800 p-3 text-center">
                   <p className="text-micro text-slate-400 font-semibold">{p.name}</p>
                   <p className="text-lg font-black text-info-200">+{usd(shown(p.invoice))}<span className="text-micro font-semibold text-slate-400"> {per}</span></p>
+                  <p className="text-micro text-slate-500">por propiedad</p>
                 </div>
               ))}
             </div>
@@ -837,7 +838,7 @@ export default function LandingPageView({ onClose, onOpenLegal }: Props) {
 
               <label className="flex items-start gap-2.5 text-xs text-slate-300 cursor-pointer select-none">
                 <input type="checkbox" checked={wantsInvoice} onChange={e => setWantsInvoice(e.target.checked)} className="mt-0.5 w-4 h-4 accent-violet-400 cursor-pointer" />
-                <span>Avísame cuando esté la <strong className="text-white">facturación electrónica del SRI</strong> (próximamente, +{usd(shown(selectedPlan.invoice))} {per}).</span>
+                <span>Agregar el módulo de <strong className="text-white">facturación electrónica del SRI</strong> (+{usd(shown(selectedPlan.invoice))} {per} por propiedad).</span>
               </label>
 
               <label className="block space-y-1.5">

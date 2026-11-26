@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { CalendarClock, Check, CreditCard, Download, Loader2 } from 'lucide-react';
 import type { Hotel, Room, User } from '../types';
 import {
-  PLANS, SETUP_FEE, STATUS_LABEL, TRIAL_DAYS, ANNUAL_FREE_MONTHS, daysLeft, effectiveStatus, findPlan, paidUntil, planCharge, usd2,
+  PLANS, SETUP_FEE, STATUS_LABEL, TRIAL_DAYS, ANNUAL_FREE_MONTHS, daysLeft, effectiveStatus, findPlan, paidUntil, planCharge, sriCharge, usd, usd2,
   type Billing, type EffectiveStatus
 } from '../utils/plans';
 import { fetchMySubscription, fetchPlanPayments, startPlanPayment, type PlanPayment, type Subscription } from '../utils/subscriptions';
@@ -49,7 +49,13 @@ export const METHOD_LABEL: Record<string, string> = {
 export const paymentConcept = (p: PlanPayment) =>
   p.kind === 'puesta_en_marcha'
     ? 'Puesta en marcha'
-    : `Plan ${findPlan(p.planId)?.name ?? ''} · ${p.billing === 'anual' ? 'anual' : 'mensual'}`.replace('  ', ' ');
+    : `Plan ${findPlan(p.planId)?.name ?? ''} · ${p.billing === 'anual' ? 'anual' : 'mensual'}${p.sri ? ` + facturación SRI${p.sriProps > 1 ? ` (${p.sriProps} propiedades)` : ''}` : ''}`.replace('  ', ' ');
+
+/**
+ * Propiedades del anfitrión a las que se cobra el módulo SRI (hotel, casa o departamento).
+ * Hoy cada admin de hotel tiene una sola (users.hotelid); el servidor de pagos cuenta igual.
+ */
+export const propertiesOf = (hotelId: string | undefined): number => (hotelId ? 1 : 0);
 
 /** Unidades que usa el anfitrión: habitaciones de su establecimiento (una casa o departamento completo cuenta como 1) */
 export function unitsOf(hotelId: string | undefined, hotels: Hotel[], rooms: Room[]): number {
@@ -95,10 +101,14 @@ export default function PlanView({ activeUser, hotels, rooms }: { activeUser: Us
   const [loadError, setLoadError] = useState<string | null>(null);
   const [planId, setPlanId] = useState('roomia-1');
   const [billing, setBilling] = useState<Billing>('mensual');
+  const [withSri, setWithSri] = useState(false);
   const [busy, setBusy] = useState<null | 'plan' | 'puesta_en_marcha'>(null);
   const [downloading, setDownloading] = useState(false);
 
   const units = unitsOf(activeUser.hotelId, hotels, rooms);
+  /** Propiedades a las que se cobra el módulo SRI (una por hotel, casa o departamento) */
+  const properties = propertiesOf(activeUser.hotelId);
+  const sriProps = withSri ? properties : 0;
   const hotelName = hotels.find(h => h.id === activeUser.hotelId)?.nombre ?? '';
 
   const load = async () => {
@@ -111,6 +121,7 @@ export default function PlanView({ activeUser, hotels, rooms }: { activeUser: Us
       if (s) {
         setPlanId(s.planId);
         setBilling(s.billing);
+        setWithSri(s.sriModulo);
       }
     } catch (err) {
       setLoadError(friendlyError(err, 'cargar'));
@@ -125,7 +136,7 @@ export default function PlanView({ activeUser, hotels, rooms }: { activeUser: Us
   const left = daysLeft(sub);
   const current = findPlan(sub?.planId);
   const selected = findPlan(planId) ?? PLANS[0];
-  const amount = planCharge('plan', selected, units, billing);
+  const amount = planCharge('plan', selected, units, billing, sriProps);
   const lastPaid = useMemo(() => payments.find(p => p.status === 'aprobado'), [payments]);
   /** Los intentos que no se terminaron (Cajita abierta y cerrada, o vencida) no se muestran */
   const shownPayments = useMemo(() => payments.filter(p => p.status !== 'creado' && p.status !== 'expirado'), [payments]);
@@ -134,7 +145,7 @@ export default function PlanView({ activeUser, hotels, rooms }: { activeUser: Us
     if (busy) return;
     setBusy(kind);
     try {
-      await startPlanPayment(kind, selected.id, billing);
+      await startPlanPayment(kind, selected.id, billing, withSri);
     } catch (err: any) {
       notify.error(err?.message || 'No se pudo iniciar el pago.');
       setBusy(null);
@@ -169,6 +180,7 @@ export default function PlanView({ activeUser, hotels, rooms }: { activeUser: Us
           <div>
             <span className="block text-micro font-semibold uppercase tracking-wider text-neutral-500">Plan</span>
             <span className="block text-base font-bold text-brand-navy1">{current ? `${current.name} · ${sub?.billing}` : 'Sin plan'}</span>
+            {sub?.sriModulo && <span className="block text-xs text-neutral-500">Con facturación electrónica del SRI</span>}
           </div>
           <div>
             <span className="block text-micro font-semibold uppercase tracking-wider text-neutral-500">Estado</span>
@@ -244,7 +256,7 @@ export default function PlanView({ activeUser, hotels, rooms }: { activeUser: Us
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             {PLANS.map(plan => {
               const active = plan.id === planId;
-              const price = planCharge('plan', plan, units, billing);
+              const price = planCharge('plan', plan, units, billing, sriProps);
               return (
                 <button
                   key={plan.id}
@@ -268,9 +280,27 @@ export default function PlanView({ activeUser, hotels, rooms }: { activeUser: Us
             })}
           </div>
 
+          {/* Módulo adicional: facturación electrónica del SRI */}
+          <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-neutral-200 p-3 hover:border-brand-cyan">
+            <input
+              type="checkbox"
+              checked={withSri}
+              onChange={e => setWithSri(e.target.checked)}
+              className="mt-0.5 h-4 w-4 cursor-pointer accent-brand-cyan"
+            />
+            <span className="flex-1">
+              <span className="block text-sm font-semibold text-brand-navy1">
+                Facturación electrónica del SRI · +{usd(sriCharge(selected, billing))} {billing === 'anual' ? 'al año' : 'al mes'} por propiedad
+              </span>
+              <span className="block text-xs text-neutral-500">
+                Módulo adicional: emite, firma y autoriza tus facturas en el SRI al hacer el check-out.{selected.id !== PLANS[PLANS.length - 1].id && ` Con ${PLANS[PLANS.length - 1].name} cuesta ${usd(sriCharge(PLANS[PLANS.length - 1], billing))}.`}
+              </span>
+            </span>
+          </label>
+
           <div className="flex flex-col gap-3 rounded-xl bg-neutral-50 p-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-brand-navy1">
-              {selected.name} {billing} · <strong>${amount.toFixed(2)} USD</strong>
+              {selected.name} {billing}{withSri ? ` + facturación SRI${properties > 1 ? ` (${properties} propiedades)` : ''}` : ''} · <strong>${amount.toFixed(2)} USD</strong>
             </p>
             <Button onClick={() => pay('plan')} loading={busy === 'plan'} disabled={!!busy}>
               {busy !== 'plan' && <CreditCard className="h-4 w-4" />}

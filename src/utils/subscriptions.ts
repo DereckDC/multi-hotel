@@ -12,6 +12,8 @@ export interface Subscription extends SubscriptionDates {
   planId: string;
   billing: Billing;
   setupPaid: boolean;
+  /** El período pagado incluye el módulo de facturación electrónica del SRI */
+  sriModulo: boolean;
   notes: string;
   createdAt: string;
 }
@@ -25,6 +27,9 @@ export interface PlanPayment {
   method: string;
   planId: string | null;
   billing: Billing | null;
+  sri: boolean;
+  /** Propiedades por las que se cobró el módulo SRI */
+  sriProps: number;
   note: string | null;
   card: string;
   createdAt: string;
@@ -41,6 +46,7 @@ const toSubscription = (row: any): Subscription => ({
   currentPeriodEnd: row.current_period_end,
   graceDays: Number(row.grace_days ?? 7),
   setupPaid: Boolean(row.setup_paid),
+  sriModulo: Boolean(row.sri_modulo),
   notes: row.notes ?? '',
   createdAt: row.created_at
 });
@@ -54,6 +60,8 @@ const toPayment = (row: any): PlanPayment => ({
   method: row.method ?? 'payphone',
   planId: row.details?.planId ?? null,
   billing: row.details?.billing ?? null,
+  sri: row.details?.sri === true,
+  sriProps: Number(row.details?.sriProps ?? (row.details?.sri === true ? 1 : 0)),
   note: row.status_detail ?? null,
   card: [row.card_brand, row.last_digits ? `****${row.last_digits}` : ''].filter(Boolean).join(' '),
   createdAt: row.created_at,
@@ -105,6 +113,7 @@ export interface SubscriptionPatch {
   currentPeriodEnd?: string | null;
   graceDays?: number;
   notes?: string;
+  sriModulo?: boolean;
 }
 
 /** Cambia el plan, el estado o las fechas de una suscripción (superadmin) */
@@ -117,6 +126,7 @@ export async function updateSubscription(id: string, patch: SubscriptionPatch): 
   if (patch.currentPeriodEnd !== undefined) row.current_period_end = patch.currentPeriodEnd;
   if (patch.graceDays !== undefined) row.grace_days = patch.graceDays;
   if (patch.notes !== undefined) row.notes = patch.notes;
+  if (patch.sriModulo !== undefined) row.sri_modulo = patch.sriModulo;
   const { data, error } = await supabase.from('subscriptions').update(row).eq('id', id).select('*').single();
   if (error) throw error;
   return toSubscription(data);
@@ -131,6 +141,8 @@ export async function registerManualPayment(input: {
   amount: number;
   method: 'transferencia' | 'efectivo' | 'otro';
   note: string;
+  /** El pago incluye el módulo de facturación electrónica del SRI */
+  sri: boolean;
 }): Promise<void> {
   const { error } = await supabase.rpc('registrar_pago_plan_manual', {
     p_owner_id: input.ownerId,
@@ -139,7 +151,8 @@ export async function registerManualPayment(input: {
     p_billing: input.billing,
     p_amount: input.amount,
     p_method: input.method,
-    p_note: input.note
+    p_note: input.note,
+    p_sri: input.kind === 'plan' && input.sri
   });
   if (error) throw error;
 }
@@ -155,9 +168,9 @@ export async function fetchBlockedHotels(): Promise<string[]> {
  * Inicia el pago del plan con Payphone: el servidor calcula el monto y se abre la página /pago/<id>.
  * En el APK se abre en el navegador del teléfono (la Cajita no funciona dentro de la app).
  */
-export async function startPlanPayment(kind: 'plan' | 'puesta_en_marcha', planId: string, billing: Billing): Promise<void> {
+export async function startPlanPayment(kind: 'plan' | 'puesta_en_marcha', planId: string, billing: Billing, sri = false): Promise<void> {
   const { data, error } = await supabase.functions.invoke('payphone', {
-    body: { action: 'prepare_plan', kind, planId, billing }
+    body: { action: 'prepare_plan', kind, planId, billing, sri: kind === 'plan' && sri }
   });
   let paymentId: string | undefined = data?.paymentId;
   let message: string | undefined = data?.error;

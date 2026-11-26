@@ -18,7 +18,7 @@ import { notify } from '../utils/notify';
 import { cx } from '../utils/cx';
 import { friendlyError } from '../utils/errors';
 import { Badge, Button, Card, Field, Input, Modal, SectionHeader, SelectPicker, Textarea } from './ui';
-import { METHOD_LABEL, PAYMENT_STATUS, STATUS_TONE, downloadPaymentsPdf, longDate, paymentConcept, unitsOf } from './PlanView';
+import { METHOD_LABEL, PAYMENT_STATUS, STATUS_TONE, downloadPaymentsPdf, longDate, paymentConcept, propertiesOf, unitsOf } from './PlanView';
 
 interface Row {
   host: User;
@@ -167,7 +167,7 @@ export default function SubscriptionsView({ users, hotels, rooms }: { users: Use
                   </div>
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                     <div className="text-left sm:text-right">
-                      <span className="block text-sm font-semibold text-brand-navy1">{plan ? `${plan.name} · ${r.sub?.billing}` : 'Sin plan'}</span>
+                      <span className="block text-sm font-semibold text-brand-navy1">{plan ? `${plan.name} · ${r.sub?.billing}${r.sub?.sriModulo ? ' + SRI' : ''}` : 'Sin plan'}</span>
                       <span className="block text-xs text-neutral-500">
                         {r.sub ? `Hasta ${longDate(paidUntil(r.sub))}` : '—'}
                         {r.left !== null && r.left < 0 ? ` · venció hace ${Math.abs(r.left)} d` : ''}
@@ -215,6 +215,7 @@ function ManageModal({ row, payments, onClose, onSaved }: {
   const [periodEnd, setPeriodEnd] = useState(toDateInput(sub?.currentPeriodEnd ?? null));
   const [graceDays, setGraceDays] = useState(String(sub?.graceDays ?? 7));
   const [notes, setNotes] = useState(sub?.notes ?? '');
+  const [sriModulo, setSriModulo] = useState(sub?.sriModulo ?? false);
   const [saving, setSaving] = useState(false);
 
   const plan = findPlan(planId) ?? PLANS[0];
@@ -222,13 +223,16 @@ function ManageModal({ row, payments, onClose, onSaved }: {
   const [payAmount, setPayAmount] = useState(String(planCharge('plan', plan, row.units, billing)));
   const [payMethod, setPayMethod] = useState<'transferencia' | 'efectivo' | 'otro'>('transferencia');
   const [payNote, setPayNote] = useState('');
+  const [paySri, setPaySri] = useState(sub?.sriModulo ?? false);
+  /** El módulo SRI se cobra por propiedad del anfitrión */
+  const hostProps = propertiesOf(row.host.hotelId);
   const [paying, setPaying] = useState(false);
 
   useEffect(() => {
-    setPayAmount(String(planCharge(payKind, plan, row.units, billing)));
-  }, [payKind, planId, billing]);
+    setPayAmount(String(planCharge(payKind, plan, row.units, billing, paySri ? hostProps : 0)));
+  }, [payKind, planId, billing, paySri]);
 
-  const price = planCharge('plan', plan, row.units, billing);
+  const price = planCharge('plan', plan, row.units, billing, sub && sriModulo ? hostProps : 0);
   const trialUntil = new Date(Date.now() + Math.max(0, Number(trialDays) || 0) * 24 * 60 * 60 * 1000).toISOString();
 
   const save = async (event: FormEvent) => {
@@ -246,7 +250,8 @@ function ManageModal({ row, payments, onClose, onSaved }: {
           trialEndsAt: fromDateInput(trialEnd),
           currentPeriodEnd: fromDateInput(periodEnd),
           graceDays: Math.min(60, Math.max(0, Number(graceDays) || 0)),
-          notes
+          notes,
+          sriModulo
         });
         notify.success('Suscripción actualizada.');
       }
@@ -267,7 +272,7 @@ function ManageModal({ row, payments, onClose, onSaved }: {
     }
     setPaying(true);
     try {
-      await registerManualPayment({ ownerId: row.host.id, kind: payKind, planId, billing, amount, method: payMethod, note: payNote });
+      await registerManualPayment({ ownerId: row.host.id, kind: payKind, planId, billing, amount, method: payMethod, note: payNote, sri: paySri });
       notify.success(payKind === 'plan' ? 'Pago registrado: el plan se extendió un período.' : 'Pago de la puesta en marcha registrado.');
       await onSaved();
     } catch (err) {
@@ -369,6 +374,10 @@ function ManageModal({ row, payments, onClose, onSaved }: {
                 <Field label="Pagado hasta">
                   <Input type="date" value={periodEnd} onChange={e => setPeriodEnd(e.target.value)} />
                 </Field>
+                <label className="sm:col-span-2 flex cursor-pointer items-center gap-3 rounded-xl border border-neutral-200 p-3 text-sm text-brand-navy1 hover:border-brand-cyan">
+                  <input type="checkbox" checked={sriModulo} onChange={e => setSriModulo(e.target.checked)} className="h-4 w-4 cursor-pointer accent-brand-cyan" />
+                  <span>Módulo de facturación electrónica del SRI activo</span>
+                </label>
                 <div className="sm:col-span-2">
                   <Field label="Notas internas">
                     <Textarea rows={2} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Acuerdos, descuentos, contacto…" />
@@ -411,6 +420,13 @@ function ManageModal({ row, payments, onClose, onSaved }: {
               <Input value={payNote} onChange={e => setPayNote(e.target.value)} placeholder="Ej. Transferencia #12345" />
             </Field>
           </div>
+
+          {payKind === 'plan' && (
+            <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-neutral-200 p-3 text-sm text-brand-navy1 hover:border-brand-cyan">
+              <input type="checkbox" checked={paySri} onChange={e => setPaySri(e.target.checked)} className="h-4 w-4 cursor-pointer accent-brand-cyan" />
+              <span>Incluye la facturación electrónica del SRI (+${plan.invoice} al mes por propiedad)</span>
+            </label>
+          )}
 
           <p className="rounded-xl border border-info-200 bg-info-50 p-3 text-sm text-info-900">
             {payKind === 'plan'
