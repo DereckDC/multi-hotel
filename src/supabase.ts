@@ -93,7 +93,7 @@ if (typeof window !== 'undefined') {
 
 /**
  * Nota: El esquema completo de inicialización de Supabase con sus políticas RLS
- * se encuentra ahora en el archivo principal /supabase_schema.sql para despliegues limpios y manuales.
+ * está en el archivo único /supabase/schema.sql.
  */
 
 /**

@@ -119,8 +119,13 @@ SMTP_FROM="Roomia PMS <tu-correo@gmail.com>"
 ```
 
 ### 4. Inicializar la base de datos
-Ejecuta el script SQL en el editor SQL de tu instancia de base de datos PostgreSQL/Supabase:
-- Archivo: `supabase_schema.sql` (crea tablas, índices optimizados y políticas RLS seguras).
+Toda la base de datos está en un único archivo: [`supabase/schema.sql`](supabase/schema.sql). Crea tablas, funciones, triggers, políticas RLS, permisos, Realtime, Storage, secretos de Vault y tareas de pg_cron, sin datos.
+
+1. Reemplaza `TU-PROYECTO` por la referencia de tu proyecto de Supabase (aparece 2 veces).
+2. Pégalo completo en el SQL Editor de Supabase y ejecútalo.
+3. Sigue la sección 11 del archivo para registrar el superadministrador.
+
+Cualquier cambio en la base de datos se aplica también en ese archivo; no se crean otros SQL.
 
 ### 5. Iniciar en modo desarrollo
 ```bash
@@ -158,17 +163,16 @@ Solo viajan **fechas ocupadas**: nunca nombres, precios ni pagos. La fecha de sa
 
 | Pieza | Dónde |
 | :--- | :--- |
-| Tablas, RLS por hotel, triggers y funciones | `supabase_03_ical.sql` (rollback: `supabase_03_ROLLBACK_ical.sql`) |
-| Programación cada 15 min (`pg_cron` + `pg_net`) | `supabase_03b_ical_cron.sql` |
+| Tablas, RLS por hotel, triggers, funciones y programación cada 15 min (`pg_cron` + `pg_net`) | `supabase/schema.sql` |
 | Función Edge `ical` (exportación pública, sincronización manual y masiva) | `supabase/functions/ical/` |
 | Parser/generador iCal (puro, con pruebas) | `supabase/functions/ical/ical.ts`, `tests/` (`npm test`) |
 | Interfaz | `src/components/IcalSyncModal.tsx`, `src/services/ical.ts` |
 
 ### Puesta en marcha en otro proyecto de Supabase
 
-1. Ejecutar `supabase_01_correcciones_seguras.sql` y luego `supabase_03_ical.sql`.
+1. Ejecutar `supabase/schema.sql` (ver “Inicializar la base de datos”).
 2. Desplegar la función: `supabase functions deploy ical --no-verify-jwt` (debe ser pública: Airbnb/Booking no envían sesión; cada ruta valida su propia credencial).
-3. Cambiar la URL del proyecto en `supabase_03b_ical_cron.sql` y ejecutarlo.
+3. La tarea `roomia-ical-sync` ya queda creada por `supabase/schema.sql`.
 
 ### Operación
 

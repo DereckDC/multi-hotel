@@ -69,7 +69,7 @@ El correo con adjuntos sale por `/api/send-email` (SMTP de Vercel), autenticado 
 | Reserva → líneas y cliente | `supabase/functions/_shared/sri/reserva.ts` |
 | RIDE (PDF) y código de barras | `supabase/functions/_shared/sri/{ride,codigoBarras,leerXml}.ts` |
 | Función del servidor | `supabase/functions/sri/index.ts` (+ `deno.json`) |
-| Tablas, trigger, cola, Vault, pg_cron | `supabase/migrations/20261125_facturacion_sri.sql` |
+| Tablas, trigger, cola, Vault, pg_cron | `supabase/schema.sql` (sección 4.7 y 10) |
 | Pantallas | `src/components/FacturacionView.tsx`, `src/components/FacturaSriModal.tsx` |
 
 ## Qué está probado automáticamente (`npm test`)
