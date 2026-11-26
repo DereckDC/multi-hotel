@@ -184,3 +184,24 @@ test('páginas estáticas: un solo h1, su título y su canonical', () => {
   assert.ok(landing.includes('"@type":"FAQPage"'));
   assert.ok(landing.includes('https://wa.me/593984056660'));
 });
+
+test('llms.txt y ai-catalog.json tienen los mismos precios que los planes', async () => {
+  const { PLANS, SETUP_FEE, TRIAL_DAYS, usd, usd2 } = await import('../src/utils/plans.ts');
+  const llms = read('public/llms.txt');
+  const catalog = JSON.parse(read('public/ai-catalog.json'));
+  for (const p of PLANS) {
+    assert.ok(llms.includes(`${p.name}: ${usd(p.price)} al mes`), `llms.txt: precio de ${p.name}`);
+    assert.ok(llms.includes(`unidad adicional ${usd2(p.extraUnit)}`), `llms.txt: unidad adicional de ${p.name}`);
+    const c = catalog.pricing.plans.find((x: any) => x.id === p.id);
+    assert.ok(c, `ai-catalog: falta ${p.id}`);
+    assert.equal(c.monthly, p.price);
+    assert.equal(c.unitsIncluded, p.units);
+    assert.equal(c.extraUnitMonthly, p.extraUnit);
+    assert.equal(c.sriModuleMonthlyPerProperty, p.invoice);
+  }
+  assert.equal(catalog.pricing.setupFee, SETUP_FEE);
+  assert.equal(catalog.pricing.trialDays, TRIAL_DAYS);
+  assert.ok(llms.includes(`${usd(SETUP_FEE)}, pago único`));
+  // Sin enlaces viejos que la app ya no entiende
+  assert.ok(!/\?tab=|\?legal=/.test(llms + JSON.stringify(catalog)));
+});

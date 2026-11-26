@@ -46,7 +46,7 @@ export const PAGES: Record<'home' | 'landing' | 'terminos' | 'privacidad' | 'can
   },
   landing: {
     title: 'Roomia PMS | Software para anfitriones: calendario de Airbnb, Booking y reservas directas',
-    description: 'Un solo calendario para Airbnb, Booking y tus reservas directas. Evita dobles reservas, cobra sin comisión por reserva y mide la ocupación de tu alojamiento. 15 días de prueba gratis.',
+    description: 'Un solo calendario para Airbnb, Booking y reservas directas, check-in con QR, cobros en línea y facturación electrónica del SRI. 15 días de prueba gratis.',
     path: '/landingpage'
   },
   terminos: {
@@ -364,7 +364,10 @@ async function supabaseGet<T>(query: string): Promise<T> {
   let lastError = '';
   for (const { url, key } of credentials()) {
     try {
-      const res = await fetch(`${cleanBase(url)}/rest/v1/${query}`, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
+      // Las claves publishable (sb_publishable_…) no son JWT: solo van en la cabecera apikey
+      const headers: Record<string, string> = { apikey: key };
+      if (key.startsWith('eyJ')) headers.Authorization = `Bearer ${key}`;
+      const res = await fetch(`${cleanBase(url)}/rest/v1/${query}`, { headers });
       if (res.ok) return (await res.json()) as T;
       lastError = `Supabase ${res.status} en ${url}: ${(await res.text()).slice(0, 200)}`;
     } catch (err: any) {
