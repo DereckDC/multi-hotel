@@ -81,3 +81,29 @@ test('planCharge: la puesta en marcha es un adicional de $30 que no se multiplic
   assert.equal(planCharge('plan', r1, 1, 'anual', 1, true), 720);
   assert.equal(planCharge('plan', r5, 100, 'mensual', 1, false), 139);
 });
+
+test('varias propiedades: dueño, límite del plan, unidades y propiedad activa', async () => {
+  const { ownedHotelIds, propertyLimit, unitsOfHotels, resolveActiveHotel } = await import('../src/utils/properties.ts');
+  const hotels = [
+    { id: 'h1', ownerId: 'u1', tipoEstablecimiento: 'hotel' },
+    { id: 'h2', ownerId: 'u1', tipoEstablecimiento: 'casa' },
+    { id: 'h3', ownerId: 'u2', tipoEstablecimiento: 'hotel' },
+    { id: 'h4', ownerId: null, tipoEstablecimiento: 'hotel' }
+  ];
+  const rooms = [{ hotelId: 'h1' }, { hotelId: 'h1' }, { hotelId: 'h3' }, { hotelId: 'h2' }];
+  // Las suyas como dueño, más su hotel enlazado si no tiene dueño (compatibilidad)
+  assert.deepEqual(ownedHotelIds({ id: 'u1', hotelId: 'h1' }, hotels), ['h1', 'h2']);
+  assert.deepEqual(ownedHotelIds({ id: 'u3', hotelId: 'h4' }, hotels), ['h4']);
+  assert.deepEqual(ownedHotelIds({ id: 'u9' }, hotels), []);
+  // Nunca ve propiedades de otro anfitrión
+  assert.ok(!ownedHotelIds({ id: 'u1' }, hotels).includes('h3'));
+  assert.equal(propertyLimit('roomia-1'), 1);
+  assert.equal(propertyLimit('roomia-3'), 3);
+  assert.equal(propertyLimit('roomia-5'), 5);
+  assert.equal(propertyLimit(null), 1);
+  // h1: 2 habitaciones · h2 (casa completa): 1
+  assert.equal(unitsOfHotels(['h1', 'h2'], hotels, rooms), 3);
+  assert.equal(resolveActiveHotel(['h1', 'h2'], 'h2', 'h1'), 'h2');
+  assert.equal(resolveActiveHotel(['h1', 'h2'], 'h3', 'h1'), 'h1');
+  assert.equal(resolveActiveHotel(['h1', 'h2'], null, undefined), 'h1');
+});

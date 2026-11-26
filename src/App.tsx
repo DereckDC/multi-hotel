@@ -65,6 +65,7 @@ export default function App() {
     updateUserRole,
     updateUserHotel,
     updateUserHotels,
+    setActiveHotelId,
     toggleUserStatus,
     registerUser,
     updateUserProfile,
@@ -1106,6 +1107,7 @@ export default function App() {
                           {(activeUser?.rol === 'recepcionista' || ((activeUser?.rol === 'hotel_admin' || activeUser?.rol === 'super_admin') && viewOverride === 'reception')) && (
                             <Suspense fallback={<div className="p-12 flex justify-center items-center"><Loader2 className="w-8 h-8 text-brand-cyan animate-spin" /></div>}>
                               <ReceptionView
+                                onChangeActiveHotel={setActiveHotelId}
                                 hotels={hotels}
                                 rooms={rooms}
                                 reservations={reservations}
@@ -1129,6 +1131,7 @@ export default function App() {
                           {((activeUser?.rol === 'hotel_admin' || activeUser?.rol === 'super_admin') && viewOverride !== 'reception') && (
                             <Suspense fallback={<div className="p-12 flex justify-center items-center"><Loader2 className="w-8 h-8 text-brand-cyan animate-spin" /></div>}>
                               <AdminView
+                                onChangeActiveHotel={setActiveHotelId}
                                 hotels={hotels}
                                 rooms={rooms}
                                 users={users}

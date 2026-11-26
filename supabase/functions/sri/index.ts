@@ -79,7 +79,10 @@ async function usuarioActual(req: Request): Promise<Usuario> {
 async function permiso(u: Usuario, hotelId: string, nivel: "admin" | "staff") {
   if (u.rol === "super_admin") return;
   const roles = nivel === "admin" ? ["hotel_admin"] : ["hotel_admin", "recepcionista"];
-  if (!roles.includes(u.rol) || u.hotelid !== hotelId) {
+  // El anfitrión gestiona todas sus propiedades (dueño); recepción, solo la suya
+  const gestiona = u.hotelid === hotelId ||
+    (u.rol === "hotel_admin" && (await admin.rpc("usuario_gestiona_hotel", { p_user_id: u.id, p_hotel_id: hotelId })).data === true);
+  if (!roles.includes(u.rol) || !gestiona) {
     throw new HttpError(403, nivel === "admin"
       ? "Solo el administrador del establecimiento puede configurar la facturación."
       : "No tienes permisos para facturar en este establecimiento.");

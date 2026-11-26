@@ -5,7 +5,8 @@
 //   POST {action: "prepare_plan", kind, planId, billing, sri?, setup?}  Con sesión del anfitrión (admin de hotel).
 //        Cobra su plan (kind "plan") o la puesta en marcha (kind "puesta_en_marcha"). El monto lo
 //        calcula el servidor con los precios de _shared/plans.ts y las unidades que tiene registradas;
-//        con sri: true suma el módulo de facturación electrónica del SRI por cada propiedad y con
+//        con sri: true suma el módulo de facturación electrónica del SRI por cada propiedad del
+//        anfitrión (las suyas como dueño) y con
 //        setup: true suma la puesta en marcha (si aún no está pagada) como adicional del mismo pago.
 //   POST {action: "box", paymentId}                 Sin sesión (el APK abre la página de pago en el
 //        navegador del teléfono). Devuelve los datos para dibujar la Cajita. El id del pago es un
@@ -190,19 +191,31 @@ async function preparePlan(req: Request, body: Record<string, unknown>): Promise
   // Puesta en marcha como adicional del pago del plan (solo si todavía no está pagada)
   const setup = kind === "plan" && body.setup === true && !sub?.setup_paid;
 
-  // Unidades registradas: habitaciones del establecimiento (una casa o departamento completo cuenta como 1)
-  let units = 0;
-  if (user.hotelid) {
-    const [{ count }, { data: hotel }] = await Promise.all([
-      admin.from("rooms").select("id", { count: "exact", head: true }).eq("hotelid", user.hotelid),
-      admin.from("hotels").select("tipoestablecimiento").eq("id", user.hotelid).maybeSingle(),
-    ]);
-    units = ["casa", "departamento"].includes(String(hotel?.tipoestablecimiento ?? "")) ? 1 : (count ?? 0);
+  // Propiedades del anfitrión: las suyas como dueño y su hotel enlazado (compatibilidad)
+  type HotelTipo = { id: string; tipoestablecimiento: string | null; contacto: Record<string, unknown> | null };
+  const tipoDe = (h: HotelTipo) => String(h.contacto?.tipoEstablecimiento ?? h.tipoestablecimiento ?? "hotel");
+  const { data: owned } = await admin.from("hotels").select("id, tipoestablecimiento, contacto").eq("owner_id", user.id);
+  const propiedades = new Map<string, string>(((owned ?? []) as HotelTipo[]).map((h) => [h.id, tipoDe(h)]));
+  if (user.hotelid && !propiedades.has(user.hotelid)) {
+    const { data: enlazado } = await admin.from("hotels").select("id, tipoestablecimiento, contacto").eq("id", user.hotelid).maybeSingle();
+    if (enlazado) propiedades.set(enlazado.id, tipoDe(enlazado as HotelTipo));
   }
 
-  // El módulo SRI se cobra por propiedad (hotel, casa o departamento) del anfitrión. Hoy cada
-  // anfitrión tiene una sola propiedad (users.hotelid); si tiene varias, contarlas aquí.
-  const sriProps = sri && user.hotelid ? 1 : 0;
+  // Unidades: habitaciones de todas sus propiedades (una casa o departamento completo cuenta como 1)
+  let units = 0;
+  const conHabitaciones = [...propiedades].filter(([, tipo]) => !["casa", "departamento"].includes(tipo)).map(([id]) => id);
+  units += propiedades.size - conHabitaciones.length;
+  if (conHabitaciones.length) {
+    const { count } = await admin.from("rooms").select("id", { count: "exact", head: true }).in("hotelid", conHabitaciones);
+    units += count ?? 0;
+  }
+
+  if (kind === "plan" && plan.props < propiedades.size) {
+    return json(409, { error: `Tienes ${propiedades.size} propiedades: elige un plan que permita al menos esa cantidad.` });
+  }
+
+  // El módulo SRI se cobra por cada propiedad (hotel, casa o departamento) del anfitrión
+  const sriProps = sri ? propiedades.size : 0;
   if (sri && !sriProps) return json(400, { error: "Registra tu propiedad antes de agregar la facturación electrónica." });
   const amount = toCents(planCharge(kind as "plan" | "puesta_en_marcha", plan, units, billing, sriProps, setup));
   if (amount <= 0) return json(500, { error: "No se pudo calcular el monto del plan." });

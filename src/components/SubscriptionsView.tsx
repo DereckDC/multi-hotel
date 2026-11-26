@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Download, Loader2, Search, X } from 'lucide-react';
 import type { Hotel, Room, User } from '../types';
+import { ownedHotelIds } from '../utils/properties';
 import {
   PLANS, STATUS_LABEL, TRIAL_DAYS, daysLeft, effectiveStatus, findPlan, paidUntil, planCharge,
   type Billing, type EffectiveStatus, type StoredStatus
@@ -24,6 +25,8 @@ interface Row {
   host: User;
   hotelName: string;
   units: number;
+  /** Propiedades del anfitrión (el módulo SRI se cobra por cada una) */
+  properties: number;
   sub: Subscription | null;
   status: EffectiveStatus;
   left: number | null;
@@ -63,8 +66,9 @@ export default function SubscriptionsView({ users, hotels, rooms }: { users: Use
       const sub = subs.find(s => s.ownerId === host.id) ?? null;
       return {
         host,
-        hotelName: hotels.find(h => h.id === host.hotelId)?.nombre ?? 'Sin establecimiento',
-        units: unitsOf(host.hotelId, hotels, rooms),
+        hotelName: ownedHotelIds(host, hotels).map(id => hotels.find(h => h.id === id)?.nombre?.trim()).filter(Boolean).join(', ') || 'Sin establecimiento',
+        units: unitsOf(host, hotels, rooms),
+        properties: propertiesOf(host, hotels),
         sub,
         status: effectiveStatus(sub),
         left: daysLeft(sub),
@@ -225,7 +229,7 @@ function ManageModal({ row, payments, onClose, onSaved }: {
   const [payNote, setPayNote] = useState('');
   const [paySri, setPaySri] = useState(sub?.sriModulo ?? false);
   /** El módulo SRI se cobra por propiedad del anfitrión */
-  const hostProps = propertiesOf(row.host.hotelId);
+  const hostProps = row.properties;
   const [paying, setPaying] = useState(false);
 
   useEffect(() => {

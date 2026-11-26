@@ -21,6 +21,7 @@ import PlanView from './PlanView';
 import SubscriptionsView from './SubscriptionsView';
 import { fetchMySubscription } from '../utils/subscriptions';
 import { canOperate, daysLeft, effectiveStatus, type EffectiveStatus } from '../utils/plans';
+import { ownedHotelIds, propertyLimit } from '../utils/properties';
 import { buildTableReport } from '../utils/reportPdf';
 import { savePdfNative } from '../utils/nativeFiles';
 import { isNativeApp } from '../utils/platform';
@@ -29,7 +30,7 @@ import { ECUADOR_PROVINCES, getProvincesList, getCitiesForProvince, getParroquia
 
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, AreaChart, Area } from 'recharts';
 import { Plus, Edit3, Trash2, Shield, Users, HotelIcon, List, LayoutDashboard, Calendar, DollarSign, Percent, TrendingUp, AlertCircle, MapPin, EyeOff, ClipboardList, ToggleLeft, ToggleRight, Check, X, Upload, Download, Database, Copy, Key, Building, Home, Star, Wrench, ChevronDown } from 'lucide-react';
-import { Button, Modal, SelectPicker, Badge } from './ui';
+import { Button, Modal, SelectPicker, Badge, PropertySwitcher } from './ui';
 
 // Aviso común de la plataforma: el tipo se toma del emoji inicial (✅ ⚠️) y el emoji no se muestra
 const notifyToast = (msg: string) => notify.auto(msg);
@@ -87,6 +88,8 @@ interface AdminViewProps {
   onUpdateUserRole: (userId: string, role: UserRole) => void;
   onUpdateUserHotel: (userId: string, hotelId: string | undefined) => void;
   onUpdateUserHotels?: (userId: string, hotelIds: string[]) => void;
+  /** Cambia la propiedad activa del anfitrión (varias propiedades) */
+  onChangeActiveHotel?: (hotelId: string) => void;
   onToggleUserStatus: (userId: string) => void;
   statistics: any;
   onUpdateRoomStatus?: (roomId: string, status: RoomStatus, staffName?: string, staffRole?: string, changeMessage?: string) => void;
@@ -132,6 +135,7 @@ export default function AdminView({
   onUpdateUserRole,
   onUpdateUserHotel,
   onUpdateUserHotels,
+  onChangeActiveHotel,
   onToggleUserStatus,
   statistics,
   onUpdateRoomStatus,
@@ -614,9 +618,11 @@ export default function AdminView({
 
   // Quick initiate creation of new hotel
   const startCreateHotel = () => {
-    if (!isSuper) return; // Prevention
+    if (!canCreateProperty) return; // Superadmin o anfitrión dentro del límite de su plan
     setEditingHotel({
       id: `hotel-${Date.now()}`,
+      // El anfitrión queda como dueño de lo que crea (la base también lo asegura)
+      ...(activeUser.rol === 'hotel_admin' ? { ownerId: activeUser.id } : {}),
       nombre: '',
       logo: 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?w=150',
       portada: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=500',
@@ -651,6 +657,7 @@ export default function AdminView({
     setNewServiceForm({ id: '', nombre: '', precio: 0, descripcion: '', estado: 'activo' });
     setEditingProperty({
       id: `hotel-${Date.now()}`,
+      ...(activeUser.rol === 'hotel_admin' ? { ownerId: activeUser.id } : {}),
       nombre: '',
       logo: 'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=150',
       portada: 'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=500',
@@ -867,18 +874,24 @@ export default function AdminView({
   const [downloadingRefunds, setDownloadingRefunds] = useState(false);
 
   // Plan del administrador de hotel: aviso de vencimiento y bloqueo de altas si está suspendido
-  const [planInfo, setPlanInfo] = useState<{ status: EffectiveStatus; left: number | null } | null>(null);
+  const [planInfo, setPlanInfo] = useState<{ status: EffectiveStatus; left: number | null; planId: string | null } | null>(null);
   React.useEffect(() => {
     if (activeUser.rol !== 'hotel_admin') { setPlanInfo(null); return; }
     let alive = true;
     fetchMySubscription(activeUser.id)
-      .then(sub => { if (alive) setPlanInfo({ status: effectiveStatus(sub), left: daysLeft(sub) }); })
+      .then(sub => { if (alive) setPlanInfo({ status: effectiveStatus(sub), left: daysLeft(sub), planId: sub?.planId ?? null }); })
       .catch(() => { if (alive) setPlanInfo(null); });
     return () => { alive = false; };
   }, [activeUser.id, activeUser.rol, adminTab === 'plan']);
   /** Sin plan todavía no se bloquea: solo suspendido o cancelado */
   const planBlocked = !!planInfo && !canOperate(planInfo.status);
   const planBlockedTitle = planBlocked ? 'Tu plan está suspendido. Págalo en "Mi plan" para volver a crear.' : undefined;
+  // Varias propiedades: el anfitrión crea propiedades hasta el límite de su plan
+  const ownedCount = activeUser.hotelIds?.length ?? (activeUser.hotelId ? 1 : 0);
+  const maxProperties = propertyLimit(planInfo?.planId);
+  const canCreateProperty = isSuper || (activeUser.rol === 'hotel_admin' && !planBlocked && ownedCount < maxProperties);
+  const createPropertyTitle = isSuper ? undefined : planBlocked ? planBlockedTitle
+    : ownedCount >= maxProperties ? `Tu plan permite ${maxProperties} ${maxProperties === 1 ? 'propiedad' : 'propiedades'}. Cambia de plan en "Mi plan" para agregar más.` : undefined;
 
   /** Rol de quien usa el panel, junto al título de cada pestaña */
   const roleBadge = (
@@ -975,9 +988,18 @@ export default function AdminView({
 
       {/* El Dashboard tiene su propio encabezado (con el período); el resto de pestañas, este */}
       {adminTab !== 'dashboard' && adminTab !== 'plan' && adminTab !== 'subscriptions' && adminTab !== 'billing' && (
-        <div className="mb-6 flex flex-wrap items-center gap-2">
-          <h3 className="text-2xl font-bold text-brand-navy1">{getTabLabel()}</h3>
-          {roleBadge}
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-2xl font-bold text-brand-navy1">{getTabLabel()}</h3>
+            {roleBadge}
+          </div>
+          {activeUser.rol === 'hotel_admin' && onChangeActiveHotel && (
+            <PropertySwitcher
+              hotels={hotels.filter(h => activeUser.hotelIds?.includes(h.id))}
+              value={activeUser.hotelId}
+              onChange={onChangeActiveHotel}
+            />
+          )}
         </div>
       )}
 
@@ -1042,10 +1064,12 @@ export default function AdminView({
                 <span>Habitaciones</span>
               </Button>
 
-              {isSuper && (
+              {(isSuper || activeUser.rol === 'hotel_admin') && (
                 <Button
                   onClick={startCreateHotel}
                   variant="primary" size="md"
+                  disabled={!canCreateProperty}
+                  title={createPropertyTitle}
                 >
                   <Plus className="w-4 h-4" />
                   <span>Agregar Hotel</span>
@@ -1205,10 +1229,12 @@ export default function AdminView({
                 Casas y departamentos en alquiler o en venta, con el contacto del propietario.
               </p>
             </div>
-            {isSuper && (
+            {(isSuper || activeUser.rol === 'hotel_admin') && (
               <Button
                 onClick={startCreateProperty}
                 variant="primary" size="md"
+                disabled={!canCreateProperty}
+                title={createPropertyTitle}
               >
                 <Plus className="w-4 h-4" />
                 <span>Nueva propiedad</span>
@@ -1222,10 +1248,12 @@ export default function AdminView({
                 <Building className="w-12 h-12 text-neutral-300 mx-auto mb-3" />
                 <h5 className="font-bold text-neutral-700">No hay propiedades registradas</h5>
                 <p className="text-xs text-neutral-400 mt-1">Cree una nueva propiedad para publicarla en alquiler o venta.</p>
-                {isSuper && (
+                {(isSuper || activeUser.rol === 'hotel_admin') && (
                   <Button
                     onClick={startCreateProperty}
                     variant="primary" size="md" className="mt-4"
+                    disabled={!canCreateProperty}
+                    title={createPropertyTitle}
                   >
                     Crear Nueva Propiedad
                   </Button>
@@ -1717,7 +1745,9 @@ export default function AdminView({
 
                                     <div className="space-y-1 max-h-[40vh] md:max-h-36 overflow-y-auto">
                                       {hotels.map(h => {
-                                        const isChecked = u.hotelId === h.id || (u.hotelIds && u.hotelIds.includes(h.id));
+                                        // Admin de hotel: sus propiedades son las que tiene como dueño
+                                        const userHotelIds = u.rol === 'hotel_admin' ? ownedHotelIds(u, hotels) : [u.hotelId, ...(u.hotelIds || [])].filter(Boolean) as string[];
+                                        const isChecked = userHotelIds.includes(h.id);
                                         return (
                                           <label 
                                             key={h.id} 
@@ -1727,10 +1757,7 @@ export default function AdminView({
                                               type="checkbox"
                                               checked={!!isChecked}
                                               onChange={() => {
-                                                let currentIds = u.hotelIds || [];
-                                                if (u.hotelId && !currentIds.includes(u.hotelId)) {
-                                                  currentIds = [u.hotelId, ...currentIds];
-                                                }
+                                                const currentIds = userHotelIds;
                                                 let nextIds: string[];
                                                 if (isChecked) {
                                                   nextIds = currentIds.filter(id => id !== h.id);

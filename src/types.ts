@@ -28,6 +28,8 @@ export interface User {
 
 export interface Hotel {
   id: string;
+  /** Anfitrión (admin de hotel) dueño de la propiedad */
+  ownerId?: string | null;
   nombre: string;
   logo: string;
   portada: string;

@@ -130,7 +130,9 @@ export function mapHotelToDb(hotel: Hotel): any {
     estado: hotel.estado || 'activo',
     provincia: hotel.provincia || null,
     ciudad: hotel.ciudad || null,
-    parroquia: hotel.parroquia || null
+    parroquia: hotel.parroquia || null,
+    // El dueño solo se envía si se conoce (la base lo pone al crear y solo el superadmin lo cambia)
+    ...(hotel.ownerId !== undefined ? { owner_id: hotel.ownerId || null } : {})
   };
 }
 
@@ -172,7 +174,8 @@ export function mapHotelFromDb(db: any): Hotel {
     adicionarIva: adicionarIva,
     provincia: provincia,
     ciudad: ciudad,
-    parroquia: parroquia
+    parroquia: parroquia,
+    ownerId: db.owner_id ?? undefined
   };
 }
 

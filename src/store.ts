@@ -45,6 +45,7 @@ import { removeStoredImages, storedImagesOf, unusedImages } from './utils/images
 import { notify } from './utils/notify';
 import { friendlyError } from './utils/errors';
 import { procesarFacturaDeReserva } from './utils/sriApi';
+import { ownedHotelIds, resolveActiveHotel } from './utils/properties';
 import { emailSubject, renderBrandEmail, renderBrandText, type BrandEmail } from '../supabase/functions/_shared/brandEmail.ts';
 
 const money = (n: number | undefined) => `$${Number(n || 0).toFixed(2)} USD`;
@@ -650,9 +651,24 @@ export function useHotelStore() {
     };
   }, [currentUserId]);
 
-  const activeUser = currentUserId
+  // Propiedad activa del anfitrión (varias propiedades): la elegida en el selector, guardada en este dispositivo
+  const [activeHotelId, setActiveHotelIdState] = useState<string | null>(() => {
+    try { return localStorage.getItem('roomia.activeHotel'); } catch { return null; }
+  });
+  const setActiveHotelId = (id: string) => {
+    setActiveHotelIdState(id);
+    try { localStorage.setItem('roomia.activeHotel', id); } catch { /* sin almacenamiento */ }
+  };
+
+  const baseActiveUser = currentUserId
     ? (users && users.find(u => u && u.id === currentUserId)) || null
     : null;
+  // El anfitrión administra todas sus propiedades (hotelIds) y trabaja sobre una a la vez (hotelId)
+  const activeUser = useMemo(() => {
+    if (!baseActiveUser || baseActiveUser.rol !== 'hotel_admin') return baseActiveUser;
+    const ids = ownedHotelIds(baseActiveUser, hotels);
+    return { ...baseActiveUser, hotelIds: ids, hotelId: resolveActiveHotel(ids, activeHotelId, baseActiveUser.hotelId) ?? baseActiveUser.hotelId };
+  }, [baseActiveUser, hotels, activeHotelId]);
 
   // --- DATOS PRIVADOS DEL PROPIETARIO ---
   // Correo y cédula del propietario están en hotel_owners, que solo pueden leer superadmin y
@@ -905,6 +921,12 @@ export function useHotelStore() {
         await syncPropertyDetailsToSupabase(hotel);
       }
 
+      if (!syncRes.success && /PLAN_LIMITE_PROPIEDADES/.test(syncRes.error || '')) {
+        // El plan no permite más propiedades: se deshace el alta local
+        if (!previousHotel) setHotels(prev => prev.filter(h => h.id !== hotel.id));
+        notify.error((syncRes.error || '').replace(/^.*PLAN_LIMITE_PROPIEDADES:\s*/, ''));
+        return;
+      }
       if (!syncRes.success) {
         console.error("❌ Supabase syncHotel error detail:", syncRes.error);
         notify.warning('Guardamos los cambios en este dispositivo, pero aún no se sincronizaron. Revisa tu conexión e inténtalo de nuevo.');
@@ -1115,6 +1137,20 @@ export function useHotelStore() {
         await syncUserToSupabase({ ...target, hotelIds, hotelId: hotelIds[0] || undefined });
       } catch (err) {
         console.warn("Supabase updateUserHotels sync error:", err);
+      }
+
+      // Admin de hotel: queda como dueño de las propiedades marcadas y deja de serlo de las desmarcadas
+      if (target.rol === 'hotel_admin') {
+        const changed = hotels
+          .filter(h => (hotelIds.includes(h.id) && h.ownerId !== userId) || (!hotelIds.includes(h.id) && h.ownerId === userId))
+          .map(h => ({ ...h, ownerId: hotelIds.includes(h.id) ? userId : null }));
+        if (changed.length) {
+          setHotels(prev => prev.map(h => changed.find(c => c.id === h.id) ?? h));
+          for (const h of changed) {
+            const res = await syncHotelToSupabase(h);
+            if (!res.success) notify.warning(`No se pudo actualizar el dueño de "${h.nombre}".`);
+          }
+        }
       }
     }
 
@@ -2377,6 +2413,7 @@ export function useHotelStore() {
 
   return {
     hotels: hotelsWithOwners,
+    setActiveHotelId,
     rooms,
     users,
     reservations: reservationsWithBusy,

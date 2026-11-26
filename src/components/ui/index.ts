@@ -9,3 +9,4 @@ export { MenuItem } from './MenuItem';
 export { OptionPicker, type PickerOption } from './OptionPicker';
 export { SelectPicker, type SelectPickerChange } from './SelectPicker';
 export { SectionHeader, Card } from './Section';
+export { PropertySwitcher } from './PropertySwitcher';

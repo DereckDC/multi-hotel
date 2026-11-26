@@ -5,6 +5,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CalendarClock, Check, CreditCard, Download, Loader2 } from 'lucide-react';
 import type { Hotel, Room, User } from '../types';
+import { ownedHotelIds, unitsOfHotels } from '../utils/properties';
 import {
   PLANS, SETUP_FEE, STATUS_LABEL, TRIAL_DAYS, ANNUAL_FREE_MONTHS, daysLeft, effectiveStatus, findPlan, paidUntil, planCharge, sriCharge, usd, usd2,
   type Billing, type EffectiveStatus
@@ -52,18 +53,14 @@ export const paymentConcept = (p: PlanPayment) =>
     : `Plan ${findPlan(p.planId)?.name ?? ''} · ${p.billing === 'anual' ? 'anual' : 'mensual'}${p.sri ? ` + facturación SRI${p.sriProps > 1 ? ` (${p.sriProps} propiedades)` : ''}` : ''}${p.setup ? ' + puesta en marcha' : ''}`.replace('  ', ' ');
 
 /**
- * Propiedades del anfitrión a las que se cobra el módulo SRI (hotel, casa o departamento).
- * Hoy cada admin de hotel tiene una sola (users.hotelid); el servidor de pagos cuenta igual.
+ * Propiedades del anfitrión (hotel, casa o departamento): las suyas como dueño. El módulo SRI se
+ * cobra por cada una; el servidor de pagos cuenta igual.
  */
-export const propertiesOf = (hotelId: string | undefined): number => (hotelId ? 1 : 0);
+export const propertiesOf = (host: User, hotels: Hotel[]): number => ownedHotelIds(host, hotels).length;
 
-/** Unidades que usa el anfitrión: habitaciones de su establecimiento (una casa o departamento completo cuenta como 1) */
-export function unitsOf(hotelId: string | undefined, hotels: Hotel[], rooms: Room[]): number {
-  if (!hotelId) return 0;
-  const hotel = hotels.find(h => h.id === hotelId);
-  if (hotel && (hotel.tipoEstablecimiento === 'casa' || hotel.tipoEstablecimiento === 'departamento')) return 1;
-  return rooms.filter(r => r.hotelId === hotelId).length;
-}
+/** Unidades de todas las propiedades del anfitrión (una casa o departamento completo cuenta como 1) */
+export const unitsOf = (host: User, hotels: Hotel[], rooms: Room[]): number =>
+  unitsOfHotels(ownedHotelIds(host, hotels), hotels, rooms);
 
 export async function downloadPaymentsPdf(payments: PlanPayment[], subtitle: string) {
   const doc = await buildTableReport({
@@ -106,9 +103,9 @@ export default function PlanView({ activeUser, hotels, rooms }: { activeUser: Us
   const [busy, setBusy] = useState<null | 'plan' | 'puesta_en_marcha'>(null);
   const [downloading, setDownloading] = useState(false);
 
-  const units = unitsOf(activeUser.hotelId, hotels, rooms);
+  const units = unitsOf(activeUser, hotels, rooms);
   /** Propiedades a las que se cobra el módulo SRI (una por hotel, casa o departamento) */
-  const properties = propertiesOf(activeUser.hotelId);
+  const properties = propertiesOf(activeUser, hotels);
   const sriProps = withSri ? properties : 0;
   const hotelName = hotels.find(h => h.id === activeUser.hotelId)?.nombre ?? '';
 
@@ -132,6 +129,15 @@ export default function PlanView({ activeUser, hotels, rooms }: { activeUser: Us
   };
 
   useEffect(() => { load(); }, [activeUser.id]);
+
+  // Si el plan elegido no alcanza para sus propiedades, se propone el primero que sí
+  useEffect(() => {
+    const elegido = findPlan(planId);
+    if (elegido && elegido.props < properties) {
+      const alcanza = PLANS.find(p => p.props >= properties);
+      if (alcanza) setPlanId(alcanza.id);
+    }
+  }, [planId, properties]);
 
   const status = effectiveStatus(sub);
   const left = daysLeft(sub);
@@ -264,15 +270,20 @@ export default function PlanView({ activeUser, hotels, rooms }: { activeUser: Us
             {PLANS.map(plan => {
               const active = plan.id === planId;
               const price = planCharge('plan', plan, units, billing, sriProps);
+              // Un plan con menos propiedades de las que ya tiene el anfitrión no se puede elegir
+              const tooSmall = plan.props < properties;
               return (
                 <button
                   key={plan.id}
                   type="button"
                   onClick={() => setPlanId(plan.id)}
                   aria-pressed={active}
+                  disabled={tooSmall}
+                  title={tooSmall ? `Tienes ${properties} propiedades: este plan permite ${plan.props}.` : undefined}
                   className={cx(
-                    'cursor-pointer rounded-2xl border p-4 text-left transition-colors focus-brand',
-                    active ? 'border-brand-cyan bg-info-50 ring-2 ring-brand-cyan/30' : 'border-neutral-200 bg-white hover:border-brand-cyan'
+                    'rounded-2xl border p-4 text-left transition-colors focus-brand',
+                    tooSmall ? 'cursor-not-allowed border-neutral-200 bg-neutral-50 opacity-60'
+                      : active ? 'cursor-pointer border-brand-cyan bg-info-50 ring-2 ring-brand-cyan/30' : 'cursor-pointer border-neutral-200 bg-white hover:border-brand-cyan'
                   )}
                 >
                   <span className="flex items-center justify-between gap-2">
@@ -282,6 +293,7 @@ export default function PlanView({ activeUser, hotels, rooms }: { activeUser: Us
                   <span className="mt-1 block text-sm text-neutral-500">{plan.props} {plan.props === 1 ? 'propiedad' : 'propiedades'} · {plan.units} unidades</span>
                   <span className="mt-3 block font-mono text-xl font-extrabold text-brand-navy1">${price.toFixed(2)}</span>
                   <span className="block text-xs text-neutral-500">{billing === 'anual' ? 'por año' : 'por mes'}</span>
+                  {tooSmall && <span className="mt-2 block text-xs text-warning-700">Tienes {properties} propiedades</span>}
                 </button>
               );
             })}

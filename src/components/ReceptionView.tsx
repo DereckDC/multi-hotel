@@ -14,10 +14,12 @@ import ReceptionCheckInModule from './ReceptionCheckInModule';
 import ReceptionRegistroModule from './ReceptionRegistroModule';
 import ReceptionIncidenciasModule from './ReceptionIncidenciasModule';
 import { notify } from '../utils/notify';
-import { Button, Modal, SelectPicker, Badge } from './ui';
+import { Button, Modal, SelectPicker, Badge, PropertySwitcher } from './ui';
 import { addIva, splitIncludedIva } from '../utils/tax';
 
 interface ReceptionViewProps {
+  /** Cambia la propiedad activa del anfitrión (varias propiedades) */
+  onChangeActiveHotel?: (hotelId: string) => void;
   hotels: Hotel[];
   rooms: Room[];
   reservations: Reservation[];
@@ -43,6 +45,7 @@ interface ReceptionViewProps {
 }
 
 export default function ReceptionView({
+  onChangeActiveHotel,
   hotels,
   rooms,
   reservations,
@@ -715,6 +718,13 @@ export default function ReceptionView({
           </div>
           <p className="text-sm text-neutral-500">Atiende {activeUser.nombre} {activeUser.apellido} en {receptionistHotel?.nombre}</p>
         </div>
+        {activeUser.rol === 'hotel_admin' && onChangeActiveHotel && (
+          <PropertySwitcher
+            hotels={hotels.filter(h => activeUser.hotelIds?.includes(h.id))}
+            value={activeUser.hotelId}
+            onChange={onChangeActiveHotel}
+          />
+        )}
         {activeUser.rol === 'super_admin' && (
           <SelectPicker label="Establecimiento" showLabel className="w-full sm:w-72"
             value={selectedHotelFilter}
