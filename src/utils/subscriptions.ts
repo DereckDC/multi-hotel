@@ -14,6 +14,8 @@ export interface Subscription extends SubscriptionDates {
   setupPaid: boolean;
   /** El período pagado incluye el módulo de facturación electrónica del SRI */
   sriModulo: boolean;
+  /** Fecha hasta la que está pagado el módulo SRI (null: nunca se pagó) */
+  sriHasta: string | null;
   notes: string;
   createdAt: string;
 }
@@ -30,6 +32,8 @@ export interface PlanPayment {
   sri: boolean;
   /** Propiedades por las que se cobró el módulo SRI */
   sriProps: number;
+  /** El pago incluyó la puesta en marcha como adicional */
+  setup: boolean;
   note: string | null;
   card: string;
   createdAt: string;
@@ -47,6 +51,7 @@ const toSubscription = (row: any): Subscription => ({
   graceDays: Number(row.grace_days ?? 7),
   setupPaid: Boolean(row.setup_paid),
   sriModulo: Boolean(row.sri_modulo),
+  sriHasta: row.sri_hasta ?? null,
   notes: row.notes ?? '',
   createdAt: row.created_at
 });
@@ -62,6 +67,7 @@ const toPayment = (row: any): PlanPayment => ({
   billing: row.details?.billing ?? null,
   sri: row.details?.sri === true,
   sriProps: Number(row.details?.sriProps ?? (row.details?.sri === true ? 1 : 0)),
+  setup: row.details?.setup === true,
   note: row.status_detail ?? null,
   card: [row.card_brand, row.last_digits ? `****${row.last_digits}` : ''].filter(Boolean).join(' '),
   createdAt: row.created_at,
@@ -114,6 +120,8 @@ export interface SubscriptionPatch {
   graceDays?: number;
   notes?: string;
   sriModulo?: boolean;
+  /** Hasta cuándo está pagado el módulo SRI (null lo desactiva) */
+  sriHasta?: string | null;
 }
 
 /** Cambia el plan, el estado o las fechas de una suscripción (superadmin) */
@@ -127,6 +135,7 @@ export async function updateSubscription(id: string, patch: SubscriptionPatch): 
   if (patch.graceDays !== undefined) row.grace_days = patch.graceDays;
   if (patch.notes !== undefined) row.notes = patch.notes;
   if (patch.sriModulo !== undefined) row.sri_modulo = patch.sriModulo;
+  if (patch.sriHasta !== undefined) row.sri_hasta = patch.sriHasta;
   const { data, error } = await supabase.from('subscriptions').update(row).eq('id', id).select('*').single();
   if (error) throw error;
   return toSubscription(data);
@@ -168,9 +177,9 @@ export async function fetchBlockedHotels(): Promise<string[]> {
  * Inicia el pago del plan con Payphone: el servidor calcula el monto y se abre la página /pago/<id>.
  * En el APK se abre en el navegador del teléfono (la Cajita no funciona dentro de la app).
  */
-export async function startPlanPayment(kind: 'plan' | 'puesta_en_marcha', planId: string, billing: Billing, sri = false): Promise<void> {
+export async function startPlanPayment(kind: 'plan' | 'puesta_en_marcha', planId: string, billing: Billing, sri = false, setup = false): Promise<void> {
   const { data, error } = await supabase.functions.invoke('payphone', {
-    body: { action: 'prepare_plan', kind, planId, billing, sri: kind === 'plan' && sri }
+    body: { action: 'prepare_plan', kind, planId, billing, sri: kind === 'plan' && sri, setup: kind === 'plan' && setup }
   });
   let paymentId: string | undefined = data?.paymentId;
   let message: string | undefined = data?.error;
@@ -181,4 +190,16 @@ export async function startPlanPayment(kind: 'plan' | 'puesta_en_marcha', planId
   const path = `/pago/${paymentId}`;
   if (isNativeApp()) window.open(`https://roomiapms.site${path}`, '_blank');
   else window.location.assign(path);
+}
+
+/** ¿El módulo SRI está pagado y vigente para este establecimiento? (el superadmin siempre lo ve) */
+export const sriModuloVigente = (sub: Pick<Subscription, 'sriHasta'> | null | undefined, now: number = Date.now()): boolean =>
+  !!sub?.sriHasta && new Date(sub.sriHasta).getTime() >= now;
+
+/** Consulta en el servidor si el establecimiento tiene el módulo SRI pagado y vigente */
+export async function fetchSriModuloActivo(hotelId: string | undefined): Promise<boolean> {
+  if (!hotelId) return false;
+  const { data, error } = await supabase.rpc('sri_modulo_activo', { p_hotel_id: hotelId });
+  if (error) return false;
+  return data === true;
 }

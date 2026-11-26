@@ -11,7 +11,7 @@ import {
   type Billing, type EffectiveStatus, type StoredStatus
 } from '../utils/plans';
 import {
-  createSubscription, fetchAllSubscriptions, fetchPlanPayments, registerManualPayment, updateSubscription,
+  createSubscription, fetchAllSubscriptions, fetchPlanPayments, registerManualPayment, sriModuloVigente, updateSubscription,
   type PlanPayment, type Subscription
 } from '../utils/subscriptions';
 import { notify } from '../utils/notify';
@@ -167,7 +167,7 @@ export default function SubscriptionsView({ users, hotels, rooms }: { users: Use
                   </div>
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                     <div className="text-left sm:text-right">
-                      <span className="block text-sm font-semibold text-brand-navy1">{plan ? `${plan.name} · ${r.sub?.billing}${r.sub?.sriModulo ? ' + SRI' : ''}` : 'Sin plan'}</span>
+                      <span className="block text-sm font-semibold text-brand-navy1">{plan ? `${plan.name} · ${r.sub?.billing}${sriModuloVigente(r.sub) ? ' + SRI' : ''}` : 'Sin plan'}</span>
                       <span className="block text-xs text-neutral-500">
                         {r.sub ? `Hasta ${longDate(paidUntil(r.sub))}` : '—'}
                         {r.left !== null && r.left < 0 ? ` · venció hace ${Math.abs(r.left)} d` : ''}
@@ -215,7 +215,7 @@ function ManageModal({ row, payments, onClose, onSaved }: {
   const [periodEnd, setPeriodEnd] = useState(toDateInput(sub?.currentPeriodEnd ?? null));
   const [graceDays, setGraceDays] = useState(String(sub?.graceDays ?? 7));
   const [notes, setNotes] = useState(sub?.notes ?? '');
-  const [sriModulo, setSriModulo] = useState(sub?.sriModulo ?? false);
+  const [sriModulo, setSriModulo] = useState(sriModuloVigente(sub));
   const [saving, setSaving] = useState(false);
 
   const plan = findPlan(planId) ?? PLANS[0];
@@ -251,7 +251,9 @@ function ManageModal({ row, payments, onClose, onSaved }: {
           currentPeriodEnd: fromDateInput(periodEnd),
           graceDays: Math.min(60, Math.max(0, Number(graceDays) || 0)),
           notes,
-          sriModulo
+          sriModulo,
+          // Activar a mano: el módulo queda vigente hasta la fecha pagada (o el fin de la prueba)
+          sriHasta: sriModulo ? (fromDateInput(periodEnd) ?? fromDateInput(trialEnd)) : null
         });
         notify.success('Suscripción actualizada.');
       }
@@ -376,7 +378,7 @@ function ManageModal({ row, payments, onClose, onSaved }: {
                 </Field>
                 <label className="sm:col-span-2 flex cursor-pointer items-center gap-3 rounded-xl border border-neutral-200 p-3 text-sm text-brand-navy1 hover:border-brand-cyan">
                   <input type="checkbox" checked={sriModulo} onChange={e => setSriModulo(e.target.checked)} className="h-4 w-4 cursor-pointer accent-brand-cyan" />
-                  <span>Módulo de facturación electrónica del SRI activo</span>
+                  <span>Módulo de facturación electrónica del SRI activo (hasta la fecha pagada)</span>
                 </label>
                 <div className="sm:col-span-2">
                   <Field label="Notas internas">

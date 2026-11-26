@@ -138,13 +138,15 @@ export const STATUS_LABEL: Record<EffectiveStatus, string> = {
 /**
  * Monto de un cobro, en dólares. Plan: según unidades y forma de pago, más el módulo de
  * facturación electrónica del SRI, que se cobra por propiedad (hotel, casa o departamento)
- * · puesta en marcha: pago único. sriProperties = 0 significa sin el módulo.
+ * · puesta en marcha: pago único. sriProperties = 0 significa sin el módulo. withSetup suma la
+ * puesta en marcha como adicional del mismo pago (no se multiplica en el plan anual).
  */
-export function planCharge(kind: 'plan' | 'puesta_en_marcha', plan: Plan, units: number, billing: Billing, sriProperties = 0): number {
+export function planCharge(kind: 'plan' | 'puesta_en_marcha', plan: Plan, units: number, billing: Billing, sriProperties = 0, withSetup = false): number {
   if (kind === 'puesta_en_marcha') return SETUP_FEE;
   const sri = plan.invoice * Math.max(0, Math.floor(sriProperties));
   const monthly = round2(monthlyCost(plan, Math.max(0, Math.floor(units))) + sri);
-  return billing === 'anual' ? annualPrice(monthly) : monthly;
+  const period = billing === 'anual' ? annualPrice(monthly) : monthly;
+  return round2(period + (withSetup ? SETUP_FEE : 0));
 }
 
 /** Precio del módulo SRI en el período elegido, por una propiedad o por varias */

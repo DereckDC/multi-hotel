@@ -16,6 +16,7 @@ import { notify } from '../utils/notify';
 import { friendlyError } from '../utils/errors';
 import InvoicePDF from './InvoicePDF';
 import FacturacionView from './FacturacionView';
+import { useSriModulo } from '../utils/useSriModulo';
 import PlanView from './PlanView';
 import SubscriptionsView from './SubscriptionsView';
 import { fetchMySubscription } from '../utils/subscriptions';
@@ -163,6 +164,8 @@ export default function AdminView({
 
   // RBAC Access Control checking
   const isSuper = activeUser.rol === 'super_admin';
+  // Facturación SRI: solo con el módulo pagado y vigente en el plan del anfitrión
+  const sriModulo = useSriModulo(activeUser);
   const myHotelId = activeUser.hotelId || '';
 
   // Calendarios iCal (Airbnb / Booking): lo gestiona el super admin o el admin de ese hotel.
@@ -982,8 +985,14 @@ export default function AdminView({
         <PlanView activeUser={activeUser} hotels={hotels} rooms={rooms} />
       )}
 
-      {adminTab === 'billing' && (isSuper || activeUser.rol === 'hotel_admin') && (
+      {adminTab === 'billing' && (isSuper || (activeUser.rol === 'hotel_admin' && sriModulo === true)) && (
         <FacturacionView activeUser={activeUser} hotels={allowedHotels} />
+      )}
+      {adminTab === 'billing' && activeUser.rol === 'hotel_admin' && sriModulo === false && (
+        <div className="rounded-2xl border border-info-200 bg-info-50 p-5 space-y-3">
+          <p className="text-sm text-info-900">La facturación electrónica del SRI es un módulo adicional. Inclúyelo al pagar tu plan para emitir facturas desde Roomia.</p>
+          <Button size="sm" onClick={() => setAdminTab('plan')}>Ir a Mi plan</Button>
+        </div>
       )}
 
       {adminTab === 'subscriptions' && isSuper && (
@@ -2601,7 +2610,7 @@ export default function AdminView({
           room={rooms.find(r => r.id === previewingRes.roomId)}
           guest={users.find(u => u.id === previewingRes.guestId)}
           onClose={() => setPreviewingRes(null)}
-          canBill
+          canBill={sriModulo === true}
         />
       )}
 

@@ -72,3 +72,12 @@ test('planCharge: el módulo SRI se cobra por propiedad: $40 al mes (Roomia 1 y 
   assert.equal(sriCharge(r3, 'mensual', 2), 80);
   assert.equal(sriCharge(r1, 'mensual', 0), 0);
 });
+
+test('planCharge: la puesta en marcha es un adicional de $30 que no se multiplica en el plan anual', () => {
+  const [r1, , r5] = PLANS;
+  // Roomia 1 + SRI (1 propiedad) + puesta en marcha = 29 + 40 + 30
+  assert.equal(planCharge('plan', r1, 1, 'mensual', 1, true), 99);
+  assert.equal(planCharge('plan', r1, 1, 'mensual', 0, true), 59);
+  assert.equal(planCharge('plan', r1, 1, 'anual', 1, true), 720);
+  assert.equal(planCharge('plan', r5, 100, 'mensual', 1, false), 139);
+});

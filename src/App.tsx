@@ -13,6 +13,7 @@ import { StepPanel, StepIndicator, StepActions, useFormStepper } from './compone
 import type { LegalDocType } from './components/LegalPageView';
 import type { AdminTab } from './types';
 import { useBackHandler } from './utils/backButton';
+import { useSriModulo } from './utils/useSriModulo';
 import { PAGES, hotelMeta } from '../api/seo';
 import { setPageMeta } from './utils/pageMeta';
 import { notify } from './utils/notify';
@@ -249,6 +250,8 @@ export default function App() {
     }
     return 'explore';
   });
+  // Facturación SRI: solo con el módulo pagado y vigente (el superadmin siempre la ve)
+  const sriModulo = useSriModulo(activeUser);
   const [adminActiveTab, setAdminActiveTab] = useState<AdminTab>(() => {
     if (typeof window === 'undefined') return 'dashboard';
     const params = new URLSearchParams(window.location.search);
@@ -893,7 +896,7 @@ export default function App() {
                 active: adminActiveTab === 'logs',
                 onClick: () => { setAdminActiveTab('logs'); setSidebarOpen(false); }
               },
-              ...(activeUser?.rol === 'super_admin' || activeUser?.rol === 'hotel_admin'
+              ...(activeUser?.rol === 'super_admin' || (activeUser?.rol === 'hotel_admin' && sriModulo === true)
                 ? [{
                     icon: ReceiptText,
                     label: "Facturación SRI",

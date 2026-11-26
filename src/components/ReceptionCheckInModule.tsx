@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Reservation, Room, User } from '../types';
 import { QrCode, Search, Camera, UserCheck, ShieldCheck, AlertTriangle, Check, ReceiptText } from 'lucide-react';
 import FacturaSriModal from './FacturaSriModal';
+import { useSriModulo } from '../utils/useSriModulo';
 import { Button, SelectPicker } from './ui';
 
 interface ReceptionCheckInModuleProps {
@@ -70,6 +71,8 @@ export default function ReceptionCheckInModule({
   setScannedResult
 }: ReceptionCheckInModuleProps) {
   const [showFactura, setShowFactura] = useState(false);
+  // Factura SRI: solo si el establecimiento tiene el módulo pagado y vigente
+  const sriModulo = useSriModulo(activeUser);
   // Local filters for reservation history list
   const todayStr = React.useMemo(() => {
     const d = new Date();
@@ -287,14 +290,14 @@ export default function ReceptionCheckInModule({
             </div>
 
             {/* Factura electrónica del SRI: reservas pagadas (al confirmar el pago o al salir) */}
-            {['confirmada', 'ocupada', 'finalizada'].includes(scannedResult.estado) && !(scannedResult.montoPendiente && scannedResult.montoPendiente > 0) && (
+            {sriModulo === true && ['confirmada', 'ocupada', 'finalizada'].includes(scannedResult.estado) && !(scannedResult.montoPendiente && scannedResult.montoPendiente > 0) && (
               <div className="flex justify-end">
                 <Button type="button" variant="secondary" size="sm" leftIcon={<ReceiptText className="w-4 h-4" />} onClick={() => setShowFactura(true)}>
                   Factura SRI
                 </Button>
               </div>
             )}
-            {showFactura && (
+            {showFactura && sriModulo === true && (
               <FacturaSriModal
                 reservation={scannedResult}
                 hotel={receptionistHotel}

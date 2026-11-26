@@ -72,14 +72,22 @@ async function usuarioActual(req: Request): Promise<Usuario> {
   return u as Usuario;
 }
 
-/** admin: administrador del establecimiento o superadmin · staff: también recepción */
-function permiso(u: Usuario, hotelId: string, nivel: "admin" | "staff") {
+/**
+ * admin: administrador del establecimiento o superadmin · staff: también recepción.
+ * Fuera del superadmin, el establecimiento necesita el módulo SRI pagado y vigente en su plan.
+ */
+async function permiso(u: Usuario, hotelId: string, nivel: "admin" | "staff") {
   if (u.rol === "super_admin") return;
   const roles = nivel === "admin" ? ["hotel_admin"] : ["hotel_admin", "recepcionista"];
-  if (roles.includes(u.rol) && u.hotelid === hotelId) return;
-  throw new HttpError(403, nivel === "admin"
-    ? "Solo el administrador del establecimiento puede configurar la facturación."
-    : "No tienes permisos para facturar en este establecimiento.");
+  if (!roles.includes(u.rol) || u.hotelid !== hotelId) {
+    throw new HttpError(403, nivel === "admin"
+      ? "Solo el administrador del establecimiento puede configurar la facturación."
+      : "No tienes permisos para facturar en este establecimiento.");
+  }
+  const { data: activo } = await admin.rpc("sri_modulo_activo", { p_hotel_id: hotelId });
+  if (activo !== true) {
+    throw new HttpError(402, "El módulo de facturación electrónica no está activo. Inclúyelo al pagar tu plan en \"Mi plan\".");
+  }
 }
 
 // ---------------------------------------------------------------- emisor y firma
@@ -425,7 +433,7 @@ async function comprobante(u: Usuario, id: unknown): Promise<Comprobante> {
   if (!UUID_RE.test(cid)) throw new HttpError(400, "Comprobante no válido.");
   const { data } = await admin.from("sri_comprobantes").select("*").eq("id", cid).maybeSingle();
   if (!data) throw new HttpError(404, "No encontramos el comprobante.");
-  permiso(u, data.hotel_id, "staff");
+  await permiso(u, data.hotel_id, "staff");
   return data as Comprobante;
 }
 
@@ -434,7 +442,7 @@ async function emitir(u: Usuario, body: Record<string, unknown>) {
   if (!reservationId) throw new HttpError(400, "Falta la reserva.");
   const { data: r } = await admin.from("reservations").select("id, hotelid, estado").eq("id", reservationId).maybeSingle();
   if (!r) throw new HttpError(404, "No encontramos la reserva.");
-  permiso(u, r.hotelid, "staff");
+  await permiso(u, r.hotelid, "staff");
 
   const e = await emisorDe(r.hotelid);
   const { data: existente } = await admin.from("sri_comprobantes").select("*")
@@ -511,7 +519,7 @@ async function reenviarCorreo(u: Usuario, body: Record<string, unknown>) {
 async function guardarEmisor(u: Usuario, body: Record<string, unknown>) {
   const hotelId = str(body.hotelId, 100);
   if (!hotelId) throw new HttpError(400, "Falta el establecimiento.");
-  permiso(u, hotelId, "admin");
+  await permiso(u, hotelId, "admin");
   const e = (body.emisor ?? {}) as Record<string, unknown>;
 
   const errores: string[] = [];
@@ -578,7 +586,7 @@ async function guardarEmisor(u: Usuario, body: Record<string, unknown>) {
 
 async function subirFirma(u: Usuario, body: Record<string, unknown>) {
   const hotelId = str(body.hotelId, 100);
-  permiso(u, hotelId, "admin");
+  await permiso(u, hotelId, "admin");
   const e = await emisorDe(hotelId);
   const p12Base64 = typeof body.p12Base64 === "string" ? body.p12Base64.replace(/^data:[^,]*,/, "").replace(/\s+/g, "") : "";
   const password = typeof body.password === "string" ? body.password : "";
@@ -612,7 +620,7 @@ async function subirFirma(u: Usuario, body: Record<string, unknown>) {
 
 async function probar(u: Usuario, body: Record<string, unknown>) {
   const hotelId = str(body.hotelId, 100);
-  permiso(u, hotelId, "admin");
+  await permiso(u, hotelId, "admin");
   const e = await emisorDe(hotelId);
   const checks: Array<{ paso: string; ok: boolean; detalle: string }> = [
     { paso: "Datos del emisor", ok: true, detalle: `${e.razon_social} · RUC ${e.ruc} · serie ${e.estab}-${e.pto_emi}` },

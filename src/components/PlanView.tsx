@@ -9,7 +9,7 @@ import {
   PLANS, SETUP_FEE, STATUS_LABEL, TRIAL_DAYS, ANNUAL_FREE_MONTHS, daysLeft, effectiveStatus, findPlan, paidUntil, planCharge, sriCharge, usd, usd2,
   type Billing, type EffectiveStatus
 } from '../utils/plans';
-import { fetchMySubscription, fetchPlanPayments, startPlanPayment, type PlanPayment, type Subscription } from '../utils/subscriptions';
+import { fetchMySubscription, fetchPlanPayments, sriModuloVigente, startPlanPayment, type PlanPayment, type Subscription } from '../utils/subscriptions';
 import { buildTableReport } from '../utils/reportPdf';
 import { savePdfNative } from '../utils/nativeFiles';
 import { isNativeApp } from '../utils/platform';
@@ -49,7 +49,7 @@ export const METHOD_LABEL: Record<string, string> = {
 export const paymentConcept = (p: PlanPayment) =>
   p.kind === 'puesta_en_marcha'
     ? 'Puesta en marcha'
-    : `Plan ${findPlan(p.planId)?.name ?? ''} · ${p.billing === 'anual' ? 'anual' : 'mensual'}${p.sri ? ` + facturación SRI${p.sriProps > 1 ? ` (${p.sriProps} propiedades)` : ''}` : ''}`.replace('  ', ' ');
+    : `Plan ${findPlan(p.planId)?.name ?? ''} · ${p.billing === 'anual' ? 'anual' : 'mensual'}${p.sri ? ` + facturación SRI${p.sriProps > 1 ? ` (${p.sriProps} propiedades)` : ''}` : ''}${p.setup ? ' + puesta en marcha' : ''}`.replace('  ', ' ');
 
 /**
  * Propiedades del anfitrión a las que se cobra el módulo SRI (hotel, casa o departamento).
@@ -102,6 +102,7 @@ export default function PlanView({ activeUser, hotels, rooms }: { activeUser: Us
   const [planId, setPlanId] = useState('roomia-1');
   const [billing, setBilling] = useState<Billing>('mensual');
   const [withSri, setWithSri] = useState(false);
+  const [withSetup, setWithSetup] = useState(true);
   const [busy, setBusy] = useState<null | 'plan' | 'puesta_en_marcha'>(null);
   const [downloading, setDownloading] = useState(false);
 
@@ -136,7 +137,11 @@ export default function PlanView({ activeUser, hotels, rooms }: { activeUser: Us
   const left = daysLeft(sub);
   const current = findPlan(sub?.planId);
   const selected = findPlan(planId) ?? PLANS[0];
-  const amount = planCharge('plan', selected, units, billing, sriProps);
+  /** La puesta en marcha se cobra una sola vez, como adicional del pago del plan */
+  const setupDue = !sub?.setupPaid;
+  const setup = setupDue && withSetup;
+  const amount = planCharge('plan', selected, units, billing, sriProps, setup);
+  const sriVigente = sriModuloVigente(sub);
   const lastPaid = useMemo(() => payments.find(p => p.status === 'aprobado'), [payments]);
   /** Los intentos que no se terminaron (Cajita abierta y cerrada, o vencida) no se muestran */
   const shownPayments = useMemo(() => payments.filter(p => p.status !== 'creado' && p.status !== 'expirado'), [payments]);
@@ -145,7 +150,7 @@ export default function PlanView({ activeUser, hotels, rooms }: { activeUser: Us
     if (busy) return;
     setBusy(kind);
     try {
-      await startPlanPayment(kind, selected.id, billing, withSri);
+      await startPlanPayment(kind, selected.id, billing, withSri, setup);
     } catch (err: any) {
       notify.error(err?.message || 'No se pudo iniciar el pago.');
       setBusy(null);
@@ -180,7 +185,9 @@ export default function PlanView({ activeUser, hotels, rooms }: { activeUser: Us
           <div>
             <span className="block text-micro font-semibold uppercase tracking-wider text-neutral-500">Plan</span>
             <span className="block text-base font-bold text-brand-navy1">{current ? `${current.name} · ${sub?.billing}` : 'Sin plan'}</span>
-            {sub?.sriModulo && <span className="block text-xs text-neutral-500">Con facturación electrónica del SRI</span>}
+            <span className={cx('block text-xs', sriVigente ? 'text-success-700' : 'text-neutral-500')}>
+              {sriVigente ? `Facturación SRI activa hasta el ${longDate(sub?.sriHasta)}` : 'Sin facturación electrónica del SRI'}
+            </span>
           </div>
           <div>
             <span className="block text-micro font-semibold uppercase tracking-wider text-neutral-500">Estado</span>
@@ -298,30 +305,31 @@ export default function PlanView({ activeUser, hotels, rooms }: { activeUser: Us
             </span>
           </label>
 
+          {/* Adicional: puesta en marcha (pago único, solo si aún no está pagada) */}
+          {setupDue && (
+            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-neutral-200 p-3 hover:border-brand-cyan">
+              <input
+                type="checkbox"
+                checked={withSetup}
+                onChange={e => setWithSetup(e.target.checked)}
+                className="mt-0.5 h-4 w-4 cursor-pointer accent-brand-cyan"
+              />
+              <span className="flex-1">
+                <span className="block text-sm font-semibold text-brand-navy1">Puesta en marcha · +{usd(SETUP_FEE)} pago único</span>
+                <span className="block text-xs text-neutral-500">Cargamos tus unidades y capacitamos a tu personal. Se paga una sola vez.</span>
+              </span>
+            </label>
+          )}
+
           <div className="flex flex-col gap-3 rounded-xl bg-neutral-50 p-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-brand-navy1">
-              {selected.name} {billing}{withSri ? ` + facturación SRI${properties > 1 ? ` (${properties} propiedades)` : ''}` : ''} · <strong>${amount.toFixed(2)} USD</strong>
+              {selected.name} {billing}{withSri ? ` + facturación SRI${properties > 1 ? ` (${properties} propiedades)` : ''}` : ''}{setup ? ' + puesta en marcha' : ''} · <strong>${amount.toFixed(2)} USD</strong>
             </p>
             <Button onClick={() => pay('plan')} loading={busy === 'plan'} disabled={!!busy}>
               {busy !== 'plan' && <CreditCard className="h-4 w-4" />}
               <span>Pagar</span>
             </Button>
           </div>
-        </Card>
-      )}
-
-      {/* Puesta en marcha */}
-      {status !== 'cancelada' && !sub?.setupPaid && (
-        <Card
-          title="Puesta en marcha"
-          description={`Pago único de $${SETUP_FEE} por cargar tus unidades y capacitar a tu personal. Incluye ${TRIAL_DAYS} días de prueba al empezar.`}
-          actions={
-            <Button variant="secondary" onClick={() => pay('puesta_en_marcha')} loading={busy === 'puesta_en_marcha'} disabled={!!busy}>
-              <span>Pagar ${SETUP_FEE}</span>
-            </Button>
-          }
-        >
-          <></>
         </Card>
       )}
 
