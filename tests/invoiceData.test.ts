@@ -62,6 +62,17 @@ test('alquiler con IVA incluido en el precio', () => {
   assert.equal(d.estadia.duracion, '6 meses');
 });
 
+test('alquiler con IVA 15 % sumado o incluido (reservas nuevas)', () => {
+  const casa = { ...hotel, id: 'c1', tipoEstablecimiento: 'casa', finalidad: 'alquiler', detallesInmueble: { habitaciones: 1, banos: 1, precio: 999 } } as unknown as Hotel;
+  // IVA sumado: mensualidad 200 + garantía 200, IVA 30
+  const sumado = buildInvoiceData(res({ hotelId: 'c1', fechaSalida: '2027-05-20', subtotal: 400, impuestos: 30, total: 430 }), casa, undefined, guest);
+  assert.deepEqual(sumado.lineas.map(l => l.importe), [200, 200]);
+  // IVA incluido: mensualidad 115 (base 100 + IVA 15) + garantía 115
+  const incluido = buildInvoiceData(res({ hotelId: 'c1', fechaSalida: '2027-05-20', subtotal: 215, impuestos: 15, total: 230 }), casa, undefined, guest);
+  assert.deepEqual(incluido.lineas.map(l => l.importe), [100, 115]);
+  assert.equal(incluido.ivaLabel, 'IVA 15%');
+});
+
 test('estado de pago', () => {
   assert.equal(buildInvoiceData(res({}), hotel, room, guest).pago.titulo, 'PAGADO Y CONFIRMADO');
   const parcial = buildInvoiceData(res({ montoPagado: 48.72, montoPendiente: 194.88 }), hotel, room, guest);

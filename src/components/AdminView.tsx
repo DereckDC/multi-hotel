@@ -15,6 +15,7 @@ import { imageFolder, importImageFromUrl, isStoredInRoomia, isVideoLink, onImage
 import { notify } from '../utils/notify';
 import { friendlyError } from '../utils/errors';
 import InvoicePDF from './InvoicePDF';
+import FacturacionView from './FacturacionView';
 import PlanView from './PlanView';
 import SubscriptionsView from './SubscriptionsView';
 import { fetchMySubscription } from '../utils/subscriptions';
@@ -767,6 +768,8 @@ export default function AdminView({
         return 'Mi plan';
       case 'subscriptions':
         return 'Suscripciones';
+      case 'billing':
+        return 'Facturación SRI';
       default:
         return 'General';
     }
@@ -968,7 +971,7 @@ export default function AdminView({
       )}
 
       {/* El Dashboard tiene su propio encabezado (con el período); el resto de pestañas, este */}
-      {adminTab !== 'dashboard' && adminTab !== 'plan' && adminTab !== 'subscriptions' && (
+      {adminTab !== 'dashboard' && adminTab !== 'plan' && adminTab !== 'subscriptions' && adminTab !== 'billing' && (
         <div className="mb-6 flex flex-wrap items-center gap-2">
           <h3 className="text-2xl font-bold text-brand-navy1">{getTabLabel()}</h3>
           {roleBadge}
@@ -977,6 +980,10 @@ export default function AdminView({
 
       {adminTab === 'plan' && activeUser.rol === 'hotel_admin' && (
         <PlanView activeUser={activeUser} hotels={hotels} rooms={rooms} />
+      )}
+
+      {adminTab === 'billing' && (isSuper || activeUser.rol === 'hotel_admin') && (
+        <FacturacionView activeUser={activeUser} hotels={allowedHotels} />
       )}
 
       {adminTab === 'subscriptions' && isSuper && (
@@ -2594,6 +2601,7 @@ export default function AdminView({
           room={rooms.find(r => r.id === previewingRes.roomId)}
           guest={users.find(u => u.id === previewingRes.guestId)}
           onClose={() => setPreviewingRes(null)}
+          canBill
         />
       )}
 

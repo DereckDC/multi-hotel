@@ -15,6 +15,7 @@ import ReceptionRegistroModule from './ReceptionRegistroModule';
 import ReceptionIncidenciasModule from './ReceptionIncidenciasModule';
 import { notify } from '../utils/notify';
 import { Button, Modal, SelectPicker, Badge } from './ui';
+import { addIva, splitIncludedIva } from '../utils/tax';
 
 interface ReceptionViewProps {
   hotels: Hotel[];
@@ -391,14 +392,13 @@ export default function ReceptionView({
   let calculatedTotal = 0;
 
   if (!isIvaAddedForSelectedRoom) {
-    const roomIva = rawRoomSubtotal * 0.16;
-    const roomSubtotalExcludingIva = rawRoomSubtotal - roomIva;
+    const { base: roomSubtotalExcludingIva, iva: roomIva } = splitIncludedIva(rawRoomSubtotal);
     calculatedSubtotal = parseFloat((roomSubtotalExcludingIva + servicesSubtotal).toFixed(2));
     calculatedImpuestos = parseFloat(roomIva.toFixed(2));
     calculatedTotal = parseFloat((rawRoomSubtotal + servicesSubtotal).toFixed(2));
   } else {
     calculatedSubtotal = parseFloat((rawRoomSubtotal + servicesSubtotal).toFixed(2));
-    calculatedImpuestos = parseFloat((calculatedSubtotal * 0.16).toFixed(2));
+    calculatedImpuestos = addIva(calculatedSubtotal).iva;
     calculatedTotal = parseFloat((calculatedSubtotal + calculatedImpuestos).toFixed(2));
   }
 

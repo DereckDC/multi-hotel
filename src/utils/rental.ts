@@ -1,3 +1,4 @@
+import { IVA_RATE, round2, splitIncludedIva } from './tax.ts';
 /**
  * Alquiler de inmuebles completos (casas y departamentos): plazo mínimo que fija el dueño
  * y opciones de duración que puede elegir el cliente en el portal o el personal en el walk-in.
@@ -66,10 +67,11 @@ export function addMonths(ymd: string, months: number): string {
 export function rentalPricing(monthlyPrice: number, addIva: boolean) {
   const garantia = monthlyPrice;
   if (!addIva) {
-    const iva = monthlyPrice * 0.16;
-    return { mensualidad: monthlyPrice, garantia, subtotal: monthlyPrice - iva + garantia, tax: iva, total: monthlyPrice + garantia };
+    // La mensualidad ya incluye el IVA
+    const { base, iva } = splitIncludedIva(monthlyPrice);
+    return { mensualidad: monthlyPrice, garantia, subtotal: round2(base + garantia), tax: iva, total: round2(monthlyPrice + garantia) };
   }
   const sub = monthlyPrice + garantia;
-  const tax = monthlyPrice * 0.16;
+  const tax = round2(monthlyPrice * IVA_RATE);
   return { mensualidad: monthlyPrice, garantia, subtotal: sub, tax, total: sub + tax };
 }

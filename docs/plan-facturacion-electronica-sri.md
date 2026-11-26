@@ -1,5 +1,7 @@
 # Plan: facturación electrónica del SRI en Roomia
 
+> **Implementado (25/11/2026)** con integración directa al SRI y el IVA pasado a 15 %. Ver [facturacion-electronica-sri.md](facturacion-electronica-sri.md). Este documento queda como el análisis previo.
+
 Estado: **propuesta, sin código**. Fecha: 15/11/2026.
 
 ## Respuesta corta

@@ -34,6 +34,8 @@ test('isRentalProperty', () => {
 });
 
 test('rentalPricing: mensualidad + garantía, IVA solo sobre la mensualidad', () => {
-  assert.deepEqual(rentalPricing(100, true), { mensualidad: 100, garantia: 100, subtotal: 200, tax: 16, total: 216 });
-  assert.deepEqual(rentalPricing(100, false), { mensualidad: 100, garantia: 100, subtotal: 184, tax: 16, total: 200 });
+  // IVA 15 % sumado a la mensualidad
+  assert.deepEqual(rentalPricing(100, true), { mensualidad: 100, garantia: 100, subtotal: 200, tax: 15, total: 215 });
+  // Mensualidad con IVA incluido: base 86.96 + IVA 13.04 = 100
+  assert.deepEqual(rentalPricing(100, false), { mensualidad: 100, garantia: 100, subtotal: 186.96, tax: 13.04, total: 200 });
 });

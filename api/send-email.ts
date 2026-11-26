@@ -83,6 +83,73 @@ function isRateLimited(ip: string): boolean {
   return false;
 }
 
+// -----------------------------------------------------------------------------
+// Adjuntos (factura electrónica: XML autorizado y RIDE en PDF). Solo se aceptan si la
+// llamada viene de la función del servidor sri (cabecera x-roomia-token): así el endpoint
+// sin sesión no sirve para repartir archivos.
+// Copiado igual en emailGuard.ts (servidor Express).
+// -----------------------------------------------------------------------------
+const MAX_ATTACHMENTS = 3;
+const MAX_ATTACHMENTS_BYTES = 2_000_000;
+const ATTACHMENT_FILENAME = /^[\w .()-]{1,120}\.(xml|pdf)$/i;
+
+interface EmailAttachment {
+  filename: string;
+  content: Buffer;
+  contentType: 'application/xml' | 'application/pdf';
+}
+
+function validateAttachments(raw: unknown): { ok: true; attachments: EmailAttachment[] } | { ok: false; error: string } {
+  if (raw === undefined || raw === null) return { ok: true, attachments: [] };
+  if (!Array.isArray(raw) || raw.length > MAX_ATTACHMENTS) {
+    return { ok: false, error: `Se permiten hasta ${MAX_ATTACHMENTS} archivos adjuntos.` };
+  }
+  const attachments: EmailAttachment[] = [];
+  let total = 0;
+  for (const item of raw) {
+    const filename = typeof item?.filename === 'string' ? item.filename.trim() : '';
+    const content = typeof item?.content === 'string' ? item.content.replace(/^data:[^,]*,/, '').replace(/\s+/g, '') : '';
+    const ext = ATTACHMENT_FILENAME.exec(filename)?.[1]?.toLowerCase();
+    if (!ext || !content || !/^[A-Za-z0-9+/]+={0,2}$/.test(content)) {
+      return { ok: false, error: 'Solo se pueden adjuntar archivos XML o PDF.' };
+    }
+    const buffer = Buffer.from(content, 'base64');
+    total += buffer.length;
+    if (total > MAX_ATTACHMENTS_BYTES) return { ok: false, error: 'Los archivos adjuntos son demasiado grandes.' };
+    const head = buffer.subarray(0, 5).toString('latin1');
+    if (ext === 'pdf' ? head !== '%PDF-' : !head.trimStart().startsWith('<')) {
+      return { ok: false, error: 'El contenido del adjunto no corresponde a su tipo.' };
+    }
+    attachments.push({ filename, content: buffer, contentType: ext === 'pdf' ? 'application/pdf' : 'application/xml' });
+  }
+  return { ok: true, attachments };
+}
+
+/**
+ * ¿La llamada con adjuntos viene de la función del servidor `sri`? Trae en la cabecera
+ * x-roomia-token un token guardado en Supabase Vault; se comprueba con la función
+ * sri_validar_token_correo (solo responde verdadero o falso).
+ */
+async function isSriEmailToken(token: string | string[] | undefined, supabaseUrl: string, anonKey: string): Promise<boolean> {
+  const value = (Array.isArray(token) ? token[0] : token || '').trim();
+  if (value.length < 32 || !supabaseUrl || !anonKey) return false;
+  const base = supabaseUrl.replace(/\/rest\/v1\/?$/, '').replace(/\/$/, '');
+  try {
+    const res = await fetch(`${base}/rest/v1/rpc/sri_validar_token_correo`, {
+      method: 'POST',
+      headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ p_token: value })
+    });
+    return res.ok && (await res.json()) === true;
+  } catch {
+    return false;
+  }
+}
+
+// Valores públicos del proyecto (los mismos que usa la app en el navegador)
+const SUPABASE_URL = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || 'https://fyreapnukipdvcebvokj.supabase.co').trim().replace(/^["']|["']$/g, '');
+const SUPABASE_ANON_KEY = (process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ5cmVhcG51a2lwZHZjZWJ2b2tqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ1OTcwMTIsImV4cCI6MjEwMDE3MzAxMn0.diZTbHx-8jDDGSJEG34ae1-HD-i_PLY-RWsCQUxlNAU').trim().replace(/^["']|["']$/g, '');
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // CORS Headers for WebViews, APKs, and cross-origin clients
   res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -90,7 +157,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
   res.setHeader(
     'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization'
+    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization, X-Roomia-Token'
   );
 
   if (req.method === 'OPTIONS') {
@@ -119,6 +186,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: validated.error });
     }
     const { to, subject, html, text } = validated;
+
+    // Adjuntos (factura electrónica): solo desde la función del servidor sri
+    const attached = validateAttachments(req.body?.attachments);
+    if (attached.ok === false) {
+      return res.status(400).json({ error: attached.error });
+    }
+    const attachments = attached.attachments;
+    if (attachments.length && !(await isSriEmailToken(req.headers['x-roomia-token'], SUPABASE_URL, SUPABASE_ANON_KEY))) {
+      return res.status(403).json({ error: 'No se permiten archivos adjuntos en este envío.' });
+    }
 
     const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
     const smtpPort = parseInt(process.env.SMTP_PORT || '587', 10);
@@ -161,7 +238,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
           <p style="font-size: 12px; color: #64748b;">Este correo fue generado automáticamente por Roomia PMS.</p>
         </div>
-      ` : undefined)
+      ` : undefined),
+      attachments: attachments.length ? attachments : undefined
     };
 
     const info = await transporter.sendMail(mailOptions);

@@ -23,5 +23,5 @@
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "exclude": ["android", "node_modules", "dist", "supabase/functions/ical/index.ts", "supabase/functions/notify-reservation/index.ts", "supabase/functions/import-image/index.ts", "supabase/functions/payphone/index.ts"]
+  "exclude": ["android", "node_modules", "dist", "supabase/functions/ical/index.ts", "supabase/functions/notify-reservation/index.ts", "supabase/functions/import-image/index.ts", "supabase/functions/payphone/index.ts", "supabase/functions/sri/index.ts"]
 }

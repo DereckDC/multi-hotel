@@ -8,7 +8,12 @@ import type { Hotel, Reservation, Room, User } from '../types.ts';
 import { daysBetween } from './availability.ts';
 import { formatRentalMonths, isRentalProperty } from './rental.ts';
 
-export const IVA_RATE = 0.16;
+import { IVA_RATE } from './tax.ts';
+import { parseService, rentalMonthly, rentFromStoredIva } from '../../supabase/functions/_shared/reservaImportes.ts';
+
+export { parseService, rentFromStoredIva };
+
+export { IVA_RATE };
 
 export interface InvoiceLine {
   descripcion: string;
@@ -49,23 +54,6 @@ export function formatYmd(ymd?: string): string {
   return m ? `${m[3]}/${m[2]}/${m[1]}` : (ymd || '');
 }
 
-/**
- * Los servicios se guardan como texto: "Desayuno (2 pers x 3 días - $30.00)".
- * Nombre = lo que va antes del paréntesis; importe = el último "$n" del texto.
- */
-export function parseService(raw: string): { nombre: string; detalle: string; importe: number } {
-  const text = (raw || '').trim();
-  const amounts = [...text.matchAll(/\$\s*([0-9]+(?:[.,][0-9]+)?)/g)];
-  const importe = amounts.length ? parseFloat(amounts[amounts.length - 1][1].replace(',', '.')) : 0;
-  const open = text.indexOf(' (');
-  const nombre = (open > 0 ? text.slice(0, open) : text).trim();
-  let detalle = '';
-  if (open > 0) {
-    detalle = text.slice(open + 2).replace(/\)\s*$/, '').replace(/\s*-\s*\$\s*[0-9.,]+\s*$/, '').trim();
-  }
-  return { nombre, detalle, importe: round2(importe) };
-}
-
 /** Meses completos entre dos fechas (0 si es menos de un mes) */
 function wholeMonths(start: string, end: string): number {
   const a = /^(\d{4})-(\d{2})-(\d{2})/.exec(start || '');
@@ -101,9 +89,7 @@ export function buildInvoiceData(
 
     // El IVA solo grava la mensualidad, así que la mensualidad se deduce del IVA guardado.
     // Si no hay IVA guardado se usa el precio actual de la propiedad o la mitad del subtotal.
-    const propPrice = Number(hotel?.detallesInmueble?.precio) || 0;
-    let mensual = impuestos > 0 ? round2(impuestos / IVA_RATE) : 0;
-    if (!mensual || mensual > subtotal) mensual = propPrice > 0 && propPrice <= subtotal ? propPrice : round2(subtotal / 2);
+    const mensual = rentalMonthly(subtotal, impuestos, Number(hotel?.detallesInmueble?.precio) || 0);
     const garantia = mensual;
     const renta = round2(Math.max(0, subtotal - garantia));
 

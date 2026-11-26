@@ -127,3 +127,66 @@ export function createRateLimiter(maxAllowed: number, windowMs: number) {
     return false;
   };
 }
+
+// -----------------------------------------------------------------------------
+// Adjuntos (factura electrónica: XML autorizado y RIDE en PDF). Solo se aceptan si la
+// llamada viene de la función del servidor sri (cabecera x-roomia-token): así el endpoint
+// sin sesión no sirve para repartir archivos.
+// Copiado igual en api/send-email.ts.
+// -----------------------------------------------------------------------------
+export const MAX_ATTACHMENTS = 3;
+export const MAX_ATTACHMENTS_BYTES = 2_000_000;
+const ATTACHMENT_FILENAME = /^[\w .()-]{1,120}\.(xml|pdf)$/i;
+
+export interface EmailAttachment {
+  filename: string;
+  content: Buffer;
+  contentType: 'application/xml' | 'application/pdf';
+}
+
+export function validateAttachments(raw: unknown): { ok: true; attachments: EmailAttachment[] } | { ok: false; error: string } {
+  if (raw === undefined || raw === null) return { ok: true, attachments: [] };
+  if (!Array.isArray(raw) || raw.length > MAX_ATTACHMENTS) {
+    return { ok: false, error: `Se permiten hasta ${MAX_ATTACHMENTS} archivos adjuntos.` };
+  }
+  const attachments: EmailAttachment[] = [];
+  let total = 0;
+  for (const item of raw) {
+    const filename = typeof item?.filename === 'string' ? item.filename.trim() : '';
+    const content = typeof item?.content === 'string' ? item.content.replace(/^data:[^,]*,/, '').replace(/\s+/g, '') : '';
+    const ext = ATTACHMENT_FILENAME.exec(filename)?.[1]?.toLowerCase();
+    if (!ext || !content || !/^[A-Za-z0-9+/]+={0,2}$/.test(content)) {
+      return { ok: false, error: 'Solo se pueden adjuntar archivos XML o PDF.' };
+    }
+    const buffer = Buffer.from(content, 'base64');
+    total += buffer.length;
+    if (total > MAX_ATTACHMENTS_BYTES) return { ok: false, error: 'Los archivos adjuntos son demasiado grandes.' };
+    const head = buffer.subarray(0, 5).toString('latin1');
+    if (ext === 'pdf' ? head !== '%PDF-' : !head.trimStart().startsWith('<')) {
+      return { ok: false, error: 'El contenido del adjunto no corresponde a su tipo.' };
+    }
+    attachments.push({ filename, content: buffer, contentType: ext === 'pdf' ? 'application/pdf' : 'application/xml' });
+  }
+  return { ok: true, attachments };
+}
+
+/**
+ * ¿La llamada con adjuntos viene de la función del servidor `sri`? Trae en la cabecera
+ * x-roomia-token un token guardado en Supabase Vault; se comprueba con la función
+ * sri_validar_token_correo (solo responde verdadero o falso).
+ */
+export async function isSriEmailToken(token: string | string[] | undefined, supabaseUrl: string, anonKey: string): Promise<boolean> {
+  const value = (Array.isArray(token) ? token[0] : token || '').trim();
+  if (value.length < 32 || !supabaseUrl || !anonKey) return false;
+  const base = supabaseUrl.replace(/\/rest\/v1\/?$/, '').replace(/\/$/, '');
+  try {
+    const res = await fetch(`${base}/rest/v1/rpc/sri_validar_token_correo`, {
+      method: 'POST',
+      headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ p_token: value })
+    });
+    return res.ok && (await res.json()) === true;
+  } catch {
+    return false;
+  }
+}

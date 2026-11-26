@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Reservation, Room, User } from '../types';
-import { QrCode, Search, Camera, UserCheck, ShieldCheck, AlertTriangle, Check } from 'lucide-react';
+import { QrCode, Search, Camera, UserCheck, ShieldCheck, AlertTriangle, Check, ReceiptText } from 'lucide-react';
+import FacturaSriModal from './FacturaSriModal';
 import { Button, SelectPicker } from './ui';
 
 interface ReceptionCheckInModuleProps {
@@ -68,6 +69,7 @@ export default function ReceptionCheckInModule({
   setCheckoutWarningRoom,
   setScannedResult
 }: ReceptionCheckInModuleProps) {
+  const [showFactura, setShowFactura] = useState(false);
   // Local filters for reservation history list
   const todayStr = React.useMemo(() => {
     const d = new Date();
@@ -283,6 +285,24 @@ export default function ReceptionCheckInModule({
                 </span>
               </div>
             </div>
+
+            {/* Factura electrónica del SRI: reservas pagadas (al confirmar el pago o al salir) */}
+            {['confirmada', 'ocupada', 'finalizada'].includes(scannedResult.estado) && !(scannedResult.montoPendiente && scannedResult.montoPendiente > 0) && (
+              <div className="flex justify-end">
+                <Button type="button" variant="secondary" size="sm" leftIcon={<ReceiptText className="w-4 h-4" />} onClick={() => setShowFactura(true)}>
+                  Factura SRI
+                </Button>
+              </div>
+            )}
+            {showFactura && (
+              <FacturaSriModal
+                reservation={scannedResult}
+                hotel={receptionistHotel}
+                room={rooms.find(r => r.id === scannedResult.roomId)}
+                guest={users.find(u => u.id === scannedResult.guestId)}
+                onClose={() => setShowFactura(false)}
+              />
+            )}
 
             {/* Dynamic Operator Actions */}
             <div className="flex flex-col sm:flex-row gap-3 pt-2">

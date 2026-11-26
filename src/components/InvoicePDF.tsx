@@ -4,9 +4,13 @@
  */
 
 import { Hotel, Room, User, Reservation } from '../types';
-import { X, Printer, Download, FileText } from 'lucide-react';
+import { X, Printer, Download, FileText, ReceiptText } from 'lucide-react';
 import QRView from './QRView';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import FacturaSriModal from './FacturaSriModal';
+import { fetchComprobantes, type SriComprobante } from '../utils/sriApi';
+import { descargarRide, descargarXml } from '../utils/sriRide';
+import { numeroFactura } from '../utils/sri';
 import { BrandLogo } from './BrandLogo';
 import { isNativeApp } from '../utils/platform';
 import { savePdfNative, printPdfNative } from '../utils/nativeFiles';
@@ -22,6 +26,8 @@ interface InvoicePDFProps {
   room: Room | undefined;
   guest: User | undefined;
   onClose: () => void;
+  /** Personal del establecimiento: puede emitir la factura electrónica del SRI */
+  canBill?: boolean;
 }
 
 const TICKET_WIDTH_KEY = 'roomia_ticket_width';
@@ -39,8 +45,21 @@ const readTicketWidth = (): TicketWidth => {
  *  · Descargar PDF: hoja A4 (en el navegador se descarga; en la app Android se guarda y se abre "compartir").
  *  · Imprimir: ticket para impresora térmica de 80 o 58 mm.
  */
-export default function InvoicePDF({ reservation, hotel, room, guest, onClose }: InvoicePDFProps) {
+export default function InvoicePDF({ reservation, hotel, room, guest, onClose, canBill = false }: InvoicePDFProps) {
   const [busy, setBusy] = useState<null | 'download' | 'print'>(null);
+  const [showSri, setShowSri] = useState(false);
+  const [factura, setFactura] = useState<SriComprobante | null>(null);
+  const facturable = canBill && ['confirmada', 'ocupada', 'finalizada'].includes(reservation.estado);
+
+  // Huésped: si su reserva ya tiene factura autorizada, se la ofrece para descargar
+  useEffect(() => {
+    if (canBill) return;
+    let alive = true;
+    fetchComprobantes({ reservationId: reservation.id })
+      .then(cs => { if (alive) setFactura(cs.find(c => c.estado === 'autorizado' && c.ambiente === '2') ?? null); })
+      .catch(() => undefined);
+    return () => { alive = false; };
+  }, [canBill, reservation.id]);
   const [ticketWidth, setTicketWidth] = useState<TicketWidth>(readTicketWidth);
 
   const data = useMemo(() => buildInvoiceData(reservation, hotel, room, guest), [reservation, hotel, room, guest]);
@@ -110,6 +129,7 @@ export default function InvoicePDF({ reservation, hotel, room, guest, onClose }:
       : 'bg-warning-50 border-warning-200 text-warning-800';
 
   return (
+    <>
     <Modal
       open
       onClose={onClose}
@@ -124,6 +144,12 @@ export default function InvoicePDF({ reservation, hotel, room, guest, onClose }:
             <h3 className="font-semibold text-neutral-800 text-xs sm:text-sm truncate">Pre-Factura</h3>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
+            {facturable && (
+              <Button type="button" onClick={() => setShowSri(true)} variant="secondary" size="sm" title="Emitir o consultar la factura electrónica del SRI">
+                <ReceiptText className="w-3.5 h-3.5" />
+                <span>Factura SRI</span>
+              </Button>
+            )}
             <div className="flex items-stretch rounded-lg border border-neutral-200 bg-white overflow-hidden">
               <button
                 type="button"
@@ -168,6 +194,16 @@ export default function InvoicePDF({ reservation, hotel, room, guest, onClose }:
         </div>
       }
     >
+      {factura && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-success-200 bg-success-50 px-3 py-2 text-xs text-success-800">
+          <span className="font-semibold">Factura electrónica {numeroFactura(factura.estab, factura.ptoEmi, factura.secuencial)} · autorizada por el SRI</span>
+          <span className="flex gap-1.5">
+            <Button type="button" size="sm" variant="secondary" onClick={() => descargarRide(factura).catch(e => notify.error(friendlyError(e, 'pdf')))}>PDF</Button>
+            <Button type="button" size="sm" variant="secondary" onClick={() => descargarXml(factura).catch(e => notify.error(friendlyError(e)))}>XML</Button>
+          </span>
+        </div>
+      )}
+
       {/* Marca y número */}
       <div className="flex justify-between items-start gap-3">
         <div className="min-w-0">
@@ -295,5 +331,9 @@ export default function InvoicePDF({ reservation, hotel, room, guest, onClose }:
         </p>
       </div>
     </Modal>
+    {showSri && (
+      <FacturaSriModal reservation={reservation} hotel={hotel} room={room} guest={guest} onClose={() => setShowSri(false)} />
+    )}
+    </>
   );
 }

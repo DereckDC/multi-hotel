@@ -44,6 +44,7 @@ import { isNativeApp, PRODUCTION_ORIGIN } from './utils/platform';
 import { removeStoredImages, storedImagesOf, unusedImages } from './utils/images';
 import { notify } from './utils/notify';
 import { friendlyError } from './utils/errors';
+import { procesarFacturaDeReserva } from './utils/sriApi';
 import { emailSubject, renderBrandEmail, renderBrandText, type BrandEmail } from '../supabase/functions/_shared/brandEmail.ts';
 
 const money = (n: number | undefined) => `$${Number(n || 0).toFixed(2)} USD`;
@@ -1761,7 +1762,9 @@ export function useHotelStore() {
       }
 
       try {
-        await syncReservationToSupabase({ ...targetRes, ...changes });
+        const synced = await syncReservationToSupabase({ ...targetRes, ...changes });
+        // Check-out: envía al SRI la factura automática que creó la base, sin esperar al cron
+        if (synced.success && status === 'finalizada') procesarFacturaDeReserva(resId).catch(() => undefined);
       } catch (err) {
         console.warn("Supabase updateReservationStatus error:", err);
       }
@@ -1932,7 +1935,10 @@ export function useHotelStore() {
     };
 
     try {
-      syncReservationToSupabase(updatedRes);
+      // Check-out: envía al SRI la factura automática que creó la base, sin esperar al cron
+      syncReservationToSupabase(updatedRes).then(synced => {
+        if (synced.success) procesarFacturaDeReserva(resId).catch(() => undefined);
+      });
       const mRoom = rooms.find(r => r.id === res.roomId);
       if (mRoom) {
         syncRoomToSupabase({ ...mRoom, estado: 'disponible' });

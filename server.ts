@@ -5,7 +5,7 @@ import { Server as SocketIOServer } from "socket.io";
 import { createServer as createViteServer } from "vite";
 import nodemailer from "nodemailer";
 import dotenv from "dotenv";
-import { validateEmailRequest, buildFallbackHtml } from "./emailGuard";
+import { validateEmailRequest, buildFallbackHtml, validateAttachments, isSriEmailToken } from "./emailGuard";
 
 dotenv.config();
 
@@ -150,7 +150,7 @@ async function startServer() {
 
     // Read credentials strictly from host process environment variables loaded via .env
     const supabaseUrl = cleanValue(process.env.VITE_SUPABASE_URL || "");
-    const supabaseKey = cleanValue(process.env.VITE_SUPABASE_ANON_KEY || "");
+    const supabaseKey = (process.env.VITE_SUPABASE_ANON_KEY || "").trim().replace(/^["']|["']$/g, "");
 
     const config = {
       VITE_SUPABASE_URL: supabaseUrl,
@@ -211,6 +211,23 @@ async function startServer() {
       }
       const { to, subject, html, text } = validated;
 
+      // Adjuntos (factura electrónica): solo desde la función del servidor sri
+      const attached = validateAttachments(req.body?.attachments);
+      if (attached.ok === false) {
+        return res.status(400).json({ error: attached.error });
+      }
+      const attachments = attached.attachments;
+      if (attachments.length) {
+        const fromSri = await isSriEmailToken(
+          req.headers["x-roomia-token"],
+          (process.env.VITE_SUPABASE_URL || "").trim().replace(/^["']|["']$/g, "") || "https://fyreapnukipdvcebvokj.supabase.co",
+          (process.env.VITE_SUPABASE_ANON_KEY || "").trim().replace(/^["']|["']$/g, "")
+        );
+        if (!fromSri) {
+          return res.status(403).json({ error: "No se permiten archivos adjuntos en este envío." });
+        }
+      }
+
       const smtpHost = process.env.SMTP_HOST || "smtp.gmail.com";
       const smtpPort = parseInt(process.env.SMTP_PORT || "587");
       const smtpUser = process.env.SMTP_USER || "";
@@ -220,7 +237,7 @@ async function startServer() {
       // Modo de pruebas: con EMAIL_DRY_RUN=true no se envía ningún correo real, solo se
       // registra en consola. Sirve para probar reservas sin escribir a hoteles ni huéspedes.
       if (process.env.EMAIL_DRY_RUN === "true") {
-        console.log(`[EMAIL DRY RUN] To: ${to} | Subject: ${subject}`);
+        console.log(`[EMAIL DRY RUN] To: ${to} | Subject: ${subject}${attachments.length ? ` | Adjuntos: ${attachments.map(a => `${a.filename} (${a.content.length} B)`).join(", ")}` : ""}`);
         return res.json({ success: true, simulated: true, message: "EMAIL_DRY_RUN activo: correo no enviado." });
       }
 
@@ -256,7 +273,8 @@ async function startServer() {
         text,
         html: html || (text
           ? buildFallbackHtml(text, "Este correo fue generado automáticamente por Roomia PMS Server.")
-          : undefined)
+          : undefined),
+        attachments: attachments.length ? attachments : undefined
       });
 
       console.log(`[SMTP MAIL SENT] Mail dispatched successfully to: ${to} | Msg ID: ${info.messageId}`);

@@ -5,6 +5,7 @@ import { RoomReservationCalendar } from './RoomReservationCalendar';
 import { StepIndicator, useFormStepper } from './FormStepper';
 import { formatRentalMonths, isPropertyHotel, rentalDurationOptions } from '../utils/rental';
 import { Button, SelectPicker } from './ui';
+import { IVA_PERCENT } from '../utils/tax';
 
 interface ReceptionRegistroModuleProps {
   hotels: Hotel[];
@@ -557,7 +558,7 @@ export default function ReceptionRegistroModule({
                 <div className="flex justify-between gap-2"><span>Período:</span><span className="font-mono font-semibold text-neutral-800">{bookCheckIn || '—'} → {bookCheckIn ? bookCheckOut : '—'}</span></div>
                 <div className="flex justify-between gap-2"><span>Mensualidad:</span><span className="font-mono font-semibold text-neutral-800">${(rentalBilling?.mensualidad || 0).toFixed(2)} / mes</span></div>
                 <div className="flex justify-between gap-2"><span>Depósito de garantía (reembolsable):</span><span className="font-mono font-semibold text-warning-700">${(rentalBilling?.garantia || 0).toFixed(2)}</span></div>
-                <div className="flex justify-between gap-2"><span>IVA 16% {isIvaAddedForSelectedRoom ? '' : '(incluido)'}:</span><span className="font-mono font-semibold text-neutral-800">${(rentalBilling?.tax || 0).toFixed(2)}</span></div>
+                <div className="flex justify-between gap-2"><span>IVA {IVA_PERCENT}% {isIvaAddedForSelectedRoom ? '' : '(incluido)'}:</span><span className="font-mono font-semibold text-neutral-800">${(rentalBilling?.tax || 0).toFixed(2)}</span></div>
                 <p className="text-micro text-neutral-500 pt-1">Al inicio se cobra la primera mensualidad más el depósito de garantía.</p>
               </div>
             ) : (
@@ -684,7 +685,7 @@ export default function ReceptionRegistroModule({
                 <p className="text-micro text-[#6ECCAF] font-bold font-mono">
                   ${calculatedTotal} USD 
                   <span className="text-micro text-neutral-400 block leading-none">
-                    {isIvaAddedForSelectedRoom ? '(Impuestos inc 16%)' : '(IVA Incluido)'}
+                    {isIvaAddedForSelectedRoom ? `(Incluye IVA ${IVA_PERCENT}%)` : '(IVA incluido)'}
                   </span>
                 </p>
               </div>

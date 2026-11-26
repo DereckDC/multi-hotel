@@ -25,7 +25,7 @@ const LegalPageView = lazy(() => import('./components/LegalPageView'));
 import { InteractiveContainer } from './components/InteractiveContainer';
 import { BrandLogo } from './components/BrandLogo';
 import { LoadingSkeletonView } from './components/LoadingSkeletonView';
-import { LayoutDashboard, Users, User as UserIcon, CalendarDays, KeyRound, Star, Building2, ShieldAlert, LogOut, Edit3, Camera, Check, X, Shield, AlertCircle, Eye, EyeOff, Briefcase, LogIn, Key, Menu, Home, Compass, DollarSign, ClipboardList, QrCode, Calendar, ArrowLeft, Loader2, CreditCard, Wallet } from 'lucide-react';
+import { LayoutDashboard, Users, User as UserIcon, CalendarDays, KeyRound, Star, Building2, ShieldAlert, LogOut, Edit3, Camera, Check, X, Shield, AlertCircle, Eye, EyeOff, Briefcase, LogIn, Key, Menu, Home, Compass, DollarSign, ClipboardList, QrCode, Calendar, ArrowLeft, Loader2, CreditCard, Wallet, ReceiptText } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 // Slugify helper to convert hotel/property names to clean URL paths
@@ -893,6 +893,14 @@ export default function App() {
                 active: adminActiveTab === 'logs',
                 onClick: () => { setAdminActiveTab('logs'); setSidebarOpen(false); }
               },
+              ...(activeUser?.rol === 'super_admin' || activeUser?.rol === 'hotel_admin'
+                ? [{
+                    icon: ReceiptText,
+                    label: "Facturación SRI",
+                    active: adminActiveTab === 'billing',
+                    onClick: () => { setAdminActiveTab('billing'); setSidebarOpen(false); }
+                  }]
+                : []),
               ...(activeUser?.rol === 'super_admin'
                 ? [{
                     icon: Wallet,

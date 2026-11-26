@@ -24,6 +24,7 @@ import { notify } from '../utils/notify';
 import { formatYmd } from '../utils/invoiceData';
 import { Button, HeaderBackButton, Modal, OptionPicker } from './ui';
 import { fetchBlockedHotels } from '../utils/subscriptions';
+import { IVA_PERCENT, addIva, splitIncludedIva } from '../utils/tax';
 
 type OnlinePaymentKind = 'reserva_abono' | 'reserva_total' | 'reserva_saldo';
 
@@ -840,8 +841,8 @@ export default function ClientView({
               ? bHotel.adicionarIva !== false 
               : bookingRoom.adicionarIva !== false);
         if (!isIvaAdded) {
-          const rentIva = roomPrice * 0.16;
-          const rentExcludingIva = roomPrice - rentIva;
+          // El precio ya incluye el IVA: se separa la base y el IVA (base + IVA = precio)
+          const { base: rentExcludingIva, iva: rentIva } = splitIncludedIva(roomPrice);
           const garantia = roomPrice;
           return {
             subtotal: rentExcludingIva + garantia,
@@ -855,7 +856,7 @@ export default function ClientView({
           const rentOneMonth = roomPrice;
           const garantia = roomPrice;
           const sub = rentOneMonth + garantia;
-          const tax = rentOneMonth * 0.16;
+          const tax = addIva(rentOneMonth).iva;
           return {
             subtotal: sub,
             tax: tax,
@@ -880,8 +881,7 @@ export default function ClientView({
       : true;
 
     if (!isIvaAdded) {
-      const roomIva = rawSub * 0.16;
-      const roomSubtotalExcludingIva = rawSub - roomIva;
+      const { base: roomSubtotalExcludingIva, iva: roomIva } = splitIncludedIva(rawSub);
       return {
         subtotal: roomSubtotalExcludingIva + servicesSub,
         tax: roomIva,
@@ -890,7 +890,7 @@ export default function ClientView({
       };
     } else {
       const sub = rawSub + servicesSub;
-      const tax = sub * 0.16;
+      const tax = addIva(sub).iva;
       return {
         subtotal: sub,
         tax: tax,
@@ -2223,7 +2223,7 @@ export default function ClientView({
                             Alquila {activeHotel.tipoEstablecimiento === 'casa' ? 'la casa completa' : 'el departamento completo'}
                           </h4>
                           <p className="text-sm text-neutral-500 mt-0.5">
-                            ${activeHotel.detallesInmueble?.precio || 150} USD al mes · mínimo {formatRentalMonths(getRentalMinMonths(activeHotel))} · {isIvaAdded ? 'más 16% de IVA' : 'IVA incluido'}
+                            ${activeHotel.detallesInmueble?.precio || 150} USD al mes · mínimo {formatRentalMonths(getRentalMinMonths(activeHotel))} · {isIvaAdded ? `más ${IVA_PERCENT}% de IVA` : 'IVA incluido'}
                           </p>
                         </div>
                         <Button
