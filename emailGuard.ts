@@ -180,9 +180,12 @@ export async function isSriEmailToken(token: string | string[] | undefined, supa
   if (value.length < 32 || !supabaseUrl || !anonKey) return false;
   const base = supabaseUrl.replace(/\/rest\/v1\/?$/, '').replace(/\/$/, '');
   try {
+    // Las claves nuevas (sb_publishable_…) no son JWT: solo van en la cabecera apikey
+    const headers: Record<string, string> = { apikey: anonKey, 'Content-Type': 'application/json' };
+    if (anonKey.startsWith('eyJ')) headers.Authorization = `Bearer ${anonKey}`;
     const res = await fetch(`${base}/rest/v1/rpc/sri_validar_token_correo`, {
       method: 'POST',
-      headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}`, 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ p_token: value })
     });
     return res.ok && (await res.json()) === true;

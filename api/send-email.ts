@@ -130,25 +130,35 @@ function validateAttachments(raw: unknown): { ok: true; attachments: EmailAttach
  * x-roomia-token un token guardado en Supabase Vault; se comprueba con la función
  * sri_validar_token_correo (solo responde verdadero o falso).
  */
-async function isSriEmailToken(token: string | string[] | undefined, supabaseUrl: string, anonKey: string): Promise<boolean> {
+async function isSriEmailToken(token: string | string[] | undefined, supabaseUrl: string, anonKeys: string[]): Promise<boolean> {
   const value = (Array.isArray(token) ? token[0] : token || '').trim();
-  if (value.length < 32 || !supabaseUrl || !anonKey) return false;
   const base = supabaseUrl.replace(/\/rest\/v1\/?$/, '').replace(/\/$/, '');
-  try {
-    const res = await fetch(`${base}/rest/v1/rpc/sri_validar_token_correo`, {
-      method: 'POST',
-      headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ p_token: value })
-    });
-    return res.ok && (await res.json()) === true;
-  } catch {
-    return false;
+  if (value.length < 32 || !base) return false;
+  // Se prueba con cada clave pública: las claves nuevas (sb_publishable_…) no son JWT y solo van en apikey
+  for (const key of [...new Set(anonKeys.filter(Boolean))]) {
+    try {
+      const headers: Record<string, string> = { apikey: key, 'Content-Type': 'application/json' };
+      if (key.startsWith('eyJ')) headers.Authorization = `Bearer ${key}`;
+      const res = await fetch(`${base}/rest/v1/rpc/sri_validar_token_correo`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ p_token: value })
+      });
+      if (res.ok) return (await res.json()) === true;
+      console.error('send-email: validación del token SRI respondió', res.status);
+    } catch (error: any) {
+      console.error('send-email: no se pudo validar el token SRI', error?.message);
+    }
   }
+  return false;
 }
 
 // Valores públicos del proyecto (los mismos que usa la app en el navegador)
 const SUPABASE_URL = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || 'https://fyreapnukipdvcebvokj.supabase.co').trim().replace(/^["']|["']$/g, '');
-const SUPABASE_ANON_KEY = (process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ5cmVhcG51a2lwZHZjZWJ2b2tqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ1OTcwMTIsImV4cCI6MjEwMDE3MzAxMn0.diZTbHx-8jDDGSJEG34ae1-HD-i_PLY-RWsCQUxlNAU').trim().replace(/^["']|["']$/g, '');
+/** Clave pública (anon) del proyecto: respaldo si la variable de entorno tiene otro formato */
+const DEFAULT_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ5cmVhcG51a2lwZHZjZWJ2b2tqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ1OTcwMTIsImV4cCI6MjEwMDE3MzAxMn0.diZTbHx-8jDDGSJEG34ae1-HD-i_PLY-RWsCQUxlNAU';
+const clean = (v: string | undefined) => (v || '').trim().replace(/^["']|["']$/g, '');
+const SUPABASE_ANON_KEYS = [clean(process.env.VITE_SUPABASE_ANON_KEY), clean(process.env.SUPABASE_ANON_KEY), DEFAULT_ANON_KEY];
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // CORS Headers for WebViews, APKs, and cross-origin clients
@@ -193,7 +203,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: attached.error });
     }
     const attachments = attached.attachments;
-    if (attachments.length && !(await isSriEmailToken(req.headers['x-roomia-token'], SUPABASE_URL, SUPABASE_ANON_KEY))) {
+    if (attachments.length && !(await isSriEmailToken(req.headers['x-roomia-token'], SUPABASE_URL, SUPABASE_ANON_KEYS))) {
       return res.status(403).json({ error: 'No se permiten archivos adjuntos en este envío.' });
     }
 

@@ -14,6 +14,7 @@ const BOX_JS = 'https://cdn.payphonetodoesposible.com/box/v2.0/payphone-payment-
 const BOX_CSS = 'https://cdn.payphonetodoesposible.com/box/v2.0/payphone-payment-box.css';
 
 type Summary = {
+  kind?: string;
   kindLabel: string;
   amount: number;
   reservationId: string | null;
@@ -170,7 +171,7 @@ function PayView({ paymentId }: { paymentId: string }) {
 
   return (
     <Shell>
-      <h1 className="text-xl font-extrabold text-brand-navy1 mb-4">Pagar reserva</h1>
+      <h1 className="text-xl font-extrabold text-brand-navy1 mb-4">{isPlanKind(summary?.kind) ? 'Pagar plan' : 'Pagar reserva'}</h1>
       {summary && <SummaryCard s={summary} />}
       {state === 'cargando' && <p className="mt-5 text-sm text-neutral-500 text-center">Cargando el formulario de pago…</p>}
       {state === 'error' && (<><p className="mt-5 text-sm text-danger-600">{message}</p><BackButton /></>)}
