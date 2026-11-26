@@ -130,12 +130,12 @@ function validateAttachments(raw: unknown): { ok: true; attachments: EmailAttach
  * x-roomia-token un token guardado en Supabase Vault; se comprueba con la función
  * sri_validar_token_correo (solo responde verdadero o falso).
  */
-async function isSriEmailToken(token: string | string[] | undefined, supabaseUrl: string, anonKeys: string[]): Promise<boolean> {
+async function isSriEmailToken(token: string | string[] | undefined, supabaseUrls: string[], anonKeys: string[]): Promise<boolean> {
   const value = (Array.isArray(token) ? token[0] : token || '').trim();
-  const base = supabaseUrl.replace(/\/rest\/v1\/?$/, '').replace(/\/$/, '');
-  if (value.length < 32 || !base) return false;
-  // Se prueba con cada clave pública: las claves nuevas (sb_publishable_…) no son JWT y solo van en apikey
-  for (const key of [...new Set(anonKeys.filter(Boolean))]) {
+  if (value.length < 32) return false;
+  const bases = [...new Set(supabaseUrls.map(u => u.replace(/\/rest\/v1\/?$/, '').replace(/\/$/, '')).filter(Boolean))];
+  // Se prueba cada proyecto y clave pública: las claves nuevas (sb_publishable_…) no son JWT y solo van en apikey
+  for (const base of bases) for (const key of [...new Set(anonKeys.filter(Boolean))]) {
     try {
       const headers: Record<string, string> = { apikey: key, 'Content-Type': 'application/json' };
       if (key.startsWith('eyJ')) headers.Authorization = `Bearer ${key}`;
@@ -158,7 +158,12 @@ const SUPABASE_URL = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL 
 /** Clave pública (anon) del proyecto: respaldo si la variable de entorno tiene otro formato */
 const DEFAULT_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ5cmVhcG51a2lwZHZjZWJ2b2tqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ1OTcwMTIsImV4cCI6MjEwMDE3MzAxMn0.diZTbHx-8jDDGSJEG34ae1-HD-i_PLY-RWsCQUxlNAU';
 const clean = (v: string | undefined) => (v || '').trim().replace(/^["']|["']$/g, '');
-const SUPABASE_ANON_KEYS = [clean(process.env.VITE_SUPABASE_ANON_KEY), clean(process.env.SUPABASE_ANON_KEY), DEFAULT_ANON_KEY];
+const SUPABASE_ANON_KEYS = [DEFAULT_ANON_KEY, clean(process.env.VITE_SUPABASE_ANON_KEY), clean(process.env.SUPABASE_ANON_KEY)];
+/**
+ * El token de las facturas vive en el proyecto de Roomia: se valida primero ahí. (En Vercel,
+ * VITE_SUPABASE_URL apunta a otro proyecto; la app del navegador usa supabase-env.js.)
+ */
+const SUPABASE_URLS = ['https://fyreapnukipdvcebvokj.supabase.co', SUPABASE_URL];
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // CORS Headers for WebViews, APKs, and cross-origin clients
@@ -203,7 +208,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: attached.error });
     }
     const attachments = attached.attachments;
-    if (attachments.length && !(await isSriEmailToken(req.headers['x-roomia-token'], SUPABASE_URL, SUPABASE_ANON_KEYS))) {
+    if (attachments.length && !(await isSriEmailToken(req.headers['x-roomia-token'], SUPABASE_URLS, SUPABASE_ANON_KEYS))) {
       return res.status(403).json({ error: 'No se permiten archivos adjuntos en este envío.' });
     }
 
