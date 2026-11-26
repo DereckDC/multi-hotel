@@ -37,7 +37,7 @@ const getSanitizedEnv = () => {
     url = 'https://fyreapnukipdvcebvokj.supabase.co';
   }
   if (!key) {
-    key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ5cmVhcG51a2lwZHZjZWJ2b2tqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ1OTcwMTIsImV4cCI6MjEwMDE3MzAxMn0.diZTbHx-8jDDGSJEG34ae1-HD-i_PLY-RWsCQUxlNAU';
+    key = 'sb_publishable_nDIZb-qZanHYtso_rAbd8Q_VIfMlFGW';
   }
 
   return { url, key };

@@ -16,7 +16,7 @@ Roomia funciona desde el navegador (computadora o celular) y en una app Android.
 - Sincronización con Airbnb y Booking por iCal: las fechas ocupadas se bloquean en el calendario y en la página de reservas directas.
 - Página de reservas directas con disponibilidad, tarifas por temporada y fin de semana, y políticas de cancelación.
 - Recepción: check-in con código QR, walk-in (reserva en mostrador con búsqueda del huésped por cédula), check-out y estado de cada habitación (disponible, ocupada, en limpieza o en mantenimiento).
-- Cobros: abonos y saldos pendientes por reserva; pagos en efectivo o transferencia registrados en mostrador y pagos con tarjeta en línea.
+- Cobros: abonos y saldos pendientes por reserva; pagos en efectivo o transferencia registrados en mostrador y pagos con tarjeta en línea (tarifa del 5 %).
 - Facturación electrónica del SRI (módulo adicional): al hacer el check-out se emite la factura, se firma con el certificado del establecimiento, se autoriza en el SRI y se envía al huésped por correo con el PDF (RIDE) y el XML. Admite cédula, RUC, pasaporte y consumidor final, y reintenta sola si el SRI no responde.
 - Prefactura informativa en PDF y ticket para impresora térmica (58 y 80 mm).
 - Panel con métricas: ocupación, tarifa media (ADR), RevPAR, ingresos, cancelaciones, origen de las reservas y previsión de 30 días.
@@ -32,6 +32,7 @@ Roomia funciona desde el navegador (computadora o celular) y en una app Android.
 - Puesta en marcha: $30, pago único (carga de las unidades y capacitación del personal).
 - Facturación electrónica del SRI: $40 al mes por propiedad con Roomia 1 y Roomia 3; $30 al mes por propiedad con Roomia 5.
 - Una unidad es una habitación o un departamento; una casa completa cuenta como 1 unidad.
+- Pagos con tarjeta en línea: tarifa del 5 % del monto que paga el huésped, a cargo del anfitrión (cubre la pasarela y la liquidación del dinero). Los pagos en efectivo o transferencia registrados en recepción no tienen costo.
 
 ## Información legal
 

@@ -156,7 +156,7 @@ async function isSriEmailToken(token: string | string[] | undefined, supabaseUrl
 // Valores públicos del proyecto (los mismos que usa la app en el navegador)
 const SUPABASE_URL = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || 'https://fyreapnukipdvcebvokj.supabase.co').trim().replace(/^["']|["']$/g, '');
 /** Clave pública (anon) del proyecto: respaldo si la variable de entorno tiene otro formato */
-const DEFAULT_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ5cmVhcG51a2lwZHZjZWJ2b2tqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ1OTcwMTIsImV4cCI6MjEwMDE3MzAxMn0.diZTbHx-8jDDGSJEG34ae1-HD-i_PLY-RWsCQUxlNAU';
+const DEFAULT_ANON_KEY = 'sb_publishable_nDIZb-qZanHYtso_rAbd8Q_VIfMlFGW';
 const clean = (v: string | undefined) => (v || '').trim().replace(/^["']|["']$/g, '');
 const SUPABASE_ANON_KEYS = [DEFAULT_ANON_KEY, clean(process.env.VITE_SUPABASE_ANON_KEY), clean(process.env.SUPABASE_ANON_KEY)];
 /**

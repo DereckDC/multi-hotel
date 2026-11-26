@@ -344,7 +344,7 @@ export function renderSitemap(hotels: SeoHotel[], today: string): string {
 // Clave anónima pública (la misma que ya está en public/supabase-env.js). Las políticas
 // de la base de datos solo permiten leer hoteles y habitaciones.
 const FALLBACK_SUPABASE_URL = 'https://fyreapnukipdvcebvokj.supabase.co';
-const FALLBACK_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ5cmVhcG51a2lwZHZjZWJ2b2tqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ1OTcwMTIsImV4cCI6MjEwMDE3MzAxMn0.diZTbHx-8jDDGSJEG34ae1-HD-i_PLY-RWsCQUxlNAU';
+const FALLBACK_ANON_KEY = 'sb_publishable_nDIZb-qZanHYtso_rAbd8Q_VIfMlFGW';
 
 const cleanBase = (url: string) => url.replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
 

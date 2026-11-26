@@ -11,25 +11,66 @@
     "whatsapp": "+593984056660",
     "currency": "USD",
     "country": "EC",
-    "languages": ["es"]
+    "languages": [
+      "es"
+    ]
   },
   "audiences": {
     "guests": [
-      { "name": "accommodation_search", "description": "Buscar hoteles, casas y departamentos por provincia, precio y número de camas, con disponibilidad y tarifas por noche." },
-      { "name": "direct_booking", "description": "Reservar directo con el establecimiento, sin comisión de intermediarios, y elegir servicios adicionales." },
-      { "name": "online_payment", "description": "Pagar con tarjeta en línea (Payphone): abono del 20 % o pago total; el saldo se paga después." },
-      { "name": "my_reservations", "description": "Ver las reservas, el código QR del check-in, la prefactura en PDF y la factura electrónica autorizada cuando el establecimiento la emite." }
+      {
+        "name": "accommodation_search",
+        "description": "Buscar hoteles, casas y departamentos por provincia, precio y número de camas, con disponibilidad y tarifas por noche."
+      },
+      {
+        "name": "direct_booking",
+        "description": "Reservar directo con el establecimiento, sin comisión de intermediarios, y elegir servicios adicionales."
+      },
+      {
+        "name": "online_payment",
+        "description": "Pagar con tarjeta en línea (Payphone): abono del 20 % o pago total; el saldo se paga después."
+      },
+      {
+        "name": "my_reservations",
+        "description": "Ver las reservas, el código QR del check-in, la prefactura en PDF y la factura electrónica autorizada cuando el establecimiento la emite."
+      }
     ],
     "hosts": [
-      { "name": "channel_calendar_sync", "description": "Sincronizar los calendarios de Airbnb y Booking por iCal y evitar dobles reservas." },
-      { "name": "direct_booking_page", "description": "Página propia de reservas directas con tarifas por temporada y fin de semana." },
-      { "name": "front_desk", "description": "Check-in con QR, walk-in con búsqueda del huésped por cédula, check-out y estado de habitaciones (disponible, ocupada, limpieza, mantenimiento)." },
-      { "name": "payments", "description": "Abonos y saldos por reserva; efectivo o transferencia en mostrador y tarjeta en línea." },
-      { "name": "sri_electronic_invoicing", "description": "Módulo adicional de factura electrónica del SRI: emisión automática al hacer check-out, firma con el certificado del establecimiento, autorización, reintentos y envío por correo del RIDE (PDF) y el XML." },
-      { "name": "pre_invoice", "description": "Prefactura informativa en PDF y ticket para impresora térmica de 58 u 80 mm." },
-      { "name": "dashboard", "description": "Ocupación, ADR, RevPAR, ingresos, cancelaciones, origen de las reservas y previsión de 30 días." },
-      { "name": "team", "description": "Usuarios de recepción con vista propia, incidencias por habitación y bitácora de cambios." },
-      { "name": "monthly_rentals", "description": "Alquiler de casas y departamentos por meses con plazo mínimo y garantía." }
+      {
+        "name": "channel_calendar_sync",
+        "description": "Sincronizar los calendarios de Airbnb y Booking por iCal y evitar dobles reservas."
+      },
+      {
+        "name": "direct_booking_page",
+        "description": "Página propia de reservas directas con tarifas por temporada y fin de semana."
+      },
+      {
+        "name": "front_desk",
+        "description": "Check-in con QR, walk-in con búsqueda del huésped por cédula, check-out y estado de habitaciones (disponible, ocupada, limpieza, mantenimiento)."
+      },
+      {
+        "name": "payments",
+        "description": "Abonos y saldos por reserva; efectivo o transferencia en mostrador sin costo y tarjeta en línea con tarifa del 5 %."
+      },
+      {
+        "name": "sri_electronic_invoicing",
+        "description": "Módulo adicional de factura electrónica del SRI: emisión automática al hacer check-out, firma con el certificado del establecimiento, autorización, reintentos y envío por correo del RIDE (PDF) y el XML."
+      },
+      {
+        "name": "pre_invoice",
+        "description": "Prefactura informativa en PDF y ticket para impresora térmica de 58 u 80 mm."
+      },
+      {
+        "name": "dashboard",
+        "description": "Ocupación, ADR, RevPAR, ingresos, cancelaciones, origen de las reservas y previsión de 30 días."
+      },
+      {
+        "name": "team",
+        "description": "Usuarios de recepción con vista propia, incidencias por habitación y bitácora de cambios."
+      },
+      {
+        "name": "monthly_rentals",
+        "description": "Alquiler de casas y departamentos por meses con plazo mínimo y garantía."
+      }
     ]
   },
   "pricing": {
@@ -38,10 +79,39 @@
     "annual": "Se pagan 10 meses (2 meses gratis).",
     "setupFee": 30,
     "plans": [
-      { "id": "roomia-1", "name": "Roomia 1", "monthly": 29, "properties": 1, "unitsIncluded": 10, "extraUnitMonthly": 2.0, "sriModuleMonthlyPerProperty": 40 },
-      { "id": "roomia-3", "name": "Roomia 3", "monthly": 69, "properties": 3, "unitsIncluded": 40, "extraUnitMonthly": 1.75, "sriModuleMonthlyPerProperty": 40 },
-      { "id": "roomia-5", "name": "Roomia 5", "monthly": 109, "properties": 5, "unitsIncluded": 100, "extraUnitMonthly": 1.5, "sriModuleMonthlyPerProperty": 30 }
-    ]
+      {
+        "id": "roomia-1",
+        "name": "Roomia 1",
+        "monthly": 29,
+        "properties": 1,
+        "unitsIncluded": 10,
+        "extraUnitMonthly": 2,
+        "sriModuleMonthlyPerProperty": 40
+      },
+      {
+        "id": "roomia-3",
+        "name": "Roomia 3",
+        "monthly": 69,
+        "properties": 3,
+        "unitsIncluded": 40,
+        "extraUnitMonthly": 1.75,
+        "sriModuleMonthlyPerProperty": 40
+      },
+      {
+        "id": "roomia-5",
+        "name": "Roomia 5",
+        "monthly": 109,
+        "properties": 5,
+        "unitsIncluded": 100,
+        "extraUnitMonthly": 1.5,
+        "sriModuleMonthlyPerProperty": 30
+      }
+    ],
+    "onlineCardPaymentFee": {
+      "percent": 5,
+      "paidBy": "host",
+      "description": "Tarifa del 5 % del monto que paga el huésped con tarjeta en línea; cubre la pasarela y la liquidación al anfitrión. Efectivo y transferencia en recepción sin costo."
+    }
   },
   "endpoints": {
     "catalog": "https://www.roomiapms.site/",

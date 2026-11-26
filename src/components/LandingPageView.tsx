@@ -199,7 +199,7 @@ export default function LandingPageView({ onClose, onOpenLegal }: Props) {
               Un solo calendario para <span className="text-brand-cyan">Airbnb, Booking</span> y tus reservas directas
             </h1>
             <p className="text-base md:text-lg text-slate-400 max-w-xl leading-relaxed">
-              Evita las dobles reservas, recibe huéspedes directamente sin pagar comisión por cada uno y mira cuánto gana realmente tu alojamiento, todo desde un panel hecho para anfitriones.
+              Evita las dobles reservas, recibe reservas directas sin las comisiones de Airbnb o Booking y mira cuánto gana realmente tu alojamiento, todo desde un panel hecho para anfitriones.
             </p>
             <div className="flex flex-wrap gap-3 pt-2">
               {/* Enlaces reales (href) para que los buscadores puedan seguirlos */}
@@ -390,7 +390,7 @@ export default function LandingPageView({ onClose, onOpenLegal }: Props) {
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {[
               { i: RefreshCw, t: 'Sincronización con Airbnb y Booking', d: 'Importa sus calendarios por propiedad y evita que dos huéspedes reserven la misma noche.', c: 'text-danger-300 bg-danger-500/10' },
-              { i: Globe, t: 'Página de reservas directas', d: 'Tu propio enlace donde los huéspedes ven disponibilidad y precios y reservan sin comisión de terceros.', c: 'text-brand-cyan bg-brand-cyan/10' },
+              { i: Globe, t: 'Página de reservas directas', d: 'Tu propio enlace donde los huéspedes ven disponibilidad y precios y reservan contigo, sin pasar por Airbnb ni Booking.', c: 'text-brand-cyan bg-brand-cyan/10' },
               { i: BarChart3, t: 'Panel con métricas claras', d: 'Ocupación, tarifa media, RevPAR, ingresos, cancelaciones y previsión de los próximos 30 días.', c: 'text-warning-300 bg-warning-500/10' },
               { i: Wallet, t: 'Pagos y saldos', d: 'Registra abonos en efectivo o transferencia, ve lo pendiente por cobrar y deja que el huésped pague con tarjeta en línea.', c: 'text-success-300 bg-success-500/10' },
               { i: Receipt, t: 'Facturación electrónica del SRI', d: 'Módulo adicional: al hacer el check-out se emite y autoriza la factura, y le llega al huésped por correo con el PDF y el XML.', c: 'text-info-300 bg-info-500/10' },
@@ -529,7 +529,7 @@ export default function LandingPageView({ onClose, onOpenLegal }: Props) {
             {[
               { i: Clock, t: `${TRIAL_DAYS} días de prueba gratis`, d: 'Usa Roomia con todas sus funciones antes de pagar tu primera suscripción.', c: 'text-success-300 bg-success-500/10' },
               { i: Wrench, t: `Puesta en marcha: ${usd(SETUP_FEE)} único`, d: 'Cargamos la información de tus unidades en la plataforma y capacitamos a tu personal.', c: 'text-brand-cyan bg-brand-cyan/10' },
-              { i: ShieldCheck, t: 'Sin comisión por reservas', d: 'Pagas solo tu suscripción: no cobramos un porcentaje de lo que reservan tus huéspedes.', c: 'text-warning-300 bg-warning-500/10' }
+              { i: ShieldCheck, t: 'Cobros claros', d: 'Los pagos con tarjeta en línea tienen una tarifa del 5 %. El efectivo y la transferencia en recepción no pagan nada.', c: 'text-warning-300 bg-warning-500/10' }
             ].map(({ i: Icon, t, d, c }) => (
               <div key={t} className="flex gap-3 p-4 bg-slate-900/50 border border-slate-800 rounded-2xl">
                 <div className={`w-10 h-10 shrink-0 rounded-xl flex items-center justify-center ${c}`}><Icon className="w-5 h-5" /></div>
@@ -574,7 +574,7 @@ export default function LandingPageView({ onClose, onOpenLegal }: Props) {
           </div>
 
           <p className="text-center text-sm text-slate-400">
-            Sin comisión por tus reservas. El plan mensual no tiene contrato de permanencia.
+            Pagos con tarjeta en línea: 5 % por transacción; efectivo y transferencia sin costo. El plan mensual no tiene contrato de permanencia.
           </p>
 
           {/* Programa de clientes fundadores (el original) */}
